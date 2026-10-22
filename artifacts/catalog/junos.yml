@@ -16,6 +16,7 @@ customer_shell: "yes"
 memory_acquisition: not-available
 profile: junos
 response: junos
+hardening: junos
 collection:
   - method: Operational CLI over SSH, paging disabled per command with "| no-more"
     impact: none

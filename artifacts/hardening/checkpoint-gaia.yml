@@ -1,0 +1,144 @@
+# Prevention and hardening - EDGE-0007 Check Point Gaia
+# Schema: ../schema/hardening.schema.json
+
+platform_id: EDGE-0007
+name: Check Point Gaia (Gateway / Management)
+summary: >-
+  Check Point's 2024-2026 exploited flaws hit the management server (TCP/19009),
+  Remote Access VPN over IKEv1, and password-only local VPN accounts. Each has a
+  documented prevention: keep management off the internet, drop legacy VPN
+  modes, and require MFA.
+
+controls:
+  - id: cp-mgmt-behind-gateway
+    control: Keep the management server behind a gateway; allow TCP/19009 only from trusted addresses
+    category: exposure
+    priority: critical
+    why: CVE-2026-93616 on the management server is exploited in the wild.
+    how: >-
+      Place the management server behind a Security Gateway and restrict TCP/19009
+      to trusted IP addresses, as sk1000171 describes, alongside the hotfix.
+    blunts: [CVE-2026-93616]
+    confidence: high
+    sources:
+      - title: Check Point sk1000171 - CVE-2026-93616
+        url: https://support.checkpoint.com/results/sk/sk1000171
+        accessed: "2026-10-22"
+        quote: "Make sure that access to port TCP/19009 is only possible from Trusted IP addresses."
+
+  - id: cp-trusted-clients
+    control: Limit SmartConsole Trusted Clients to internal addresses
+    category: access
+    priority: critical
+    why: >-
+      Trusted Clients creates an implied rule limiting who can reach management.
+      Named in sk1000171 and in Check Point's hardening guide.
+    how: SmartConsole > Manage & Settings > Permissions & Administrators > Trusted Clients.
+    blunts: [CVE-2026-93616]
+    confidence: high
+    sources:
+      - title: Check Point sk1000171 - CVE-2026-93616
+        url: https://support.checkpoint.com/results/sk/sk1000171
+        accessed: "2026-10-22"
+      - title: Check Point gateway and management hardening - administrator identity and access control
+        url: https://sc1.checkpoint.com/documents/Check_Point_Gateway_and_Management_Hardening/Hardening_GW_and_MGMT/Administrator-Identity-and-Access-Control.html
+        accessed: "2026-10-22"
+        quote: "Restrict the IP addresses, subnets and ranges that can use a SmartConsole to the necessary minimum."
+
+  - id: cp-no-internet-admin
+    control: No administration from the internet; SmartConsole, Gaia Portal, SSH and API from jump hosts only
+    category: exposure
+    priority: critical
+    why: Check Point's hardening guide rates direct internet administration as "Avoid. Require VPN."
+    how: >-
+      Restrict administrative sources to jump hosts or administrator subnets. The
+      guide gives no Gaia clish syntax for this on the page read.
+    confidence: high
+    sources:
+      - title: Check Point gateway and management hardening - management plane protection
+        url: https://sc1.checkpoint.com/documents/Check_Point_Gateway_and_Management_Hardening/Hardening_GW_and_MGMT/Management-Plane-Protection.html
+        accessed: "2026-10-22"
+        quote: "Restrict SmartConsole / Gaia Portal / SSH / API access to specific internal IP ranges or jump hosts."
+
+  - id: cp-ra-vpn-ikev2-certs
+    control: "Remote Access VPN: no older clients, IKEv2 only, machine certificates mandatory"
+    category: services
+    priority: critical
+    why: CVE-2026-50751 is an IKEv1 Remote Access authentication bypass exploited in the wild.
+    how: >-
+      Any one of the following closes the bypass, per sk185033: in the gateway's
+      VPN Clients > Authentication, clear "Allow older clients to connect to this
+      gateway"; or in Global Properties > Remote Access > VPN Authentication, select
+      IKEv2 only; or set Machine Certificate Authentication to Mandatory. Then
+      install the Jumbo Hotfix (R82.10 Take 24, R82 Take 107, R81.20 Take 146,
+      R81.10 Take 187).
+    blunts: [CVE-2026-50751]
+    confidence: high
+    sources:
+      - title: Check Point sk185033 - CVE-2026-50751
+        url: https://support.checkpoint.com/results/sk/sk185033
+        accessed: "2026-10-22"
+
+  - id: cp-no-password-only-vpn
+    control: Do not authenticate Remote Access VPN users with password-only local accounts
+    category: identity
+    priority: high
+    why: CVE-2024-24919 read the local password store; password-only local accounts were the target.
+    how: >-
+      After the hotfix, `blockSFAInternalUsers -b` on each cluster member blocks
+      them (`-s` shows status); move users to an identity provider with MFA.
+    blunts: [CVE-2024-24919]
+    confidence: high
+    sources:
+      - title: Check Point sk182336 - CVE-2024-24919
+        url: https://support.checkpoint.com/results/sk/sk182336
+        accessed: "2026-10-22"
+        quote: "We recommend not to use local accounts that authenticate the Remote Access VPN users with password-only authentication."
+
+  - id: cp-admin-mfa
+    control: Require MFA through an identity provider for all administrative access
+    category: identity
+    priority: high
+    why: Check Point's hardening guide.
+    how: >-
+      External identity provider for administrators. On Gaia (R82 and later): User
+      Management > Password Policy > "Force all users to use Two-Factor
+      Authentication", SHA512 hashing, `/etc/cli.sh` as the default shell, and
+      Expert mode restricted by role.
+    confidence: high
+    sources:
+      - title: Check Point gateway and management hardening - administrator identity and access control
+        url: https://sc1.checkpoint.com/documents/Check_Point_Gateway_and_Management_Hardening/Hardening_GW_and_MGMT/Administrator-Identity-and-Access-Control.html
+        accessed: "2026-10-22"
+        quote: "Enforce MFA for all administrative access using an external Identity Provider."
+      - title: Check Point gateway and management hardening - Gaia OS hardening
+        url: https://sc1.checkpoint.com/documents/Check_Point_Gateway_and_Management_Hardening/Hardening_GW_and_MGMT/Gaia-OS-Hardening.html
+        accessed: "2026-10-22"
+
+  - id: cp-stealth-rule
+    control: Drop traffic aimed at the gateway itself and enable only the implied rules you need
+    category: exposure
+    priority: high
+    why: Less of the gateway answers on the outside; LOM must not face the internet at all.
+    how: A Stealth Rule early in the policy; review implied rules in Global Properties.
+    confidence: high
+    sources:
+      - title: Check Point gateway and management hardening - decreasing gateway exposure with policy
+        url: https://sc1.checkpoint.com/documents/Check_Point_Gateway_and_Management_Hardening/Hardening_GW_and_MGMT/Decreasing-Security-Gateway-Exposure-with-Policy.html
+        accessed: "2026-10-22"
+        quote: "Configure a Stealth Rule to drop traffic that is directed to the Security Gateway itself"
+
+  - id: cp-snmp
+    control: Disable SNMP if unused; otherwise SNMPv3 only on internal interfaces
+    category: services
+    priority: medium
+    why: Check Point's Gaia hardening guidance.
+    how: Gaia Portal > System Management > SNMP, version v3-Only.
+    confidence: high
+    sources:
+      - title: Check Point gateway and management hardening - Gaia OS hardening
+        url: https://sc1.checkpoint.com/documents/Check_Point_Gateway_and_Management_Hardening/Hardening_GW_and_MGMT/Gaia-OS-Hardening.html
+        accessed: "2026-10-22"
+        quote: "Disable SNMP if not needed."
+
+last_modified: "2026-10-22"

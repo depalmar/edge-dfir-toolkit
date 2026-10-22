@@ -1,0 +1,114 @@
+# Prevention and hardening - EDGE-0008 Juniper Junos
+# Schema: ../schema/hardening.schema.json
+
+platform_id: EDGE-0008
+name: Juniper Junos OS / Junos OS Evolved
+summary: >-
+  The 2023 J-Web chain was reachable only where J-Web was exposed. UNC3886's 2024
+  router intrusions needed shell access, on end-of-life hardware. The controls
+  follow: J-Web off or restricted, management limited to known prefixes, shell
+  limited to trusted users, and current images on supported hardware.
+
+controls:
+  - id: junos-jweb-off
+    control: Disable J-Web, or limit it to trusted hosts
+    category: exposure
+    priority: critical
+    why: The CVE-2023-36844 chain (with 36845 to 36847 and 36851) was exploitable through J-Web.
+    how: >-
+      Juniper's workaround text gives no commands, and the configuration was not
+      read from Juniper's documentation for this entry; use the J-Web section of
+      the Junos user guide for your release rather than a guessed command.
+    blunts: [CVE-2023-36844, CVE-2023-36845, CVE-2023-36846, CVE-2023-36847, CVE-2023-36851]
+    confidence: high
+    sources:
+      - title: CVE-2023-36844 as published by Juniper (CNA record)
+        url: https://cveawg.mitre.org/api/cve/CVE-2023-36844
+        accessed: "2026-10-22"
+        quote: "Disable J-Web, or limit access to only trusted hosts."
+
+  - id: junos-lo0-mgmt-filter
+    control: Allow management only from a trusted prefix list, with an input filter on lo0
+    category: exposure
+    priority: critical
+    why: >-
+      A filter on lo0 protects the Routing Engine from every interface at once.
+      Juniper publishes a worked example for limiting management access.
+    how: >-
+      Juniper's example builds a prefix list of management addresses and a filter
+      applied as an lo0 input filter (`set interfaces lo0.0 family inet filter
+      input <filter>`). The filter must allow every management and routing protocol
+      the router uses, so copy the full example from Juniper's page and use `commit
+      confirmed`.
+    confidence: high
+    sources:
+      - title: Juniper - example, control management access on Juniper networking devices
+        url: https://www.juniper.net/documentation/us/en/software/junos/user-access/topics/example/permitted-ip-configuring.html
+        accessed: "2026-10-22"
+        quote: "This example shows how to limit management access to Juniper Networking devices."
+      - title: Juniper Day One - Securing the Routing Engine
+        url: https://www.juniper.net/documentation/en_US/day-one-books/Securing_RouteEngine_v2.pdf
+        accessed: "2026-10-22"
+
+  - id: junos-restrict-shell
+    control: Restrict shell access to trusted users only
+    category: access
+    priority: critical
+    why: >-
+      CVE-2025-21590, the veriexec bypass UNC3886 used, requires a local attacker
+      with shell access.
+    how: Login classes that deny `shell` to everyone who does not need it.
+    blunts: [CVE-2025-21590, UNC3886]
+    confidence: high
+    sources:
+      - title: CVE-2025-21590 as published by Juniper (CNA record)
+        url: https://cveawg.mitre.org/api/cve/CVE-2025-21590
+        accessed: "2026-10-22"
+        quote: "It is strongly recommended to mitigate the risk of exploitation by restricting shell access to trusted users only."
+
+  - id: junos-current-images
+    control: Upgrade to current images, then run JMRT quick-scan and integrity check
+    category: patching
+    priority: high
+    why: Mandiant's recommendation after the UNC3886 router intrusions.
+    how: >-
+      Upgrade, then `request system malware-scan quick-scan` and the integrity
+      check. On a suspect router collect evidence first: quick-scan deletes
+      malicious files by default.
+    blunts: [UNC3886]
+    confidence: medium
+    sources:
+      - title: Mandiant - China-nexus espionage targets Juniper routers
+        url: https://cloud.google.com/blog/topics/threat-intelligence/china-nexus-espionage-targets-juniper-routers
+        accessed: "2026-10-22"
+        quote: "Organizations should upgrade their Juniper devices to the latest images which contain mitigations and updated signatures for JMRT and run JMRT Quick Scan and Integrity check after the upgrade."
+
+  - id: junos-central-iam
+    control: Central identity and access management with MFA and role-based access for administrators
+    category: identity
+    priority: high
+    why: Mandiant's UNC3886 recommendation.
+    how: TACACS+ or RADIUS backed by an identity provider with MFA; per-role login classes.
+    blunts: [UNC3886]
+    confidence: medium
+    sources:
+      - title: Mandiant - China-nexus espionage targets Juniper routers
+        url: https://cloud.google.com/blog/topics/threat-intelligence/china-nexus-espionage-targets-juniper-routers
+        accessed: "2026-10-22"
+        quote: "Implement a centralized Identity and Access Management (IAM) system with robust multi-factor authentication (MFA) and granular role-based access control (RBAC)."
+
+  - id: junos-eol-replacement
+    control: Plan replacement of end-of-life routers before support ends
+    category: patching
+    priority: high
+    why: The routers UNC3886 compromised ran end-of-life hardware and software.
+    how: Track Juniper's end-of-life dates for every model and release in service.
+    blunts: [UNC3886]
+    confidence: medium
+    sources:
+      - title: Mandiant - China-nexus espionage targets Juniper routers
+        url: https://cloud.google.com/blog/topics/threat-intelligence/china-nexus-espionage-targets-juniper-routers
+        accessed: "2026-10-22"
+        quote: "end-of-life (EOL) replacement planning to ensure network devices are always supported and secure."
+
+last_modified: "2026-10-22"

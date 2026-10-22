@@ -31,6 +31,7 @@ anti_forensics:
   - technique: Boot-level persistence below the OS on models without Secure Boot
     seen_in: RayInitiator (2025)
 response: cisco-asa
+hardening: cisco-asa
 artifacts:
   - locator: show memory region | include lina
     class: memory

@@ -1,0 +1,146 @@
+# Prevention and hardening - EDGE-0005 Cisco ASA / FTD
+# Schema: ../schema/hardening.schema.json
+
+platform_id: EDGE-0005
+name: Cisco ASA / Firepower Threat Defense
+summary: >-
+  ArcaneDoor used ASA and FTD devices as the way in twice (2024 and 2025), and in
+  2025 modified ROMMON on 5500-X models that predate Secure Boot. The controls
+  that matter most are hardware with Secure Boot, fixed releases applied fast,
+  and management access that only named addresses can reach.
+
+controls:
+  - id: asa-secure-boot-hardware
+    control: Replace end-of-support ASA 5500-X hardware that lacks Secure Boot
+    category: integrity
+    priority: critical
+    why: >-
+      Cisco has seen ROMMON modification only on 5500-X models released before
+      Secure Boot, and has not seen successful compromise or persistence on
+      platforms that support Secure Boot and Trust Anchors. CISA ED 25-03 told
+      US federal agencies to permanently disconnect the end-of-support models by
+      30 September 2025.
+    how: >-
+      Hardware replacement; no configuration fixes it. Cisco's last-support dates:
+      5512-X and 5515-X 31 August 2022; 5585-X 31 May 2023; 5525-X, 5545-X and
+      5555-X 30 September 2025; 5506-X, 5506H-X, 5506W-X, 5508-X and 5516-X (which
+      do support Secure Boot) 31 August 2026.
+    blunts: [CVE-2025-20333, CVE-2025-20362, RayInitiator]
+    confidence: high
+    sources:
+      - title: Cisco event response - continued attacks against Cisco firewalls
+        url: https://sec.cloudapps.cisco.com/security/center/resources/asa_ftd_continued_attacks
+        accessed: "2026-10-22"
+        quote: "Cisco strongly recommends that the device be migrated to supported hardware and software."
+      - title: CISA ED 25-03 - identify and mitigate potential compromise of Cisco devices
+        url: https://www.cisa.gov/news-events/directives/ed-25-03-identify-and-mitigate-potential-compromise-cisco-devices
+        accessed: "2026-10-22"
+        quote: "Permanently disconnect these devices on or before September 30, 2025, as these legacy platforms/releases cannot meet current vendor support and update requirements."
+
+  - id: asa-fixed-release
+    control: Run a fixed release and apply new ones quickly
+    category: patching
+    priority: critical
+    why: >-
+      Both ArcaneDoor waves used zero-days that fixed releases close. ED 25-03
+      required federal agencies to apply subsequent updates within 48 hours of
+      release - a useful benchmark for anyone.
+    how: Upgrade to the fixed release Cisco lists for your train in the advisory.
+    blunts: [CVE-2024-20353, CVE-2024-20359, CVE-2025-20333, CVE-2025-20362]
+    confidence: high
+    sources:
+      - title: Cisco event response - continued attacks against Cisco firewalls
+        url: https://sec.cloudapps.cisco.com/security/center/resources/asa_ftd_continued_attacks
+        accessed: "2026-10-22"
+        quote: "Cisco strongly recommends that customers upgrade to a fixed release to resolve the vulnerabilities"
+
+  - id: asa-mgmt-named-sources
+    control: Allow management only from named source addresses on named interfaces
+    category: exposure
+    priority: critical
+    why: >-
+      Every management protocol the ASA answers on an outside interface is attack
+      surface. Cisco's hardening guide calls broad management access bad practice.
+    how: >-
+      Grant each protocol per source and interface: `http <source-ip> <mask>
+      <interface>`, `ssh <source-ip> <mask> <interface>`. Never `http 0.0.0.0
+      0.0.0.0 <interface>`. Syntax from the ASA general operations configuration
+      guide; check it against the guide for your release.
+    confidence: high
+    sources:
+      - title: Cisco ASA general operations CLI configuration guide - management access
+        url: https://www.cisco.com/en/US/docs/security/asa/asa91/configuration/general/admin_management.html
+        accessed: "2026-10-22"
+        quote: "you must identify the IP addresses that are allowed to communicate with the ASA."
+      - title: Cisco guide to harden Cisco ASA firewall (Dutch edition; the English page now redirects)
+        url: https://cisco.com/c/nl_nl/support/docs/security/asa-5500-x-series-next-generation-firewalls/200150-Cisco-Guide-to-Harden-Cisco-ASA-Firewall.pdf
+        accessed: "2026-10-22"
+
+  - id: asa-control-plane-acl
+    control: Filter to-the-box management traffic with a control-plane ACL
+    category: access
+    priority: high
+    why: >-
+      Interface ACLs do not filter traffic addressed to the ASA itself; a
+      control-plane access list does.
+    how: "`access-list <name> in interface <interface> control-plane` (from Cisco's ASA hardening guide)."
+    confidence: high
+    sources:
+      - title: Cisco guide to harden Cisco ASA firewall (Dutch edition)
+        url: https://cisco.com/c/nl_nl/support/docs/security/asa-5500-x-series-next-generation-firewalls/200150-Cisco-Guide-to-Harden-Cisco-ASA-Firewall.pdf
+        accessed: "2026-10-22"
+
+  - id: asa-ssh-not-telnet
+    control: Use SSH version 2 for CLI management; do not use Telnet
+    category: access
+    priority: high
+    why: Telnet carries credentials in plain text.
+    how: >-
+      `ssh version 2`, a 2048-bit or larger key (`crypto key generate rsa modulus
+      2048`), and no `telnet` statements, per Cisco's ASA hardening guide.
+    confidence: high
+    sources:
+      - title: Cisco guide to harden Cisco ASA firewall (Dutch edition)
+        url: https://cisco.com/c/nl_nl/support/docs/security/asa-5500-x-series-next-generation-firewalls/200150-Cisco-Guide-to-Harden-Cisco-ASA-Firewall.pdf
+        accessed: "2026-10-22"
+
+  - id: asa-central-aaa-mfa
+    control: Authenticate administrators centrally, with MFA, and log off-box
+    category: identity
+    priority: high
+    why: >-
+      Talos's ArcaneDoor guidance for perimeter devices: patched, logging to a
+      central secure location, and strong multi-factor authentication. Off-box
+      logs also survive the syslog suppression LINE DANCER performed.
+    how: >-
+      TACACS+ or RADIUS for SSH, HTTP and console login (`aaa authentication ssh
+      console <server-group>` and the http and serial equivalents, from Cisco's
+      hardening guide), and syslog to a collector the device cannot modify.
+    blunts: [LINE DANCER]
+    confidence: high
+    sources:
+      - title: Cisco Talos - ArcaneDoor
+        url: https://blog.talosintelligence.com/arcanedoor-new-espionage-focused-campaign-found-targeting-perimeter-network-devices/
+        accessed: "2026-10-22"
+        quote: "properly patched, logging to a central, secure location, and are configured to have strong, multi-factor authentication (MFA)."
+      - title: Cisco guide to harden Cisco ASA firewall (Dutch edition)
+        url: https://cisco.com/c/nl_nl/support/docs/security/asa-5500-x-series-next-generation-firewalls/200150-Cisco-Guide-to-Harden-Cisco-ASA-Firewall.pdf
+        accessed: "2026-10-22"
+
+  - id: asa-interim-disable-webvpn
+    control: If you cannot patch yet, disable SSL/TLS-based VPN web services
+    category: services
+    priority: medium
+    why: >-
+      Cisco's interim mitigation for the 2025 vulnerabilities. Temporary only:
+      it stops SSL VPN remote access.
+    how: Cisco gives no commands on the event-response page; follow the advisory for your release.
+    blunts: [CVE-2025-20333, CVE-2025-20362]
+    confidence: high
+    sources:
+      - title: Cisco event response - continued attacks against Cisco firewalls
+        url: https://sec.cloudapps.cisco.com/security/center/resources/asa_ftd_continued_attacks
+        accessed: "2026-10-22"
+        quote: "The risk can also be mitigated by disabling all SSL/TLS-based VPN web services."
+
+last_modified: "2026-10-22"

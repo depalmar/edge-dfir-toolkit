@@ -15,6 +15,7 @@ customer_shell: "yes"
 memory_acquisition: hypervisor-only
 profile: checkpoint-gaia
 response: checkpoint-gaia
+hardening: checkpoint-gaia
 collection:
   - method: Expert mode (bash) commands and log fetches
     impact: none

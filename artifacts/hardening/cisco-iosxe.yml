@@ -1,0 +1,153 @@
+# Prevention and hardening - EDGE-0009 Cisco IOS XE
+# Schema: ../schema/hardening.schema.json
+
+platform_id: EDGE-0009
+name: Cisco IOS XE
+summary: >-
+  The 2023 web UI implant reached tens of thousands of devices because the HTTP
+  server was on and reachable from the internet. AA25-239A adds the network-
+  device basics the PRC-nexus actors exploited: Smart Install, Guest Shell, weak
+  password types and management planes open to the world.
+
+controls:
+  - id: iosxe-http-server-off
+    control: Disable the HTTP and HTTPS server on internet-facing systems
+    category: exposure
+    priority: critical
+    why: >-
+      CVE-2023-20198 and CVE-2023-20273 were reachable only through the web UI.
+      Cisco's first recommendation was to turn the HTTP server off on every
+      internet-facing system; AA25-239A repeats it.
+    how: >-
+      `no ip http server` and `no ip http secure-server` in global configuration
+      mode. If both servers are in use, both commands are needed.
+    blunts: [CVE-2023-20198, CVE-2023-20273]
+    confidence: high
+    sources:
+      - title: Cisco advisory cisco-sa-iosxe-webui-privesc-j22SaA4z
+        url: https://sec.cloudapps.cisco.com/security/center/content/CiscoSecurityAdvisory/cisco-sa-iosxe-webui-privesc-j22SaA4z
+        accessed: "2026-10-22"
+        quote: "Cisco strongly recommends that customers disable the HTTP Server feature on all internet-facing systems"
+
+  - id: iosxe-http-access-class
+    control: If the web UI must stay on, limit it to trusted networks
+    category: access
+    priority: high
+    why: Cisco's alternative where the HTTP server is required.
+    how: >-
+      Cisco's example: `ip http access-class 75` with `access-list 75 permit
+      192.168.0.0 0.0.0.255` and `access-list 75 deny any`. Newer releases use
+      `ip http access-class ipv4 75`.
+    blunts: [CVE-2023-20198, CVE-2023-20273]
+    confidence: high
+    sources:
+      - title: Cisco advisory cisco-sa-iosxe-webui-privesc-j22SaA4z
+        url: https://sec.cloudapps.cisco.com/security/center/content/CiscoSecurityAdvisory/cisco-sa-iosxe-webui-privesc-j22SaA4z
+        accessed: "2026-10-22"
+        quote: "Limiting access to the HTTP Server to trusted networks will limit exposure to these vulnerabilities."
+
+  - id: iosxe-smart-install-off
+    control: Disable Smart Install
+    category: services
+    priority: high
+    why: CVE-2018-0171 is on AA25-239A's list of vulnerabilities the actors exploited.
+    how: "`no vstack`."
+    blunts: [CVE-2018-0171]
+    confidence: high
+    sources:
+      - title: AA25-239A as co-sealed by the Australian Cyber Security Centre
+        url: https://www.cyber.gov.au/about-us/view-all-content/alerts-and-advisories/countering-chinese-state-sponsored-actors-compromise-of-networks-worldwide-to-feed-global-espionage-system
+        accessed: "2026-10-22"
+        quote: "Disable the Cisco Smart Install feature."
+      - title: Cisco advisory cisco-sa-20170214-smi (Japanese edition)
+        url: https://www.cisco.com/c/ja_jp/support/docs/csa/2017/cisco-sa-20170214-smi.html
+        accessed: "2026-10-22"
+
+  - id: iosxe-guestshell-off
+    control: Disable Guest Shell where it is not operationally required
+    category: services
+    priority: high
+    why: AA25-239A reports the actors running tooling in Guest Shell.
+    how: >-
+      `guestshell disable`, and `no iox` where supported; confirm with `show
+      guestshell` and `show iox`. AAA command authorization stops it being
+      re-enabled quietly.
+    blunts: [AA25-239A APT actors]
+    confidence: high
+    sources:
+      - title: AA25-239A as co-sealed by the Australian Cyber Security Centre
+        url: https://www.cyber.gov.au/about-us/view-all-content/alerts-and-advisories/countering-chinese-state-sponsored-actors-compromise-of-networks-worldwide-to-feed-global-espionage-system
+        accessed: "2026-10-22"
+        quote: "Disable Guest Shell where not operationally required."
+
+  - id: iosxe-mgmt-plane
+    control: Put management on a separate plane and filter it at the control plane
+    category: exposure
+    priority: critical
+    why: >-
+      AA25-239A: out-of-band management or a management VRF, explicit
+      management-plane ACLs, SSHv2 only, and no outbound connections from
+      management interfaces.
+    how: >-
+      From Cisco's IOS XE hardening guide: `line vty 0 4` with `transport input
+      ssh`; Management Plane Protection with `control-plane host` and
+      `management-interface <interface> allow ssh https`; an infrastructure ACL for
+      traffic to the device. AA25-239A adds `transport output none` on VTY lines.
+    confidence: high
+    sources:
+      - title: AA25-239A as co-sealed by the Australian Cyber Security Centre
+        url: https://www.cyber.gov.au/about-us/view-all-content/alerts-and-advisories/countering-chinese-state-sponsored-actors-compromise-of-networks-worldwide-to-feed-global-espionage-system
+        accessed: "2026-10-22"
+        quote: "Apply explicit management-plane ACLs at the control plane."
+      - title: Cisco IOS XE hardening guide (Portuguese edition)
+        url: https://cisco.com/c/pt_br/support/docs/ios-nx-os-software/ios-xe-16/220270-use-cisco-ios-xe-hardening-guide.pdf
+        accessed: "2026-10-22"
+
+  - id: iosxe-type8-passwords
+    control: Store local credentials as Type 8; drop Type 7 and move off Type 5
+    category: identity
+    priority: high
+    why: AA25-239A's credential guidance; Type 7 is reversible and Type 5 is MD5.
+    how: >-
+      Neither AA25-239A nor the hardening guide read for this entry gives the Type 8
+      syntax, so none is given here; use Cisco's command reference for your
+      release. The hardening guide shows Type 9 (`algorithm-type scrypt`).
+    confidence: high
+    sources:
+      - title: AA25-239A as co-sealed by the Australian Cyber Security Centre
+        url: https://www.cyber.gov.au/about-us/view-all-content/alerts-and-advisories/countering-chinese-state-sponsored-actors-compromise-of-networks-worldwide-to-feed-global-espionage-system
+        accessed: "2026-10-22"
+        quote: "Do not use Type 7 and transition from Type 5 (MD5) when possible."
+
+  - id: iosxe-snmpv3-only
+    control: Use SNMPv3 only, restricted to known managers
+    category: access
+    priority: medium
+    why: AA25-239A tells operators to disable SNMPv1 and v2c.
+    how: >-
+      Configure SNMPv3 users with strong authentication and privacy algorithms.
+      Do not copy the hardening guide's example, which uses MD5 and 3DES.
+    confidence: high
+    sources:
+      - title: AA25-239A as co-sealed by the Australian Cyber Security Centre
+        url: https://www.cyber.gov.au/about-us/view-all-content/alerts-and-advisories/countering-chinese-state-sponsored-actors-compromise-of-networks-worldwide-to-feed-global-espionage-system
+        accessed: "2026-10-22"
+        quote: "Use SNMPv3 only, and disable SNMPv1 and SNMPv2."
+
+  - id: iosxe-hardened-release
+    control: Move to the August 2026 security-hardened release
+    category: patching
+    priority: medium
+    why: >-
+      It fixes CVE-2026-20267 to 20273, which Cisco reports are not known to be
+      exploited and have no workarounds. Cisco will not release a hardened 16.12,
+      which affects Catalyst 3650 and 3850.
+    how: Upgrade to the hardened release Cisco lists for your train.
+    confidence: high
+    sources:
+      - title: Cisco IOS XE security hardening release, August 2026
+        url: https://sec.cloudapps.cisco.com/security/center/content/CiscoSecurityAdvisory/cisco-sa-hardening-iosxe-V8NMuMZJ
+        accessed: "2026-10-22"
+        quote: "There are no workarounds that address these vulnerabilities."
+
+last_modified: "2026-10-22"

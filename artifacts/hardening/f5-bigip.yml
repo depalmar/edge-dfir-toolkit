@@ -1,0 +1,120 @@
+# Prevention and hardening - EDGE-0010 F5 BIG-IP
+# Schema: ../schema/hardening.schema.json
+
+platform_id: EDGE-0010
+name: F5 BIG-IP (TMOS / APM)
+summary: >-
+  CVE-2022-1388 and CVE-2023-46747 needed the management interface or a self IP
+  that answered administrative traffic. After its own October 2025 incident F5
+  said it plainly: management interfaces should never face the internet. CISA's
+  ED 26-01 made that an order for US federal agencies.
+
+controls:
+  - id: f5-mgmt-not-internet
+    control: Never expose BIG-IP management interfaces to the internet
+    category: exposure
+    priority: critical
+    why: >-
+      F5, CISA ED 26-01 and the Canadian Cyber Centre all give this as the first
+      control after the October 2025 incident.
+    how: >-
+      Reach the management port only from a management network or jump host,
+      segmented and access-controlled.
+    blunts: [CVE-2022-1388, CVE-2023-46747]
+    confidence: high
+    sources:
+      - title: F5 - lessons we are learning from our security incident
+        url: https://www.f5.com/pt_br/company/blog/lessons-we-are-learning-from-our-security-incident
+        accessed: "2026-10-22"
+        quote: "management interfaces should never be exposed to the public Internet"
+      - title: Canadian Centre for Cyber Security AL25-014 - security incident impacting F5
+        url: https://cyber.gc.ca/en/alerts-advisories/al25-014-security-incident-impacting-f5
+        accessed: "2026-10-22"
+        quote: "Isolate F5 management interfaces that are facing the public internet."
+
+  - id: f5-self-ip-lockdown
+    control: Set Port Lockdown to Allow None on self IPs that face untrusted networks
+    category: exposure
+    priority: critical
+    why: >-
+      CISA's mitigation for CVE-2022-1388 included blocking iControl REST through
+      the self IP addresses.
+    how: >-
+      Network > Self IPs > Port Lockdown: Allow None. In tmsh, the `allow-service`
+      property of `net self` takes `none`, which is also the default for a new
+      self IP.
+    blunts: [CVE-2022-1388]
+    confidence: high
+    sources:
+      - title: BIG-IP 14.0 - common elements for self IP tasks
+        url: https://techdocs.f5.com/en-us/bigip-14-0-0/big-ip-access-policy-manager-secure-web-gateway-14-0-0/common-elements-for-self-ip-tasks.html
+        accessed: "2026-10-22"
+        quote: "Selecting Allow None blocks administrative traffic only, for this self IP address."
+      - title: CISA - threat actors exploiting F5 BIG-IP CVE-2022-1388
+        url: https://us-cert.cisa.gov/ncas/alerts/aa22-138a
+        accessed: "2026-10-22"
+
+  - id: f5-httpd-allow
+    control: Restrict which sources can reach the Configuration utility
+    category: access
+    priority: high
+    why: >-
+      CISA's CVE-2022-1388 mitigations included modifying the httpd configuration.
+      Whether this alone covers iControl REST depends on the advisory for your
+      release.
+    how: >-
+      `modify sys httpd allow replace-all-with { <network>/<mask> }`. The tmsh
+      reference warns that the value `none` allows no HTTP clients.
+    blunts: [CVE-2022-1388]
+    confidence: high
+    sources:
+      - title: F5 tmsh reference - sys httpd
+        url: https://clouddocs.f5.com/cli/tmsh-reference/latest/modules/sys/sys_httpd.html
+        accessed: "2026-10-22"
+
+  - id: f5-sshd-allow
+    control: Restrict SSH to known source networks
+    category: access
+    priority: high
+    why: Fewer sources can reach the bash shell an attacker wants.
+    how: >-
+      `modify sys sshd allow add { <network>/<mask> }`. Careful: the tmsh reference
+      says the value `none` resets sshd to allow all.
+    confidence: high
+    sources:
+      - title: F5 tmsh reference - sys sshd
+        url: https://clouddocs.f5.com/cli/tmsh-reference/latest/modules/sys/sys_sshd.html
+        accessed: "2026-10-22"
+
+  - id: f5-patch
+    control: Update to supported, fixed releases as soon as they ship
+    category: patching
+    priority: critical
+    why: >-
+      F5 urged immediate updates after the October 2025 incident; ED 26-01 set a
+      22 October 2025 deadline for federal agencies.
+    how: Install the fixed release for your train from F5's quarterly notification.
+    confidence: high
+    sources:
+      - title: F5 - lessons we are learning from our security incident
+        url: https://www.f5.com/pt_br/company/blog/lessons-we-are-learning-from-our-security-incident
+        accessed: "2026-10-22"
+        quote: "urging customers to update their BIG-IP software as quickly as possible"
+
+  - id: f5-decommission-eos
+    control: Disconnect and decommission F5 devices past end of support
+    category: patching
+    priority: high
+    why: ED 26-01 and the Canadian Cyber Centre both require it; unsupported devices get no fixes.
+    how: Replace, or move to a supported release where the hardware allows.
+    confidence: high
+    sources:
+      - title: Canadian Centre for Cyber Security AL25-014 - security incident impacting F5
+        url: https://cyber.gc.ca/en/alerts-advisories/al25-014-security-incident-impacting-f5
+        accessed: "2026-10-22"
+        quote: "Decommission End-of-Life F5 products."
+      - title: FedRAMP - responding to CISA Emergency Directive 26-01 (restates the directive)
+        url: https://www.fedramp.gov/2025-10-15-responding-to-cisa-emergency-directive-26-01/
+        accessed: "2026-10-22"
+
+last_modified: "2026-10-22"

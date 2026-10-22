@@ -15,6 +15,7 @@ customer_shell: "yes"
 memory_acquisition: not-available
 profile: f5-bigip
 response: f5-bigip
+hardening: f5-bigip
 collection:
   - method: Advanced Shell (bash) with tmsh piped to cat
     impact: none

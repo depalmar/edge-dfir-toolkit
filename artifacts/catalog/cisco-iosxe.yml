@@ -15,6 +15,7 @@ customer_shell: restricted
 memory_acquisition: customer
 profile: cisco-iosxe
 response: cisco-iosxe
+hardening: cisco-iosxe
 collection:
   - method: Exec CLI show, dir and verify commands
     impact: none
