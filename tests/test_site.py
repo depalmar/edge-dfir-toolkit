@@ -56,6 +56,11 @@ def test_site_runs_without_errors(browser, tmp_path):
     page.on("pageerror", lambda e: errors.append(str(e)))
     page.on("console", lambda m: errors.append(m.text) if m.type == "error" else None)
     page.goto(url)
+    # a first visit lands on Start, with one tile per platform
+    page.locator("#tab-start").wait_for(state="visible")
+    assert page.locator("#tab-start .ptile").count() == 10
+    page.goto(f"{url}#artifacts")
+    page.locator("#tab-artifacts").wait_for(state="visible")
     shown, total = _counts(page, "artifacts")
     assert shown == total > 0
 
@@ -96,7 +101,32 @@ def test_filters_live_in_the_url(browser, tmp_path):
 def test_phone_width_has_no_horizontal_scroll(browser, tmp_path):
     url = _build(tmp_path)
     page = browser.new_page(viewport={"width": 390, "height": 844})
-    for tab in ("artifacts", "detections", "intel", "plans", "response", "coverage"):
+    for tab in ("start", "artifacts", "detections", "intel", "plans", "response", "coverage", "guide"):
         page.goto(f"{url}#{tab}")
         page.locator(f"#tab-{tab}").wait_for(state="visible")
         assert not page.evaluate("document.documentElement.scrollWidth > window.innerWidth"), tab
+
+
+def test_guide_has_contents_and_section_links(browser, tmp_path):
+    url = _build(tmp_path)
+    page = browser.new_page(viewport={"width": 1440, "height": 900})
+    page.goto(f"{url}#guide/analysis")
+    page.locator("#tab-guide").wait_for(state="visible")
+    assert page.locator(".toc a").count() >= 8
+    assert page.locator(".toc a.on").inner_text() == "Analysis"
+    # every platform has a note, and each note links into the libraries
+    assert page.locator("#tab-guide .pnote").count() == 10
+    page.locator("#g-note-EDGE-0008 a", has_text="detections").click()
+    page.wait_for_url("**#detections?platform=EDGE-0008")
+
+
+def test_prose_never_switches_to_monospace(browser, tmp_path):
+    """Implant artifacts were once set entirely in <code>. Literal strings may be
+    code; the sentence around them must stay in the sans face."""
+    url = _build(tmp_path)
+    page = browser.new_page(viewport={"width": 1440, "height": 900})
+    page.goto(f"{url}#intel/EDGE-IMP-0010")
+    page.locator("#drawer").wait_for(state="visible")
+    li = page.locator("#dBody li", has_text="Payload files").first
+    assert "monospace" not in li.evaluate("e => getComputedStyle(e).fontFamily").lower()
+    assert li.locator("code", has_text="loader.bin").count() == 1

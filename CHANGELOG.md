@@ -1,5 +1,35 @@
 # Changelog
 
+## 0.4.1 - 2026-10-22
+
+### Site
+- New **Start** landing page for first-time visitors: a platform picker that
+  links each device to its collection plan, artifacts, detections and response;
+  the first-hour rules; the collect-analyze-respond workflow; and a legend for
+  every badge.
+- Tabs reordered to follow an investigation (Start, Platforms, Collection
+  plans, Artifacts, Detections, Threat intel, Response), with Rules, Coverage
+  and the Guide after a divider. The guide is a normal tab, not a floating
+  button.
+- Coverage leads with computed gaps (no profile, implants with no detection,
+  platforms without memory evidence or a confirmed-tier detection, steps that
+  are not vendor-documented), then a platform-by-evidence-class detection grid,
+  a per-profile verification bar and an artifact grid on one colour ramp. The
+  per-pack grid is folded. Count grids no longer reuse the tier colours.
+- Investigation guide: contents in the side rail with the current section
+  highlighted, linkable sections (`#guide/analysis`), notes for all ten
+  platforms (Check Point, Juniper, IOS XE, F5 and SonicWall were missing) with
+  links into the libraries, a verdict decision table, a warning callout, and
+  verdict and tier names shown as the same badges the libraries use.
+- Typography: one sans family and five sizes (was 21-23 font, size and weight
+  combinations per view across 11 sizes). Monospace only for literal strings -
+  commands, paths, file names, patterns, rules - and code inside prose is
+  wrapped inline instead of setting whole sentences in monospace. Artifact
+  descriptions are larger and higher-contrast. Font stacks prefer Segoe UI and
+  Cascadia Mono on Windows.
+- `--check` fails if a platform has no note in the guide or a guide link points
+  at a missing section.
+
 ## 0.4.0 - 2026-10-22
 
 ### Site

@@ -274,6 +274,18 @@ def build_data(d: dict) -> dict:
 
 
 # --------------------------------------------------------------------------- markdown
+# Platform notes in the guide start with a bold platform name. Each must map to
+# a catalog id so the note can carry links into the libraries; --check fails if
+# a platform has no note or a note names no platform.
+NOTE_PLATFORM = {
+    "PAN-OS / GlobalProtect": "EDGE-0001", "FortiOS": "EDGE-0002", "Ivanti Connect Secure": "EDGE-0003",
+    "NetScaler": "EDGE-0004", "Cisco ASA / FTD": "EDGE-0005", "SonicWall SMA 100": "EDGE-0006",
+    "Check Point Gaia": "EDGE-0007", "Juniper Junos": "EDGE-0008", "Cisco IOS XE": "EDGE-0009",
+    "F5 BIG-IP": "EDGE-0010",
+}
+VERDICTS = ("NO-INDICATORS-FOUND", "LIKELY-COMPROMISED", "COMPROMISED", "SUSPICIOUS")
+
+
 def md_inline(s: str) -> str:
     s = e(s, quote=False)
     s = re.sub(r"`([^`]+)`", r"<code>\1</code>", s)
@@ -282,8 +294,40 @@ def md_inline(s: str) -> str:
     return s
 
 
-def markdown(md: str) -> str:
-    """Enough Markdown for the guide: headings, paragraphs, lists, fences, tables."""
+def guide_inline(s: str, ctx: dict) -> str:
+    """md_inline plus the guide's cross-links: verdict and tier names become the
+    same badges the libraries use, and a CVE with detections links to them."""
+    h = md_inline(s)
+    for v in VERDICTS:
+        h = h.replace(f"<code>{v}</code>", f'<span class="verdict v-{v.lower()}">{v}</span>')
+    for t in TIERS:
+        h = h.replace(f"<code>{t}</code>", f'<span class="badge tier t-{t}">{t}</span>')
+    return re.sub(r"(?<![\w/=?-])(CVE-\d{4}-\d{4,})",
+                  lambda m: f'<a href="#detections?cve={m.group(1)}">{m.group(1)}</a>' if m.group(1) in ctx["cves"] else m.group(1), h)
+
+
+def note_links(pid: str, ctx: dict) -> str:
+    p = ctx["platforms"][pid]
+    out = []
+    if p["profile"]:
+        out.append(f'<a class="chip link" href="#plans/{e(p["profile"])}">Collection plan</a>')
+    out.append(f'<a class="chip link" href="#artifacts?platform={pid}">{p["n_art"]} artifacts</a>')
+    if p["n_det"]:
+        out.append(f'<a class="chip link" href="#detections?platform={pid}">{p["n_det"]} detections</a>')
+    if p["response"]:
+        out.append(f'<a class="chip link" href="#response/{e(p["response"])}">Response</a>')
+    return f'<div class="links">{"".join(out)}</div>'
+
+
+def guide_toc(md: str) -> list[dict]:
+    return [{"id": f"g-{slug(m.group(2))}", "title": m.group(2), "level": len(m.group(1))}
+            for m in re.finditer(r"^(#{2,3})\s+(.*)$", md, re.M)]
+
+
+def markdown(md: str, ctx: dict | None = None) -> str:
+    """Enough Markdown for the guide: headings, paragraphs, lists, fences,
+    tables and > callouts. With ctx, the guide's cross-links are added."""
+    inl = (lambda t: guide_inline(t, ctx)) if ctx else md_inline
     out, lines, i = [], md.splitlines(), 0
     while i < len(lines):
         ln = lines[i]
@@ -299,8 +343,18 @@ def markdown(md: str) -> str:
         m = re.match(r"^(#{1,4})\s+(.*)", ln)
         if m:
             lvl = len(m.group(1)) + 1
-            out.append(f'<h{lvl} id="g-{slug(m.group(2))}">{md_inline(m.group(2))}</h{lvl}>')
+            hid = f"g-{slug(m.group(2))}"
+            anchor = (f'<a class="hlink" href="#guide/{hid[2:]}" aria-label="Link to this section">#</a>'
+                      if ctx and lvl in (3, 4) else "")
+            out.append(f'<h{lvl} id="{hid}">{md_inline(m.group(2))}{anchor}</h{lvl}>')
             i += 1
+            continue
+        if ln.startswith(">"):
+            buf = []
+            while i < len(lines) and lines[i].startswith(">"):
+                buf.append(lines[i].lstrip(">").strip())
+                i += 1
+            out.append(f'<div class="callout">{inl(" ".join(buf))}</div>')
             continue
         if ln.startswith("|"):
             rows = []
@@ -308,8 +362,8 @@ def markdown(md: str) -> str:
                 rows.append([c.strip() for c in lines[i].strip().strip("|").split("|")])
                 i += 1
             head, body = rows[0], [r for r in rows[1:] if not all(re.fullmatch(r":?-+:?", c) for c in r)]
-            out.append("<div class=\"scroll\"><table class=\"tbl\"><thead><tr>" + "".join(f"<th>{md_inline(c)}</th>" for c in head)
-                       + "</tr></thead><tbody>" + "".join("<tr>" + "".join(f"<td>{md_inline(c)}</td>" for c in r) + "</tr>" for r in body)
+            out.append("<div class=\"scroll\"><table class=\"tbl\"><thead><tr>" + "".join(f"<th>{inl(c)}</th>" for c in head)
+                       + "</tr></thead><tbody>" + "".join("<tr>" + "".join(f"<td>{inl(c)}</td>" for c in r) + "</tr>" for r in body)
                        + "</tbody></table></div>")
             continue
         m = re.match(r"^(\s*)(-|\d+\.)\s+(.*)", ln)
@@ -325,16 +379,23 @@ def markdown(md: str) -> str:
                 else:
                     break
                 i += 1
-            out.append(f"<{tag}>" + "".join(f"<li>{md_inline(x)}</li>" for x in items) + f"</{tag}>")
+            out.append(f"<{tag}>" + "".join(f"<li>{inl(x)}</li>" for x in items) + f"</{tag}>")
             continue
         if not ln.strip():
             i += 1
             continue
         buf = []
-        while i < len(lines) and lines[i].strip() and not re.match(r"^(#|```|\||\s*(-|\d+\.)\s)", lines[i]):
+        while i < len(lines) and lines[i].strip() and not re.match(r"^(#|```|\||>|\s*(-|\d+\.)\s)", lines[i]):
             buf.append(lines[i].strip())
             i += 1
-        out.append(f"<p>{md_inline(' '.join(buf))}</p>")
+        text = " ".join(buf)
+        note = re.match(r"^\*\*([^*]+?)\.\*\*", text)
+        if ctx and note and note.group(1) in NOTE_PLATFORM:
+            pid = NOTE_PLATFORM[note.group(1)]
+            ctx["notes_seen"].add(pid)
+            out.append(f'<div class="pnote" id="g-note-{pid}"><p>{inl(text)}</p>{note_links(pid, ctx)}</div>')
+        else:
+            out.append(f"<p>{inl(text)}</p>")
     return "\n".join(out)
 
 
@@ -426,9 +487,9 @@ def render_plans(d: dict) -> str:
   <div class="plan-h"><div><span class="id">{e(p.platform_id)}</span> <h3>{e(p.display)}</h3></div>
     <div class="links"><a class="chip link" href="#platforms/{e(p.platform_id)}">platform entry</a><a class="chip link" href="#artifacts?platform={e(p.platform_id)}">artifacts</a></div></div>
   <details class="guard"><summary>Read-only guard</summary>
-    <div class="cols"><div><h4>Allow</h4>{chips(p.allow, 'chip mono')}</div><div><h4>Deny</h4>{chips(p.deny, 'chip mono')}</div>
-    <div><h4>Session setup</h4>{chips(p.session_setup, 'chip mono') or '<span class="muted">none</span>'}</div>
-    <div><h4>Prompt / pager</h4>{chips([p.prompt] + ([p.pager] if p.pager else []), 'chip mono')}</div></div></details>
+    <div class="cols"><div><h4>Allow</h4>{chips(p.allow, 'chip code')}</div><div><h4>Deny</h4>{chips(p.deny, 'chip code')}</div>
+    <div><h4>Session setup</h4>{chips(p.session_setup, 'chip code') or '<span class="muted">none</span>'}</div>
+    <div><h4>Prompt / pager</h4>{chips([p.prompt] + ([p.pager] if p.pager else []), 'chip code')}</div></div></details>
   <div class="scroll"><table class="tbl steps"><thead><tr><th>Step</th><th>Impact</th><th>Command and purpose</th><th>Confidence</th></tr></thead>
   <tbody>{"".join(groups)}</tbody></table></div>
 </section>''')
@@ -496,56 +557,214 @@ def render_response(d: dict) -> str:
 {"".join(secs)}'''
 
 
+LEGEND = [
+    ("Volatility - how long the trace lasts", [
+        ("vol vol-live", "live", "exists only while the device runs; gone at reboot"),
+        ("vol vol-rotating", "rotating", "overwritten as logs roll, often in hours"),
+        ("vol vol-stable", "stable", "survives until someone changes or wipes it"),
+        ("vol vol-off-box", "off-box", "a copy somewhere else: SIEM, syslog, management server")]),
+    ("Detection tier - what a hit means", [
+        ("tier t-possible", "possible", "an attempt, or a lead that needs a second signal"),
+        ("tier t-likely", "likely", "post-exploitation trace with a plausible benign explanation"),
+        ("tier t-confirmed", "confirmed", "no legitimate reason to exist on the device")]),
+    ("Step impact - what collection does to the device", [
+        ("imp-none", "none", "read-only; runs by default"),
+        ("imp-bundle", "vendor-bundle", "writes to the device; needs --allow-bundle"),
+        ("imp-bg", "break-glass", "can crash, reload or image it; needs --break-glass, runs last")]),
+    ("Confidence - where a claim comes from", [
+        ("conf c-high", "high", "vendor-documented or verified on a device"),
+        ("conf c-medium", "medium", "several independent sources"),
+        ("unv-b", "unverified", "single source or inferred - check before relying on it")]),
+]
+START_VERDICTS = ("COMPROMISED", "LIKELY-COMPROMISED", "SUSPICIOUS", "NO-INDICATORS-FOUND")
+
+
+def render_start(d: dict, data: dict) -> str:
+    """The landing page for someone who has never seen the site: which device,
+    what not to do first, the workflow, and what the badges mean."""
+    tiles = []
+    for p in data["platforms"]:
+        links = []
+        if p["profile"]:
+            links.append(f'<a href="#plans/{e(p["profile"])}">Collect</a>')
+        links.append(f'<a href="#artifacts?platform={p["id"]}">Artifacts <span class="n">{p["n_art"]}</span></a>')
+        if p["n_det"]:
+            links.append(f'<a href="#detections?platform={p["id"]}">Detections <span class="n">{p["n_det"]}</span></a>')
+        if p["response"]:
+            links.append(f'<a href="#response/{e(p["response"])}">Respond</a>')
+        tiles.append(
+            f'<div class="ptile"><a class="ptile-h" href="#platforms/{p["id"]}"><span class="id">{p["id"]}</span>'
+            f'<b>{e(p["short"])}</b><span class="muted small">{e(p["vendor"])}</span></a>'
+            f'<div class="ptile-l">{"".join(links)}</div></div>')
+    legend = "".join(
+        f'<div class="lg"><h4>{e(title)}</h4><dl>'
+        + "".join(f'<dt><span class="badge {c}">{e(t)}</span></dt><dd>{e(m)}</dd>' for c, t, m in rows)
+        + "</dl></div>" for title, rows in LEGEND)
+    verdicts = "".join(f'<span class="verdict v-{v.lower()}">{v}</span>' for v in START_VERDICTS)
+    n = {k: len(data[k]) for k in ("artifacts", "detections", "intel", "rules")}
+    n_prof = sum(1 for p in data["platforms"] if p["profile"])
+    return "".join([
+        '<div class="start">',
+        '<div class="hero"><h2>Triage a compromised edge device</h2>',
+        '<p class="lede">For responders who know DFIR and need the parts that are different on a VPN concentrator, '
+        'firewall or gateway: what to collect and in what order, what each trace proves, what the detections look '
+        'for, and how to contain and recover without destroying the evidence.</p></div>',
+        '<h3 class="sect">1. Which device?</h3>',
+        f'<div class="ptiles">{"".join(tiles)}</div>',
+        '<div class="startcols"><div>',
+        '<h3 class="sect">2. Before you touch it</h3>',
+        '<div class="callout"><ol>',
+        "<li><b>Do not reboot, upgrade, factory-reset or run the vendor&#39;s external integrity tool.</b> "
+        "Each destroys evidence, and several implants were built to survive or fool exactly those.</li>",
+        "<li><b>Pull the off-box copies first</b> - SIEM syslog, NetFlow for the management interface, IdP and "
+        "MFA logs. A gap in them is itself evidence.</li>",
+        "<li><b>Record whether it has rebooted or been upgraded</b> since the suspected window. It changes what "
+        "the report can claim.</li>",
+        "<li><b>Use a read-only account</b> where the platform has one, and pin the host key.</li>",
+        "</ol></div></div><div>",
+        '<h3 class="sect">3. Collect, analyze, respond</h3>',
+        '<ol class="flow">',
+        "<li><b>Read the plan, then collect.</b> Steps run in order of volatility; anything that writes to the "
+        "device is opt-in.<code>python -m edgetriage collect --profile &lt;platform&gt; --host &lt;ip&gt; "
+        "--user &lt;ro-user&gt; --case-id IR-2026-001</code>"
+        '<a href="#plans">Collection plans and command builder &#8594;</a></li>',
+        "<li><b>Ingest what the vendor lets you export</b> - support bundles, SIEM copies, image triage."
+        "<code>python -m edgetriage ingest &lt;case&gt; --label tsf --bundle &lt;file&gt;</code></li>",
+        "<li><b>Analyze.</b> Every detection reports hit, no hit or <i>not evaluated</i>, and not evaluated is "
+        f"never a pass. The verdict is one of {verdicts} - there is no &quot;clean&quot;."
+        "<code>python -m edgetriage analyze &lt;case&gt;</code></li>",
+        "<li><b>Respond in the order that protects evidence</b> - preserve, contain, rotate credentials, "
+        'eradicate, recover, verify. <a href="#response">Response playbooks &#8594;</a></li>',
+        "</ol>",
+        '<p class="muted small">The full walkthrough, with notes for every platform, is the '
+        '<a href="#guide">investigation guide</a>.</p>',
+        "</div></div>",
+        '<h3 class="sect">Reading the badges</h3>',
+        f'<div class="legend-grid">{legend}</div>',
+        '<h3 class="sect">What is here</h3><div class="tiles">',
+        f'<a class="tile" href="#artifacts"><b>{n["artifacts"]}</b><span>artifacts - what each trace proves and how long it lasts</span></a>',
+        f'<a class="tile" href="#detections"><b>{n["detections"]}</b><span>detections in {len(d["packs"])} packs, each able to say &quot;not evaluated&quot;</span></a>',
+        f'<a class="tile" href="#intel"><b>{n["intel"]}</b><span>actors and implants, attribution quoted from the reporter</span></a>',
+        f'<a class="tile" href="#rules"><b>{n["rules"]}</b><span>Sigma and YARA rule files; no vendor query dialect</span></a>',
+        f'<a class="tile" href="#coverage"><b>{n_prof}/{len(data["platforms"])}</b><span>platforms with a collection profile - coverage lists the gaps</span></a>',
+        "</div></div>",
+    ])
+
+
+def _ramp(n: int) -> str:
+    return "r4" if n >= 4 else f"r{n}"
+
+
 def render_coverage(d: dict, data: dict) -> str:
-    """Three matrices. Every non-empty cell is a link into a filtered library."""
-    plats = data["platforms"]
-    # artifacts: platform x class
-    head = "".join(f'<th class="vert"><span>{e(c)}</span></th>' for c in ART_CLASSES)
+    """Leads with the gaps, then the matrices. Count grids use one colour ramp;
+    only the detection grids use tier colours, because there the colour is the
+    tier. Every non-empty cell is a link into a filtered library."""
+    plats, dets, arts = data["platforms"], data["detections"], data["artifacts"]
+    prof = {p.name: p for p in d["profiles"]}
+
+    gaps = []
+    nop = [p for p in plats if not p["profile"]]
+    if nop:
+        gaps.append(("No collection profile",
+                     ", ".join(f'<a href="#platforms/{p["id"]}">{e(p["short"])}</a>' for p in nop),
+                     "Collection is manual: exports and images only."))
+    gimp = [i for i in data["intel"] if i["kind"] == "implant" and i["coverage"] == "gap"]
+    if gimp:
+        gaps.append((f"{len(gimp)} implants with no detection",
+                     ", ".join(f'<a href="#intel/{i["id"]}">{e(i["name"])}</a>' for i in gimp),
+                     "Each record says why - usually that the evidence is not reachable from the CLI."))
+    mem = {a["platform"] for a in arts if a["class"] == "memory"}
+    nomem = [p for p in plats if p["id"] not in mem]
+    if nomem:
+        gaps.append((f"No memory evidence on {len(nomem)} of {len(plats)} platforms",
+                     ", ".join(f'<a href="#artifacts?platform={p["id"]}">{e(p["short"])}</a>' for p in nomem),
+                     "A memory-only implant there leaves nothing this toolkit can collect; the most volatile "
+                     "evidence it reaches is process and session state."))
+    noconf = [p for p in plats if p["n_det"] and not any(x["tier"] == "confirmed" for x in dets if p["id"] in x["platforms"])]
+    if noconf:
+        gaps.append((f"No confirmed-tier detection on {len(noconf)} platforms",
+                     ", ".join(f'<a href="#detections?platform={p["id"]}">{e(p["short"])}</a>' for p in noconf),
+                     "Hits there reach COMPROMISED only by corroborating across evidence classes."))
+    low = sum(1 for pr in d["profiles"] for st in pr.steps if st.unverified)
+    med = sum(1 for pr in d["profiles"] for st in pr.steps if st.confidence == "medium")
+    tot = sum(len(pr.steps) for pr in d["profiles"])
+    gaps.append((f"{med + low} of {tot} collection steps are not vendor-documented",
+                 f"{med} medium, {low} low and unverified",
+                 "No profile has run on a real device yet. Corrections from virtual editions or sanitized "
+                 "replay captures raise these."))
+    gap_html = "".join(f'<li><b>{t}</b><div>{w}</div><div class="muted small">{why}</div></li>' for t, w, why in gaps)
+
+    vrows = []
+    for p in plats:
+        if not p["profile"]:
+            continue
+        steps = prof[p["profile"]].steps
+        c = {k: sum(1 for st in steps if st.confidence == k) for k in ("high", "medium", "low")}
+        segs = "".join(f'<span class="vseg vs-{k}" style="flex:{c[k]}" title="{c[k]} {k}">{c[k]}</span>'
+                       for k in ("high", "medium", "low") if c[k])
+        vrows.append(f'<a class="vrow" href="#plans/{e(p["profile"])}"><span class="vname">{e(p["short"])}</span>'
+                     f'<span class="vbar">{segs}</span><span class="muted small">{len(steps)} steps</span></a>')
+
+    def tier_cell(xs_tiers, href, label):
+        if not xs_tiers:
+            return '<td class="cell"></td>'
+        t = max(xs_tiers, key=TIERS.index)
+        return (f'<td class="cell t-{t}"><a href="{href}" title="{len(xs_tiers)} {label}, strongest {t}">'
+                f'{len(xs_tiers)}</a></td>')
+
+    dhead = "".join(f'<th class="vert"><span>{e(c)}</span></th>' for c in CLASSES)
+    drows = []
+    for p in plats:
+        cells = "".join(tier_cell([x["tier"] for x in dets if p["id"] in x["platforms"] and x["evidence"] == c],
+                                  f'#detections?platform={p["id"]}&amp;evidence={e(c)}', "detection(s)") for c in CLASSES)
+        drows.append(f'<tr><th class="rowh"><a href="#detections?platform={p["id"]}">{e(p["short"])}</a></th>'
+                     f'{cells}<td class="num">{p["n_det"] or ""}</td></tr>')
+
+    ahead = "".join(f'<th class="vert"><span>{e(c)}</span></th>' for c in ART_CLASSES)
     arows = []
     for p in plats:
         cells = []
         for c in ART_CLASSES:
-            arts = [a for a in data["artifacts"] if a["platform"] == p["id"] and a["class"] == c]
-            if arts:
-                hv = sum(1 for a in arts if a["value"] == "high")
-                lvl = "t-confirmed" if hv >= 2 else "t-likely" if hv else "t-possible"
-                cells.append(f'<td class="cell {lvl}"><a href="#artifacts?platform={e(p["id"])}&amp;class={e(c)}" '
-                             f'title="{len(arts)} artifact(s), {hv} high value">{len(arts)}</a></td>')
-            else:
-                cells.append('<td class="cell"></td>')
-        arows.append(f'<tr><th class="rowh"><a href="#artifacts?platform={e(p["id"])}">{e(p["short"])}</a></th>{"".join(cells)}</tr>')
-    # detections: pack x evidence class
-    dhead = "".join(f'<th class="vert"><span>{e(c)}</span></th>' for c in CLASSES)
-    rows = []
-    for p in d["packs"]:
-        cells = []
-        for c in CLASSES:
-            ts = [x["tier"] for x in p["detect"] if x["evidence_class"] == c]
-            if ts:
-                t = max(ts, key=TIERS.index)
-                cells.append(f'<td class="cell t-{t}"><a href="#detections?pack={e(p["id"])}&amp;evidence={e(c)}" '
-                             f'title="{len(ts)} detection(s), up to {t}">{len(ts)}</a></td>')
-            else:
-                cells.append('<td class="cell"></td>')
-        cves = p.get("cves", [])
-        rows.append(f'<tr><th class="rowh"><a href="#detections?pack={e(p["id"])}">{e(p["id"])}</a> '
-                    f'<span class="muted">{e(", ".join(cves[:2]))}{" ..." if len(cves) > 2 else ""}</span></th>{"".join(cells)}</tr>')
-    prow = []
-    for p in d["profiles"]:
-        counts = {t: sum(1 for s in p.steps if s.tier == t) for t in TIER_ORDER}
-        unv = sum(1 for s in p.steps if s.unverified)
-        cells = "".join(f'<td class="num">{counts[t] or ""}</td>' for t in TIER_ORDER)
-        prow.append(f'<tr><th class="rowh"><a href="#plans/{e(p.name)}">{e(short(p.display))}</a></th>{cells}<td class="num warn">{unv or ""}</td></tr>')
-    th = "".join(f'<th>{e(t)}</th>' for t in TIER_ORDER)
-    return f'''<div class="lhead"><h2>Coverage</h2><p class="lede">Where the content is thick and where it is thin. Every number is a link into the matching library, already filtered.</p></div>
-<h3 class="sect">Artifacts by platform and class</h3>
-<div class="scroll"><table class="cov"><thead><tr><th></th>{head}</tr></thead><tbody>{"".join(arows)}</tbody></table></div>
-<div class="legend"><span class="badge tier t-possible">no high-value artifact</span><span class="badge tier t-likely">one high-value</span><span class="badge tier t-confirmed">two or more high-value</span></div>
-<h3 class="sect">Detections by pack and evidence class</h3>
-<div class="scroll"><table class="cov"><thead><tr><th></th>{dhead}</tr></thead><tbody>{"".join(rows)}</tbody></table></div>
-<div class="legend">{tier_badge('possible')}{tier_badge('likely')}{tier_badge('confirmed')}<span class="muted small">strongest tier in the cell</span></div>
-<h3 class="sect">Collection steps by tier</h3>
-<div class="scroll"><table class="cov"><thead><tr><th></th>{th}<th>unverified</th></tr></thead><tbody>{"".join(prow)}</tbody></table></div>'''
+            xs = [a for a in arts if a["platform"] == p["id"] and a["class"] == c]
+            cells.append(f'<td class="cell {_ramp(len(xs))}"><a href="#artifacts?platform={p["id"]}&amp;class={e(c)}" '
+                         f'title="{len(xs)} artifact(s)">{len(xs)}</a></td>' if xs else '<td class="cell"></td>')
+        arows.append(f'<tr><th class="rowh"><a href="#artifacts?platform={p["id"]}">{e(p["short"])}</a></th>'
+                     f'{"".join(cells)}<td class="num">{p["n_art"]}</td></tr>')
+
+    prows = []
+    for pk in d["packs"]:
+        cells = "".join(tier_cell([x["tier"] for x in pk["detect"] if x["evidence_class"] == c],
+                                  f'#detections?pack={e(pk["id"])}&amp;evidence={e(c)}', "detection(s)") for c in CLASSES)
+        cves = pk.get("cves", [])
+        prows.append(f'<tr><th class="rowh"><a href="#detections?pack={e(pk["id"])}">{e(pk["id"])}</a> '
+                     f'<span class="muted">{e(", ".join(cves[:2]))}{" ..." if len(cves) > 2 else ""}</span></th>{cells}</tr>')
+
+    total = '<th class="vert"><span>total</span></th>'
+    return "".join([
+        '<div class="lhead"><h2>Coverage</h2><p class="lede">Where the content is thin, computed from the repository '
+        'at build time. Every number links into the matching library, already filtered.</p></div>',
+        '<h3 class="sect">Gaps worth knowing before you rely on this</h3>',
+        f'<ul class="gaps">{gap_html}</ul>',
+        '<div class="covcols"><section>',
+        '<h3 class="sect">Detections by platform and evidence class</h3>',
+        '<p class="muted small">The number is how many detections; the colour is the strongest tier among them.</p>',
+        f'<div class="scroll"><table class="cov"><thead><tr><th></th>{dhead}{total}</tr></thead><tbody>{"".join(drows)}</tbody></table></div>',
+        f'<div class="legend">{tier_badge("possible")}{tier_badge("likely")}{tier_badge("confirmed")}</div>',
+        '</section><section>',
+        '<h3 class="sect">How each collection plan is sourced</h3>',
+        '<p class="muted small">Steps by confidence. Nothing has run on a real device yet, so this is the honest '
+        'measure of how far to trust a plan.</p>',
+        f'<div class="vrows">{"".join(vrows)}</div>',
+        '<div class="legend"><span class="badge conf c-high">high - vendor-documented</span>'
+        '<span class="badge conf c-medium">medium</span><span class="badge unv-b">low - unverified</span></div>',
+        '</section></div>',
+        '<h3 class="sect">Artifacts by platform and class</h3>',
+        '<p class="muted small">Darker means more artifacts. An empty memory or process column means the most '
+        'volatile evidence on that platform is out of reach.</p>',
+        f'<div class="scroll"><table class="cov"><thead><tr><th></th>{ahead}{total}</tr></thead><tbody>{"".join(arows)}</tbody></table></div>',
+        f'<details class="fold"><summary>Detections by pack and evidence class ({len(d["packs"])} packs)</summary>',
+        f'<div class="scroll"><table class="cov"><thead><tr><th></th>{dhead}</tr></thead><tbody>{"".join(prows)}</tbody></table></div></details>',
+    ])
 
 
 # --------------------------------------------------------------------------- page
@@ -556,28 +775,31 @@ CSS = r"""
   --accent:#5e3a24;--accent-hover:#472a19;--accent-soft:#f2e9e2;--accent-border:#e0cfc1;--on-accent:#fff;
   --crit:#a12b2b;--high:#b4611c;--med:#8a7320;--low:#5c7a4a;
   --conf-strong:#3d5a80;--conf-mid:#6b7f96;--conf-bg:#eef2f7;--alert-bg:#fdf6f2;
-  --code-bg:#f6f4f0;--shadow:rgba(28,27,25,.07);--shadow-lg:rgba(28,27,25,.16);--hdr:150px}
+  --code-bg:#f6f4f0;--shadow:rgba(28,27,25,.07);--shadow-lg:rgba(28,27,25,.16);--hdr:150px;--ink-2:#3d3a35;
+  --sans:system-ui,"Segoe UI Variable Text","Segoe UI",-apple-system,BlinkMacSystemFont,Roboto,"Helvetica Neue",Arial,sans-serif;
+  --mono:ui-monospace,"Cascadia Mono","Cascadia Code","SF Mono",SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+  --fs-xs:12px;--fs-sm:13px;--fs-base:14.5px;--fs-md:16px;--fs-lg:20px}
 :root[data-theme=dark]{
   --bg:#121110;--panel:#1a1917;--panel-2:#211f1c;--hover:#262320;
   --ink:#f1eee9;--muted:#a9a39a;--faint:#7c766e;--line:#302d29;--line-soft:#262320;--field:#3a3631;
   --accent:#ddc4b0;--accent-hover:#ecd9ca;--accent-soft:#2d2118;--accent-border:#553a29;--on-accent:#1a1310;
   --crit:#f28c85;--high:#eaa965;--med:#d9c364;--low:#a6d18c;
   --conf-strong:#9ec0e0;--conf-mid:#7e94ab;--conf-bg:#1b2530;--alert-bg:#251a16;
-  --code-bg:#211f1c;--shadow:rgba(0,0,0,.5);--shadow-lg:rgba(0,0,0,.6)}
+  --code-bg:#211f1c;--shadow:rgba(0,0,0,.5);--shadow-lg:rgba(0,0,0,.6);--ink-2:#d6d1c9}
 @media (prefers-color-scheme:dark){:root:not([data-theme=light]){
   --bg:#121110;--panel:#1a1917;--panel-2:#211f1c;--hover:#262320;
   --ink:#f1eee9;--muted:#a9a39a;--faint:#7c766e;--line:#302d29;--line-soft:#262320;--field:#3a3631;
   --accent:#ddc4b0;--accent-hover:#ecd9ca;--accent-soft:#2d2118;--accent-border:#553a29;--on-accent:#1a1310;
   --crit:#f28c85;--high:#eaa965;--med:#d9c364;--low:#a6d18c;
   --conf-strong:#9ec0e0;--conf-mid:#7e94ab;--conf-bg:#1b2530;--alert-bg:#251a16;
-  --code-bg:#211f1c;--shadow:rgba(0,0,0,.5);--shadow-lg:rgba(0,0,0,.6)}}
+  --code-bg:#211f1c;--shadow:rgba(0,0,0,.5);--shadow-lg:rgba(0,0,0,.6);--ink-2:#d6d1c9}}
 *{box-sizing:border-box}
 html{scroll-padding-top:var(--hdr)}
-body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:var(--fs-base)/1.55 var(--sans);-webkit-text-size-adjust:100%}
 a{color:var(--accent)}
 button,input,select{font:inherit;color:inherit}
 button{cursor:pointer}
-code,.mono,pre{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+code,.mono,pre{font-family:var(--mono)}
 p{text-wrap:pretty}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .skip{position:absolute;left:-9999px;top:0;z-index:100;background:var(--accent);color:var(--on-accent);padding:10px 16px}
@@ -590,21 +812,18 @@ p{text-wrap:pretty}
 .hdr-id{flex:1 1 340px;min-width:0}
 .h1row{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
 .dot{width:9px;height:9px;border-radius:50%;background:var(--accent);flex:none}
-h1{margin:0;font-size:19px;font-weight:600;letter-spacing:-.01em}
-.pill{font-family:ui-monospace,Menlo,monospace;font-size:10.5px;color:var(--muted);background:var(--panel);border:1px solid var(--line);border-radius:20px;padding:2px 8px}
-.sub{margin:5px 0 0;font-size:13.5px;color:var(--muted);max-width:68ch}
+h1{margin:0;font-size:var(--fs-lg);font-weight:600;letter-spacing:-.01em}
+.pill{font-family:var(--mono);font-size:var(--fs-xs);color:var(--muted);background:var(--panel);border:1px solid var(--line);border-radius:20px;padding:2px 8px}
+.sub{margin:5px 0 0;font-size:var(--fs-sm);color:var(--muted);max-width:68ch}
 .hdr-right{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-.hbtn{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:7px 12px;font-size:12.5px;color:var(--ink);text-decoration:none;white-space:nowrap}
+.hbtn{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:7px 12px;font-size:var(--fs-sm);color:var(--ink);text-decoration:none;white-space:nowrap}
 .hbtn:hover{border-color:var(--accent)}
-.tabrow{display:flex;align-items:flex-end;gap:12px;margin-top:8px}
 .tabs{display:flex;gap:2px;overflow-x:auto;scrollbar-width:none;flex:1;min-width:0}
 .tabs::-webkit-scrollbar{display:none}
-.tabs button{background:none;border:0;border-bottom:2px solid transparent;flex:none;white-space:nowrap;padding:9px 12px;font-size:13.5px;color:var(--muted);display:flex;gap:7px;align-items:center}
+.tabs button{background:none;border:0;border-bottom:2px solid transparent;flex:none;white-space:nowrap;padding:9px 12px;font-size:var(--fs-sm);color:var(--muted);display:flex;gap:7px;align-items:center}
 .tabs button:hover{color:var(--ink)}
 .tabs button[aria-selected=true]{color:var(--ink);font-weight:600;border-bottom-color:var(--accent)}
-.tabs .n{font-family:ui-monospace,Menlo,monospace;font-size:10.5px;background:var(--line-soft);border-radius:20px;padding:1px 7px;font-weight:400}
-.guidelink{flex:none;margin-bottom:7px;background:var(--accent-soft);border:1px solid var(--accent-border);color:var(--accent);border-radius:999px;padding:6px 14px;font-size:12.5px;font-weight:600;white-space:nowrap}
-.guidelink:hover,.guidelink[aria-selected=true]{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}
+.tabs .n{font-family:var(--mono);font-size:var(--fs-xs);background:var(--line-soft);border-radius:20px;padding:1px 7px;font-weight:400}
 
 /* ---- shell: rail + content ---- */
 .shell{max-width:1440px;margin:0 auto;display:grid;grid-template-columns:252px minmax(0,1fr)}
@@ -612,16 +831,16 @@ h1{margin:0;font-size:19px;font-weight:600;letter-spacing:-.01em}
 .shell.norail .rail{display:none}
 .rail{position:sticky;top:var(--hdr);align-self:start;max-height:calc(100vh - var(--hdr));overflow-y:auto;padding:18px 18px 40px 28px;border-right:1px solid var(--line);scrollbar-width:thin}
 .railhead{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
-.railhead b{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
-.lnkbtn{background:none;border:0;padding:0;color:var(--accent);text-decoration:underline;font-size:12.5px}
+.railhead b{font-size:var(--fs-xs);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.lnkbtn{background:none;border:0;padding:0;color:var(--accent);text-decoration:underline;font-size:var(--fs-sm)}
 #railToggle{display:none}
 .fgroup{margin:12px 0 4px}
-.fhead{display:flex;gap:6px;align-items:center;width:100%;background:none;border:0;padding:4px 0;font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--faint);font-weight:600;text-align:left}
-.fhead .car{transition:transform .15s;font-size:9px}
+.fhead{display:flex;gap:6px;align-items:center;width:100%;background:none;border:0;padding:4px 0;font-size:var(--fs-xs);letter-spacing:.07em;text-transform:uppercase;color:var(--faint);font-weight:600;text-align:left}
+.fhead .car{transition:transform .15s;font-size:var(--fs-xs)}
 .fgroup.shut .car{transform:rotate(-90deg)}
 .fgroup.shut .fvals{display:none}
-.fhead .fsel{margin-left:auto;background:var(--accent);color:var(--on-accent);border-radius:20px;padding:0 6px;font-size:10px;letter-spacing:0}
-.fv{display:flex;align-items:center;gap:8px;padding:4px 6px 4px 8px;border-radius:6px;font-size:13px;cursor:pointer;color:var(--ink)}
+.fhead .fsel{margin-left:auto;background:var(--accent);color:var(--on-accent);border-radius:20px;padding:0 6px;font-size:var(--fs-xs);letter-spacing:0}
+.fv{display:flex;align-items:center;gap:8px;padding:4px 6px 4px 8px;border-radius:6px;font-size:var(--fs-sm);cursor:pointer;color:var(--ink)}
 .fv:hover{background:var(--hover)}
 .fv input{position:absolute;opacity:0;pointer-events:none}
 .fv .box{flex:none;width:13px;height:13px;border:1px solid var(--field);border-radius:3px;background:var(--panel)}
@@ -629,11 +848,11 @@ h1{margin:0;font-size:19px;font-weight:600;letter-spacing:-.01em}
 .fv.on .box{background:var(--accent);border-color:var(--accent);box-shadow:inset 0 0 0 2px var(--panel)}
 .fv input:focus-visible+.box{outline:2px solid var(--accent);outline-offset:1px}
 .fv .fl{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.fv .fc{font-family:ui-monospace,Menlo,monospace;font-size:11px;color:var(--faint)}
+.fv .fc{font-family:var(--mono);font-size:var(--fs-xs);color:var(--faint)}
 .fv.zero{color:var(--faint)}
-.more{background:none;border:0;color:var(--accent);font-size:12px;padding:3px 8px}
+.more{background:none;border:0;color:var(--accent);font-size:var(--fs-xs);padding:3px 8px}
 main{padding:20px 28px 60px;min-width:0}
-.lhead h2{margin:0 0 4px;font-size:18px;font-weight:600;letter-spacing:-.01em}
+.lhead h2{margin:0 0 4px;font-size:var(--fs-lg);font-weight:600;letter-spacing:-.01em}
 .lede{color:var(--muted);margin:0 0 16px;max-width:90ch}
 
 /* ---- library controls ---- */
@@ -641,25 +860,25 @@ main{padding:20px 28px 60px;min-width:0}
 .search{flex:1 1 300px;display:flex;align-items:center;gap:8px;background:var(--panel);border:1px solid var(--field);border-radius:9px;padding:0 12px}
 .search:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
 .search .glyph{color:var(--faint)}
-.search input{flex:1;border:0;background:none;padding:10px 0;font-size:14px;outline:0;min-width:0}
-.tgl{background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:9px 13px;font-size:13px;color:var(--ink);white-space:nowrap}
+.search input{flex:1;border:0;background:none;padding:10px 0;font-size:var(--fs-base);outline:0;min-width:0}
+.tgl{background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:9px 13px;font-size:var(--fs-sm);color:var(--ink);white-space:nowrap}
 .tgl:hover{border-color:var(--accent)}
 .tgl[aria-pressed=true]{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}
-.tgl .n{font-family:ui-monospace,Menlo,monospace;font-size:10.5px;background:var(--alert-bg);color:var(--crit);border-radius:20px;padding:1px 6px;margin-left:5px}
+.tgl .n{font-family:var(--mono);font-size:var(--fs-xs);background:var(--alert-bg);color:var(--crit);border-radius:20px;padding:1px 6px;margin-left:5px}
 .exp{display:flex;gap:6px;align-items:center;margin-left:auto}
-.exp .lbl{font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint)}
-.meta{display:flex;gap:10px;flex-wrap:wrap;align-items:center;min-height:28px;margin-bottom:10px;font-size:12.5px}
-.count{font-family:ui-monospace,Menlo,monospace;color:var(--muted)}
+.exp .lbl{font-size:var(--fs-xs);letter-spacing:.08em;text-transform:uppercase;color:var(--faint)}
+.meta{display:flex;gap:10px;flex-wrap:wrap;align-items:center;min-height:28px;margin-bottom:10px;font-size:var(--fs-sm)}
+.count{font-family:var(--mono);color:var(--muted)}
 .active{display:flex;gap:5px;flex-wrap:wrap}
-.achip{display:inline-flex;gap:6px;align-items:center;background:var(--accent-soft);border:1px solid var(--accent-border);color:var(--accent);border-radius:999px;padding:2px 6px 2px 10px;font-size:12px}
-.achip button{background:none;border:0;color:inherit;padding:0 4px;font-size:14px;line-height:1}
-.picked{margin-left:auto;color:var(--accent);font-size:12.5px}
+.achip{display:inline-flex;gap:6px;align-items:center;background:var(--accent-soft);border:1px solid var(--accent-border);color:var(--accent);border-radius:999px;padding:2px 6px 2px 10px;font-size:var(--fs-xs)}
+.achip button{background:none;border:0;color:inherit;padding:0 4px;font-size:var(--fs-base);line-height:1}
+.picked{margin-left:auto;color:var(--accent);font-size:var(--fs-sm)}
 .summary:empty{display:none}
 .summary{margin-bottom:14px}
 
 /* ---- distribution bar + tiles ---- */
 .dist{display:flex;gap:3px;height:34px;border-radius:9px;overflow:hidden}
-.seg{border:0;min-width:46px;display:flex;align-items:center;justify-content:center;gap:5px;font-size:12px;color:var(--on-accent);opacity:.88;white-space:nowrap;overflow:hidden;padding:0 8px}
+.seg{border:0;min-width:46px;display:flex;align-items:center;justify-content:center;gap:5px;font-size:var(--fs-xs);color:var(--on-accent);opacity:.88;white-space:nowrap;overflow:hidden;padding:0 8px}
 .seg:hover,.seg.on{opacity:1}
 .seg.on{box-shadow:inset 0 0 0 2px var(--ink)}
 .seg-live,.seg-confirmed{background:var(--crit)}.seg-rotating,.seg-likely{background:var(--high)}
@@ -668,24 +887,24 @@ main{padding:20px 28px 60px;min-width:0}
 .tile{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px;text-align:left;display:flex;flex-direction:column;gap:2px}
 button.tile:hover{border-color:var(--accent)}
 .tile.on{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
-.tile b{font-size:22px;font-weight:650;letter-spacing:-.02em}
-.tile span{font-size:12.5px;color:var(--muted);line-height:1.35}
+.tile b{font-size:var(--fs-lg);font-weight:600;letter-spacing:-.02em}
+.tile span{font-size:var(--fs-sm);color:var(--muted);line-height:1.35}
 .tile.warn b{color:var(--crit)}
 
 /* ---- rows (table library) ---- */
 .rows{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden}
 .row{display:grid;grid-template-columns:30px 150px minmax(0,1fr) 96px 92px 74px 104px;gap:14px;padding:13px 16px;border-top:1px solid var(--line-soft);align-items:start}
 .row.head span{font-size:inherit;line-height:1.4}
-.row.head{border-top:0;padding-top:11px;padding-bottom:11px;font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);font-weight:600;background:var(--panel)}
+.row.head{border-top:0;padding-top:11px;padding-bottom:11px;font-size:var(--fs-xs);letter-spacing:.08em;text-transform:uppercase;color:var(--faint);font-weight:600;background:var(--panel)}
 .row.item{cursor:pointer}
 .row.item:hover{background:var(--hover)}
 .row.item.sel{background:var(--accent-soft);box-shadow:inset 3px 0 0 var(--accent)}
 .row.unv .c-plat{box-shadow:inset 3px 0 0 var(--crit);padding-left:8px;margin-left:-8px}
-.c-plat{font-size:13px;line-height:1.35}
+.c-plat{font-size:var(--fs-sm);line-height:1.35}
 .c-plat .id{display:block;margin-top:3px}
 .c-main{min-width:0}
-code.loc{display:inline-block;max-width:100%;background:var(--code-bg);border:1px solid var(--line-soft);border-radius:5px;padding:1px 6px;font-size:12.5px;word-break:break-word}
-.c-main .desc{display:block;color:var(--muted);font-size:13px;margin-top:5px;line-height:1.45}
+code.loc{display:inline-block;max-width:100%;background:var(--code-bg);border:1px solid var(--line-soft);border-radius:5px;padding:1px 6px;font-size:var(--fs-sm);word-break:break-word}
+.c-main .desc{display:block;color:var(--ink-2);font-size:var(--fs-base);margin-top:6px;line-height:1.5;max-width:75ch}
 .c-main .seen{display:flex;gap:4px;flex-wrap:wrap;margin-top:6px}
 .rows.compact .desc,.rows.compact .seen{display:none}
 .rows.compact .row{padding-top:8px;padding-bottom:8px}
@@ -700,14 +919,14 @@ code.loc{display:inline-block;max-width:100%;background:var(--code-bg);border:1p
 .lc.gap{box-shadow:inset 3px 0 0 var(--crit),0 1px 2px var(--shadow)}
 .lc-h{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
 .lc-t{min-width:0}
-.lc h3{margin:2px 0 0;font-size:15px;font-weight:600;line-height:1.3}
-.lc-sub{font-size:12px;color:var(--muted);margin-top:2px}
+.lc h3{margin:2px 0 0;font-size:var(--fs-md);font-weight:600;line-height:1.3}
+.lc-sub{font-size:var(--fs-xs);color:var(--muted);margin-top:2px}
 .lc .badges{flex:none;justify-content:flex-end}
-.clamp{margin:0;color:var(--muted);font-size:13px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.clamp{margin:0;color:var(--ink-2);font-size:var(--fs-sm);line-height:1.5;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
 .lc-f{display:flex;gap:5px;flex-wrap:wrap;margin-top:auto;padding-top:9px;border-top:1px solid var(--line-soft)}
-.stats{display:flex;gap:14px;font-size:12.5px;color:var(--muted)}
-.stats b{color:var(--ink);font-size:15px;margin-right:2px}
-q.quote{font-style:italic;color:var(--ink);font-size:13px}
+.stats{display:flex;gap:14px;font-size:var(--fs-sm);color:var(--muted)}
+.stats b{color:var(--ink);font-size:var(--fs-md);margin-right:2px}
+q.quote{font-style:italic;color:var(--ink);font-size:var(--fs-sm)}
 
 /* ---- drawer ---- */
 .drawer{position:fixed;top:0;right:0;bottom:0;width:min(580px,100vw);background:var(--panel);border-left:1px solid var(--line);box-shadow:-12px 0 40px var(--shadow-lg);z-index:50;display:flex;flex-direction:column;animation:slide .16s ease-out}
@@ -715,16 +934,16 @@ q.quote{font-style:italic;color:var(--ink);font-size:13px}
 @keyframes slide{from{transform:translateX(24px);opacity:.4}to{transform:none;opacity:1}}
 @media (prefers-reduced-motion:reduce){.drawer,.lc{animation:none;transition:none}}
 .dhead{display:flex;gap:10px;align-items:flex-start;justify-content:space-between;padding:16px 18px 14px;border-bottom:1px solid var(--line)}
-.dhead h2{margin:2px 0 0;font-size:17px;font-weight:600;line-height:1.3}
+.dhead h2{margin:2px 0 0;font-size:var(--fs-md);font-weight:600;line-height:1.3}
 .dacts{display:flex;gap:6px;flex:none}
-.dacts button{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:5px 10px;font-size:12.5px;color:var(--ink)}
+.dacts button{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:5px 10px;font-size:var(--fs-sm);color:var(--ink)}
 .dacts button:hover:not(:disabled){border-color:var(--accent)}
 .dacts button:disabled{opacity:.35;cursor:default}
 .dbody{padding:4px 18px 40px;overflow-y:auto;flex:1}
 .dbody h4{margin:20px 0 7px}
 .dbody p{margin:6px 0}
 .dloc{display:flex;gap:8px;align-items:flex-start;margin:14px 0 4px}
-.dloc code{flex:1;background:var(--code-bg);border:1px solid var(--line-soft);border-radius:8px;padding:9px 11px;font-size:13px;word-break:break-word}
+.dloc code{flex:1;background:var(--code-bg);border:1px solid var(--line-soft);border-radius:8px;padding:9px 11px;font-size:var(--fs-sm);word-break:break-word}
 .stepbox{background:var(--panel-2);border:1px solid var(--line-soft);border-radius:10px;padding:10px 12px}
 .stepbox .codewrap{margin:8px 0}
 .refs{padding-left:18px}.refs li{margin:4px 0}
@@ -732,17 +951,17 @@ q.quote{font-style:italic;color:var(--ink);font-size:13px}
 body.drawer-open{overflow:auto}
 
 /* ---- shared bits ---- */
-h3{margin:0;font-size:16px;font-weight:600}
-h4{margin:14px 0 6px;font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--faint)}
+h3{margin:0;font-size:var(--fs-md);font-weight:600}
+h4{margin:14px 0 6px;font-size:var(--fs-xs);letter-spacing:.07em;text-transform:uppercase;color:var(--faint)}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 18px;box-shadow:0 1px 2px var(--shadow)}
 .card-h{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:flex-start}
 .card p{margin:10px 0}
-.id{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;color:var(--muted)}
-.muted{color:var(--muted)}.small{font-size:12px}
-.note{background:var(--alert-bg);border-left:3px solid var(--high);padding:8px 10px;border-radius:4px;font-size:13px}
+.id{font-family:var(--mono);font-size:var(--fs-xs);color:var(--muted)}
+.muted{color:var(--muted)}.small{font-size:var(--fs-xs)}
+.note{background:var(--alert-bg);border-left:3px solid var(--high);padding:8px 10px;border-radius:4px;font-size:var(--fs-sm)}
 .badges,.links{display:flex;gap:5px;flex-wrap:wrap;align-items:center}
 .links{margin:8px 0}
-.badge{display:inline-block;font-size:11px;border-radius:20px;padding:1px 8px;border:1px solid var(--line);white-space:nowrap;line-height:1.6}
+.badge{display:inline-block;font-size:var(--fs-xs);border-radius:20px;padding:1px 8px;border:1px solid var(--line);white-space:nowrap;line-height:1.6}
 .imp-none{color:var(--low);border-color:currentColor}
 .imp-bundle{color:var(--med);border-color:currentColor;background:var(--alert-bg)}
 .imp-bg{color:var(--on-accent);background:var(--crit);border-color:var(--crit)}
@@ -753,8 +972,8 @@ h4{margin:14px 0 6px;font-size:11px;letter-spacing:.07em;text-transform:uppercas
 .t-likely{color:var(--high);border-color:var(--high)}.t-confirmed{color:var(--on-accent);background:var(--crit);border-color:var(--crit)}
 .sh-yes{color:var(--low);border-color:currentColor}.sh-restricted{color:var(--med);border-color:currentColor}.sh-no{color:var(--crit);border-color:currentColor}
 .mem{color:var(--muted)}
-.chip{display:inline-block;font-size:11.5px;background:var(--line-soft);border-radius:6px;padding:1px 7px;color:var(--ink);text-decoration:none;border:1px solid transparent}
-.chip.mono{font-family:ui-monospace,Menlo,monospace;font-size:11px;word-break:break-all}
+.chip{display:inline-block;font-size:var(--fs-xs);background:var(--line-soft);border-radius:6px;padding:1px 7px;color:var(--ink);text-decoration:none;border:1px solid transparent}
+.chip.mono{font-family:var(--mono);font-size:var(--fs-xs);word-break:break-all}
 a.chip.mono{color:var(--ink)}
 a.chip.mono:hover{border-color:var(--accent-border)}
 .chip.nw{white-space:nowrap;word-break:normal}
@@ -768,13 +987,13 @@ ul{margin:4px 0;padding-left:20px}ul.plain{list-style:none;padding:0}
 ul.plain li{padding:7px 0;border-top:1px solid var(--line-soft)}
 ul.plain li:first-child{border-top:0}
 ul.plain .row2{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
-details summary{cursor:pointer;color:var(--muted);font-size:12.5px;margin-top:8px}
-.tbl{width:100%;border-collapse:collapse;font-size:13px;margin-top:10px}
+details summary{cursor:pointer;color:var(--muted);font-size:var(--fs-sm);margin-top:8px}
+.tbl{width:100%;border-collapse:collapse;font-size:var(--fs-sm);margin-top:10px}
 .tbl th,.tbl td{text-align:left;vertical-align:top;padding:8px 8px;border-top:1px solid var(--line-soft)}
-.tbl thead th{font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--faint);border-top:0}
+.tbl thead th{font-size:var(--fs-xs);letter-spacing:.05em;text-transform:uppercase;color:var(--faint);border-top:0}
 .tbl td.id{white-space:nowrap}
 .picker{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
-.pbtn,.rbtn{background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:6px 13px;font-size:12.5px;color:var(--muted)}
+.pbtn,.rbtn{background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:6px 13px;font-size:var(--fs-sm);color:var(--muted)}
 .pbtn:hover,.rbtn:hover{color:var(--ink);border-color:var(--accent-border)}
 .pbtn[aria-pressed=true],.rbtn[aria-pressed=true]{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
 .planwrap{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:18px;align-items:start}
@@ -783,52 +1002,52 @@ details summary{cursor:pointer;color:var(--muted);font-size:12.5px;margin-top:8p
 .plan-h h3{display:inline}
 .guard .cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}
 .guard .chip{display:block;margin:3px 0}
-.tierrow th{background:var(--panel-2);font-size:12.5px;font-weight:600;padding:9px 8px}
-.tchip{font-family:ui-monospace,Menlo,monospace;font-size:11px;background:var(--accent);color:var(--on-accent);border-radius:5px;padding:1px 6px;margin-right:6px}
+.tierrow th{background:var(--panel-2);font-size:var(--fs-sm);font-weight:600;padding:9px 8px}
+.tchip{font-family:var(--mono);font-size:var(--fs-xs);background:var(--accent);color:var(--on-accent);border-radius:5px;padding:1px 6px;margin-right:6px}
 .step.off{opacity:.38}
-.step .kind{font-size:11px;color:var(--faint);margin-top:3px}
-.purpose{color:var(--muted);font-size:12.5px;margin-top:4px}
-.needs{font-size:12px;color:var(--high);margin-top:3px}
+.step .kind{font-size:var(--fs-xs);color:var(--faint);margin-top:3px}
+.purpose{color:var(--muted);font-size:var(--fs-sm);margin-top:4px}
+.needs{font-size:var(--fs-xs);color:var(--high);margin-top:3px}
 .cmd{display:inline-flex;gap:6px;align-items:flex-start;max-width:100%}
-.cmd code{background:var(--code-bg);border:1px solid var(--line-soft);border-radius:6px;padding:2px 6px;font-size:12px;word-break:break-all}
-.copy{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:3px 8px;font-size:11px;color:var(--muted)}
+.cmd code{background:var(--code-bg);border:1px solid var(--line-soft);border-radius:6px;padding:2px 6px;font-size:var(--fs-xs);word-break:break-all}
+.copy{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:3px 8px;font-size:var(--fs-xs);color:var(--muted)}
 .copy:hover{color:var(--ink);border-color:var(--accent)}
-.copy.sm{padding:1px 6px;font-size:10.5px}
+.copy.sm{padding:1px 6px;font-size:var(--fs-xs)}
 .codewrap{position:relative;margin:10px 0}
 .codewrap .copy{position:absolute;top:8px;right:8px}
 .codewrap pre{padding-right:64px}
-pre{background:var(--code-bg);border:1px solid var(--line-soft);border-radius:8px;padding:12px;overflow:auto;font-size:12px;margin:0;max-height:520px}
+pre{background:var(--code-bg);border:1px solid var(--line-soft);border-radius:8px;padding:12px;overflow:auto;font-size:var(--fs-xs);margin:0;max-height:520px}
 pre.instr,pre.wrap{white-space:pre-wrap;max-height:none}
 .builder{position:sticky;top:calc(var(--hdr) + 16px);background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:9px}
-.builder label{display:flex;flex-direction:column;font-size:12px;color:var(--muted);gap:3px}
+.builder label{display:flex;flex-direction:column;font-size:var(--fs-xs);color:var(--muted);gap:3px}
 .builder label.tog{display:block;color:var(--ink)}
 .builder label.tog input{margin:0 6px 0 0;vertical-align:-1px}
-.builder input:not([type]),.builder select{background:var(--bg);border:1px solid var(--field);border-radius:7px;padding:6px 9px;font-size:13px;color:var(--ink)}
+.builder input:not([type]),.builder select{background:var(--bg);border:1px solid var(--field);border-radius:7px;padding:6px 9px;font-size:var(--fs-sm);color:var(--ink)}
 .builder pre{white-space:pre-wrap;word-break:break-all;padding-right:56px}
 .fmt-sigma{color:var(--conf-strong);border-color:currentColor}.fmt-yara{color:var(--high);border-color:currentColor}
 .lvl-critical{color:var(--crit);border-color:currentColor}.lvl-high{color:var(--high);border-color:currentColor}.lvl-medium{color:var(--med);border-color:currentColor}
 .scroll{overflow-x:auto;margin:10px 0 22px}
-table.cov{border-collapse:collapse;font-size:12.5px;background:var(--panel)}
+table.cov{border-collapse:collapse;font-size:var(--fs-sm);background:var(--panel)}
 table.cov th,table.cov td{border:1px solid var(--line-soft);padding:6px 9px}
-table.cov .rowh{text-align:left;white-space:nowrap;font-weight:500}
-table.cov .vert{height:116px;vertical-align:bottom;white-space:nowrap;font-weight:500;font-size:11.5px}
+table.cov .rowh{text-align:left;white-space:nowrap;font-weight:400}
+table.cov .vert{height:116px;vertical-align:bottom;white-space:nowrap;font-weight:400;font-size:var(--fs-xs)}
 table.cov .vert span{writing-mode:vertical-rl;transform:rotate(180deg)}
-table.cov .cell{width:44px;padding:0;text-align:center;font-family:ui-monospace,Menlo,monospace}
+table.cov .cell{width:44px;padding:0;text-align:center;font-family:var(--mono)}
 table.cov .cell a{display:block;padding:7px 0;color:var(--ink);text-decoration:none}
 table.cov .cell a:hover{box-shadow:inset 0 0 0 2px var(--accent)}
 .cell.t-possible{background:color-mix(in srgb,var(--med) 22%,transparent)}
 .cell.t-likely{background:color-mix(in srgb,var(--high) 32%,transparent)}
 .cell.t-confirmed{background:color-mix(in srgb,var(--crit) 40%,transparent)}
-table.cov .num{text-align:center;font-family:ui-monospace,Menlo,monospace;min-width:34px}
+table.cov .num{text-align:center;font-family:var(--mono);min-width:34px}
 .num.warn{color:var(--crit)}
 .legend{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:-12px 0 24px}
-.guide{max-width:820px}
-.guide h2{font-size:21px;margin:8px 0 10px}.guide h3{font-size:16px;margin:26px 0 8px}.guide h4{font-size:12px}
-.guide p,.guide li{line-height:1.65}
-.guide code{background:var(--code-bg);border-radius:4px;padding:1px 4px;font-size:12.5px}
+.guide{max-width:760px}
+.guide h2{font-size:var(--fs-lg);margin:8px 0 10px}.guide h3{font-size:var(--fs-md);margin:26px 0 8px}.guide h4{font-size:var(--fs-xs)}
+.guide p,.guide li{line-height:1.7;color:var(--ink-2)}
+.guide code{background:var(--code-bg);border-radius:4px;padding:1px 4px;font-size:var(--fs-sm)}
 .guide pre code{background:none;padding:0}
-footer{max-width:1440px;margin:0 auto;padding:22px 28px 40px;color:var(--faint);font-size:12px;border-top:1px solid var(--line)}
-.sect{margin:22px 0 10px;font-size:15px}
+footer{max-width:1440px;margin:0 auto;padding:22px 28px 40px;color:var(--faint);font-size:var(--fs-xs);border-top:1px solid var(--line)}
+.sect{margin:22px 0 10px;font-size:var(--fs-md)}
 .cls{color:var(--muted)}
 .vol-live{color:var(--crit);border-color:currentColor}.vol-rotating{color:var(--high);border-color:currentColor}
 .vol-stable{color:var(--low);border-color:currentColor}.vol-off-box{color:var(--conf-strong);border-color:currentColor;background:var(--conf-bg)}
@@ -836,8 +1055,8 @@ footer{max-width:1440px;margin:0 auto;padding:22px 28px 40px;color:var(--faint);
 .mot-espionage{color:var(--conf-strong);border-color:currentColor}.mot-financial{color:var(--high);border-color:currentColor}
 .mot-unknown,.mot-mixed{color:var(--muted)}
 .kind-actor{color:var(--high);border-color:currentColor}.kind-implant{color:var(--crit);border-color:currentColor}
-.attrib{background:var(--panel-2);border:1px solid var(--line-soft);border-radius:8px;padding:9px 12px;margin:12px 0;font-size:13px;display:grid;gap:4px}
-.attrib .k{display:inline-block;min-width:110px;font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--faint)}
+.attrib{background:var(--panel-2);border:1px solid var(--line-soft);border-radius:8px;padding:9px 12px;margin:12px 0;font-size:var(--fs-sm);display:grid;gap:4px}
+.attrib .k{display:inline-block;min-width:110px;font-size:var(--fs-xs);letter-spacing:.05em;text-transform:uppercase;color:var(--faint)}
 .attrib q{font-style:italic;color:var(--ink)}
 .gap-b{color:var(--on-accent);background:var(--crit);border-color:var(--crit)}
 .surv-yes{color:var(--crit);border-color:currentColor}.surv-no{color:var(--low);border-color:currentColor}
@@ -847,15 +1066,15 @@ footer{max-width:1440px;margin:0 auto;padding:22px 28px 40px;color:var(--faint);
 .res-disk,.res-memory\+disk{color:var(--high);border-color:currentColor}
 .phases{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;margin-top:8px}
 .phase{background:var(--panel-2);border:1px solid var(--line-soft);border-radius:8px;padding:6px 12px 10px}
-.phase ol,.resp ol{margin:4px 0;padding-left:18px}.phase li{margin:5px 0;font-size:13px}
-.pn{display:inline-grid;place-items:center;width:18px;height:18px;border-radius:50%;background:var(--accent);color:var(--on-accent);font-size:10.5px;margin-right:7px;vertical-align:1px;letter-spacing:0}
-.when{font-size:11.5px;color:var(--high);margin-top:2px}
+.phase ol,.resp ol{margin:4px 0;padding-left:18px}.phase li{margin:5px 0;font-size:var(--fs-sm)}
+.pn{display:inline-grid;place-items:center;width:18px;height:18px;border-radius:50%;background:var(--accent);color:var(--on-accent);font-size:var(--fs-xs);margin-right:7px;vertical-align:1px;letter-spacing:0}
+.when{font-size:var(--fs-xs);color:var(--high);margin-top:2px}
 .dont{margin-top:14px;background:var(--alert-bg);border:1px solid var(--line-soft);border-left:3px solid var(--crit);border-radius:8px;padding:4px 12px 8px}
 .dont h4{color:var(--crit)}
-.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--ink);color:var(--bg);border-radius:9px;padding:9px 16px;font-size:13px;z-index:60;box-shadow:0 6px 24px var(--shadow-lg)}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--ink);color:var(--bg);border-radius:9px;padding:9px 16px;font-size:var(--fs-sm);z-index:60;box-shadow:0 6px 24px var(--shadow-lg)}
 [hidden]{display:none!important}
 .empty{color:var(--muted);padding:40px 0;text-align:center;background:var(--panel);border:1px dashed var(--line);border-radius:12px}
-kbd{font-family:ui-monospace,Menlo,monospace;font-size:11px;border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:0 4px;background:var(--panel)}
+kbd{font-family:var(--mono);font-size:var(--fs-xs);border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:0 4px;background:var(--panel)}
 
 @media (max-width:1100px){.row{grid-template-columns:28px 120px minmax(0,1fr) 92px 92px}.row .c-val,.row .c-conf{display:none}}
 @media (max-width:980px){.planwrap{grid-template-columns:1fr}.builder{position:static}}
@@ -874,9 +1093,7 @@ kbd{font-family:ui-monospace,Menlo,monospace;font-size:11px;border:1px solid var
   .rail{top:0}
   .hdr-in,main,footer{padding-left:16px;padding-right:16px}
   .tabs{mask-image:linear-gradient(90deg,#000 85%,transparent);-webkit-mask-image:linear-gradient(90deg,#000 85%,transparent)}
-  .tabrow{flex-direction:column;align-items:stretch;gap:0}
-  .guidelink{align-self:flex-start;margin:4px 0 10px}
-  .exp{margin-left:0}
+      .exp{margin-left:0}
   .row.head{display:none}
   .seg span{display:none}
   .railhead b{display:none}
@@ -887,13 +1104,87 @@ kbd{font-family:ui-monospace,Menlo,monospace;font-size:11px;border:1px solid var
   .row .c-main{flex:1 1 100%}
   .row .c-val,.row .c-conf{display:block}
   .lgrid{grid-template-columns:1fr}
-  .card,.plan{padding:14px}.tbl{font-size:12px}
+  .card,.plan{padding:14px}.tbl{font-size:var(--fs-xs)}
   .steps thead{display:none}.steps tr.step td{display:block;border:0;padding:3px 0}
   .steps tr.step{display:block;padding:10px 0;border-top:1px solid var(--line-soft)}
   .steps tr.step td:first-child{font-weight:600}.steps .tierrow th{display:block}
   .dhead{padding:12px 14px}.dbody{padding:4px 14px 40px}
   .dacts #dWide{display:none}
 }
+
+/* ---- type system: one sans family; monospace only for literal strings ---- */
+.id,.pill,.tabs .n,.tgl .n,.fv .fc,.count,.chip.mono,a.chip.mono,.tchip,table.cov .cell,table.cov .num,.mono,b.mono,.ptile .n{font-family:var(--sans);font-variant-numeric:tabular-nums}
+.id{letter-spacing:.01em}
+code,kbd,pre,.chip.code,code.loc{font-family:var(--mono);font-variant-ligatures:none}
+p code,li code,dd code,.desc code,td code{font-size:.9em;background:var(--code-bg);border:1px solid var(--line-soft);border-radius:4px;padding:0 4px}
+.chip.code{font-size:var(--fs-xs);word-break:break-all}
+
+/* ---- tabs: workflow, then reference ---- */
+.tabs{margin-top:8px}
+.tabsep{flex:none;width:1px;background:var(--line);margin:8px 10px}
+.tabs button[data-tab=start]{font-weight:600;color:var(--accent)}
+.tabs button[data-tab=start][aria-selected=true]{color:var(--ink)}
+
+/* ---- start ---- */
+.start{max-width:1180px}
+.hero h2{margin:0 0 6px;font-size:var(--fs-lg);font-weight:600;letter-spacing:-.01em}
+.hero .lede{font-size:var(--fs-md);line-height:1.55;color:var(--ink-2);max-width:72ch}
+.ptiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px}
+.ptile{background:var(--panel);border:1px solid var(--line);border-radius:12px;display:flex;flex-direction:column;overflow:hidden}
+.ptile:hover{border-color:var(--accent-border);box-shadow:0 4px 14px var(--shadow)}
+.ptile-h{display:flex;flex-direction:column;gap:1px;padding:12px 14px 10px;text-decoration:none;color:var(--ink)}
+.ptile-h b{font-size:var(--fs-md);font-weight:600}
+.ptile-l{display:flex;flex-wrap:wrap;gap:2px 12px;padding:8px 14px 11px;border-top:1px solid var(--line-soft);font-size:var(--fs-sm)}
+.ptile-l a{text-decoration:none}.ptile-l a:hover{text-decoration:underline}
+.ptile .n{color:var(--faint);font-size:var(--fs-xs)}
+.startcols{display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:8px 28px}
+.callout{background:var(--alert-bg);border:1px solid var(--line-soft);border-left:3px solid var(--crit);border-radius:10px;padding:12px 16px;color:var(--ink)}
+.callout ol{margin:0;padding-left:20px}.callout li{margin:6px 0;line-height:1.55}
+.flow{margin:0;padding-left:22px}.flow li{margin:0 0 12px;line-height:1.55}
+.flow code{display:block;margin:6px 0;background:var(--code-bg);border:1px solid var(--line-soft);border-radius:7px;padding:7px 10px;font-size:var(--fs-sm);word-break:break-word}
+.legend-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px}
+.lg{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:4px 14px 12px}
+.lg h4{color:var(--muted)}
+.lg dl{display:grid;grid-template-columns:auto 1fr;gap:7px 10px;margin:0;align-items:baseline}
+.lg dt{margin:0}.lg dd{margin:0;font-size:var(--fs-sm);color:var(--ink-2);line-height:1.4}
+a.tile{text-decoration:none;color:var(--ink)}a.tile:hover{border-color:var(--accent)}
+.verdict{display:inline-block;font-size:var(--fs-xs);font-weight:600;letter-spacing:.02em;border-radius:5px;padding:1px 7px;margin:1px 2px;border:1px solid currentColor;white-space:nowrap}
+.v-compromised{color:var(--on-accent);background:var(--crit);border-color:var(--crit)}
+.v-likely-compromised{color:var(--high)}.v-suspicious{color:var(--med)}.v-no-indicators-found{color:var(--muted)}
+
+/* ---- coverage ---- */
+.gaps{list-style:none;padding:0;margin:0 0 8px;display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:10px}
+.gaps li{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--high);border-radius:10px;padding:10px 14px;display:flex;flex-direction:column;gap:3px}
+.covcols{display:grid;grid-template-columns:minmax(0,auto) minmax(300px,1fr);gap:8px 32px;align-items:start}
+.vrows{display:flex;flex-direction:column;gap:6px;margin-bottom:22px}
+.vrow{display:grid;grid-template-columns:150px 1fr 64px;gap:10px;align-items:center;text-decoration:none;color:var(--ink);font-size:var(--fs-sm)}
+.vrow:hover .vname{text-decoration:underline}
+.vbar{display:flex;gap:2px;height:20px;border-radius:5px;overflow:hidden}
+.vseg{display:flex;align-items:center;justify-content:center;font-size:var(--fs-xs);color:#fff;min-width:18px;font-variant-numeric:tabular-nums}
+.vs-high{background:var(--conf-strong)}.vs-medium{background:var(--conf-mid)}.vs-low{background:var(--crit)}
+.cell.r1{background:color-mix(in srgb,var(--accent) 12%,transparent)}.cell.r2{background:color-mix(in srgb,var(--accent) 26%,transparent)}
+.cell.r3{background:color-mix(in srgb,var(--accent) 42%,transparent)}.cell.r4{background:color-mix(in srgb,var(--accent) 60%,transparent)}
+.cell.r4 a{color:var(--on-accent)}
+details.fold{margin:8px 0 20px}details.fold summary{font-size:var(--fs-sm);color:var(--accent);font-weight:600}
+
+/* ---- guide ---- */
+.guide h2{font-size:var(--fs-lg);margin:6px 0 10px}
+.guide h3{font-size:var(--fs-md);margin:30px 0 8px;padding-top:4px}
+.guide h4{font-size:var(--fs-xs)}
+.hlink{margin-left:8px;color:var(--faint);text-decoration:none;opacity:0;font-weight:400}
+.guide h3:hover .hlink,.guide h4:hover .hlink,.hlink:focus{opacity:1}
+.guide .callout{margin:10px 0 14px}
+.pnote{border-left:2px solid var(--line);padding:2px 0 2px 14px;margin:12px 0}
+.pnote p{margin:0 0 6px}.pnote .links{margin:4px 0 0}
+.guide .tbl td,.guide .tbl th{font-size:var(--fs-sm)}
+.toc{display:flex;flex-direction:column;gap:1px;margin-top:6px}
+.toc a{display:block;padding:5px 8px;border-radius:6px;color:var(--ink-2);text-decoration:none;font-size:var(--fs-sm);line-height:1.35;border-left:2px solid transparent}
+.toc a.l3{padding-left:20px;color:var(--muted)}
+.toc a:hover{background:var(--hover)}
+.toc a.on{color:var(--accent);background:var(--accent-soft);border-left-color:var(--accent);font-weight:600}
+@media (max-width:640px){.ptiles{grid-template-columns:1fr 1fr;gap:8px}.ptile-h{padding:10px 11px 8px}.ptile-h .id,.ptile-h .muted{display:none}
+  .ptile-h b{font-size:var(--fs-base);line-height:1.3}.ptile-l{padding:7px 11px 9px;gap:2px 9px;font-size:var(--fs-xs)}
+  .covcols{grid-template-columns:minmax(0,1fr)}.vrow{grid-template-columns:110px 1fr 54px}.startcols{grid-template-columns:1fr}.tabsep{margin:8px 4px}}
 """
 
 JS = r"""
@@ -911,10 +1202,20 @@ function lnk(href, t, cls){ return '<a class="chip link ' + (cls || '') + '" hre
 function lnks(a, cls){ return (a || []).map(function(x){ return x.href ? lnk(x.href, x.label) : '<span class="chip ' + (cls || '') + '">' + esc(x.label) + '</span>'; }).join(''); }
 function refs(r){ return r && r.length ? '<h4>References</h4><ul class="refs">' + r.map(function(x){ return '<li><a href="' + esc(x.url) + '" rel="noopener" target="_blank">' + esc(x.title) + '</a></li>'; }).join('') + '</ul>' : ''; }
 function sec(title, h){ return h ? '<h4>' + esc(title) + '</h4>' + h : ''; }
-function para(t){ return t ? '<p>' + esc(t) + '</p>' : ''; }
+/* Prose stays in the sans face. Literal strings inside it - `quoted`, absolute
+   paths and file names - are wrapped in <code>, so a sentence never switches
+   font as a whole. */
+var CODE_RE = /(`[^`]+`|(?<![\w.\/])\/[\w.\-*{}]+(?:\/[\w.\-*{}]*)*|\b[\w.\-]+\.(?:bin|b64|gz|tar|log|conf|php|py|pth|sh|so|zip|pcap|elg|xml|json|lua|cgi|pl|db|pkg|yar|yml|html|txt|ko|cfg|dat|out|tgz|ucs|qkview|pcapng)\d?\b)/g;
+function rich(t){
+  return String(t == null ? '' : t).split(CODE_RE).map(function(part, i){
+    if (i % 2 === 0) return esc(part);
+    return '<code>' + esc(part.charAt(0) === '`' ? part.slice(1, -1) : part) + '</code>';
+  }).join('');
+}
+function para(t){ return t ? '<p>' + rich(t) + '</p>' : ''; }
 function codeblk(t, wrap){ return '<div class="codewrap"><button class="copy" type="button">Copy</button><pre' + (wrap ? ' class="wrap"' : '') + '><code>' + esc(t) + '</code></pre></div>'; }
 function att(a){ return (a || []).map(function(t){ var p = t.split('.'); return '<a class="chip mono" href="https://attack.mitre.org/techniques/' + p[0] + '/' + (p[1] ? p[1] + '/' : '') + '" rel="noopener" target="_blank" title="MITRE ATT&CK">' + esc(t) + '</a>'; }).join(''); }
-function list(a){ return a && a.length ? '<ul>' + a.map(function(x){ return '<li>' + esc(x) + '</li>'; }).join('') + '</ul>' : ''; }
+function list(a){ return a && a.length ? '<ul>' + a.map(function(x){ return '<li>' + rich(x) + '</li>'; }).join('') + '</ul>' : ''; }
 function hd(id, title, sub, badges){ return '<div class="lc-h"><div class="lc-t"><span class="id">' + esc(id) + '</span><h3>' + esc(title) + '</h3>' + (sub ? '<div class="lc-sub">' + sub + '</div>' : '') + '</div><div class="badges">' + (badges || '') + '</div></div>'; }
 var IMP = {'none':'imp-none','vendor-bundle':'imp-bundle','break-glass':'imp-bg'};
 var SHELL = {yes:'shell: yes', restricted:'shell: restricted', no:'shell: none'};
@@ -956,7 +1257,7 @@ artifacts: {
   row:function(a){
     return '<span class="c-pick"><input type="checkbox" class="pick" aria-label="Pick ' + esc(a.id) + '"' + (S.artifacts.picks[a.id] ? ' checked' : '') + '></span>' +
       '<span class="c-plat">' + esc(PN[a.platform]) + '<span class="id">' + esc(a.id) + '</span></span>' +
-      '<span class="c-main"><code class="loc">' + esc(a.locator) + '</code><span class="desc">' + esc(a.description) + '</span>' +
+      '<span class="c-main"><code class="loc">' + esc(a.locator) + '</code><span class="desc">' + rich(a.description) + '</span>' +
       (a.seen_in.length ? '<span class="seen">' + chips(a.seen_in, 'implant') + '</span>' : '') + '</span>' +
       '<span class="c-cls">' + b(a['class'], 'cls') + '</span><span class="c-vol">' + b(a.volatility, 'vol vol-' + a.volatility) + '</span>' +
       '<span class="c-val">' + b(a.value, 'fv fv-' + a.value) + '</span><span class="c-conf">' + conf(a.confidence, a.unv) + '</span>';
@@ -973,7 +1274,7 @@ artifacts: {
     if (a.kind === 'step'){
       var s = a.step;
       c = '<div class="stepbox"><div class="links" style="margin:0"><span class="tchip">' + esc(s.tier) + '</span><b class="mono">' + esc(a.collected_by) + '</b>' + b(s.impact, IMP[s.impact]) + conf(s.confidence, s.unverified) + '</div>' +
-        (s.cmd ? codeblk(s.cmd) : (s.instructions ? codeblk(s.instructions, true) : '')) + '<p class="muted small">' + esc(s.purpose) + '</p>' +
+        (s.cmd ? codeblk(s.cmd) : (s.instructions ? codeblk(s.instructions, true) : '')) + '<p class="muted small">' + rich(s.purpose) + '</p>' +
         '<div class="links">' + lnk('#plans/' + p.profile, 'Open the ' + p.profile + ' collection plan') + '</div></div>';
     } else if (a.kind === 'ingest'){
       c = '<p>Not on the device, or not reachable from its CLI. Export it from where it lives - the syslog receiver, the SIEM, the management server - and add it to the case:</p>' + codeblk('edge-triage ingest <case> --label <name> --bundle <file>');
@@ -1003,7 +1304,7 @@ platforms: {
     return hd(p.id, p.short, esc(p.vendor), b(SHELL[p.shell], 'sh-' + p.shell) + conf(p.confidence, p.unv)) +
       '<p class="clamp">' + esc(p.os_base) + '</p>' +
       '<div class="stats"><span><b>' + p.n_art + '</b>artifacts</span><span><b>' + p.n_steps + '</b>steps</span><span><b>' + p.n_det + '</b>detections</span></div>' +
-      '<div class="lc-f">' + b('memory: ' + p.memory, 'mem') + (p.profile ? '<span class="chip mono">' + esc(p.profile) + '</span>' : '<span class="chip ghost">no profile yet</span>') + '</div>';
+      '<div class="lc-f">' + b('memory: ' + p.memory, 'mem') + (p.profile ? '<span class="chip code">' + esc(p.profile) + '</span>' : '<span class="chip ghost">no profile yet</span>') + '</div>';
   },
   title:function(p){ return p.name; },
   drawer:function(p){
@@ -1015,11 +1316,11 @@ platforms: {
       (p.response ? lnk('#response/' + p.response, 'Containment and recovery') : '') + '</div>';
     if (p.products.length) h += sec('Products', '<div class="links">' + chips(p.products) + '</div>');
     if (p.filesystem) h += sec('Filesystem', para(p.filesystem));
-    h += sec('Collection paths', '<ul class="plain">' + p.collection.map(function(x){ return '<li><div class="row2">' + b(x.impact, IMP[x.impact]) + '<b>' + esc(x.method) + '</b>' + conf(x.confidence, x.unverified) + '</div><div class="muted small">' + esc(x.description) + '</div></li>'; }).join('') + '</ul>');
+    h += sec('Collection paths', '<ul class="plain">' + p.collection.map(function(x){ return '<li><div class="row2">' + b(x.impact, IMP[x.impact]) + '<b>' + esc(x.method) + '</b>' + conf(x.confidence, x.unverified) + '</div><div class="muted small">' + rich(x.description) + '</div></li>'; }).join('') + '</ul>');
     if (p.volatility.length) h += sec('Lost on reboot or upgrade', list(p.volatility));
-    if (p.anti_forensics.length) h += sec('Anti-forensics seen in public reporting', '<ul class="plain">' + p.anti_forensics.map(function(a){ return '<li><b>' + esc(a.technique) + '</b> <span class="muted">- ' + esc(a.seen_in) + '</span>' + (a.detail ? '<div class="muted small">' + esc(a.detail) + '</div>' : '') + '</li>'; }).join('') + '</ul>');
+    if (p.anti_forensics.length) h += sec('Anti-forensics seen in public reporting', '<ul class="plain">' + p.anti_forensics.map(function(a){ return '<li><b>' + esc(a.technique) + '</b> <span class="muted">- ' + esc(a.seen_in) + '</span>' + (a.detail ? '<div class="muted small">' + rich(a.detail) + '</div>' : '') + '</li>'; }).join('') + '</ul>');
     if (p.packs.length) h += sec('Detection packs', '<div class="links">' + p.packs.map(function(x){ return lnk('#detections?pack=' + x, x + ' - ' + PACK[x].name); }).join('') + '</div>');
-    if (p.notes) h += '<p class="note">' + esc(p.notes) + '</p>';
+    if (p.notes) h += '<p class="note">' + rich(p.notes) + '</p>';
     return h + refs(p.references);
   },
   exp:function(p){ return {id:p.id, name:p.name, vendor:p.vendor, os_base:p.os_base, shell:p.shell, memory:p.memory, profile:p.profile,
@@ -1041,7 +1342,7 @@ detections: {
   text:function(x){ return [x.id, x.title, x.pack, x.pack_name, x.notes, x.pattern, x.check, x.rule, x.evidence, x.cves.join(' '), x.attack.join(' '), x.actors.join(' ')].join(' '); },
   card:function(x){
     return hd(x.id, x.title, esc(x.pack + ' · ' + x.pack_name), b(x.tier, 'tier t-' + x.tier)) +
-      (x.notes ? '<p class="clamp">' + esc(x.notes) + '</p>' : '') +
+      (x.notes ? '<p class="clamp">' + rich(x.notes) + '</p>' : '') +
       '<div class="lc-f">' + '<span class="chip">' + esc(x.evidence) + '</span><span class="chip mono">' + esc(x.type === 'check' ? 'check:' + x.check : x.type) + '</span>' + chips(x.attack.slice(0, 3), 'mono') + '</div>';
   },
   title:function(x){ return x.title; },
@@ -1054,11 +1355,11 @@ detections: {
     } else if (x.type === 'check'){
       h += sec('Coded check: ' + x.check, x.check_doc ? '<pre class="wrap">' + esc(x.check_doc) + '</pre>' : '');
     } else if (x.type === 'yara'){
-      h += sec('YARA rule', '<div class="links">' + lnk('#rules/' + x.rule_id, x.rule, 'mono') + '</div>');
+      h += sec('YARA rule', '<div class="links">' + lnk('#rules/' + x.rule_id, x.rule, 'code') + '</div>');
     }
     if (x.steps.length) h += sec('Reads these collection steps', '<ul class="plain">' + x.steps.map(function(s){
       return '<li><div class="row2"><b class="mono">' + esc(s.id) + '</b>' + (s.tier ? '<span class="tchip">' + esc(s.tier) + '</span>' : '') + (s.profile ? lnk('#plans/' + s.profile, s.profile) : '') + '</div>' + (s.cmd ? '<code class="loc">' + esc(s.cmd) + '</code>' : '') + '</li>'; }).join('') + '</ul>');
-    if (x.files.length) h += sec('Reads these files', '<div class="links">' + chips(x.files, 'mono') + '</div>');
+    if (x.files.length) h += sec('Reads these files', '<div class="links">' + chips(x.files, 'code') + '</div>');
     if (x.attack.length) h += sec('ATT&CK', '<div class="links">' + att(x.attack) + '</div>');
     if (x.cves.length) h += sec('CVEs', '<div class="links">' + x.cves.map(function(c){ return lnk('#detections?cve=' + c, c); }).join('') + '</div>');
     if (x.actor_links.length || x.implant_links.length) h += sec('Actors and implants', '<div class="links">' + lnks(x.actor_links, 'actor') + lnks(x.implant_links, 'implant') + '</div>');
@@ -1115,7 +1416,7 @@ intel: {
       '<p class="clamp"><q class="quote">' + esc(i.stated_confidence) + '</q></p>' +
       '<div class="lc-f">' + b('link: ' + i.link_confidence, 'conf c-' + i.link_confidence) + chips(i.platforms.map(function(p){ return PN[p]; })) + '</div>';
     return hd(i.id, i.name, i.aliases.length ? esc(i.aliases.join(', ')) : '', b('implant', 'kind-implant') + b(i.type, 'itype')) +
-      '<p class="clamp">' + esc(i.summary) + '</p>' +
+      '<p class="clamp">' + rich(i.summary) + '</p>' +
       '<div class="lc-f">' + b('resides: ' + i.resides, 'res res-' + i.resides) + b('reboot: ' + i.reboot, 'surv surv-' + i.reboot) +
       (i.coverage === 'gap' ? b('coverage gap', 'gap-b') : '<span class="chip">' + i.detections.length + ' detections</span>') + '</div>';
   },
@@ -1140,11 +1441,11 @@ intel: {
       h += para(i.summary);
       h += '<div class="links">' + platLinks(i.platforms) + i.actors.map(function(x){ return lnk('#intel/' + x, INTEL[x] ? INTEL[x].name : x, 'actor'); }).join('') + chips(i.cves, 'cve') + '</div>';
       h += sec('Detection coverage', i.detections.length ? '<div class="links">' + i.detections.map(function(id){ return lnk('#detections/' + id, id, 'mono'); }).join('') + '</div>'
-        : '<div class="links">' + b('coverage gap', 'gap-b') + '</div>' + (i.gap ? '<p class="note">' + esc(i.gap) + '</p>' : ''));
-      h += sec('Artifacts', i.artifacts.length ? '<ul>' + i.artifacts.map(function(x){ return '<li><code>' + esc(x) + '</code></li>'; }).join('') + '</ul>' : '');
+        : '<div class="links">' + b('coverage gap', 'gap-b') + '</div>' + (i.gap ? '<p class="note">' + rich(i.gap) + '</p>' : ''));
+      h += sec('Artifacts', list(i.artifacts));
       h += sec('Anti-forensics', list(i.anti_forensics));
     }
-    if (i.notes) h += '<p class="note">' + esc(i.notes) + '</p>';
+    if (i.notes) h += '<p class="note">' + rich(i.notes) + '</p>';
     return h + refs(i.references);
   },
   exp:function(i){ return i.kind === 'actor'
@@ -1302,7 +1603,10 @@ function show(tab, anchor){
   cur = tab;
   tabs.forEach(function(b){ b.setAttribute('aria-selected', String(b.dataset.tab === tab)); });
   document.querySelectorAll('.panel').forEach(function(p){ p.hidden = p.id !== 'tab-' + tab; });
-  document.querySelector('.shell').classList.toggle('norail', !LIB[tab]);
+  document.querySelector('.shell').classList.toggle('norail', !LIB[tab] && tab !== 'guide');
+  $('railTitle').textContent = tab === 'guide' ? 'Contents' : 'Filters';
+  $('railReset').hidden = tab === 'guide';
+  if (tab === 'guide') renderToc();
   if (changed) window.scrollTo(0, 0);
   if (LIB[tab]){
     syncControls(tab);
@@ -1319,15 +1623,23 @@ function show(tab, anchor){
     closeDrawer(false);
     if (tab === 'plans' && anchor) pickProfile(anchor);
     if (tab === 'response' && anchor) pickResp(anchor);
+    if (tab === 'guide'){
+      pageAnchor.guide = anchor || '';
+      document.querySelectorAll('.toc a').forEach(function(a){ a.classList.toggle('on', !!anchor && a.dataset.g === anchor); });
+      var g = anchor && document.getElementById('g-' + anchor);
+      if (g) setTimeout(function(){ g.scrollIntoView({block:'start'}); }, 0);
+    }
     writeHash();
   }
 }
 function route(){
   var h = location.hash.slice(1), query = null, qi = h.indexOf('?');
   if (qi >= 0){ query = h.slice(qi + 1); h = h.slice(0, qi); }
-  var parts = h.split('/'), tab = parts[0] || 'artifacts', anchor = decodeURIComponent(parts.slice(1).join('/'));
+  var parts = h.split('/'), tab = parts[0] || 'start', anchor = decodeURIComponent(parts.slice(1).join('/'));
   if (tab === 'packs'){ tab = 'detections'; if (anchor){ query = 'pack=' + encodeURIComponent(anchor); anchor = ''; } }
-  if (!TABS[tab]){ var el = document.getElementById(h); tab = 'artifacts'; anchor = ''; if (el && el.closest('#tab-guide')){ show('guide'); el.scrollIntoView(); return; } }
+  if (!TABS[tab]){ var el = document.getElementById(h); tab = 'start'; anchor = '';
+    if (el && el.closest('#tab-guide')){ tab = 'guide'; anchor = h.replace(/^g-/, ''); }
+    else if (el){ el.scrollIntoView(); return; } }
   if (LIB[tab] && query !== null) readQuery(tab, query);
   show(tab, anchor);
 }
@@ -1338,6 +1650,25 @@ document.querySelector('.tabs').addEventListener('keydown', function(ev){
   var n = list[(i + (ev.key === 'ArrowRight' ? 1 : list.length - 1)) % list.length]; n.focus(); ev.preventDefault();
 });
 window.addEventListener('hashchange', route);
+
+/* ---------------------------------------------------------------- guide contents */
+var tocObs = null;
+function renderToc(){
+  var cur_ = pageAnchor.guide || '';
+  $('rail').innerHTML = '<nav class="toc" aria-label="Guide contents">' + D.toc.map(function(t){
+    var id = t.id.slice(2);
+    return '<a class="l' + t.level + (id === cur_ ? ' on' : '') + '" href="#guide/' + id + '" data-g="' + id + '">' + esc(t.title) + '</a>'; }).join('') + '</nav>';
+  $('railToggle').textContent = 'Contents';
+  if (tocObs || !('IntersectionObserver' in window)) return;
+  tocObs = new IntersectionObserver(function(es){
+    es.forEach(function(en){
+      if (!en.isIntersecting || cur !== 'guide') return;
+      var id = en.target.id.slice(2);
+      document.querySelectorAll('.toc a').forEach(function(a){ a.classList.toggle('on', a.dataset.g === id); });
+    });
+  }, {rootMargin:'-20% 0px -70% 0px'});
+  D.toc.forEach(function(t){ var el = document.getElementById(t.id); if (el) tocObs.observe(el); });
+}
 
 /* ---------------------------------------------------------------- drawer */
 function markSel(){
@@ -1525,17 +1856,28 @@ def page(d: dict) -> tuple[str, dict]:
     data = build_data(d)
     n_det = len(data["detections"])
     unv = {n: sum(1 for i in data[n] if i.get("unv")) for n in LIBS}
-    tabs = [("artifacts", "Artifacts", len(data["artifacts"])), ("platforms", "Platforms", len(data["platforms"])),
-            ("plans", "Collection plans", len(d["profiles"])), ("detections", "Detections", n_det),
-            ("intel", "Threat intel", len(data["intel"])), ("response", "Response", len(d["response"])),
-            ("rules", "Rules", len(d["rules"])), ("coverage", "Coverage", None)]
-    tabbar = "".join(f'<button type="button" role="tab" data-tab="{t}" aria-selected="false">{label}'
-                     + (f'<span class="n">{n}</span>' if n is not None else "") + "</button>" for t, label, n in tabs)
-    panels = "".join(lib_panel(n, unv[n], n == "artifacts") for n in LIBS)
+    # Ordered the way an investigation runs: which device, what to collect, what
+    # each trace proves, what fires, who, how to respond. Reference material sits
+    # after the divider.
+    tabs = [("start", "Start", None), ("platforms", "Platforms", len(data["platforms"])),
+            ("plans", "Collection plans", len(d["profiles"])), ("artifacts", "Artifacts", len(data["artifacts"])),
+            ("detections", "Detections", n_det), ("intel", "Threat intel", len(data["intel"])),
+            ("response", "Response", len(d["response"])), None,
+            ("rules", "Rules", len(d["rules"])), ("coverage", "Coverage", None), ("guide", "Guide", None)]
+    tabbar = "".join('<span class="tabsep" aria-hidden="true"></span>' if t is None else
+                     f'<button type="button" role="tab" data-tab="{t[0]}" aria-selected="false">{t[1]}'
+                     + (f'<span class="n">{t[2]}</span>' if t[2] is not None else "") + "</button>" for t in tabs)
+    ctx = {"cves": {c for x in data["detections"] for c in x["cves"]},
+           "platforms": {p["id"]: p for p in data["platforms"]}, "notes_seen": set()}
+    guide_html = markdown(d["guide"], ctx)
+    data["guideNotes"] = sorted(ctx["notes_seen"])
+    data["toc"] = guide_toc(d["guide"])
+    panels = f'<section class="panel" id="tab-start" role="tabpanel" hidden>{render_start(d, data)}</section>'
+    panels += "".join(lib_panel(n, unv[n], n == "artifacts") for n in LIBS)
     panels += (f'<section class="panel" id="tab-plans" role="tabpanel" hidden>{render_plans(d)}</section>'
                f'<section class="panel" id="tab-response" role="tabpanel" hidden>{render_response(d)}</section>'
                f'<section class="panel" id="tab-coverage" role="tabpanel" hidden>{render_coverage(d, data)}</section>'
-               f'<section class="panel" id="tab-guide" role="tabpanel" hidden><article class="guide">{markdown(d["guide"])}</article></section>')
+               f'<section class="panel" id="tab-guide" role="tabpanel" hidden><article class="guide">{guide_html}</article></section>')
     built = _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%d")
     icon = ("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E"
             "%3Crect width='32' height='32' rx='7' fill='%235e3a24'/%3E%3Cpath d='M8 22V10h10M8 16h8M8 22h10' "
@@ -1559,12 +1901,11 @@ def page(d: dict) -> tuple[str, dict]:
       <button type="button" class="hbtn" id="themeBtn">Theme</button>
     </div>
   </div>
-  <div class="tabrow"><nav class="tabs" role="tablist" aria-label="Sections">{tabbar}</nav>
-    <button type="button" class="guidelink" data-tab="guide" aria-selected="false">Investigation guide &#8594;</button></div>
+  <nav class="tabs" role="tablist" aria-label="Sections">{tabbar}</nav>
 </div></header>
 <div class="shell">
   <aside class="rail" aria-label="Filters">
-    <div class="railhead"><b>Filters</b><button type="button" class="hbtn" id="railToggle">Filters</button><a id="railReset" class="lnkbtn" href="#">reset</a></div>
+    <div class="railhead"><b id="railTitle">Filters</b><button type="button" class="hbtn" id="railToggle">Filters</button><a id="railReset" class="lnkbtn" href="#">reset</a></div>
     <div id="rail"></div>
   </aside>
   <main id="main"><noscript><p class="empty">The libraries need JavaScript. Everything on this page is also in the repository as YAML, Sigma and YARA.</p></noscript>{panels}</main>
@@ -1612,6 +1953,9 @@ def check(d: dict, doc: str, data: dict) -> list[str]:
     for r in d["rules"]:
         if r["dir"] not in RULE_DIR_PLATFORM:
             problems.append(f"rule directory {r['dir']} has no platform in RULE_DIR_PLATFORM")
+    missing = sorted(plat - set(data.get("guideNotes", [])))
+    if missing:
+        problems.append(f"investigation guide has no platform note for {missing} (see NOTE_PLATFORM)")
     if len(lib_ids["artifacts"]) != len(data["artifacts"]):
         problems.append("artifact ids are not unique")
     pack_ids = {p["id"] for p in data["packs"]}
@@ -1623,7 +1967,7 @@ def check(d: dict, doc: str, data: dict) -> list[str]:
         tab, anchor, query = m.groups()
         if not anchor and not query and f'id="{tab}"' in doc:
             return  # an in-page anchor such as the skip link
-        if tab not in LIBS + ["plans", "response", "coverage", "guide", "packs"]:
+        if tab not in LIBS + ["start", "plans", "response", "coverage", "guide", "packs"]:
             problems.append(f"{where}: link to unknown tab #{tab}")
             return
         if anchor:
@@ -1633,6 +1977,8 @@ def check(d: dict, doc: str, data: dict) -> list[str]:
                 problems.append(f"{where}: dangling link #packs/{anchor}")
             if tab in ("plans", "response") and f'id="{tab[:-1] if tab == "plans" else tab}-{anchor}"' not in doc:
                 problems.append(f"{where}: dangling link #{tab}/{anchor}")
+            if tab == "guide" and f'id="g-{anchor}"' not in doc:
+                problems.append(f"{where}: dangling link #guide/{anchor}")
         if query:
             if tab not in LIBS:
                 problems.append(f"{where}: query on non-library tab #{tab}")

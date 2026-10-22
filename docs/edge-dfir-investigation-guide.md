@@ -7,8 +7,9 @@ and need the parts that are different on appliances.
 ## What is different about edge devices
 
 - **No shell, or a shell you cannot trust.** PAN-OS, FortiOS, Cisco ASA and
-  Ivanti Connect Secure give customers no root shell. NetScaler and Check Point
-  do, but an implant that hooks the C library lies to `ps`, `ls` and `stat`.
+  Ivanti Connect Secure give customers no root shell. NetScaler, Check Point
+  (Expert mode), F5 (Advanced Shell) and Junos do, but an implant that hooks
+  the C library lies to `ps`, `ls` and `stat`.
 - **The decisive evidence is volatile.** Memory-only implants (LINE DANCER on
   ASA, in-memory library patching on Ivanti in 2026), memory-disk roots
   (NetScaler) and gateway logs that rotate in hours are gone after a reboot,
@@ -21,6 +22,10 @@ and need the parts that are different on appliances.
   campaign had already been patched. Persistence outlives the vulnerability.
 
 ## Before you touch the device
+
+> **Read this before you connect.** Most evidence on an appliance is destroyed
+> by a well-meant action taken in the first hour: a reboot, an upgrade, or the
+> vendor's own integrity tool.
 
 1. **Do not reboot, upgrade, factory-reset or run an external integrity tool.**
    Each of those destroys evidence. On PAN-OS, logs from the previous install
@@ -67,6 +72,41 @@ anyone reboots: anything on the memory-disk root is lost.
 request a core dump until it has been reviewed; then follow the CISA ED 25-03
 procedure and scan the dump with RayDetect.
 
+**SonicWall SMA 100.** No collection profile yet. Export the tech support report
+and logs through the management UI and `ingest` them. GTIG advises disk images
+because the rootkit hides from on-box tools; physical units may need
+SonicWall's help.
+
+**Check Point Gaia.** Collect in Expert mode; entering Expert from Clish asks
+for a second password, so the collection account needs `/bin/bash` as its
+shell. Gateway and management roles keep different logs, so a role's log that
+is absent is a gap, not a pass. Export the SmartConsole hunting queries over the
+full retention window. `cpinfo` writes a file and by default uploads to Check
+Point and updates itself; the profile runs it with `-D -d`, behind
+`--allow-bundle`. Patching CVE-2026-93616 does not show whether the server was
+attacked before the patch.
+
+**Juniper Junos.** Everything runs from the operational CLI with `| no-more`.
+The JMRT integrity check writes and runs a test file and adds syslog lines, so
+it is opt-in and runs after the logs are collected. JMRT quick-scan deletes
+malicious files and kills processes by default: it is break-glass, runs last,
+and should report only. UNC3886 deleted log lines containing "root" and
+redirected logging during its sessions, so the syslog receiver's copy outranks
+the device's.
+
+**Cisco IOS XE.** Do not reboot: the 2023 web UI implant lived only in memory,
+though the accounts it created survive. The IOSd memory map is collected first;
+routers and Catalyst switches use different forms of the command and the
+profile collects both. In install mode, hash each package listed in
+`packages.conf`, not `packages.conf` itself. Run Cisco's HTTP implant check from
+a workstation; a negative result does not rule out an implant that never became
+active, because it only activates once the web server restarts.
+
+**F5 BIG-IP.** Do not trust `sys-icheck` on a suspect device: c05d5254 tampered
+with it. Use F5 System Scanner from known-good media (break-glass), and take a
+`qkview` behind `--allow-bundle`. Never restore a UCS archive taken after the
+compromise; F5 warns it can carry the malware back.
+
 ## Bringing in exports
 
 ```bash
@@ -95,13 +135,21 @@ Read the report in this order:
 
 | Tier | Typically means |
 |---|---|
-| possible | exploitation attempted, or a lead that needs a second signal |
-| likely | post-exploitation artefact with a plausible benign explanation |
-| confirmed | artefact with no legitimate reason to exist on the device |
+| `possible` | exploitation attempted, or a lead that needs a second signal |
+| `likely` | post-exploitation artefact with a plausible benign explanation |
+| `confirmed` | artefact with no legitimate reason to exist on the device |
 
-Two `possible` indicators in different evidence classes raise the verdict to
-`LIKELY-COMPROMISED`; two `likely` indicators in different classes raise it to
-`COMPROMISED`. Repeated hits in one class do not.
+The verdict follows from the strongest evidence, and corroboration counts only
+across different evidence classes; repeated hits in one class do not raise it.
+
+| What fired | Verdict |
+|---|---|
+| any `confirmed` indicator | `COMPROMISED` |
+| `likely` indicators in two or more evidence classes | `COMPROMISED` |
+| `likely` indicators in one class | `LIKELY-COMPROMISED` |
+| `possible` indicators in two or more evidence classes | `LIKELY-COMPROMISED` |
+| `possible` indicators in one class | `SUSPICIOUS` |
+| nothing | `NO-INDICATORS-FOUND` |
 
 ## Timeline and narrative
 
