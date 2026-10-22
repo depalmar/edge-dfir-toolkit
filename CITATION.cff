@@ -1,0 +1,26 @@
+cff-version: 1.2.0
+title: "Edge DFIR Toolkit"
+message: "If you use this toolkit or its platform catalog in research or published work, please cite it."
+type: software
+authors:
+  - family-names: DePalma
+    given-names: Raymond
+repository-code: "https://github.com/depalmar/edge-dfir-toolkit"
+abstract: >-
+  Forensic triage for compromised edge network devices - VPN concentrators,
+  firewalls and gateways. Declarative per-vendor collection profiles run in
+  order of volatility through restricted vendor CLIs with a read-only guard;
+  vendor exports are ingested into a hash-chained case; per-CVE detection packs
+  are scored with explicit evidence gaps. Ships a machine-readable platform
+  catalog and vendor-neutral Sigma and YARA rules.
+keywords:
+  - digital forensics
+  - incident response
+  - DFIR
+  - edge devices
+  - VPN
+  - firewall
+  - detection engineering
+  - triage
+license: Apache-2.0
+date-released: "2026-10-22"

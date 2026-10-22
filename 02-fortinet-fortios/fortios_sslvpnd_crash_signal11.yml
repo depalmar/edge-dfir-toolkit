@@ -1,0 +1,33 @@
+title: FortiOS SSL-VPN Daemon Crash With Signal 11
+id: e15e551c-060e-4525-8caa-0977bb11b266
+status: experimental
+description: |
+  Exploitation attempts against FortiOS SSL-VPN memory-corruption flaws crash
+  sslvpnd. The vendor published an "Application crashed" event naming sslvpnd
+  with signal 11 as an indicator for CVE-2022-42475. A single crash is an
+  attempt; repeated crashes followed by a quiet period deserve a filesystem
+  integrity check against a baseline.
+references:
+  - https://www.fortiguard.com/psirt/FG-IR-22-398
+author: Raymond DePalma (edge-dfir-toolkit)
+date: 2026-10-22
+tags:
+  - attack.initial_access
+  - attack.t1190
+  - cve.2022-42475
+logsource:
+  product: fortios
+  service: event
+detection:
+  keywords_crash:
+    - 'Application crashed'
+  keywords_daemon:
+    - 'sslvpnd'
+    - 'sslvpn'
+  keywords_signal:
+    - 'Signal 11'
+    - 'signal 11'
+  condition: keywords_crash and keywords_daemon and keywords_signal
+falsepositives:
+  - Genuine sslvpnd bugs. Check the release notes for the running build.
+level: medium

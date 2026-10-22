@@ -1,0 +1,153 @@
+# Collection profile - Cisco ASA (and FTD lina via the diagnostic CLI)
+# Platform: EDGE-0005 (artifacts/catalog/cisco-asa.yml)
+#
+# Order matters more on this platform than any other in the MVP.
+#   1. LINE DANCER (ArcaneDoor) lived only in memory and hooked the core-dump
+#      routine so that a dump request rebooted the device instead. A reboot
+#      erases it. The memory-region check therefore runs first, before anything
+#      that could reload the box, and the core dump is break-glass and manual.
+#   2. LINE RUNNER persisted through a zip on disk0: that is processed at boot.
+#
+# Cisco's published check: more than one executable (r-xp) memory region for
+# lina, especially one exactly 0x1000 bytes long, indicates tampering.
+
+profile: cisco-asa
+platform_id: EDGE-0005
+display: Cisco ASA / FTD (lina)
+transports: [ssh, replay]
+
+cli:
+  prompt: '[\w.()/-]+[>#] ?$'
+  pager: '<--- More --->'
+  session_setup:
+    - terminal pager 0
+  allow:
+    - '^show [\w -]+( \| (include|exclude|begin) [\w :./-]+)?$'
+    - '^dir( /recursive)? (disk0|disk1|flash):[\w/.-]*$'
+  deny:
+    - '^(reload|write|copy|delete|erase|format|configure|crashinfo|debug|verify|clear|capture|test)( |$)'
+    - '[;&`<>]|\$\('
+
+expected_evidence: [identity, memory, process, sessions, config, system-logs, persistence]
+
+steps:
+  - id: show_clock
+    tier: V0
+    kind: command
+    cmd: show clock
+    purpose: Device clock.
+    confidence: high
+
+  - id: show_version
+    tier: V0
+    kind: command
+    cmd: show version
+    purpose: Version, hardware, uptime and last reload reason. An unexplained reload after the exploitation window is itself a finding.
+    confidence: high
+
+  - id: mem_region_lina
+    tier: V1
+    kind: command
+    cmd: show memory region | include lina
+    purpose: Executable memory regions mapped to lina. More than one r-xp region, especially one of exactly 0x1000 bytes, is the vendor's LINE DANCER indicator. Runs before anything that could reload the device.
+    confidence: high
+    references:
+      - https://blog.talosintelligence.com/arcanedoor-new-espionage-focused-campaign-found-targeting-perimeter-network-devices/
+      - https://www.ncsc.gov.uk/sites/default/files/documents/ncsc-tip-line-dancer.pdf
+
+  - id: mem_region_full
+    tier: V1
+    kind: command
+    cmd: show memory region
+    timeout: 300
+    purpose: Full region map, kept so the lina filter above can be re-checked by hand.
+    confidence: high
+
+  - id: show_checkheaps
+    tier: V1
+    kind: command
+    cmd: show checkheaps
+    purpose: Heap checker state. A checker that stopped running is worth explaining.
+    confidence: medium
+
+  - id: show_processes
+    tier: V2
+    kind: command
+    cmd: show processes
+    purpose: Process table.
+    confidence: high
+
+  - id: show_conn_count
+    tier: V2
+    kind: command
+    cmd: show conn count
+    purpose: Connection table size.
+    confidence: high
+
+  - id: show_ssh_sessions
+    tier: V3
+    kind: command
+    cmd: show ssh sessions
+    purpose: Management SSH sessions now active.
+    confidence: high
+
+  - id: show_vpn_summary
+    tier: V3
+    kind: command
+    cmd: show vpn-sessiondb summary
+    purpose: VPN session counts.
+    confidence: high
+
+  - id: show_vpn_anyconnect
+    tier: V3
+    kind: command
+    cmd: show vpn-sessiondb anyconnect
+    purpose: Remote-access sessions with user, address and duration.
+    confidence: high
+
+  - id: show_running_config
+    tier: P2
+    kind: command
+    cmd: show running-config
+    timeout: 300
+    purpose: Running configuration with secrets masked. ArcaneDoor disabled syslog and altered AAA, so logging and aaa sections are the first diff targets.
+    confidence: high
+
+  - id: show_logging
+    tier: P5
+    kind: command
+    cmd: show logging
+    purpose: Logging configuration and buffer. Logging that is off, or a buffer that ends abruptly, is a finding.
+    confidence: high
+
+  - id: show_crashinfo
+    tier: P5
+    kind: command
+    cmd: show crashinfo
+    purpose: Last crash record.
+    confidence: medium
+
+  - id: dir_disk0
+    tier: P7
+    kind: command
+    cmd: "dir /recursive disk0:"
+    purpose: disk0 contents. LINE RUNNER arrived as client_bundle_install.zip; any zip here needs explaining.
+    confidence: high
+    references:
+      - https://blog.talosintelligence.com/arcanedoor-new-espionage-focused-campaign-found-targeting-perimeter-network-devices/
+
+  - id: core_dump
+    tier: X
+    kind: manual
+    impact: break-glass
+    purpose: Core dump for memory analysis (RayDetect for the 2025 RayInitiator / LINE VIPER activity).
+    instructions: |
+      Do NOT trigger a core dump until mem_region_lina has been collected and reviewed.
+      LINE DANCER hooked the dump routine so that a dump request reloaded the device,
+      destroying the in-memory implant. Follow the vendor and CISA ED 25-03 core dump
+      procedure for your exact model and release, scan the dump with RayDetect, and
+      ingest the dump and the scanner output:
+        edge-triage ingest <case> --label coredump --bundle <file>
+    references:
+      - https://github.com/cisagov/RayDetect
+      - https://www.cisa.gov/news-events/alerts/2025/11/12/update-implementation-guidance-emergency-directive-cisco-asa-and-firepower-device-vulnerabilities

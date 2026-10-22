@@ -1,0 +1,44 @@
+# Edge platform catalog entry
+# EDGE-0005 - Cisco ASA / FTD
+
+id: EDGE-0005
+name: Cisco ASA / Firepower Threat Defense
+vendor: Cisco
+products: [ASA 5500-X, Secure Firewall ASA, Firepower Threat Defense, ASAv]
+os_base: lina (monolithic ASA process) on Linux; FTD adds a Linux expert mode
+filesystem: disk0 holds images and packages processed at boot
+customer_shell: restricted
+memory_acquisition: vendor-assisted
+profile: cisco-asa
+collection:
+  - method: Exec CLI show and dir commands
+    impact: none
+    description: Memory region map, processes, sessions, configuration, logging state, disk0 contents.
+    confidence: high
+  - method: Core dump scanned with RayDetect
+    impact: break-glass
+    description: CISA ED 25-03 procedure. Run only after the memory-region check; LINE DANCER turned dump requests into reloads.
+    confidence: high
+    references: [https://github.com/cisagov/RayDetect]
+volatility:
+  - LINE DANCER was memory-only; a reboot erases it
+  - Last reload reason in show version records an unexplained reload
+anti_forensics:
+  - technique: Hooked the core-dump routine so a dump request rebooted the device
+    seen_in: LINE DANCER (ArcaneDoor, 2024)
+  - technique: Disabled syslog
+    seen_in: LINE DANCER (ArcaneDoor, 2024)
+  - technique: Boot-level persistence below the OS on models without Secure Boot
+    seen_in: RayInitiator (2025)
+confidence: high
+references:
+  - title: Cisco Talos - ArcaneDoor
+    url: https://blog.talosintelligence.com/arcanedoor-new-espionage-focused-campaign-found-targeting-perimeter-network-devices/
+    accessed: "2026-10-22"
+  - title: NCSC UK - LINE DANCER
+    url: https://www.ncsc.gov.uk/sites/default/files/documents/ncsc-tip-line-dancer.pdf
+    accessed: "2026-10-22"
+  - title: CISA ED 25-03 implementation guidance update
+    url: https://www.cisa.gov/news-events/alerts/2025/11/12/update-implementation-guidance-emergency-directive-cisco-asa-and-firepower-device-vulnerabilities
+    accessed: "2026-10-22"
+last_modified: "2026-10-22"

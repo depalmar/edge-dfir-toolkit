@@ -1,0 +1,67 @@
+name: validate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  catalog-and-engine:
+    name: Catalog, packs, profiles, tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install
+        run: pip install -r requirements.txt
+      - name: Validate catalog, packs and profiles
+        run: python artifacts/scripts/validate.py
+      - name: MAPPINGS.md is current
+        run: python artifacts/scripts/mappings.py --check
+      - name: Test suite
+        run: python -m pytest -q tests/
+
+  sigma-validation:
+    name: Sigma rules parse and convert
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install sigma-cli
+        run: |
+          # The backend is arbitrary: it proves the rules parse. Nothing
+          # vendor-specific is committed. See CLAUDE.md.
+          pip install sigma-cli pysigma-backend-elasticsearch
+      - name: Convert every rule
+        run: |
+          failed=0
+          for f in $(find ./0*-* -name '*.yml'); do
+            echo "=== $f"
+            if ! sigma convert -t lucene --without-pipeline "$f" > /dev/null 2>&1; then
+              sigma convert -t lucene --without-pipeline "$f" 2>&1 | head -5
+              failed=$((failed + 1))
+            fi
+          done
+          [ "$failed" -eq 0 ] || { echo "$failed Sigma rule(s) failed"; exit 1; }
+
+  yara-validation:
+    name: YARA rules compile
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install YARA
+        run: sudo apt-get update && sudo apt-get install -y yara
+      - name: Compile
+        run: |
+          for f in $(find . -name '*.yar'); do
+            echo "Compiling $f"
+            yara -w "$f" /dev/null
+          done

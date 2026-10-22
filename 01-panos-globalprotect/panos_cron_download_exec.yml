@@ -1,0 +1,37 @@
+title: PAN-OS Cron Job Piping a Download Into a Shell
+id: e519da2a-5604-4666-8976-98074325053b
+status: experimental
+description: |
+  After CVE-2024-3400 exploitation, actors installed a cron entry that fetched
+  a remote policy with wget and piped it to bash, giving them a re-entry point
+  that survives the exploit being patched. crond logs each execution to the
+  system log forwarded off-box.
+references:
+  - https://www.volexity.com/blog/2024/04/12/zero-day-exploitation-of-unauthenticated-remote-code-execution-vulnerability-in-globalprotect-cve-2024-3400/
+author: Raymond DePalma (edge-dfir-toolkit)
+date: 2026-10-22
+tags:
+  - attack.persistence
+  - attack.t1053.003
+  - attack.command_and_control
+  - attack.t1105
+  - cve.2024-3400
+logsource:
+  product: paloalto
+  service: system
+detection:
+  keywords_cron:
+    - 'crond'
+    - 'CMD ('
+  keywords_fetch:
+    - 'wget '
+    - 'curl '
+  keywords_pipe:
+    - '| bash'
+    - '|bash'
+    - '| sh'
+    - '|sh'
+  condition: keywords_cron and keywords_fetch and keywords_pipe
+falsepositives:
+  - None expected on a firewall.
+level: critical

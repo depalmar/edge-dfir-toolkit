@@ -1,0 +1,39 @@
+# Detection pack EDGE-PACK-0008
+
+id: EDGE-PACK-0008
+name: SonicWall SMA 100 OVERSTEP rootkit
+platforms: [EDGE-0006]
+cves: []
+actors: [UNC6148]
+implants: [OVERSTEP]
+summary: >-
+  A user-mode rootkit loaded through /etc/ld.so.preload and started from
+  rc.fwboot, which hooked file and directory APIs to hide itself and removed its
+  own log lines. Because it lies to on-box tools, the reporting team recommended
+  an offline disk image. This pack therefore only evaluates against image or
+  image-triage output ingested into the case.
+confidence: medium
+references:
+  - title: SecurityAffairs - UNC6148 deploys OVERSTEP on SonicWall devices
+    url: https://securityaffairs.com/180035/hacking/unc6148-deploys-overstep-malware-on-sonicwall-devices-possibly-for-ransomware-operations.html
+    accessed: "2026-10-22"
+
+detect:
+  - id: sma-ld-so-preload
+    title: Dynamic-linker preload file present
+    type: path_exists
+    tier: likely
+    evidence_class: persistence
+    scope: ["**/etc/**"]
+    paths: ["**/etc/ld.so.preload"]
+    attack: [T1574.006]
+    notes: Evaluated only when the case holds files from the appliance's /etc.
+
+  - id: sma-overstep-library
+    title: OVERSTEP library name present
+    type: path_exists
+    tier: likely
+    evidence_class: persistence
+    scope: ["**/lib/**"]
+    paths: ["**/lib/libsamba-errors.so.6"]
+    attack: [T1014]

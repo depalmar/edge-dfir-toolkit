@@ -1,0 +1,40 @@
+# Edge platform catalog entry
+# EDGE-0002 - FortiOS
+
+id: EDGE-0002
+name: FortiOS (FortiGate / FortiProxy)
+vendor: Fortinet
+products: [FortiGate, FortiGate-VM, FortiProxy]
+os_base: Proprietary Linux-based OS, restricted CLI
+filesystem: Compressed root filesystem plus a persistent user filesystem; the user filesystem is where post-patch persistence was found
+customer_shell: restricted
+memory_acquisition: vendor-assisted
+profile: fortios
+collection:
+  - method: CLI get / show / selected diagnose commands
+    impact: none
+    description: Status, process snapshot, admin and SSL-VPN sessions, configuration, crash log.
+    confidence: high
+  - method: diagnose sys filesystem hash (7.2.6+)
+    impact: none
+    description: SHA-256 of system files. Meaningful only against a baseline of the same build.
+    confidence: high
+    references: [https://docs.fortinet.com/document/fortigate/7.2.0/new-features/860150/command-to-compute-file-hashes-7-2-6]
+  - method: fnsysctl ls / cat
+    impact: none
+    description: Limited read access to the filesystem, used for directory listings.
+    confidence: medium
+volatility:
+  - The crash log persists across reboots; /tmp does not
+anti_forensics:
+  - technique: Symlink persistence in the user filesystem that survived patching
+    seen_in: Vendor PSIRT disclosure, April 2025
+    detail: The vendor stated it avoided detection; patching did not remove it.
+  - technique: Implants that survive reboot and upgrade
+    seen_in: COATHANGER
+confidence: high
+references:
+  - title: Fortinet PSIRT - analysis of threat actor activity
+    url: https://www.fortinet.com/blog/psirt-blogs/analysis-of-threat-actor-activity
+    accessed: "2026-10-22"
+last_modified: "2026-10-22"

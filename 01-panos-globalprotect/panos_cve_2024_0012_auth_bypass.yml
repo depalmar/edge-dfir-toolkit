@@ -1,0 +1,29 @@
+title: PAN-OS Management Interface Authentication Bypass Request (CVE-2024-0012)
+id: e5379678-02ba-47ec-9f77-3a37e1070d29
+status: experimental
+description: |
+  The CVE-2024-0012 bypass requests a PHP utility on the management interface
+  with a ".js.map" suffix and sets the X-PAN-AUTHCHECK header to off, which
+  the web server's authentication check honoured. Requires web access logs that
+  record the URI; header logging is only available where a reverse proxy or
+  NDR sensor sees the request.
+references:
+  - https://labs.watchtowr.com/pots-and-pans-aka-an-sslvpn-palo-alto-pan-os-cve-2024-0012-and-cve-2024-9474/
+author: Raymond DePalma (edge-dfir-toolkit)
+date: 2026-10-22
+tags:
+  - attack.initial_access
+  - attack.t1190
+  - cve.2024-0012
+logsource:
+  category: webserver
+detection:
+  selection_uri:
+    cs-uri-stem|contains: '.php/'
+    cs-uri-stem|endswith: '.js.map'
+  selection_header:
+    cs-headers|contains: 'X-PAN-AUTHCHECK: off'
+  condition: 1 of selection_*
+falsepositives:
+  - Legitimate .js.map source-map requests do not follow a .php path segment.
+level: high

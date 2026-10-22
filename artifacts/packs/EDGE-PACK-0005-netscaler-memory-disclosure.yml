@@ -1,0 +1,34 @@
+# Detection pack EDGE-PACK-0005
+
+id: EDGE-PACK-0005
+name: NetScaler memory disclosure and session hijack (Citrix Bleed class)
+platforms: [EDGE-0004]
+cves: [CVE-2023-4966, CVE-2025-5777]
+actors: []
+implants: []
+summary: >-
+  Out-of-bounds reads that leak gateway memory, including session tokens that
+  are then replayed to bypass MFA. Exploitation attempts surface as
+  authentication-failure log lines carrying leaked, non-printable bytes. Success
+  has to be shown elsewhere: the same session used from addresses or networks
+  the user never had, and activity on the hosts behind the gateway.
+confidence: high
+references:
+  - title: Huntress - CitrixBleed 2 exploitation leading to ransomware
+    url: https://www.huntress.com/blog/citrixbleed-2-dragonforce-ransomware
+    accessed: "2026-10-22"
+  - title: ReliaQuest - Citrix Bleed 2 threat spotlight
+    url: https://reliaquest.com/blog/threat-spotlight-citrix-bleed-2-vulnerability-in-netscaler-adc-gateway-devices/
+    accessed: "2026-10-22"
+
+detect:
+  - id: netscaler-auth-nonprintable
+    title: Authentication failure carrying leaked memory bytes
+    type: check
+    check: netscaler_auth_nonprintable
+    tier: possible
+    evidence_class: auth-logs
+    attack: [T1190]
+    notes: >-
+      ns.log rotates quickly on a busy gateway; a negative result over a short
+      window says little. Pull the syslog copy from your SIEM.

@@ -1,0 +1,43 @@
+# Edge platform catalog entry
+# EDGE-0004 - Citrix NetScaler ADC / Gateway
+
+id: EDGE-0004
+name: NetScaler ADC / Gateway
+vendor: Citrix (Cloud Software Group)
+products: [NetScaler ADC, NetScaler Gateway, VPX, MPX, SDX]
+os_base: FreeBSD
+filesystem: Root is a memory disk rebuilt at boot; /var and /flash persist on disk
+customer_shell: "yes"
+memory_acquisition: hypervisor-only
+profile: netscaler
+collection:
+  - method: nsroot CLI and `shell` commands over SSH
+    impact: none
+    description: Full live response is possible, using the device's own binaries.
+    confidence: high
+  - method: SFTP retrieval of logs and web-root files
+    impact: none
+    description: ns.log rotations, HTTP logs, PHP files under the web roots.
+    confidence: medium
+  - method: Offline disk image (md0 / da0) or hypervisor snapshot
+    impact: break-glass
+    description: The check that does not trust on-box binaries. Prior art exists for Dissect-based triage.
+    confidence: high
+    references: [https://github.com/fox-it/citrix-netscaler-triage]
+volatility:
+  - Anything written to the memory-disk root is gone after reboot
+  - ns.log rotates quickly on busy gateways; a short window of logs says little about memory-disclosure attempts
+anti_forensics:
+  - technique: Trace wiping and log deletion after web-shell installation
+    seen_in: CVE-2025-6543 exploitation (NCSC-NL)
+  - technique: Backdoors remained on devices that had been patched
+    seen_in: CVE-2023-3519 mass exploitation (Fox-IT / NCC Group)
+confidence: high
+references:
+  - title: Fox-IT / NCC Group - approximately 2000 NetScalers backdoored
+    url: https://www.nccgroup.com/research/approximately-2000-citrix-netscalers-backdoored-in-mass-exploitation-campaign/
+    accessed: "2026-10-22"
+  - title: NCSC-NL citrix-2025
+    url: https://github.com/NCSC-NL/citrix-2025
+    accessed: "2026-10-22"
+last_modified: "2026-10-22"

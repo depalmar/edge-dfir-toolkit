@@ -1,0 +1,65 @@
+# Detection pack EDGE-PACK-0002
+
+id: EDGE-PACK-0002
+name: PAN-OS management interface authentication bypass and privilege escalation
+platforms: [EDGE-0001]
+cves: [CVE-2024-0012, CVE-2024-9474]
+actors: []
+implants: []
+summary: >-
+  An authentication bypass on the management web interface, chained with a
+  command injection reached through an audit-logged username. The bypass is a
+  request to a PHP utility with a ".js.map" suffix and an X-PAN-AUTHCHECK header
+  set to off. Exposure of the management interface to untrusted networks is the
+  precondition.
+confidence: high
+references:
+  - title: watchTowr - PAN-OS CVE-2024-0012 and CVE-2024-9474
+    url: https://labs.watchtowr.com/pots-and-pans-aka-an-sslvpn-palo-alto-pan-os-cve-2024-0012-and-cve-2024-9474/
+    accessed: "2026-10-22"
+
+detect:
+  - id: panos-0012-authcheck-off
+    title: Management request with X-PAN-AUTHCHECK disabled
+    type: log_regex
+    tier: possible
+    evidence_class: web-logs
+    sources:
+      files: ["**/*access*.log*", "**/appweb*.log*", "**/httpd*.log*"]
+    pattern: 'X-PAN-AUTHCHECK[":\s]+off'
+    flags: [ignorecase]
+    attack: [T1190]
+
+  - id: panos-0012-jsmap-php
+    title: PHP utility requested with a .js.map suffix
+    type: log_regex
+    tier: possible
+    evidence_class: web-logs
+    sources:
+      files: ["**/*access*.log*", "**/appweb*.log*", "**/httpd*.log*"]
+    pattern: '\.php/[^\s"]*\.js\.map'
+    flags: [ignorecase]
+    attack: [T1190]
+
+  - id: panos-9474-audit-user-injection
+    title: Shell metacharacters in an audited username
+    type: log_regex
+    tier: likely
+    evidence_class: config
+    sources:
+      steps: [show_log_config, show_log_system]
+      files: ["**/*audit*.log*"]
+    pattern: '(user|admin)[=:\s]+[^\s]*(`|\$\(|\$\{IFS\}|;\s*(curl|wget|bash|sh)\b)'
+    flags: [ignorecase]
+    attack: [T1068, T1059.004]
+    notes: A username carrying a command substitution is the CVE-2024-9474 injection, not a typo.
+
+  - id: panos-mgmt-webshell
+    title: Web shell content under the management web root
+    type: yara
+    tier: likely
+    evidence_class: filesystem
+    rule: 04-citrix-netscaler/php_webshell_generic.yar
+    sources:
+      files: ["**/appweb/**/*.php"]
+    attack: [T1505.003]

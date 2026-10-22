@@ -1,0 +1,85 @@
+# Collection profile - Ivanti Connect Secure / Policy Secure
+# Platform: EDGE-0003 (artifacts/catalog/ivanti-ics.yml)
+#
+# There is no customer shell and no SSH CLI to drive. Collection is entirely
+# exports from the admin UI, vendor-assisted images, and off-box logs. This
+# profile is therefore a checklist in order of volatility: the engine records
+# each step as pending, the operator performs it, and `edge-triage ingest`
+# brings each output into the case with a hash.
+#
+# The Integrity Checker Tool is one signal, never a verdict. CISA AA24-060B
+# reports that both the internal and the then-current external ICT failed to
+# detect compromise, SPAWNANT re-signed the ICT manifest, and the October 2026
+# exploitation reported by Volexity executed only in memory.
+
+profile: ivanti-ics
+platform_id: EDGE-0003
+display: Ivanti Connect Secure / Policy Secure
+transports: [replay]
+
+cli:
+  allow: ['^$a']   # nothing is typed at this device
+  deny: []
+
+expected_evidence: [memory, filesystem, integrity, auth-logs, web-logs, system-logs, config]
+
+steps:
+  - id: vm_snapshot
+    tier: V1
+    kind: manual
+    purpose: Memory and disk state, before anything else touches the appliance.
+    instructions: |
+      Virtual appliance: take a hypervisor snapshot that INCLUDES MEMORY now, before
+      running the external ICT (which reboots the appliance) and before any upgrade
+      or factory reset. Physical appliance: engage Ivanti support for memory and
+      disk acquisition. Record the snapshot identifier and hash, then:
+        edge-triage ingest <case> --label snapshot --bundle <snapshot or its hash record>
+
+  - id: siem_logs
+    tier: P3
+    kind: manual
+    purpose: Off-box copies of event, user-access and admin-access logs.
+    instructions: |
+      Export the appliance's syslog stream from your SIEM for the full retention window.
+      These are the copies most likely to be intact: SPAWN-family malware blocked syslog
+      forwarding with iptables and tampered with local logs, so a gap in the off-box
+      stream is itself evidence. Ingest with --label siem.
+
+  - id: ui_log_export
+    tier: P3
+    kind: manual
+    purpose: On-box event, user access and admin access logs.
+    instructions: |
+      From the admin UI, save the Events, User Access and Admin Access logs (all
+      available, not filtered). Ingest with --label ui-logs.
+
+  - id: config_export
+    tier: P2
+    kind: manual
+    purpose: System and user configuration export.
+    instructions: |
+      Export system.cfg and user.cfg (binary) and an XML export. Diff against the
+      last known-good backup for new admin accounts, auth servers and resource
+      policies. Ingest with --label config.
+
+  - id: ict_internal_history
+    tier: P1
+    kind: manual
+    purpose: Internal ICT scan history and its last result.
+    instructions: |
+      Record the internal ICT history from the admin UI (screenshots are acceptable
+      evidence if they are hashed on ingest). A clean result is NOT evidence of a
+      clean device; note it as one signal. Ingest with --label ict-internal.
+
+  - id: ict_external
+    tier: X
+    kind: manual
+    impact: break-glass
+    purpose: External ICT snapshot (reboots the appliance).
+    instructions: |
+      Only after vm_snapshot is complete. Run the current external ICT, keep the
+      encrypted snapshot, and send it to Ivanti for decryption and analysis. The
+      external ICT reboots the appliance, which destroys anything memory-only.
+      Ingest the snapshot and Ivanti's findings with --label ict-external.
+    references:
+      - https://www.cisa.gov/news-events/cybersecurity-advisories/aa24-060b

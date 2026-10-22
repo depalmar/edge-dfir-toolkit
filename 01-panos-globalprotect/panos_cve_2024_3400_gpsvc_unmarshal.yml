@@ -1,0 +1,37 @@
+title: PAN-OS GlobalProtect Session Id Carrying a Path or Command (CVE-2024-3400)
+id: ff0c99c8-88e5-4b91-b69b-068b44dca9f8
+status: experimental
+description: |
+  CVE-2024-3400 exploitation writes an attacker-controlled value into the
+  GlobalProtect session cookie. gpsvc then logs "failed to unmarshal session(...)"
+  with that value inside the parentheses. A legitimate value is a GUID; a path
+  traversal, backtick, ${IFS} or download tool in that position is an
+  exploitation attempt. Success has to be shown separately (cron, .pth, copied
+  configuration).
+references:
+  - https://www.volexity.com/blog/2024/05/15/detecting-compromise-of-cve-2024-3400-on-palo-alto-networks-globalprotect-devices/
+  - https://security.paloaltonetworks.com/CVE-2024-3400
+author: Raymond DePalma (edge-dfir-toolkit)
+date: 2026-10-22
+tags:
+  - attack.initial_access
+  - attack.t1190
+  - cve.2024-3400
+logsource:
+  product: paloalto
+  service: gpsvc
+detection:
+  keywords_unmarshal:
+    - 'failed to unmarshal session('
+  keywords_payload:
+    - '../'
+    - '`'
+    - '${IFS}'
+    - '$('
+    - 'curl'
+    - 'wget'
+    - 'base64'
+  condition: keywords_unmarshal and keywords_payload
+falsepositives:
+  - None expected. Malformed cookies from broken clients produce unmarshal errors but not traversal or shell syntax.
+level: high

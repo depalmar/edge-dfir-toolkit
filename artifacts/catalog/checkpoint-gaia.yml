@@ -1,0 +1,29 @@
+# Edge platform catalog entry
+# EDGE-0007 - Check Point Quantum (Gaia)
+
+id: EDGE-0007
+name: Check Point Quantum Security Gateway (Gaia)
+vendor: Check Point
+products: [Quantum Security Gateway, CloudGuard Network]
+os_base: Gaia (RHEL-based Linux)
+customer_shell: "yes"
+memory_acquisition: hypervisor-only
+collection:
+  - method: Expert mode shell
+    impact: none
+    description: Standard Linux live response; UAC runs here.
+    confidence: high
+  - method: cpinfo
+    impact: vendor-bundle
+    description: Vendor diagnostic bundle.
+    confidence: high
+confidence: medium
+references:
+  - title: Help Net Security - CVE-2024-24919
+    url: https://www.helpnetsecurity.com/2024/05/31/cve-2024-24919/
+    accessed: "2026-10-22"
+notes: >-
+  No collection profile yet; expert mode makes an existing Linux collector the
+  near-term answer. Memory acquisition on physical gateways has not been
+  researched here, so the entry claims only the hypervisor path.
+last_modified: "2026-10-22"

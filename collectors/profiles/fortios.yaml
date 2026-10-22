@@ -1,0 +1,135 @@
+# Collection profile - FortiOS (FortiGate / FortiProxy)
+# Platform: EDGE-0002 (artifacts/catalog/fortios.yml)
+#
+# No customer shell. The CLI's `get`, `show`, a small set of `diagnose`
+# subcommands and `fnsysctl` (ls/cat) are the read surface. Paging is answered
+# by the transport with a space rather than by `config system console`, which
+# would change the device configuration.
+#
+# The highest-value step is `diagnose sys filesystem hash` (FortiOS 7.2.6+),
+# which prints SHA-256 values for system files. On its own it proves nothing;
+# compared with a baseline from the same build it is the integrity signal that
+# symlink persistence and implanted binaries do not survive.
+
+profile: fortios
+platform_id: EDGE-0002
+display: Fortinet FortiOS (FortiGate / FortiProxy)
+transports: [ssh, replay]
+
+cli:
+  prompt: '[\w.()~-]+ ?[#$] ?$'
+  pager: '--More--'
+  session_setup: []
+  allow:
+    - '^get '
+    - '^show( |$)'
+    - '^diagnose sys (top \d+ \d+ \d+|filesystem hash|session stat)$'
+    - '^diagnose debug crashlog read$'
+    - '^fnsysctl (ls -la?|cat) /[\w./-]+$'
+  deny:
+    - '^(execute|config|set|unset|delete|purge|end|abort)( |$)'
+    - '[;&|`<>]|\$\('
+
+expected_evidence: [identity, process, sessions, integrity, config, system-logs, filesystem]
+
+steps:
+  - id: get_system_status
+    tier: V0
+    kind: command
+    cmd: get system status
+    purpose: Version, build, serial, system time. Build number selects the integrity baseline.
+    confidence: high
+
+  - id: diag_sys_top
+    tier: V2
+    kind: command
+    cmd: diagnose sys top 1 50 1
+    purpose: Process snapshot. Implanted daemons and renamed binaries show here first.
+    confidence: medium
+
+  - id: get_perf_status
+    tier: V2
+    kind: command
+    cmd: get system performance status
+    purpose: CPU, memory, uptime. Uptime bounds how much volatile state survived.
+    confidence: high
+
+  - id: diag_session_stat
+    tier: V2
+    kind: command
+    cmd: diagnose sys session stat
+    purpose: Session table summary.
+    confidence: high
+
+  - id: get_admin_list
+    tier: V3
+    kind: command
+    cmd: get system admin list
+    purpose: Administrators logged in now, with source address.
+    confidence: high
+
+  - id: get_vpn_ssl_monitor
+    tier: V3
+    kind: command
+    cmd: get vpn ssl monitor
+    purpose: Active SSL-VPN users and tunnels.
+    confidence: high
+
+  - id: fs_hash
+    tier: P1
+    kind: command
+    cmd: diagnose sys filesystem hash
+    timeout: 900
+    purpose: SHA-256 of system files, for comparison against a known-good baseline of the same build.
+    confidence: high
+    references:
+      - https://docs.fortinet.com/document/fortigate/7.2.0/new-features/860150/command-to-compute-file-hashes-7-2-6
+
+  - id: show_config
+    tier: P2
+    kind: command
+    cmd: show
+    timeout: 600
+    purpose: Configuration (non-default values). Diff against backup for new admins, local users, VPN portals, scripts and automation stitches.
+    confidence: high
+
+  - id: crashlog
+    tier: P5
+    kind: command
+    cmd: diagnose debug crashlog read
+    purpose: Crash log. SSL-VPN exploitation (CVE-2022-42475 class) crashed sslvpnd with signal 11; the vendor published that pattern as an IOC.
+    confidence: high
+    references:
+      - https://www.fortiguard.com/psirt/FG-IR-22-398
+
+  - id: listing_sslvpn_lang
+    tier: P7
+    kind: command
+    cmd: fnsysctl ls -la {sslvpn_lang_dir}
+    requires_vars: [sslvpn_lang_dir]
+    purpose: >-
+      Listing of the directory that serves SSL-VPN language files, where the 2025
+      symlink persistence lived. The vendor described the location but this
+      project has not confirmed its path on a device, so the operator supplies it.
+    confidence: low
+    unverified: true
+    references:
+      - https://www.fortinet.com/blog/psirt-blogs/analysis-of-threat-actor-activity
+
+  - id: listing_data
+    tier: P6
+    kind: command
+    cmd: fnsysctl ls -la /data
+    purpose: Top of the persistent user filesystem. Unexpected files and links here survive reboot.
+    confidence: low
+    unverified: true
+
+  - id: log_export
+    tier: P3
+    kind: manual
+    purpose: Event, VPN and admin logs.
+    instructions: |
+      Export system event, VPN and admin login logs for the full retention window
+      from FortiAnalyzer, FortiCloud or your SIEM (preferred: off-box copies are the
+      ones the attacker is least likely to have touched), then:
+        edge-triage ingest <case> --label logs --bundle <export>

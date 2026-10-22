@@ -1,0 +1,167 @@
+# Collection profile - PAN-OS / GlobalProtect
+# Platform: EDGE-0001 (artifacts/catalog/panos.yml)
+#
+# PAN-OS gives customers a restricted operational CLI and no shell. Memory and
+# root-filesystem access go through the vendor's support organization. What this
+# profile can reach on its own is operational state, configuration, the
+# management-plane logs exposed through `tail mp-log`, and the tech support file.
+#
+# The tech support file (TSF) is the single most valuable artifact and it must be
+# taken BEFORE an upgrade: the vendor's own CVE-2024-3400 advisory notes that
+# logs from the previous install become inaccessible after upgrading.
+
+profile: panos
+platform_id: EDGE-0001
+display: Palo Alto Networks PAN-OS / GlobalProtect
+transports: [ssh, replay]
+
+cli:
+  prompt: '[\w.@()-]+[>#] ?$'
+  pager: '(?:lines \d+-\d+|--more--|\(END\))'
+  session_setup:
+    - set cli pager off
+  allow:
+    - '^show '
+    - '^tail lines \d+ mp-log [\w.*-]+$'
+  deny:
+    - '^(request|delete|clear|commit|configure|debug|set|test|run|scp|tftp|ftp|ssh) '
+    - '[;&`]|\$\('
+
+expected_evidence: [identity, process, sessions, config, auth-logs, web-logs, system-logs, bundle]
+
+steps:
+  - id: show_clock
+    tier: V0
+    kind: command
+    cmd: show clock
+    purpose: Device clock, compared with collector UTC to compute skew for every later timestamp.
+    confidence: high
+
+  - id: show_system_info
+    tier: V0
+    kind: command
+    cmd: show system info
+    purpose: Model, serial, PAN-OS version, uptime. Uptime tells you whether volatile state survived.
+    confidence: high
+
+  - id: show_system_resources
+    tier: V2
+    kind: command
+    cmd: show system resources
+    purpose: Process snapshot (top). A shell, miner or tunnel running as root shows here and nowhere durable.
+    confidence: high
+
+  - id: show_system_files
+    tier: V2
+    kind: command
+    cmd: show system files
+    purpose: Core and crash files. Exploitation attempts that crash a daemon leave cores.
+    confidence: medium
+
+  - id: show_admins
+    tier: V3
+    kind: command
+    cmd: show admins all
+    purpose: Administrator accounts and who is logged in now. Rogue admins are a common post-exploitation step.
+    confidence: medium
+
+  - id: show_gp_current_users
+    tier: V3
+    kind: command
+    cmd: show global-protect-gateway current-user
+    purpose: Active GlobalProtect sessions, for session-hijack and stolen-credential scoping.
+    confidence: medium
+
+  - id: show_jobs
+    tier: V3
+    kind: command
+    cmd: show jobs all
+    purpose: Commits, content installs and exports, with admin and time. Config theft shows as an export job.
+    confidence: high
+
+  - id: show_config_running
+    tier: P2
+    kind: command
+    cmd: show config running
+    purpose: Running configuration for diffing against a known-good backup. Contains secrets in encrypted form; handle accordingly.
+    confidence: high
+
+  - id: show_config_diff
+    tier: P2
+    kind: command
+    cmd: show config diff
+    purpose: Uncommitted candidate changes. An attacker who staged but did not commit leaves them here.
+    confidence: medium
+
+  - id: show_log_config
+    tier: P2
+    kind: command
+    cmd: show log config direction equal backward
+    purpose: Configuration audit log.
+    confidence: medium
+
+  - id: show_log_auth
+    tier: P3
+    kind: command
+    cmd: show log auth direction equal backward
+    purpose: Authentication log.
+    confidence: medium
+
+  - id: show_log_system
+    tier: P5
+    kind: command
+    cmd: show log system direction equal backward
+    purpose: System log, including GlobalProtect portal and gateway events and admin logins.
+    confidence: medium
+
+  - id: mp_gpsvc
+    tier: P4
+    kind: command
+    cmd: tail lines 10000 mp-log gpsvc.log
+    purpose: GlobalProtect service log. CVE-2024-3400 exploitation leaves "failed to unmarshal session(...)" entries carrying a path instead of a session GUID.
+    confidence: medium
+    references:
+      - https://www.volexity.com/blog/2024/05/15/detecting-compromise-of-cve-2024-3400-on-palo-alto-networks-globalprotect-devices/
+
+  - id: mp_sslvpn_ngx_error
+    tier: P4
+    kind: command
+    cmd: tail lines 10000 mp-log sslvpn_ngx_error.log
+    purpose: SSL VPN nginx error log. UPSTYLE read commands from requests logged here and then deleted its own lines, so gaps matter as much as hits.
+    confidence: medium
+    references:
+      - https://www.volexity.com/blog/2024/04/12/zero-day-exploitation-of-unauthenticated-remote-code-execution-vulnerability-in-globalprotect-cve-2024-3400/
+
+  - id: mp_appweb_access
+    tier: P4
+    kind: command
+    cmd: tail lines 10000 mp-log appweb3-sslvpn.log
+    purpose: Portal web server log, for request timing around exploitation.
+    confidence: low
+    unverified: true
+
+  - id: tsf_export
+    tier: B
+    kind: command
+    impact: vendor-bundle
+    cmd: scp export tech-support to {bundle_dest}
+    requires_vars: [bundle_dest]
+    timeout: 1800
+    purpose: Generate and export the tech support file to an SCP target you control. Writes a temporary file on the device. Ingest the result with `edge-triage ingest`.
+    confidence: high
+
+  - id: tac_root_artifacts
+    tier: X
+    kind: manual
+    impact: break-glass
+    purpose: Files the TSF does not carry, and memory.
+    instructions: |
+      PAN-OS customers cannot collect memory or read the root filesystem themselves.
+      Open a support case and request, through vendor-assisted access:
+        - /etc/cron.d/ and /var/spool/cron/ (CVE-2024-3400 "Level 3" persistence)
+        - Python site-packages *.pth files (UPSTYLE used system.pth)
+        - /var/appweb/ document roots (copied running-config, web shells)
+        - a memory capture, if the vendor will take one
+      Ingest each returned archive with:  edge-triage ingest <case> --label tac --bundle <file>
+    references:
+      - https://security.paloaltonetworks.com/CVE-2024-3400

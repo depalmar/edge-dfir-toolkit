@@ -1,0 +1,31 @@
+# Edge platform catalog entry
+# EDGE-0006 - SonicWall SMA 100
+
+id: EDGE-0006
+name: SonicWall SMA 100 series
+vendor: SonicWall
+products: [SMA 200, SMA 210, SMA 400, SMA 410, SMA 500v]
+os_base: Linux (32-bit x86 on SMA 100)
+customer_shell: "no"
+memory_acquisition: vendor-assisted
+collection:
+  - method: Tech support report and log export
+    impact: none
+    description: Logs and configuration through the management UI.
+    confidence: medium
+  - method: Offline disk image
+    impact: break-glass
+    description: Recommended by the reporting team for OVERSTEP because the rootkit lies to on-box tools. Physical units may need the vendor.
+    confidence: medium
+anti_forensics:
+  - technique: Userland rootkit hooking file and directory APIs through ld.so.preload
+    seen_in: OVERSTEP (UNC6148, 2025)
+  - technique: Removed its own log lines
+    seen_in: OVERSTEP (UNC6148, 2025)
+confidence: medium
+references:
+  - title: SecurityAffairs - UNC6148 deploys OVERSTEP
+    url: https://securityaffairs.com/180035/hacking/unc6148-deploys-overstep-malware-on-sonicwall-devices-possibly-for-ransomware-operations.html
+    accessed: "2026-10-22"
+notes: No collection profile yet. Analysis runs against ingested image-triage output.
+last_modified: "2026-10-22"

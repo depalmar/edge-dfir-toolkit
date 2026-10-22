@@ -1,0 +1,30 @@
+title: Check Point Gateway Path Traversal Through /clients/MyCRL (CVE-2024-24919)
+id: 7b39ee56-ddb9-4a84-b0e6-9d87093de762
+status: experimental
+description: |
+  CVE-2024-24919 reads arbitrary files as root through a POST to /clients/MyCRL
+  whose body carries a traversal (public exploits used an aCSHELL prefix).
+  Where only the URI is logged, alert on the endpoint from unexpected sources
+  and correlate with local-account VPN logins in the hours that follow; the
+  file read itself leaves no other on-box trace.
+references:
+  - https://www.helpnetsecurity.com/2024/05/31/cve-2024-24919/
+  - https://www.thestack.technology/check-point-vulnerability-cve-2024-24919/
+author: Raymond DePalma (edge-dfir-toolkit)
+date: 2026-10-22
+tags:
+  - attack.initial_access
+  - attack.t1190
+  - attack.discovery
+  - attack.t1083
+  - cve.2024-24919
+logsource:
+  category: webserver
+detection:
+  selection:
+    cs-method: 'POST'
+    cs-uri-stem|contains: '/clients/MyCRL'
+  condition: selection
+falsepositives:
+  - Certificate revocation list retrieval by legitimate Check Point clients. Baseline the sources first; the endpoint should not be reached from arbitrary internet addresses.
+level: medium

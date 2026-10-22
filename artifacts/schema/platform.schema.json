@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/depalmar/edge-dfir-toolkit/artifacts/schema/platform.schema.json",
+  "title": "Edge platform catalog entry",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "name", "vendor", "os_base", "customer_shell", "memory_acquisition", "collection", "confidence", "references"],
+  "properties": {
+    "id": {"type": "string", "pattern": "^EDGE-[0-9]{4}$"},
+    "name": {"type": "string"},
+    "vendor": {"type": "string"},
+    "products": {"type": "array", "items": {"type": "string"}},
+    "os_base": {"type": "string"},
+    "filesystem": {"type": "string"},
+    "customer_shell": {"enum": ["yes", "restricted", "no"]},
+    "memory_acquisition": {"enum": ["customer", "vendor-assisted", "hypervisor-only", "not-available"]},
+    "profile": {"type": "string"},
+    "collection": {
+      "type": "array", "minItems": 1,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["method", "impact", "description", "confidence"],
+        "properties": {
+          "method": {"type": "string"},
+          "impact": {"enum": ["none", "vendor-bundle", "break-glass"]},
+          "description": {"type": "string"},
+          "confidence": {"enum": ["high", "medium", "low"]},
+          "unverified": {"type": "boolean"},
+          "references": {"type": "array", "items": {"type": "string", "format": "uri"}}
+        }
+      }
+    },
+    "volatility": {"type": "array", "items": {"type": "string"}},
+    "anti_forensics": {
+      "type": "array",
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["technique", "seen_in"],
+        "properties": {
+          "technique": {"type": "string"},
+          "seen_in": {"type": "string"},
+          "detail": {"type": "string"}
+        }
+      }
+    },
+    "confidence": {"enum": ["high", "medium", "low"]},
+    "unverified": {"type": "boolean"},
+    "references": {"$ref": "#/$defs/references"},
+    "last_verified": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"},
+    "last_modified": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"},
+    "notes": {"type": "string"}
+  },
+  "$defs": {
+    "references": {
+      "type": "array", "minItems": 1,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["title", "url"],
+        "properties": {
+          "title": {"type": "string"},
+          "url": {"type": "string", "format": "uri"},
+          "accessed": {"type": "string"}
+        }
+      }
+    }
+  }
+}

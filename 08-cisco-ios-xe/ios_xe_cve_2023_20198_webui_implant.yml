@@ -1,0 +1,30 @@
+title: Cisco IOS XE Web UI Programmatic Configuration and Install (CVE-2023-20198 / CVE-2023-20273)
+id: b84bfc4c-772f-4f12-9ba5-3a328ac7b003
+status: experimental
+description: |
+  Exploitation of the IOS XE web UI created a privileged local account and then
+  installed an implant. The vendor advisory listed two syslog messages to hunt:
+  configuration changed programmatically by the web UI process, and a web UI
+  install operation adding a file.
+references:
+  - https://sec.cloudapps.cisco.com/security/center/content/CiscoSecurityAdvisory/cisco-sa-iosxe-webui-privesc-j22SaA4z
+author: Raymond DePalma (edge-dfir-toolkit)
+date: 2026-10-22
+tags:
+  - attack.initial_access
+  - attack.t1190
+  - attack.persistence
+  - attack.t1136.001
+  - cve.2023-20198
+  - cve.2023-20273
+logsource:
+  product: cisco
+  service: ios_xe
+detection:
+  keywords:
+    - 'Configured programmatically by process SEP_webui_wsma_http'
+    - '%WEBUI-6-INSTALL_OPERATION_INFO'
+  condition: keywords
+falsepositives:
+  - Administrators who manage the device through the web UI. The install message should be rare on any estate.
+level: high

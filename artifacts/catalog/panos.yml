@@ -1,0 +1,46 @@
+# Edge platform catalog entry
+# EDGE-0001 - PAN-OS / GlobalProtect
+# Schema: ../schema/platform.schema.json
+
+id: EDGE-0001
+name: PAN-OS / GlobalProtect
+vendor: Palo Alto Networks
+products: [PA-Series, VM-Series, GlobalProtect portal and gateway]
+os_base: Linux (vendor kernel), restricted operational CLI
+filesystem: Separate partitions for root, configuration, content and logs; root is not customer-readable
+customer_shell: "no"
+memory_acquisition: vendor-assisted
+profile: panos
+collection:
+  - method: Operational CLI over SSH (show, tail mp-log)
+    impact: none
+    description: State, configuration, admin and GlobalProtect sessions, and management-plane logs.
+    confidence: high
+  - method: Tech support file (TSF)
+    impact: vendor-bundle
+    description: The broadest on-box collection available to a customer. Generate it before any upgrade.
+    confidence: high
+    references: [https://security.paloaltonetworks.com/CVE-2024-3400]
+  - method: Vendor-assisted root and memory access
+    impact: break-glass
+    description: Cron, site-packages and web-root files the TSF may not carry, and memory. Only through a support case.
+    confidence: medium
+volatility:
+  - Logs from the previous install become inaccessible after an upgrade (vendor advisory for CVE-2024-3400)
+  - mp-monitor netstat and top snapshots in the TSF are the closest thing to historical process state
+anti_forensics:
+  - technique: Deleted its own log lines and restored file timestamps
+    seen_in: UPSTYLE (CVE-2024-3400)
+    detail: Gaps in sslvpn_ngx_error.log are as meaningful as hits.
+confidence: high
+references:
+  - title: Vendor advisory CVE-2024-3400
+    url: https://security.paloaltonetworks.com/CVE-2024-3400
+    accessed: "2026-10-22"
+  - title: Volexity - detecting compromise of CVE-2024-3400
+    url: https://www.volexity.com/blog/2024/05/15/detecting-compromise-of-cve-2024-3400-on-palo-alto-networks-globalprotect-devices/
+    accessed: "2026-10-22"
+notes: >-
+  No primary vendor document describing customer root-shell policy was found;
+  this entry assumes vendor-assisted access only.
+last_modified: "2026-10-22"

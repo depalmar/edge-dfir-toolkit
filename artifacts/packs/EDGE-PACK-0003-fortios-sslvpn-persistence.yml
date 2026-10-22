@@ -1,0 +1,60 @@
+# Detection pack EDGE-PACK-0003
+
+id: EDGE-PACK-0003
+name: FortiOS SSL-VPN exploitation and post-patch persistence
+platforms: [EDGE-0002]
+cves: [CVE-2022-42475, CVE-2023-27997, CVE-2024-21762]
+actors: []
+implants: [BOLDMOVE, COATHANGER]
+summary: >-
+  Successive SSL-VPN memory-corruption flaws exploited at scale. In April 2025
+  the vendor disclosed that an actor had left a symbolic link in the directory
+  serving SSL-VPN language files, giving read-only access to the root
+  filesystem that survived patching. Integrity comparison against a baseline of
+  the same build is the check that implanted binaries do not pass.
+confidence: high
+references:
+  - title: Fortinet PSIRT - analysis of threat actor activity (symlink persistence)
+    url: https://www.fortinet.com/blog/psirt-blogs/analysis-of-threat-actor-activity
+    accessed: "2026-10-22"
+  - title: Fortinet PSIRT FG-IR-22-398 (CVE-2022-42475)
+    url: https://www.fortiguard.com/psirt/FG-IR-22-398
+    accessed: "2026-10-22"
+  - title: FortiOS 7.2.6 - command to compute file hashes
+    url: https://docs.fortinet.com/document/fortigate/7.2.0/new-features/860150/command-to-compute-file-hashes-7-2-6
+    accessed: "2026-10-22"
+
+detect:
+  - id: fortios-symlink-root
+    title: Symlink from a served directory into the root filesystem
+    type: check
+    check: fortios_symlink_to_root
+    tier: likely
+    evidence_class: persistence
+    attack: [T1505]
+    notes: >-
+      Only evaluated when a listing_* step or an ingested archive was collected.
+      The language-directory path must be supplied with --var sslvpn_lang_dir.
+
+  - id: fortios-sslvpnd-crash
+    title: sslvpnd crash with signal 11
+    type: log_regex
+    tier: possible
+    evidence_class: system-logs
+    sources:
+      steps: [crashlog]
+      files: ["**/*crash*", "**/*event*.log*", "**/*.log"]
+    pattern: '(sslvpnd[^\n]{0,200}signal 11|signal 11[^\n]{0,200}sslvpnd)'
+    flags: [ignorecase]
+    attack: [T1190]
+    notes: The vendor published this crash pattern as an indicator for CVE-2022-42475. A crash alone is an attempt, not a compromise.
+
+  - id: fortios-fs-hash-baseline
+    title: System file hash differs from the known-good baseline
+    type: check
+    check: hash_baseline
+    args: {step: fs_hash}
+    tier: likely
+    evidence_class: integrity
+    attack: [T1554]
+    notes: Requires --baseline from a clean device or image of the same build. Without it this detection is not evaluated.

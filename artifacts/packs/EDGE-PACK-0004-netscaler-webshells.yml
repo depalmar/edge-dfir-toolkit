@@ -1,0 +1,74 @@
+# Detection pack EDGE-PACK-0004
+
+id: EDGE-PACK-0004
+name: NetScaler web shells and persistence after code-execution flaws
+platforms: [EDGE-0004]
+cves: [CVE-2023-3519, CVE-2025-6543, CVE-2025-7775]
+actors: []
+implants: []
+summary: >-
+  Unauthenticated code execution followed by PHP web shells under the web
+  roots, SUID binaries and cron persistence. In the 2023 mass-exploitation
+  campaign most backdoored devices had already been patched, so patch state
+  says nothing about compromise state.
+confidence: high
+references:
+  - title: Fox-IT / NCC Group - approximately 2000 NetScalers backdoored
+    url: https://www.nccgroup.com/research/approximately-2000-citrix-netscalers-backdoored-in-mass-exploitation-campaign/
+    accessed: "2026-10-22"
+  - title: fox-it/citrix-netscaler-triage
+    url: https://github.com/fox-it/citrix-netscaler-triage
+    accessed: "2026-10-22"
+  - title: NCSC-NL citrix-2025
+    url: https://github.com/NCSC-NL/citrix-2025
+    accessed: "2026-10-22"
+
+detect:
+  - id: netscaler-php-writable
+    title: Writable PHP file under a web root
+    type: check
+    check: netscaler_php_writable
+    tier: possible
+    evidence_class: filesystem
+    attack: [T1505.003]
+
+  - id: netscaler-php-webshell-content
+    title: Web shell content in a PHP file under a web root
+    type: yara
+    tier: likely
+    evidence_class: persistence
+    rule: 04-citrix-netscaler/php_webshell_generic.yar
+    sources:
+      files: ["**/netscaler/logon/**", "**/vpn/**", "**/ns_gui/**"]
+    attack: [T1505.003]
+
+  - id: netscaler-cron-download
+    title: Cron entry that downloads or opens a network connection
+    type: log_regex
+    tier: likely
+    evidence_class: persistence
+    sources:
+      steps: [crontab_root, crontab_system]
+    pattern: '^[^#\n]*\b(curl|wget|fetch|nc|ncat|python|perl|php)\b[^\n]*(https?://|\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})'
+    flags: [ignorecase]
+    attack: [T1053.003]
+
+  - id: netscaler-suid-in-tmp
+    title: SUID binary in a world-writable staging directory
+    type: log_regex
+    tier: likely
+    evidence_class: persistence
+    sources:
+      steps: [suid_files]
+    pattern: '^(/var)?/tmp/'
+    attack: [T1548.001]
+
+  - id: netscaler-shell-listener
+    title: Interactive shell or interpreter owning a network socket
+    type: log_regex
+    tier: likely
+    evidence_class: process
+    sources:
+      steps: [shell_sockstat]
+    pattern: '^\S+\s+(sh|bash|csh|tcsh|nc|ncat|python\d?(\.\d+)?|perl|php)\s+\d+'
+    attack: [T1059, T1571]

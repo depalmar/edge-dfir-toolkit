@@ -1,0 +1,73 @@
+# Detection pack EDGE-PACK-0006
+
+id: EDGE-PACK-0006
+name: Cisco ASA ArcaneDoor (LINE DANCER / LINE RUNNER)
+platforms: [EDGE-0005]
+cves: [CVE-2024-20353, CVE-2024-20359]
+actors: [UAT4356]
+implants: [LINE DANCER, LINE RUNNER]
+summary: >-
+  LINE DANCER was a memory-resident shellcode interpreter that disabled syslog,
+  bypassed AAA and hooked the core-dump routine so that a dump request reloaded
+  the device. LINE RUNNER persisted through a zip file on disk0 processed at
+  boot. The 2025 follow-on activity (RayInitiator, LINE VIPER) added a boot-level
+  implant on models without Secure Boot; its check is a core dump scanned with
+  RayDetect, which this pack records as a manual step in the profile.
+confidence: high
+references:
+  - title: Cisco Talos - ArcaneDoor
+    url: https://blog.talosintelligence.com/arcanedoor-new-espionage-focused-campaign-found-targeting-perimeter-network-devices/
+    accessed: "2026-10-22"
+  - title: NCSC UK - LINE DANCER malware analysis report
+    url: https://www.ncsc.gov.uk/sites/default/files/documents/ncsc-tip-line-dancer.pdf
+    accessed: "2026-10-22"
+  - title: CISA RayDetect
+    url: https://github.com/cisagov/RayDetect
+    accessed: "2026-10-22"
+
+detect:
+  - id: asa-lina-multiple-exec-regions
+    title: More than one executable memory region mapped to lina
+    type: check
+    check: asa_lina_exec_regions
+    tier: likely
+    evidence_class: memory
+    attack: [T1055, T1620]
+    notes: >-
+      The vendor's LINE DANCER check. A region of exactly 0x1000 bytes is called
+      out as especially suspicious. Collect before any reload; a reboot erases it.
+
+  - id: asa-line-runner-zip
+    title: LINE RUNNER bundle on disk0
+    type: log_regex
+    tier: likely
+    evidence_class: persistence
+    sources:
+      steps: [dir_disk0]
+    pattern: 'client_bundle_install\.zip'
+    flags: [ignorecase]
+    attack: [T1542, T1505]
+
+  - id: asa-zip-on-disk0
+    title: Zip archive on disk0
+    type: log_regex
+    tier: possible
+    evidence_class: persistence
+    sources:
+      steps: [dir_disk0]
+    pattern: '\.zip\s*$'
+    exclude: ['client_bundle_install\.zip']
+    flags: [ignorecase]
+    notes: Not malicious by itself; every zip on disk0 needs an owner and a reason.
+
+  - id: asa-syslog-disabled
+    title: Syslog disabled
+    type: log_regex
+    tier: possible
+    evidence_class: system-logs
+    sources:
+      steps: [show_logging]
+    pattern: 'Syslog logging:\s*disabled'
+    flags: [ignorecase]
+    attack: [T1562.002]
+    notes: ArcaneDoor disabled syslog. Confirm against the change record before treating as malicious.

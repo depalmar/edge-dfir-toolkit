@@ -1,0 +1,172 @@
+# Collection profile - Citrix NetScaler ADC / Gateway
+# Platform: EDGE-0004 (artifacts/catalog/netscaler.yml)
+#
+# NetScaler is the one MVP platform with a real shell: the nsroot CLI runs
+# FreeBSD commands through `shell <cmd>`. That makes UAC-style live response
+# possible, and also means the shell's own binaries are what we trust. A
+# userland rootkit can lie to `ps`, `ls` and `stat`; disk-image triage (the
+# break-glass step) is the check that does not depend on them.
+#
+# The root filesystem is a memory disk rebuilt at boot. Implants written there
+# die on reboot; /var and /flash persist. Collect before anyone reboots.
+
+profile: netscaler
+platform_id: EDGE-0004
+display: Citrix NetScaler ADC / Gateway
+transports: [ssh, replay]
+
+cli:
+  prompt: '(?:^|\n)\s*>\s*$'
+  pager: '--More--'
+  session_setup: []
+  allow:
+    - '^show '
+    - '^shell (date -u|uptime|ps auxww|netstat -an|sockstat -46|crontab -l|cat /etc/crontab|ls -la [\w/. -]+|find [^;&|`<>]+)$'
+  deny:
+    - '^(set|unset|add|rm|enable|disable|save|reboot|shutdown|clear|apply|sync|batch|kill)( |$)'
+    - '[;&|`<>]|\$\('
+    - '-(delete|exec(dir)?|ok(dir)?|fprint|fls)\b'
+
+expected_evidence: [identity, process, sessions, config, auth-logs, web-logs, filesystem, persistence]
+
+steps:
+  - id: shell_date
+    tier: V0
+    kind: command
+    cmd: shell date -u
+    purpose: Device clock in UTC.
+    confidence: high
+
+  - id: show_version
+    tier: V0
+    kind: command
+    cmd: show ns version
+    purpose: Build. Selects which CVE packs apply and which baseline to compare against.
+    confidence: high
+
+  - id: shell_uptime
+    tier: V0
+    kind: command
+    cmd: shell uptime
+    purpose: A reboot since compromise means anything written to the memory-disk root is gone.
+    confidence: high
+
+  - id: shell_ps
+    tier: V2
+    kind: command
+    cmd: shell ps auxww
+    purpose: Process list. Reverse shells, tunnels and miners.
+    confidence: high
+
+  - id: shell_netstat
+    tier: V2
+    kind: command
+    cmd: shell netstat -an
+    purpose: Sockets. Listeners that are not NetScaler services, and egress from the management plane.
+    confidence: high
+
+  - id: shell_sockstat
+    tier: V2
+    kind: command
+    cmd: shell sockstat -46
+    purpose: Socket-to-process mapping, so a listener can be attributed to a binary.
+    confidence: high
+
+  - id: show_system_session
+    tier: V3
+    kind: command
+    cmd: show system session
+    purpose: Management sessions now active.
+    confidence: medium
+
+  - id: show_aaa_session
+    tier: V3
+    kind: command
+    cmd: show aaa session
+    purpose: Gateway AAA sessions. Replayed session tokens (Citrix Bleed class) are sessions from addresses the user never had.
+    confidence: medium
+
+  - id: show_running_config
+    tier: P2
+    kind: command
+    cmd: show ns runningConfig
+    timeout: 600
+    purpose: Running configuration. New system users, policies and responder actions.
+    confidence: high
+
+  - id: php_stat
+    tier: P6
+    kind: command
+    cmd: shell find /var/netscaler/logon /var/vpn /netscaler/ns_gui /var/netscaler/ns_gui -type f -name '*.php' -ls
+    purpose: >-
+      Every PHP file under the web roots with mode, owner, size and mtime
+      (find -ls). Web shells from the 2023 mass exploitation campaign sat in these
+      directories, and shipped PHP is read-only, so a writable PHP file here is a
+      lead.
+    confidence: medium
+    references:
+      - https://github.com/fox-it/citrix-netscaler-triage
+
+  - id: suid_files
+    tier: P7
+    kind: command
+    cmd: shell find /var /tmp /flash -xdev -type f -perm -4000
+    purpose: SUID binaries outside the shipped set, a persistence and privilege technique seen on backdoored NetScalers.
+    confidence: medium
+
+  - id: crontab_root
+    tier: P7
+    kind: command
+    cmd: shell crontab -l
+    purpose: Root crontab.
+    confidence: high
+
+  - id: crontab_system
+    tier: P7
+    kind: command
+    cmd: shell cat /etc/crontab
+    purpose: System crontab.
+    confidence: high
+
+  - id: listing_tmp
+    tier: P6
+    kind: command
+    cmd: shell ls -la /tmp /var/tmp
+    purpose: Staging directories.
+    confidence: high
+
+  - id: fetch_php
+    tier: P6
+    kind: fetch
+    list_cmd: shell find /var/netscaler/logon /var/vpn /netscaler/ns_gui /var/netscaler/ns_gui -type f -name '*.php'
+    purpose: Copy every PHP file under the web roots for YARA and content review.
+    confidence: medium
+
+  - id: fetch_logs
+    tier: P3
+    kind: fetch
+    list_cmd: shell find /var/log -maxdepth 1 -type f -name 'ns.log*'
+    purpose: ns.log and its rotations. AAA failures with non-printable bytes are the CVE-2025-5777 memory-leak signature, and rotation is fast on a busy gateway.
+    confidence: medium
+
+  - id: fetch_httpaccess
+    tier: P4
+    kind: fetch
+    list_cmd: shell find /var/log -maxdepth 1 -type f -name 'http*.log*'
+    purpose: Web access and error logs for the management and gateway virtual servers.
+    confidence: medium
+
+  - id: disk_image
+    tier: X
+    kind: manual
+    impact: break-glass
+    purpose: Offline image of the persistent disks, the check that does not trust the device's own binaries.
+    instructions: |
+      Image the memory disk and the persistent disk (md0 and da0 on VPX/MPX) to an
+      external target, or snapshot the VPX at the hypervisor with memory. Analyse
+      the images offline (Dissect-based triage such as fox-it/citrix-netscaler-triage
+      or NCSC-NL citrix-2025 disk-image checks). Then ingest the triage output:
+        edge-triage ingest <case> --label image-triage --bundle <output>
+    references:
+      - https://github.com/fox-it/citrix-netscaler-triage
+      - https://github.com/NCSC-NL/citrix-2025

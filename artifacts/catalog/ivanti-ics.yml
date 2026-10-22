@@ -1,0 +1,51 @@
+# Edge platform catalog entry
+# EDGE-0003 - Ivanti Connect Secure / Policy Secure
+
+id: EDGE-0003
+name: Ivanti Connect Secure / Policy Secure
+vendor: Ivanti
+products: [Connect Secure, Policy Secure]
+os_base: CentOS-derived Linux with SELinux; encrypted filesystem
+filesystem: Root normally mounted read-only; a read-write root mount is itself an indicator in post-2025 intrusions
+customer_shell: "no"
+memory_acquisition: hypervisor-only
+profile: ivanti-ics
+collection:
+  - method: Admin UI log and configuration exports
+    impact: none
+    description: Events, user access and admin access logs; system and user configuration.
+    confidence: high
+  - method: Internal Integrity Checker Tool (ICT) history
+    impact: none
+    description: One signal. Repeatedly evaded.
+    confidence: high
+    references: [https://www.cisa.gov/news-events/cybersecurity-advisories/aa24-060b]
+  - method: Hypervisor snapshot with memory (virtual appliance)
+    impact: none
+    description: The only customer-controlled path to memory and disk.
+    confidence: medium
+  - method: External ICT snapshot
+    impact: break-glass
+    description: Encrypted snapshot decrypted by the vendor. Reboots the appliance.
+    confidence: high
+volatility:
+  - The external ICT reboots the appliance, destroying memory-only evidence
+  - Attackers have executed only in memory and restored modified libraries afterwards (Volexity, October 2026)
+anti_forensics:
+  - technique: Modified the internal ICT
+    seen_in: UTA0178 (January 2024)
+  - technique: Re-signed the ICT manifest after recalculating hashes
+    seen_in: SPAWNANT (2025)
+  - technique: Blocked syslog forwarding with iptables and tampered with logs
+    seen_in: SPAWN family (2025)
+  - technique: In-memory library patching with log-line removal and no on-disk implant
+    seen_in: UTA0576 (October 2026)
+confidence: high
+references:
+  - title: CISA AA24-060B
+    url: https://www.cisa.gov/news-events/cybersecurity-advisories/aa24-060b
+    accessed: "2026-10-22"
+  - title: Volexity - chained exploitation of Ivanti Connect Secure zero-days (October 2026)
+    url: https://www.volexity.com/blog/2026/10/13/a-series-of-unauthenticated-events-chained-exploitation-of-ivanti-connect-secure-zero-days/
+    accessed: "2026-10-22"
+last_modified: "2026-10-22"

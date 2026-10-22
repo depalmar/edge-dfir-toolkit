@@ -1,0 +1,97 @@
+# Project context
+
+Read this before working in this repository. It exists so a session starts
+with the rules already loaded instead of rediscovering them.
+
+## What this is
+
+A triage toolkit for compromised edge devices. Three layers:
+
+- `collectors/profiles/*.yaml` - what to run on each platform, in order of
+  volatility, with a read-only guard.
+- `edgetriage/` - the engine: collect over SSH (or replay), ingest exports,
+  analyze against packs, timeline, LLM brief.
+- `artifacts/` - the platform catalog (`EDGE-NNNN`) and detection packs
+  (`EDGE-PACK-NNNN`) the analyzer runs, plus their schemas and the validator.
+
+The numbered `0N-*` directories hold Sigma and YARA rules per platform. Packs
+reference the YARA files there.
+
+## Commands
+
+Run from the repository root.
+
+```bash
+python artifacts/scripts/validate.py          # the gate; never commit while it fails
+python -m pytest -q tests/                    # suite against synthetic fixtures
+python tests/make_fixtures.py /tmp/fx         # regenerate fixtures to poke at by hand
+python -m edgetriage plan --profile <name> [--allow-bundle] [--break-glass]
+python -m edgetriage collect --profile <name> --case-id X --replay /tmp/fx/<fixture>
+python -m edgetriage analyze cases/X [--baseline b.json] [--window-start ISO]
+sigma convert -t lucene --without-pipeline 01-panos-globalprotect/*.yml   # syntax gate only
+```
+
+## Rules that are not negotiable
+
+**Read-only by default.** An impact-free profile step must pass the profile's
+allow-list and miss its deny-list, and the engine re-checks after `--var`
+substitution. Anything that writes to the device declares `impact:
+vendor-bundle`; anything that can crash, reload, reboot or image it declares
+`impact: break-glass`. Do not loosen an allow-list to make a step pass -
+change the step. FortiOS paging is answered by the transport, never with
+`config system console`, because that changes configuration.
+
+**Order of volatility is enforced by `TIER_ORDER`.** The ASA memory-region
+check is V1 for a reason: LINE DANCER hooked the core-dump routine so that a
+dump request reloaded the device. Never move a step that can reload the device
+ahead of memory-state steps.
+
+**Not evaluated is not passed.** Every detection must be able to say it did not
+have the evidence it needs. A coded check returns `(False, [])` in that case.
+The hash-baseline check refuses to run without a baseline for exactly this
+reason.
+
+**Never call a device clean.** The lowest verdict is `NO-INDICATORS-FOUND`,
+and the report always carries the standing gap about on-box tampering.
+
+**Confidence reflects provenance.** `high` = vendor-documented or verified on a
+device; `medium` = multiple independent sources; `low` = single-source or
+inferred and **must** carry `unverified: true`. This applies to profile steps
+too: a CLI command nobody has run on a real device is not `high`. The FortiOS
+SSL-VPN language directory is supplied by the operator because its path is not
+confirmed; do not hard-code a guess.
+
+**Omit rather than guess.** A missing step or detection is honest. A guessed
+command or path becomes somebody's failed collection during an incident.
+
+**Ids are permanent.** `EDGE-0004` and `EDGE-PACK-0006` never change meaning.
+New entries take the next free id. Pack files are named `<id>-<slug>.yml` and
+the validator enforces it.
+
+**Detections are Sigma and YARA only.** No SPL, KQL, XQL, ES|QL or any vendor
+dialect. Converting inside CI to prove a rule parses is fine; committing the
+output is not. Do not name the maintainer's employer anywhere in the
+repository - the disclaimer says "any employer" deliberately.
+
+**Defensive content only.** Fixtures carry the minimum content to exercise a
+detection. No working exploit, implant or exploitation steps.
+
+**Synthetic data only.** Fixtures use documentation address ranges
+(192.0.2.0/24, 198.51.100.0/24, 203.0.113.0/24) and placeholder names.
+
+## Where the sharp edges are
+
+- `SSHTransport` has only been exercised against a scripted fake channel
+  (`test_ssh_transport_handles_pager_echo_and_ansi`). Prompt and pager regexes
+  in each profile are untested against real devices. First real-device run per
+  platform should be in a lab, and any correction recorded in `docs/VERIFICATION.md`.
+- Several profile commands are `medium` or `low` confidence for the same reason.
+  `edge-triage plan` prints `[unverified]` beside the low ones.
+- The ns.log memory-leak check depends on raw bytes surviving. Do not "fix"
+  `iter_lines` to decode text.
+- `safe_extract` refuses links but records them. The FortiOS symlink check reads
+  those refusals; keep the `"<name>: link -> <target>"` format stable.
+
+## What is next
+
+See `docs/ROADMAP.md`.
