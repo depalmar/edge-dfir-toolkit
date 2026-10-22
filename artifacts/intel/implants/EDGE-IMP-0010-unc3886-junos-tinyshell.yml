@@ -1,0 +1,35 @@
+# Implant catalog entry - EDGE-IMP-0010
+# Schema: ../../schema/implant.schema.json
+
+id: EDGE-IMP-0010
+name: UNC3886 Junos TINYSHELL backdoors
+aliases: [appid, to, irad, lmpad, jdosd, oemd]
+platforms: [EDGE-0008]
+actors: [EDGE-TA-0006]
+cves: [CVE-2025-21590]
+type: backdoor
+resides: memory+disk
+survives_reboot: unknown
+survives_upgrade: unknown
+summary: >-
+  Six TINYSHELL-based backdoors found on Juniper MX routers in mid 2024, each
+  named one character off from a legitimate daemon (appid / appidd, to / top,
+  irad / irsd, lmpad / lmpd, jdosd / jddosd, oemd / oamd). appid and to are
+  active and beacon to command servers on TCP/22; irad listens passively with a
+  libpcap filter for an ICMP trigger; lmpad, jdosd and oemd listen on UDP or TCP
+  ports. Payloads were injected into legitimate processes to get past veriexec.
+artifacts:
+  - Process names appid, to, irad, lmpad, jdosd, oemd
+  - /var/tmp staging files (ldb.b64, ldb.tar.gz, loader.bin, pc.bin, payload.bin) and a FIFO named null
+  - wtmp0 and utx.log0 backups in /var/log
+  - Mandiant-published SHA-256 hashes, magic values and command-server addresses (see the reference)
+anti_forensics:
+  - Deleted log lines containing "root" from interactive-commands, messages and auth
+  - Redirected syslog to /dev/null
+  - Injected into legitimate processes to evade veriexec
+detections: [junos-unc3886-masquerade-proc, junos-unc3886-staging-files, junos-unc3886-null-fifo, junos-login-record-backups, junos-unc3886-tinyshell-yara]
+confidence: high
+references:
+  - title: Mandiant - China-nexus espionage targets Juniper routers (12 March 2025)
+    url: https://cloud.google.com/blog/topics/threat-intelligence/china-nexus-espionage-targets-juniper-routers
+    accessed: "2026-10-22"

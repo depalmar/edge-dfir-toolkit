@@ -1,0 +1,30 @@
+title: Junos Shell Started From the CLI
+id: 4521060c-692c-4e32-b439-70d60456e017
+status: experimental
+description: |
+  The UNC3886 intrusion ran its process-injection technique from the Junos
+  shell, and CVE-2025-21590 needs a local attacker with shell access. The CLI
+  records each command as UI_CMDLINE_READ_LINE, so a `start shell` from a user
+  who does not normally use it is worth a look. The actor deleted local log
+  lines containing "root", so run this against the syslog receiver's copy.
+references:
+  - https://cloud.google.com/blog/topics/threat-intelligence/china-nexus-espionage-targets-juniper-routers
+  - https://juniper.net/documentation/en_US/junos13.1/topics/example/syslog-displaying-msg-descriptions.html
+author: Raymond DePalma (edge-dfir-toolkit)
+date: 2026-10-22
+tags:
+  - attack.execution
+  - attack.t1059.004
+  - cve.2025-21590
+logsource:
+  product: juniper
+  service: junos
+detection:
+  keywords_cmd:
+    - 'UI_CMDLINE_READ_LINE'
+  keywords_shell:
+    - "command 'start shell"
+  condition: keywords_cmd and keywords_shell
+falsepositives:
+  - Administrators and JTAC use the shell for troubleshooting. Baseline who does.
+level: low

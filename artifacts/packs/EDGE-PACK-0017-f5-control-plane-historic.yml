@@ -1,0 +1,58 @@
+# Detection pack EDGE-PACK-0017
+
+id: EDGE-PACK-0017
+name: F5 BIG-IP control-plane exploitation (iControl REST and Configuration utility)
+platforms: [EDGE-0010]
+cves: [CVE-2022-1388, CVE-2023-46747, CVE-2023-46748]
+actors: []
+implants: []
+summary: >-
+  CVE-2022-1388 is missing authentication in iControl REST (KEV 10 May 2022);
+  the common follow-on is a POST to /mgmt/tm/util/bash. CVE-2023-46747 is an
+  authentication bypass in the Configuration utility leading to RCE, chained
+  with the CVE-2023-46748 SQL injection (both KEV 31 October 2023). Both reach
+  the control plane, so an exposed management interface is the precondition.
+confidence: high
+references:
+  - title: F5 K23605346 - CVE-2022-1388
+    url: https://my.f5.com/manage/s/article/K23605346
+    accessed: "2026-10-22"
+  - title: F5 K000137353 - CVE-2023-46747
+    url: https://my.f5.com/manage/s/article/K000137353
+    accessed: "2026-10-22"
+  - title: F5 K000137365 - CVE-2023-46748
+    url: https://my.f5.com/manage/s/article/K000137365
+    accessed: "2026-10-22"
+
+detect:
+  - id: f5-rest-util-bash
+    title: REST POST to util/bash
+    type: log_regex
+    tier: possible
+    evidence_class: web-logs
+    sources:
+      files: ["**/restjavad-audit*"]
+    pattern: '"method":"POST","uri":"http://localhost:8100/mgmt/tm/util/bash"'
+    attack: [T1059.004]
+    notes: Legitimate automation also calls util/bash; check the user, the source and change control.
+
+  - id: f5-audit-util-bash-c
+    title: tmsh audit of run util bash -c
+    type: log_regex
+    tier: possible
+    evidence_class: system-logs
+    sources:
+      files: ["**/audit", "**/audit.*", "**/log/audit*"]
+    pattern: 'cmd_data run util bash -c'
+    attack: [T1059.004]
+
+  - id: f5-46748-tomcat-shell
+    title: Shell spawned from the Configuration utility
+    type: log_regex
+    tier: likely
+    evidence_class: web-logs
+    sources:
+      files: ["**/catalina.out*"]
+    pattern: 'sh: no job control in this shell'
+    attack: [T1190, T1059.004]
+    notes: F5's indicator follows a "java.sql.SQLException - Column not found" line. A shell banner in the Tomcat log has no ordinary cause.

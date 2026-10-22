@@ -1,0 +1,295 @@
+# Collection profile - F5 BIG-IP (TMOS, including APM)
+# Platform: EDGE-0010 (artifacts/catalog/f5-bigip.yml)
+#
+# Runs in the Advanced Shell (bash). The collection account must have bash as
+# its shell; Appliance mode removes bash entirely, in which case only qkview
+# and the vendor-assisted steps remain.
+#
+# tmsh is called from bash with its output piped to `cat`, so it never pages.
+# The alternative, `modify cli preference pager disabled`, changes CLI
+# configuration and is not used.
+#
+# Do not trust the box's own integrity tools on a suspect device: the c05d5254
+# malware (CVE-2025-53521) tampered with /usr/bin/sys-icheck and
+# /usr/libexec/sys-eicheck.py. F5's System Scanner, run from known-good media,
+# is the vendor's integrity check and is a break-glass step here.
+
+profile: f5-bigip
+platform_id: EDGE-0010
+display: F5 BIG-IP (TMOS / APM)
+transports: [ssh, replay]
+
+cli:
+  prompt: '\[[^\]]+\] \S+ ?[#$]'
+  pager: null
+  session_setup: []
+  # Allow rules must match the whole command (the engine uses fullmatch).
+  allow:
+    - 'date -u|uptime|ps auxww|netstat -anp|lsof -n|getenforce|semanage permissive -l|mount'
+    - 'tmsh (show|list) [\w /-]+ \| cat'
+    - 'tmctl global_oauth_stat -s [\w,]+'
+    - 'ls -[1dlta]+ [\w/.*-]+( [\w/.*-]+)*'
+    - "find /[\\w/.-]+ -type f -name '[\\w.*-]+'"
+    - 'cat /[\w/.-]+'
+  deny:
+    - '^(rm|mv|cp|chmod|chown|kill|reboot|shutdown|bigstart|qkview|sys-icheck)\b'
+    - '^tmsh (create|modify|delete|save|load|run|install|restart|start|stop|reset-stats)\b'
+    # Mutating verbs anywhere, not just first: `tmsh list apm session delete all` must not pass.
+    - '^tmsh .*\b(create|modify|delete|reset|reset-stats|kill|purge|save|load|run|install|mv|cp)\b'
+    - '[;&`<>]|\$\(|\$\{'
+    - '\|(?! cat$)'
+
+expected_evidence: [identity, process, sessions, integrity, config, auth-logs, web-logs, system-logs, filesystem, persistence]
+
+steps:
+  - id: date_utc
+    tier: V0
+    kind: command
+    cmd: date -u
+    purpose: Device clock in UTC.
+    confidence: high
+
+  - id: sys_version
+    tier: V0
+    kind: command
+    cmd: tmsh show sys version | cat
+    purpose: Release and hotfix. Selects which of CVE-2026-94127, CVE-2025-53521, CVE-2023-46747 and CVE-2022-1388 apply.
+    confidence: high
+    references:
+      - https://clouddocs.f5.com/cli/tmsh-reference/latest/modules/
+
+  - id: uptime
+    tier: V0
+    kind: command
+    cmd: uptime
+    purpose: Time since boot. The c05d5254 webshells ran in memory, so a reboot since the window removes them.
+    confidence: high
+
+  - id: ps
+    tier: V2
+    kind: command
+    cmd: ps auxww
+    purpose: Process list.
+    confidence: high
+
+  - id: lsof
+    tier: V2
+    kind: command
+    cmd: lsof -n
+    purpose: Open files and sockets. F5 lists an open /run/bigtlog.pipe as a c05d5254 indicator.
+    confidence: high
+    references:
+      - https://my.f5.com/manage/s/article/K000160486
+
+  - id: netstat
+    tier: V2
+    kind: command
+    cmd: netstat -anp
+    purpose: Sockets with owning process, for listeners and egress from the management plane.
+    confidence: medium
+
+  - id: apm_sessions
+    tier: V3
+    kind: command
+    cmd: tmsh list apm session | cat
+    purpose: Active APM sessions. The apm session module also has a delete command; only list is permitted here.
+    confidence: medium
+    references:
+      - https://clouddocs.f5.com/cli/tmsh-reference/v16/modules/apm/apm_session.html
+
+  - id: oauth_stats
+    tier: V3
+    kind: command
+    cmd: tmctl global_oauth_stat -s total_requests,total_userinfo_requests,total_failed
+    purpose: OAuth authorization-server counters. F5 lists a rise in total_failed as a CVE-2026-94127 indicator; only meaningful when APM is an OAuth Authorization Server.
+    confidence: high
+    references:
+      - https://my.f5.com/manage/s/article/K000162605
+
+  - id: getenforce
+    tier: P1
+    kind: command
+    cmd: getenforce
+    purpose: SELinux mode. F5 lists anything other than Enforcing as a c05d5254 indicator.
+    confidence: high
+    references:
+      - https://my.f5.com/manage/s/article/K000160486
+
+  - id: selinux_permissive
+    tier: P1
+    kind: command
+    cmd: semanage permissive -l
+    purpose: SELinux domains set to permissive. httpd_t, mount_t or apd_t listed here is a c05d5254 indicator per F5.
+    confidence: high
+    references:
+      - https://my.f5.com/manage/s/article/K000160486
+
+  - id: ioc_files
+    tier: P7
+    kind: command
+    cmd: ls -la /run/bigtlog.pipe /run/bigstart.ltm
+    purpose: Existence of the two runtime files F5 names as c05d5254 indicators. "No such file" for both is the expected clean result.
+    confidence: high
+    references:
+      - https://my.f5.com/manage/s/article/K000160486
+
+  - id: mount
+    tier: P1
+    kind: command
+    cmd: mount
+    purpose: Mount table. /usr mounted read-write is a weak indicator F5 lists for c05d5254.
+    confidence: high
+
+  - id: auth_users
+    tier: P2
+    kind: command
+    cmd: tmsh list auth user | cat
+    purpose: Local accounts and roles. Diff against the known set.
+    confidence: high
+
+  - id: mgmt_ip
+    tier: P2
+    kind: command
+    cmd: tmsh list sys management-ip | cat
+    purpose: Management address, to judge exposure of the control plane (the CVE-2022-1388 and CVE-2023-46747 surface).
+    confidence: high
+
+  - id: irules
+    tier: P2
+    kind: command
+    cmd: tmsh list ltm rule | cat
+    timeout: 300
+    purpose: iRules. Data-plane logic an attacker can use for traffic capture or redirection; diff against change control.
+    confidence: high
+
+  - id: cron_listing
+    tier: P7
+    kind: command
+    cmd: ls -lt /etc/cron* /var/spool/cron
+    purpose: Cron persistence, per F5's compromise-checking article.
+    confidence: high
+    references:
+      - https://my.f5.com/manage/s/article/K11438344
+
+  - id: hidden_www
+    tier: P7
+    kind: command
+    cmd: find /usr/local/www -type f -name '.*'
+    purpose: Hidden files under the web root, per F5's compromise-checking article.
+    confidence: high
+    references:
+      - https://my.f5.com/manage/s/article/K11438344
+
+  - id: startup_script
+    tier: P7
+    kind: command
+    cmd: cat /config/startup
+    purpose: Runs at boot. F5 lists it among the persistence locations to check.
+    confidence: high
+    references:
+      - https://my.f5.com/manage/s/article/K000160486
+
+  - id: rc_local
+    tier: P7
+    kind: command
+    cmd: cat /etc/rc.d/rc.local
+    purpose: Boot script whose hash or size changed under c05d5254.
+    confidence: high
+
+  - id: fetch_audit
+    tier: P2
+    kind: fetch
+    list_cmd: ls -1d /var/log/audit*
+    purpose: Configuration and command audit log. Carries the tmsh `run util bash` entries from CVE-2022-1388 and c05d5254 activity.
+    confidence: high
+    references:
+      - https://my.f5.com/manage/s/article/K16197
+
+  - id: fetch_restjavad_audit
+    tier: P4
+    kind: fetch
+    list_cmd: ls -1d /var/log/restjavad-audit*
+    purpose: iControl REST audit log. POSTs to /mgmt/tm/util/bash are the shared signature of CVE-2022-1388 and the c05d5254 activity.
+    confidence: high
+    references:
+      - https://my.f5.com/manage/s/article/K000160486
+
+  - id: fetch_apm
+    tier: P3
+    kind: fetch
+    list_cmd: ls -1d /var/log/apm*
+    purpose: APM log. CVE-2026-94127 attempts appear as bursts of "Request UserInfo ... failed. Error Code (invalid_token)" (01990004) from one address.
+    confidence: high
+    references:
+      - https://my.f5.com/manage/s/article/K000162605
+
+  - id: fetch_auditd
+    tier: P5
+    kind: fetch
+    list_cmd: ls -1d /var/log/auditd/audit.log*
+    purpose: Linux audit log. "received setenforce notice (enforcing=0)" is a c05d5254 indicator.
+    confidence: high
+
+  - id: fetch_catalina
+    tier: P4
+    kind: fetch
+    list_cmd: ls -1d /var/log/tomcat/catalina.out*
+    purpose: Configuration utility (Tomcat) log. CVE-2023-46748 exploitation left a SQL error followed by "sh - no job control in this shell".
+    confidence: high
+    references:
+      - https://my.f5.com/manage/s/article/K000137365
+
+  - id: fetch_secure
+    tier: P3
+    kind: fetch
+    list_cmd: ls -1d /var/log/secure*
+    purpose: Authentication log.
+    confidence: high
+
+  - id: fetch_ltm
+    tier: P5
+    kind: fetch
+    list_cmd: ls -1d /var/log/ltm*
+    purpose: LTM log, including TMM restarts (a TMM SIGABRT followed CVE-2026-94127 exploitation in F5's description).
+    confidence: high
+
+  - id: qkview
+    tier: B
+    kind: command
+    impact: vendor-bundle
+    cmd: nice -n 19 qkview
+    timeout: 3600
+    purpose: F5 diagnostic bundle, written to /var/tmp. Adds load. F5 asks for it alongside System Scanner results on a suspected compromise.
+    confidence: high
+    references:
+      - https://my.f5.com/manage/s/article/K12878
+
+  - id: system_scanner
+    tier: X
+    kind: manual
+    impact: break-glass
+    purpose: F5 System Scanner, the vendor's file-integrity check (writes a report to the device).
+    instructions: |
+      Download F5 System Scanner and the dat file for your exact release from F5,
+      copy them to /var/tmp/scanner, and run as root:
+        nice -n 19 ./f5-system-scanner --dat-file ./<release>.ndjson \
+          --dat-file-sha512 "$(cut -d' ' -f1 <release>.ndjson.sha512)" \
+          --root / --format text --progress --output ./scanner-report.txt
+      Do not substitute sys-icheck: c05d5254 tampered with it. On any mismatch F5
+      asks for a support case with the scanner results and a qkview. Ingest the
+      report:  edge-triage ingest <case> --label scanner --bundle scanner-report.txt
+    references:
+      - https://my.f5.com/manage/s/article/K000160515
+
+  - id: disk_image
+    tier: X
+    kind: manual
+    impact: break-glass
+    purpose: Disk image and TPM attestation, before any rebuild.
+    instructions: |
+      Follow F5's disk image procedure (K17551329) and TPM attestation (K58311205)
+      as referenced from K11438344. The c05d5254 webshells ran in memory; there is
+      no documented memory acquisition path, so involve F5 Support if memory
+      matters.
+    references:
+      - https://my.f5.com/manage/s/article/K11438344

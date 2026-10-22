@@ -1,0 +1,106 @@
+# Detection pack EDGE-PACK-0015
+
+id: EDGE-PACK-0015
+name: F5 BIG-IP APM CVE-2025-53521 and the c05d5254 malware
+platforms: [EDGE-0010]
+cves: [CVE-2025-53521]
+actors: []
+implants: [c05d5254]
+summary: >-
+  A stack overflow in apmd, first published as denial of service and
+  reclassified as unauthenticated RCE in March 2026 (KEV 27 March 2026). F5
+  documents follow-on malware it calls c05d5254: webshells that run in memory,
+  runtime files under /run, SELinux set to permissive, and tampering with the
+  binaries F5's own integrity check relies on (sys-icheck, sys-eicheck.py).
+  F5 credits Schuberg Philis, Fox-IT and NCSC-NL and names no actor.
+confidence: high
+references:
+  - title: F5 K000156741 - CVE-2025-53521
+    url: https://my.f5.com/manage/s/article/K000156741
+    accessed: "2026-10-22"
+  - title: F5 K000160486 - c05d5254 indicators of compromise
+    url: https://my.f5.com/manage/s/article/K000160486
+    accessed: "2026-10-22"
+
+detect:
+  - id: f5-c05d5254-runtime-files
+    title: c05d5254 runtime file present
+    type: log_regex
+    tier: confirmed
+    evidence_class: persistence
+    sources:
+      steps: [ioc_files]
+    pattern: '^[-pslrwxt]{10}.*\s/run/(bigtlog\.pipe|bigstart\.ltm)\s*$'
+    attack: [T1543, T1036]
+    notes: Matches only ls rows for files that exist; "No such file" lines are the clean result.
+
+  - id: f5-c05d5254-pipe-open
+    title: Process holding /run/bigtlog.pipe open
+    type: log_regex
+    tier: confirmed
+    evidence_class: process
+    sources:
+      steps: [lsof]
+    pattern: '/run/bigtlog\.pipe'
+    attack: [T1543]
+
+  - id: f5-selinux-not-enforcing
+    title: SELinux not enforcing
+    type: log_regex
+    tier: likely
+    evidence_class: integrity
+    sources:
+      steps: [getenforce]
+    pattern: '^\s*(Permissive|Disabled)\s*$'
+    attack: [T1562.001]
+
+  - id: f5-selinux-permissive-domains
+    title: SELinux domain named by F5 set to permissive
+    type: log_regex
+    tier: likely
+    evidence_class: integrity
+    sources:
+      steps: [selinux_permissive]
+    pattern: '^\s*(httpd_t|mount_t|apd_t)\s*$'
+    attack: [T1562.001]
+
+  - id: f5-setenforce-zero
+    title: SELinux switched to permissive in the audit log
+    type: log_regex
+    tier: likely
+    evidence_class: system-logs
+    sources:
+      files: ["**/auditd/audit.log*", "**/audit.log*"]
+    pattern: 'received setenforce notice \(enforcing=0\)'
+    attack: [T1562.001]
+
+  - id: f5-hubble-util-bash-rest
+    title: REST call to util/bash as f5hubblelcdadmin
+    type: log_regex
+    tier: likely
+    evidence_class: web-logs
+    sources:
+      files: ["**/restjavad-audit*"]
+    pattern: '"user":"local/f5hubblelcdadmin".*"uri":"http://localhost:8100/mgmt/tm/util/bash"'
+    attack: [T1059.004, T1078]
+
+  - id: f5-hubble-util-bash-audit
+    title: tmsh run util bash as f5hubblelcdadmin
+    type: log_regex
+    tier: likely
+    evidence_class: system-logs
+    sources:
+      files: ["**/audit", "**/audit.*", "**/log/audit*"]
+    pattern: 'user=f5hubblelcdadmin.*cmd_data=run util bash'
+    attack: [T1059.004]
+
+  - id: f5-usr-mounted-rw
+    title: /usr mounted read-write
+    type: log_regex
+    tier: possible
+    evidence_class: integrity
+    sources:
+      steps: [mount]
+    pattern: '\son /usr type \S+ \((rw|[^)]*\brw\b)'
+    attack: [T1562.001]
+    notes: F5 calls this a weak indicator.

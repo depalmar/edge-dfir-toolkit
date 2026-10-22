@@ -43,4 +43,4 @@ def excerpt(raw: bytes | str, limit: int = 240) -> str:
 
 
 # Import modules so their @check decorators register.
-from . import cisco, fortinet, generic, netscaler  # noqa: E402,F401
+from . import cisco, f5, fortinet, generic, netscaler  # noqa: E402,F401

@@ -1,0 +1,27 @@
+title: F5 BIG-IP REST Call to util/bash as f5hubblelcdadmin (c05d5254)
+id: fd361eb8-6ca4-4c56-a2da-6ce3b8ac6ea3
+status: experimental
+description: |
+  F5 lists a restjavad-audit entry in which local/f5hubblelcdadmin POSTs to
+  /mgmt/tm/util/bash as an indicator of the c05d5254 malware that followed
+  CVE-2025-53521 exploitation.
+references:
+  - https://my.f5.com/manage/s/article/K000160486
+author: Raymond DePalma (edge-dfir-toolkit)
+date: 2026-10-22
+tags:
+  - attack.execution
+  - attack.t1059.004
+  - cve.2025-53521
+logsource:
+  product: f5
+  service: restjavad_audit
+detection:
+  keywords_user:
+    - 'local/f5hubblelcdadmin'
+  keywords_uri:
+    - '/mgmt/tm/util/bash'
+  condition: keywords_user and keywords_uri
+falsepositives:
+  - Unknown. Confirm with F5 support before treating as benign.
+level: high

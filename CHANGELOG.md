@@ -1,5 +1,39 @@
 # Changelog
 
+## 0.3.0 - 2026-10-22
+
+### Platforms
+- **Juniper Junos** (`EDGE-0008`, profile `junos`, pack 0010): UNC3886 TINYSHELL
+  backdoors - masquerading process names, staging files, login-record backups,
+  published YARA strings. CLI-only collection; JMRT quick-scan is break-glass
+  because it deletes evidence by default.
+- **Cisco IOS XE** (`EDGE-0009`, profile `cisco-iosxe`, packs 0011-0012): the
+  2023 web UI implant (syslog strings, Talos-named accounts, Cisco's implant
+  check) and AA25-239A tradecraft (captures on bootflash, shell trace logs,
+  encoded web services requests). New coded check for executable and writable
+  IOSd memory with dirty pages, from Cisco's forensic guide.
+- **F5 BIG-IP** (`EDGE-0010`, profile `f5-bigip`, packs 0015-0017): c05d5254
+  after CVE-2025-53521, CVE-2026-94127 (APM OAuth), and the 2022-2023
+  control-plane flaws. New coded check for bursts of invalid-token UserInfo
+  failures at F5's threshold of 10 per address.
+- **Check Point** (`EDGE-0007`): now has a profile, and packs 0013-0014 cover
+  CVE-2026-93616, CVE-2026-16232, CVE-2026-85102 and CVE-2026-50751 using
+  Check Point's published indicators.
+
+### Intel and response
+- Actors: UNC3886 now linked to Juniper; new AA25-239A profile that keeps the
+  agencies' refusal to adopt a vendor name and records the Talos disagreement.
+- Implants: UNC3886 Junos TINYSHELL, IOS XE web UI implant, F5 c05d5254.
+- Response playbooks for Juniper, IOS XE and F5; Check Point rewritten for the
+  2026 flaws with per-CVE fixes, interim mitigations and the sk182336 rotation list.
+
+### Engine
+- Coded checks report "not evaluated" when they parse nothing, so an error
+  message can never pass as a clean device (applied to the ASA check as well).
+- Profile steps can declare `var_examples` so the load-time guard probes with
+  realistic values (an IOS XE `bootflash:` path rather than `/placeholder`).
+- Rule directories may now be numbered past 09.
+
 ## 0.2.0 - 2026-10-22
 
 ### Verification

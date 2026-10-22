@@ -1,0 +1,58 @@
+# Detection pack EDGE-PACK-0014
+
+id: EDGE-PACK-0014
+name: Check Point gateway VPN authentication bypasses (2026)
+platforms: [EDGE-0007]
+cves: [CVE-2026-85102, CVE-2026-50751]
+actors: []
+implants: []
+summary: >-
+  CVE-2026-85102 is improper validation of certificate data during VPN
+  negotiation, a pre-authentication RCE on Security Gateways and Spark that
+  use or allow certificate authentication; fixed 9 September 2026, exploited
+  against Spark from 12 September from VPN and proxy infrastructure, KEV
+  22 September. CVE-2026-50751 is an IKEv1 Remote Access authentication bypass
+  (a crafted Vendor ID makes iked skip peer authentication), exploited from
+  7 May 2026, KEV 8 June. Check Point assessed the CVE-2026-50751 actor with
+  "medium confidence" as financially motivated and using Qilin ransomware, and
+  saw it exploiting Palo Alto, Fortinet and F5 VPNs as well. The actor is
+  unnamed, so it has no profile here.
+confidence: high
+references:
+  - title: Check Point sk1000117 - CVE-2026-85102
+    url: https://support.checkpoint.com/results/sk/sk1000117
+    accessed: "2026-10-22"
+  - title: Check Point sk185033 - CVE-2026-50751
+    url: https://support.checkpoint.com/results/sk/sk185033
+    accessed: "2026-10-22"
+  - title: Check Point blog - hotfix for the deprecated IKEv1 VPN protocol
+    url: https://blog.checkpoint.com/security/check-point-releases-important-hotfix-for-vulnerabilities-in-deprecated-ikev1-vpn-protocol/
+    accessed: "2026-10-22"
+  - title: watchTowr - IKEv1 Remote Access authentication bypass (CVE-2026-50751)
+    url: https://labs.watchtowr.com/marking-your-own-homework-check-point-remote-access-vpn-ikev1-authentication-bypass-cve-2026-50751/
+    accessed: "2026-10-22"
+
+detect:
+  - id: cp-85102-attacker-cert-subject
+    title: Mobile Access login with a certificate subject seen in exploitation
+    type: log_regex
+    tier: likely
+    evidence_class: auth-logs
+    sources:
+      files: ["**/*.csv", "**/*.log*", "**/*.txt"]
+    pattern: 'CN=(vpn|vpn-user|vpnuser),\s*OU=users,\s*O=global'
+    flags: [ignorecase]
+    attack: [T1190, T1078]
+    notes: Subjects published by Check Point; the list is not exhaustive. Afterwards look for internal port and service scanning from the session.
+
+  - id: cp-50751-ikev1-quick-mode
+    title: IKEv1 Quick Mode key install
+    type: log_regex
+    tier: possible
+    evidence_class: auth-logs
+    sources:
+      files: ["[cp-50751]/*"]
+    pattern: 'Key Install.*Quick Mode completion|Quick Mode completion.*Key Install'
+    flags: [ignorecase]
+    attack: [T1190]
+    notes: Check Point's hunting query. Only hits dated before the fix or mitigation are suspicious; compare sources with sk185033.

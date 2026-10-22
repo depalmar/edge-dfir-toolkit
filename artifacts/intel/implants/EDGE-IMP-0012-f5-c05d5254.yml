@@ -1,0 +1,39 @@
+id: EDGE-IMP-0012
+name: c05d5254
+platforms: [EDGE-0010]
+actors: []
+cves: [CVE-2025-53521]
+type: web-shell
+resides: memory+disk
+survives_reboot: unknown
+survives_upgrade: unknown
+summary: >-
+  F5's name for the malware deployed after CVE-2025-53521 exploitation on
+  BIG-IP APM. Webshells ran in memory, so served PHP files may be unchanged. It
+  left runtime files under /run, set SELinux to permissive, modified system
+  binaries including the ones F5's integrity check uses, and drove the device
+  through REST calls to util/bash as f5hubblelcdadmin. Command-and-control
+  responses used HTTP 201 or 401 with a CSS content type.
+artifacts:
+  - /run/bigtlog.pipe and /run/bigstart.ltm
+  - Hash or size changes in /usr/bin/umount, /usr/sbin/httpd, /usr/sbin/chroot, /usr/libexec/apmd64, /usr/bin/sys-icheck, /usr/libexec/sys-eicheck.py, /etc/rc.d/rc.local
+  - restjavad-audit POST to /mgmt/tm/util/bash as local/f5hubblelcdadmin
+  - auditd "received setenforce notice (enforcing=0)"
+anti_forensics:
+  - Tampered with sys-icheck and sys-eicheck.py
+  - In-memory webshells leave served files unmodified
+  - SELinux set to permissive
+detections: [f5-c05d5254-runtime-files, f5-c05d5254-pipe-open, f5-selinux-not-enforcing, f5-selinux-permissive-domains, f5-setenforce-zero, f5-hubble-util-bash-rest, f5-hubble-util-bash-audit]
+gap: >-
+  Binary tampering is only visible to F5 System Scanner run from known-good
+  media, which the toolkit records as a manual step and ingests but does not run.
+  One secondary report says the sys-eicheck changes did not carry over an upgrade
+  to the other boot partition; that is not confirmed by F5.
+confidence: high
+references:
+  - title: F5 K000160486 - c05d5254 indicators
+    url: https://my.f5.com/manage/s/article/K000160486
+    accessed: "2026-10-22"
+  - title: F5 K000156741 - CVE-2025-53521
+    url: https://my.f5.com/manage/s/article/K000156741
+    accessed: "2026-10-22"

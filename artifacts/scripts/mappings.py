@@ -31,7 +31,7 @@ def build() -> str:
             L.append(f"| {pack['id']} | `{d['id']}` | {d['tier']} | {d['evidence_class']} | "
                      f"{', '.join(pack.get('cves', [])) or '-'} | {', '.join(d.get('attack', [])) or '-'} |")
     L += ["", "## Rules", "", "| File | Format | CVEs | ATT&CK |", "|---|---|---|---|"]
-    for f in sorted(list(ROOT.glob("0[0-9]-*/*.yml")) + list(ROOT.glob("0[0-9]-*/*.yar"))):
+    for f in sorted(list(ROOT.glob("[0-9][0-9]-*/*.yml")) + list(ROOT.glob("[0-9][0-9]-*/*.yar"))):
         text = f.read_text()
         rel = f.relative_to(ROOT).as_posix()
         if f.suffix == ".yml":

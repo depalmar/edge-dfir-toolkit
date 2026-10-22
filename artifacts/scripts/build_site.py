@@ -57,7 +57,7 @@ def load() -> dict:
     profiles = sorted((load_profile(p) for p in available_profiles().values()), key=lambda p: p.platform_id)
     packs = [yaml.safe_load(p.read_text()) for p in sorted((ROOT / "artifacts" / "packs").glob("*.yml"))]
     rules = []
-    for f in sorted(list(ROOT.glob("0[0-9]-*/*.yml")) + list(ROOT.glob("0[0-9]-*/*.yar"))):
+    for f in sorted(list(ROOT.glob("[0-9][0-9]-*/*.yml")) + list(ROOT.glob("[0-9][0-9]-*/*.yar"))):
         text = f.read_text()
         if f.suffix == ".yml":
             doc = yaml.safe_load(text)

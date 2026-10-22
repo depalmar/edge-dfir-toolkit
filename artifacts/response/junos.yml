@@ -1,0 +1,68 @@
+# Containment and recovery - EDGE-0008 Juniper Junos OS / Junos OS Evolved
+# Schema: ../schema/response.schema.json
+
+platform_id: EDGE-0008
+name: Juniper Junos OS / Junos OS Evolved
+confidence: medium
+
+preserve_first:
+  - step: Collect from the CLI before anything else
+    detail: Run the junos profile. It never enters the shell and never saves a file.
+  - step: Pull the syslog receiver's copy of messages, interactive-commands and auth
+    detail: UNC3886 deleted every local line containing "root" and redirected syslog to /dev/null; silence at the receiver dates the intrusion.
+  - step: Do not run JMRT quick-scan until collection is hashed
+    detail: Its default action deletes malicious files and kills the processes - the evidence goes with the implant. Use the warn clean action.
+
+contain:
+  - step: Restrict management access upstream
+    detail: Limit SSH and NETCONF to a management network with ACLs on an upstream device rather than editing the suspect device's configuration.
+    when: COMPROMISED, LIKELY-COMPROMISED, SUSPICIOUS
+  - step: Watch for the passive backdoors' triggers
+    detail: Several UNC3886 implants were passive (ICMP, UDP or TCP knock); block unexpected traffic to the routing engine from untrusted interfaces with a loopback filter.
+    when: COMPROMISED, LIKELY-COMPROMISED
+
+credential_exposure:
+  - what: Local accounts and SSH keys on the device
+    why: Shell-level access exposes /var/home and the local password store.
+    action: Rotate every local account and replace authorized SSH keys from a clean source.
+  - what: TACACS+ and RADIUS shared secrets and any accounts authenticated through the router
+    why: The configuration holds the shared secrets; an attacker on the routing engine sees authentication traffic.
+    action: Rotate the shared secrets and the credentials of administrators who logged in during the window.
+  - what: SNMP communities and routing protocol keys
+    why: Both are in the configuration and give monitoring or routing influence.
+    action: Rotate them on the rebuilt device and its peers.
+
+eradicate:
+  - step: Upgrade to the latest image and replace end-of-life hardware
+    detail: Mandiant's guidance - upgrade to the latest images and run JMRT quick-scan and integrity-check after the upgrade. The UNC3886 victims ran end-of-life hardware and software.
+    when: COMPROMISED, LIKELY-COMPROMISED
+  - step: Rebuild the configuration from a known-good template
+    detail: Mandiant recommends validating configurations against templates; do not trust a configuration saved after the window.
+
+recover:
+  - step: Return the device to service on a current, supported release
+  - step: Re-establish peerings after keys and secrets are rotated
+  - step: Restore remote syslog and confirm it reaches the collector
+
+verify:
+  - step: Run JMRT integrity-check and quick-scan (warn) after the upgrade; expect clean
+  - step: Re-run the junos profile; expect no masquerading processes, no staging files and no login-record backups
+  - step: Hunt from the device into the network for the dwell period
+
+do_not:
+  - action: Run JMRT quick-scan with its default clean action before collecting
+    because: It deletes the malicious files and kills the processes it finds.
+  - action: Trust local logs on a suspect device
+    because: UNC3886 deleted lines containing "root" and pointed syslog at /dev/null.
+  - action: Treat a veriexec or integrity-check pass as clearance
+    because: The actor got past veriexec by injecting into a legitimate process.
+
+vendor_guidance:
+  - title: Juniper - using the Juniper Malware Removal Tool
+    url: https://juniper.net/documentation/us/en/software/junos/security-services/topics/topic-map/using-the-juniper-malware-removal-tool.html
+    accessed: "2026-10-22"
+
+references:
+  - title: Mandiant - China-nexus espionage targets Juniper routers (12 March 2025)
+    url: https://cloud.google.com/blog/topics/threat-intelligence/china-nexus-espionage-targets-juniper-routers
+    accessed: "2026-10-22"

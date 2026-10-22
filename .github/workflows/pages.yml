@@ -8,7 +8,7 @@ on:
       - 'collectors/profiles/**'
       - 'edgetriage/**'
       - 'docs/edge-dfir-investigation-guide.md'
-      - '0*/**'
+      - '[0-9][0-9]-*/**'
       - 'requirements.txt'
       - '.github/workflows/pages.yml'
   workflow_dispatch:

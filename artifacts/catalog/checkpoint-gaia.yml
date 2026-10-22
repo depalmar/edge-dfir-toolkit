@@ -1,24 +1,98 @@
 # Edge platform catalog entry
-# EDGE-0007 - Check Point Quantum (Gaia)
+# EDGE-0007 - Check Point Gaia (Quantum Security Gateway and Security Management Server)
+# Schema: ../schema/platform.schema.json
 
 id: EDGE-0007
-name: Check Point Quantum Security Gateway (Gaia)
+name: Check Point Gaia (Quantum Security Gateway / Security Management Server)
 vendor: Check Point
-products: [Quantum Security Gateway, CloudGuard Network]
-os_base: Gaia (RHEL-based Linux)
+products: [Quantum Security Gateway, Quantum Spark, Security Management Server, Multi-Domain Server, CloudGuard Network]
+os_base: Gaia (64-bit Gaia kernel; Clish by default, Expert mode is a full shell)
+filesystem: >-
+  $FWDIR/log and $CPDIR/log hold daemon logs (vpnd.elg, fwd.elg, cpd.elg); on a
+  management server $MDS_FWDIR/log/cpm.elg holds the CPM web-service log;
+  user-mode core dumps land in /var/log/dump/usermode/.
 customer_shell: "yes"
 memory_acquisition: hypervisor-only
+profile: checkpoint-gaia
+response: checkpoint-gaia
 collection:
-  - method: Expert mode shell
+  - method: Expert mode (bash) commands and log fetches
     impact: none
-    description: Standard Linux live response; UAC runs here.
+    description: >-
+      Version and hotfix state, LivePatch status, processes, sockets, Mobile
+      Access users, core-dump listing, and the CPM, vpnd and messages logs.
+      Entering Expert from Clish asks for a second password, so the collection
+      account needs /bin/bash as its shell.
     confidence: high
+    references: [https://sc1.checkpoint.com/documents/R82.10/WebAdminGuides/EN/CP_R82.10_Gaia_AdminGuide/Content/Topics-GAG/Gaia-Clish-Expert-Mode.htm]
+  - method: SmartConsole log query exports
+    impact: none
+    description: Certificate logins (CVE-2026-85102), IKEv1 Quick Mode (CVE-2026-50751), password logins (CVE-2024-24919) and application-token audit entries (CVE-2026-16232).
+    confidence: high
+    references: [https://support.checkpoint.com/results/sk/sk1000117, https://support.checkpoint.com/results/sk/sk185033]
   - method: cpinfo
     impact: vendor-bundle
-    description: Vendor diagnostic bundle.
+    description: Diagnostic bundle; writes a file. Do not run while any CPU core is above 70%.
     confidence: high
-response: checkpoint-gaia
+    references: [https://support.checkpoint.com/results/sk/sk92739]
+volatility:
+  - LivePatch fixed CVE-2026-85102 without a reboot but does not fix CVE-2026-93616; read hotfix state before judging exposure
+  - Gateway and management roles keep different logs; a role-specific log that is absent is a gap, not a pass
 artifacts:
+  - locator: $MDS_FWDIR/log/cpm.elg*
+    class: web-logs
+    volatility: rotating
+    forensic_value: high
+    evidence_type: [initial-access]
+    confidence: high
+    collected_by: fetch_cpm
+    description: Management web service log. Check Point's CVE-2026-93616 indicators - oversized login usernames, traversal in version and upload paths, JAR path breakout.
+    seen_in: [CVE-2026-93616]
+  - locator: /var/log/dump/usermode/
+    class: system-logs
+    volatility: stable
+    forensic_value: medium
+    evidence_type: [initial-access, timeline]
+    confidence: high
+    collected_by: usermode_dumps
+    description: fwm or mds core dumps alongside a CVE-2026-93616 indicator-1 hit.
+    seen_in: [CVE-2026-93616]
+  - locator: $FWDIR/log/vpnd.elg*
+    class: web-logs
+    volatility: rotating
+    forensic_value: medium
+    evidence_type: [initial-access]
+    confidence: medium
+    collected_by: fetch_vpnd
+    description: An "Invalid filename" line records a blocked CVE-2024-24919 attempt.
+    seen_in: [CVE-2024-24919]
+  - locator: SmartConsole - Mobile Access certificate logins
+    class: auth-logs
+    volatility: off-box
+    forensic_value: high
+    evidence_type: [initial-access, credential-access]
+    confidence: high
+    collected_by: smartconsole_exports
+    description: Subjects CN=vpn, CN=vpn-user or CN=vpnuser with OU=users,O=global were seen in CVE-2026-85102 exploitation.
+    seen_in: [CVE-2026-85102]
+  - locator: SmartConsole - IKEv1 Key Install / Quick Mode completion
+    class: auth-logs
+    volatility: off-box
+    forensic_value: high
+    evidence_type: [initial-access]
+    confidence: high
+    collected_by: smartconsole_exports
+    description: Any hit before the CVE-2026-50751 fix or mitigation is suspicious.
+    seen_in: [CVE-2026-50751]
+  - locator: SmartConsole Audit Logs - authentication method application token
+    class: auth-logs
+    volatility: off-box
+    forensic_value: high
+    evidence_type: [credential-access]
+    confidence: high
+    collected_by: smartconsole_exports
+    description: Check Point's hunting query for the CVE-2026-16232 SmartConsole bypass.
+    seen_in: [CVE-2026-16232]
   - locator: Mobile Access / VPN portal web logs (POST /clients/MyCRL)
     class: web-logs
     volatility: rotating
@@ -28,33 +102,37 @@ artifacts:
     collected_by: ingest
     description: The CVE-2024-24919 file read leaves only the request. Baseline sources first; the endpoint is also used legitimately.
     seen_in: [CVE-2024-24919]
-  - locator: VPN authentication logs (local and LDAP accounts)
-    class: auth-logs
-    volatility: rotating
-    forensic_value: high
-    evidence_type: [credential-access, lateral-movement, timeline]
-    confidence: medium
-    collected_by: ingest
-    description: Logins with local accounts in the hours after a MyCRL request are the follow-on; password hashes were read from the device. Public reporting showed directory data extracted within hours.
-    seen_in: [CVE-2024-24919]
-  - locator: Expert-mode Linux live response (UAC)
-    class: process
+  - locator: listusers / cplp list / cpinfo -y all
+    class: sessions
     volatility: live
     forensic_value: medium
-    evidence_type: [execution, persistence]
+    evidence_type: [initial-access, configuration]
     confidence: high
-    collected_by: manual
-    description: Standard Linux collection is available; nothing appliance-specific is needed beyond cpinfo.
-confidence: medium
+    collected_by: ma_users
+    description: Mobile Access users connected now with source addresses; LivePatch and hotfix state decide which 2026 flaws were ever exploitable.
+confidence: high
 references:
-  - title: Check Point - CVE-2024-24919 advisory (sk182336)
+  - title: Check Point sk1000171 - CVE-2026-93616
+    url: https://support.checkpoint.com/results/sk/sk1000171
+    accessed: "2026-10-22"
+  - title: Check Point sk1000117 - CVE-2026-85102
+    url: https://support.checkpoint.com/results/sk/sk1000117
+    accessed: "2026-10-22"
+  - title: Check Point sk185033 - CVE-2026-50751
+    url: https://support.checkpoint.com/results/sk/sk185033
+    accessed: "2026-10-22"
+  - title: Check Point sk185169 - CVE-2026-16232
+    url: https://support.checkpoint.com/results/sk/sk185169
+    accessed: "2026-10-22"
+  - title: Check Point sk182336 - CVE-2024-24919
     url: https://support.checkpoint.com/results/sk/sk182336
     accessed: "2026-10-22"
   - title: watchTowr - Check Point wrong check point (CVE-2024-24919)
     url: https://labs.watchtowr.com/check-point-wrong-check-point-cve-2024-24919/
     accessed: "2026-10-22"
 notes: >-
-  No collection profile yet; expert mode makes an existing Linux collector the
-  near-term answer. Memory acquisition on physical gateways has not been
-  researched here, so the entry claims only the hypervisor path.
+  Check Point has published no vendor-supported memory acquisition or attacker
+  persistence locations for Gaia, so the entry claims only the hypervisor path
+  for memory. The Clish prompt format, kernel base and fw ver output are not
+  confirmed from a primary source.
 last_modified: "2026-10-22"

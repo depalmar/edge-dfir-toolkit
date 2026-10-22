@@ -4,8 +4,8 @@
 
 A collector, an analyzer and a vendor-neutral detection pack for the edge
 devices that keep getting exploited: PAN-OS / GlobalProtect, FortiOS, Ivanti
-Connect Secure, Citrix NetScaler, Cisco ASA / FTD, SonicWall SMA, Check Point
-and Cisco IOS XE.
+Connect Secure, Citrix NetScaler, Cisco ASA / FTD, Check Point, Juniper Junos,
+Cisco IOS XE, F5 BIG-IP and SonicWall SMA.
 
 It exists because the usual answer - run a Unix live-response collector on the
 box - does not work on most of these devices. PAN-OS, FortiOS, ASA and Ivanti
@@ -58,6 +58,8 @@ edge-dfir-toolkit/
 ├── 06-sonicwall-sma/
 ├── 07-checkpoint-quantum/
 ├── 08-cisco-ios-xe/
+├── 09-juniper-junos/
+├── 10-f5-bigip/
 ├── edgetriage/               # the engine: collect, ingest, analyze, timeline, brief
 ├── collectors/profiles/      # declarative per-vendor collection profiles
 ├── artifacts/
@@ -130,8 +132,10 @@ cases/IR-2026-031/
 | Citrix NetScaler | yes | `netscaler` | 0004, 0005 | Memory-disk root dies on reboot |
 | Cisco ASA / FTD | restricted | `cisco-asa` | 0006 | Memory-region check runs before anything that could reload |
 | SonicWall SMA 100 | no | - | 0008 | Image-only by design |
-| Check Point Gaia | yes (expert) | - | 0009 | Sigma + pack; collector planned |
-| Cisco IOS XE | restricted | - | - | Sigma only |
+| Check Point Gaia | yes (expert) | `checkpoint-gaia` | 0009, 0013, 0014 | Most 2026 hunting is SmartConsole exports; LivePatch does not fix CVE-2026-93616 |
+| Juniper Junos | yes | `junos` | 0010 | CLI only, never the shell; JMRT quick-scan deletes evidence by default |
+| Cisco IOS XE | restricted | `cisco-iosxe` | 0011, 0012 | Do not reboot first; the 2023 implant was memory-only |
+| F5 BIG-IP | yes (bash) | `f5-bigip` | 0015, 0016, 0017 | Do not trust sys-icheck; never restore a post-compromise UCS |
 
 ---
 
@@ -184,7 +188,7 @@ them.
 ```bash
 python artifacts/scripts/validate.py     # catalog, packs, profiles, rules - the CI gate
 python artifacts/scripts/build_site.py --check   # site data contract, writes nothing
-python -m pytest -q tests/               # 56 tests against synthetic fixtures
+python -m pytest -q tests/               # 71 tests against synthetic fixtures
 ```
 
 All fixture data is synthetic: documentation-range addresses, placeholder

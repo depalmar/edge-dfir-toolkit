@@ -1,0 +1,46 @@
+# Detection pack EDGE-PACK-0016
+
+id: EDGE-PACK-0016
+name: F5 BIG-IP APM OAuth authorization server heap overflow (CVE-2026-94127)
+platforms: [EDGE-0010]
+cves: [CVE-2026-94127]
+actors: []
+implants: []
+summary: >-
+  An unauthenticated heap overflow in the data plane, reachable only when APM is
+  configured as an OAuth Authorization Server. F5 states it has been exploited
+  and gives no first-seen date; CISA added it to KEV on 22 September 2026.
+  watchTowr showed the trigger as an oversized Bearer token on the UserInfo
+  endpoint. F5's described sequence is OAuth failures, then suspicious commands
+  in /var/log/audit, then a TMM SIGABRT. CISA's order of operations is the
+  mitigation iRule, then forensic triage, then the patch.
+confidence: high
+references:
+  - title: F5 K000162605 - CVE-2026-94127
+    url: https://my.f5.com/manage/s/article/K000162605
+    accessed: "2026-10-22"
+  - title: watchTowr - F5 BIG-IP unauthenticated heap overflow to RCE (CVE-2026-94127)
+    url: https://labs.watchtowr.com/is-this-a-joke-in-the-auth-header-f5-big-ip-unauth-heap-overflow-to-rce-cve-2026-94127/
+    accessed: "2026-10-22"
+
+detect:
+  - id: f5-94127-userinfo-burst
+    title: Ten or more invalid-token UserInfo failures from one address
+    type: check
+    check: f5_apm_oauth_userinfo_burst
+    tier: possible
+    evidence_class: auth-logs
+    attack: [T1190]
+    notes: F5's alert threshold. An attempt, not proof of success.
+
+  - id: f5-tmm-sigabrt
+    title: TMM aborted
+    type: log_regex
+    tier: possible
+    evidence_class: system-logs
+    sources:
+      files: ["**/ltm*"]
+    pattern: 'tmm\d*.*SIGABRT|SIGABRT.*tmm'
+    flags: [ignorecase]
+    attack: [T1190]
+    notes: The last step in F5's described sequence. TMM also aborts for unrelated faults; read with the burst and the audit log.

@@ -24,6 +24,47 @@ _REGION = re.compile(
 )
 
 
+# Linux smaps mapping header: start-end perms offset dev inode [path]
+_SMAPS_HDR = re.compile(r"^(?P<start>[0-9a-f]+)-(?P<end>[0-9a-f]+)\s+(?P<perms>[r-][w-][x-][ps-])\s+\S+\s+\S+\s+\d+", re.I)
+_PRIV_DIRTY = re.compile(r"^Private_Dirty:\s+(?P<kb>\d+)\s*kB", re.I)
+
+
+@check("iosxe_iosd_rwx_dirty")
+def iosxe_iosd_rwx_dirty(view, det):
+    """Executable and writable IOSd memory with dirty pages.
+
+    Cisco's IOS XE forensic guide: in the smaps of the iosd process, an rwxp
+    segment whose Private_Dirty is above zero "may indicate" the running code
+    has been tampered with. Unmodified code pages are clean copies of the image,
+    so a dirty executable-and-writable page means something wrote to code.
+
+    Zero parsed mapping headers (an error message, a switch that needs the
+    `switch active` form, a truncated capture) is 'not evaluated', never 'no hit'.
+    """
+    text = view.step_text("iosd_smaps")
+    if text is None:
+        return False, []
+    hits, headers = [], 0
+    cur = None  # (line_no, header_line, perms)
+    for n, raw in enumerate(text.splitlines(), 1):
+        line = raw.strip()
+        h = _SMAPS_HDR.match(line)
+        if h:
+            headers += 1
+            cur = (n, line, h.group("perms").lower())
+            continue
+        d = _PRIV_DIRTY.match(line)
+        if d and cur and cur[2] == "rwxp" and int(d.group("kb")) > 0:
+            hits.append(Hit("step:iosd_smaps",
+                            f"rwxp iosd segment with Private_Dirty {d.group('kb')} kB",
+                            line=cur[0], excerpt=excerpt(cur[1]),
+                            extra={"private_dirty_kb": int(d.group("kb"))}))
+            cur = None
+    if headers == 0:
+        return False, []
+    return True, hits
+
+
 @check("asa_lina_exec_regions")
 def asa_lina_exec_regions(view, det):
     """LINE DANCER indicator from the vendor's ArcaneDoor guidance.
@@ -38,12 +79,19 @@ def asa_lina_exec_regions(view, det):
     src = "step:mem_region_lina" if view.step_text("mem_region_lina") else "step:mem_region_full"
     if text is None:
         return False, []
-    execs = []
+    execs, parsed = [], 0
     for n, line in enumerate(text.splitlines(), 1):
         m = _REGION.match(line.strip())
-        if m and m.group("perms").lower().startswith("r-x"):
+        if not m:
+            continue
+        parsed += 1
+        if m.group("perms").lower().startswith("r-x"):
             length = int(m.group("end"), 16) - int(m.group("start"), 16)
             execs.append((n, line.strip(), length))
+    # An error message, a truncated capture or a format change parses to zero
+    # rows. That is "could not evaluate", never "no hit".
+    if parsed == 0:
+        return False, []
     if len(execs) <= 1:
         return True, []
     page = [e for e in execs if e[2] == 0x1000]

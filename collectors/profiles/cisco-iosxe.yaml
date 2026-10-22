@@ -1,0 +1,214 @@
+# Collection profile - Cisco IOS XE (routers, switches, WLC)
+# Platform: EDGE-0009 (artifacts/catalog/cisco-iosxe.yml)
+#
+# Built from Cisco's IOS XE forensic investigation guide (v1.7, April 2026).
+# Two warnings from that guide shape the order here:
+#   - "It is extremely important ... that it is not rebooted." The 2023 web UI
+#     implant lived only in memory; a reboot removes it but leaves the rogue
+#     local accounts it created.
+#   - Some memory commands need `service internal`, which is a configuration
+#     change. Those are manual steps so the operator records and reverts it.
+#
+# CVE-2026-20273 (August 2026 hardening release) and CVE-2023-20273 (2023 web
+# UI implant) are different flaws. Detections key on the full CVE id.
+
+profile: cisco-iosxe
+platform_id: EDGE-0009
+display: Cisco IOS XE
+transports: [ssh, replay]
+
+cli:
+  prompt: '[\w.()/-]+[>#]'
+  pager: '--More--'
+  session_setup:
+    - terminal length 0
+  # Allow rules must match the whole command (the engine uses fullmatch).
+  allow:
+    - 'show [\w :./-]+( \| (include|exclude|begin|section) [\w :./|-]+)?'
+    - 'dir( /recursive)? ([\w-]+:[\w/.-]*|all-filesystems)'
+    - 'verify /(sha512|md5) [\w-]+:[\w/.-]+'
+  deny:
+    - '^(reload|write|copy|delete|erase|format|configure|clear|debug|test|request|guestshell|monitor|no|squeeze|undebug|service) '
+    - '\| *(redirect|append|tee)\b'
+    - '[;&`<>]|\$\('
+
+expected_evidence: [identity, memory, process, sessions, integrity, config, system-logs, filesystem, persistence]
+
+steps:
+  - id: show_clock
+    tier: V0
+    kind: command
+    cmd: show clock
+    purpose: Device clock, for skew against collector UTC.
+    confidence: medium
+
+  - id: show_version
+    tier: V0
+    kind: command
+    cmd: show version
+    purpose: Release, uptime and running image. The release selects which of the 2023 and 2026 CVEs apply.
+    confidence: high
+
+  - id: iosd_smaps
+    tier: V1
+    kind: command
+    cmd: show platform software process memory rp active name iosd smaps
+    timeout: 300
+    purpose: >-
+      Memory map of the IOSd process. Cisco's forensic guide: an executable and
+      writable (rwxp) segment with Private_Dirty above zero may indicate the
+      running code has been tampered with. Collected before anything that could
+      reload the device. On stacked switches the form is
+      `... switch active rp active ...`.
+    confidence: high
+    references:
+      - https://sec.cloudapps.cisco.com/security/center/resources/forensic_guides/iosxe_forensic_guide.html
+
+  - id: show_users
+    tier: V3
+    kind: command
+    cmd: show users
+    purpose: Sessions on the console and VTY lines now.
+    confidence: medium
+
+  - id: show_iox
+    tier: V2
+    kind: command
+    cmd: show iox
+    purpose: Whether the IOx hosting framework is running. Guest Shell runs on IOx and has been used to host attacker tooling.
+    confidence: high
+    references:
+      - https://sec.cloudapps.cisco.com/security/center/resources/forensic_guides/iosxe_forensic_guide.html
+
+  - id: show_app_hosting
+    tier: V2
+    kind: command
+    cmd: show app-hosting list
+    purpose: Containers hosted on the device, including Guest Shell.
+    confidence: high
+
+  - id: platform_integrity
+    tier: P1
+    kind: command
+    cmd: show platform integrity sign nonce 12345
+    purpose: Signed boot and image measurements for comparison against Cisco's published values for the release.
+    confidence: high
+    references:
+      - https://sec.cloudapps.cisco.com/security/center/resources/forensic_guides/iosxe_forensic_guide.html
+
+  - id: sw_authenticity
+    tier: P1
+    kind: command
+    cmd: show software authenticity running
+    purpose: Signature verification of the running image.
+    confidence: high
+
+  - id: hw_authentication
+    tier: P1
+    kind: command
+    cmd: show platform hardware authentication status
+    purpose: Hardware trust anchor authentication status.
+    confidence: high
+
+  - id: image_hash
+    tier: P1
+    kind: command
+    cmd: verify /sha512 {boot_image}
+    requires_vars: [boot_image]
+    var_examples: {boot_image: 'bootflash:packages.conf'}
+    timeout: 600
+    purpose: SHA-512 of the boot image on disk (for example bootflash:packages.conf or the .bin named in show version), for comparison with Cisco's published hash.
+    confidence: high
+
+  - id: show_running_config
+    tier: P2
+    kind: command
+    cmd: show running-config
+    timeout: 300
+    purpose: >-
+      Running configuration. Diff for privilege-15 local users, ip http server
+      state, packet captures (monitor capture), tunnels, ACL changes, TACACS+
+      server changes, EEM applets and non-standard SSH ports.
+    confidence: high
+
+  - id: http_server_state
+    tier: P2
+    kind: command
+    cmd: show running-config | include ip http server|secure|active
+    purpose: Whether the web UI (the 2023 exploitation surface) is enabled. Cisco's own exposure check.
+    confidence: high
+    references:
+      - https://sec.cloudapps.cisco.com/security/center/content/CiscoSecurityAdvisory/cisco-sa-iosxe-webui-privesc-j22SaA4z
+
+  - id: show_logging
+    tier: P5
+    kind: command
+    cmd: show logging
+    timeout: 300
+    purpose: Local log buffer. Carries the %SYS-5-CONFIG_P and %WEBUI-6-INSTALL_OPERATION_INFO messages from the 2023 campaign; the actor also cleared logs, so compare with the syslog receiver.
+    confidence: high
+
+  - id: dir_all
+    tier: P6
+    kind: command
+    cmd: dir /recursive all-filesystems
+    timeout: 600
+    purpose: >-
+      Every filesystem. Look for packet captures left on bootflash (tac.pcap,
+      mycap.pcap, 1.pcap were named in AA25-239A) and system_shell trace logs
+      under tracelogs, which record shell access.
+    confidence: high
+    references:
+      - https://sec.cloudapps.cisco.com/security/center/resources/forensic_guides/iosxe_forensic_guide.html
+
+  - id: implant_check
+    tier: V1
+    kind: manual
+    purpose: Cisco's HTTP check for the 2023 web UI implant, run from a host that can reach the device.
+    instructions: |
+      From a workstation, run Cisco's published check (replace DEVICEIP):
+        curl -k -H "Authorization: 0ff4fbf0ecffa77ce8d3852a29263e263838e9bb" -X POST "https://DEVICEIP/webui/logoutconfirm.html?logon_hash=1"
+      A hexadecimal string in the response means a known implant variant is present.
+      Talos also published a variant-independent probe:
+        curl -k "https://DEVICEIP/%25"
+      A 404 "Not Found" suggests variant 1 or 2, a login page suggests variant 3,
+      and a 200 with a JavaScript redirect is the clean response.
+      Save both responses and ingest them:  edge-triage ingest <case> --label implant-check --bundle <file>
+    references:
+      - https://sec.cloudapps.cisco.com/security/center/content/CiscoSecurityAdvisory/cisco-sa-iosxe-webui-privesc-j22SaA4z
+      - https://blog.talosintelligence.com/active-exploitation-of-cisco-ios-xe-software/
+
+  - id: show_tech
+    tier: B
+    kind: command
+    impact: vendor-bundle
+    cmd: show tech-support
+    timeout: 1800
+    purpose: Cisco's support bundle, printed to the session (the guard refuses `| redirect`). Opt-in because it is long and loads the device.
+    confidence: high
+
+  - id: memory_text
+    tier: X
+    kind: manual
+    impact: break-glass
+    purpose: The IOSd text segment, for hashing against the image.
+    instructions: |
+      Per Cisco's forensic guide: `copy system:memory/text ftp:` to a server you
+      control and `verify /md5 system:memory/text`. Some of these commands need
+      `service internal`, which is a configuration change: record when you set
+      it and run `no service internal` afterwards. Ingest the copy.
+    references:
+      - https://sec.cloudapps.cisco.com/security/center/resources/forensic_guides/iosxe_forensic_guide.html
+
+  - id: core_dump
+    tier: X
+    kind: manual
+    impact: break-glass
+    purpose: Full IOSd core dump.
+    instructions: |
+      `request platform software process core ios rp active` (switches:
+      `... switch active rp active`). Cisco's guide warns this "may cause the
+      platform to reboot", which would erase memory-only evidence. Do it last,
+      or not at all, with Cisco TAC.
+    references:
+      - https://sec.cloudapps.cisco.com/security/center/resources/forensic_guides/iosxe_forensic_guide.html

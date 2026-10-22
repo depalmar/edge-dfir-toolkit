@@ -1,57 +1,82 @@
-# Containment and recovery - EDGE-0007 Check Point Quantum (Gaia)
+# Containment and recovery - EDGE-0007 Check Point Gaia
 # Schema: ../schema/response.schema.json
 
 platform_id: EDGE-0007
-name: Check Point Quantum Security Gateway (Gaia)
-confidence: medium
+name: Check Point Gaia (Gateway / Management)
+confidence: high
 
 preserve_first:
-  - step: Collect in expert mode and capture cpinfo
-    detail: Standard Linux live response is available. Pull the VPN/Mobile Access web logs and authentication logs before remediation.
-  - step: Pull off-box copies of the web and auth logs
-    detail: The file read leaves only the request; off-box copies are the reliable record.
+  - step: Collect in Expert mode before patching
+    detail: Run the checkpoint-gaia profile. Check Point notes that patching CVE-2026-93616 does not show whether the server was already attacked, so hunt separately.
+  - step: Export the SmartConsole hunting queries over the full retention window
+    detail: Certificate logins (CVE-2026-85102), IKEv1 Quick Mode (CVE-2026-50751), password logins (CVE-2024-24919), application-token audit entries (CVE-2026-16232).
 
 contain:
-  - step: Restrict the Remote Access / Mobile Access portal upstream
-    detail: CVE-2024-24919 is reachable only where the portal is exposed; limit reachability while investigating.
+  - step: Restrict the management server to trusted addresses
+    detail: For CVE-2026-93616, restrict TCP/19009 and Trusted Clients until the hotfix is in.
+    when: COMPROMISED, LIKELY-COMPROMISED, SUSPICIOUS
+  - step: Remove IKEv1 Remote Access exposure
+    detail: For CVE-2026-50751, any one of - clear "Allow older clients", set IKEv2 only, or make machine certificates mandatory.
+    when: COMPROMISED, LIKELY-COMPROMISED, SUSPICIOUS
+  - step: Limit VPN negotiation to known sources if you cannot update
+    detail: For CVE-2026-85102 - disable the VPN implied rules and allow UDP 500/4500 (plus TCP 443/80 for Remote Access) only from known sources. Not available for locally managed Spark.
     when: COMPROMISED, LIKELY-COMPROMISED, SUSPICIOUS
 
 credential_exposure:
-  - what: Local account password hashes
-    why: The published exploit read /etc/shadow, so the local password store is exposed; public reporting showed local accounts used to pull directory data.
-    action: Rotate all local account passwords and the hashes behind them.
-  - what: Directory/LDAP accounts and any credentials reachable from the gateway
-    why: Reporting described escalation to directory data extraction within hours.
-    action: Rotate directory accounts used by or reachable from the gateway; treat domain credentials in scope as exposed.
-  - what: Certificates and keys on the gateway
-    why: Readable through the high-privilege file read.
+  - what: Local VPN users and local Gaia and Expert accounts
+    why: CVE-2024-24919 read the local password store; Check Point's sk182336 is the one article with a rotation list.
+    action: Reset local VPN users' passwords and block them with blockSFAInternalUsers; rotate Gaia local and Expert passwords.
+  - what: LDAP account unit, RADIUS/TACACS+ and SNMP secrets, SSH keys
+    why: Listed in sk182336 as exposed by the file read.
+    action: Rotate each.
+  - what: HTTPS and SSH Inspection certificates and keys, IKE and Multi-Portal certificates
+    why: Listed in sk182336.
     action: Reissue and revoke.
+  - what: SmartConsole administrator sessions and tokens
+    why: CVE-2026-16232 granted full administrator access through an application login token; CVE-2026-93616 allowed scripts to run on the management server.
+    action: Review administrator accounts and recent policy installs, revoke sessions, and rotate administrator credentials.
 
 eradicate:
-  - step: Apply the vendor hotfix and remove any local accounts the attacker added
-    detail: Follow Check Point's advisory (sk182336). Review local accounts, administrators and any added SSH keys.
-  - step: If follow-on compromise is confirmed, rebuild rather than clean
-    detail: A file read alone may not mean implantation, but confirmed hands-on activity on the gateway makes it untrusted.
+  - step: Apply the fix for every flaw in scope
+    detail: >-
+      CVE-2026-93616 - the R82.20 Security Hotfix or Jumbo Hotfix R82.20 Take 10, R82.10 Take 45, R82 Take 127,
+      R81.20 Take 170, R81.10 Take 192 or later; LivePatch does not fix it.
+      CVE-2026-85102 - LivePatch Take 26 or Jumbo R82.10 Take 44, R82 Take 126, R81.20 Take 166, R81.10 Take 190.
+      CVE-2026-50751 - Jumbo R82.10 Take 24, R82 Take 107, R81.20 Take 146, R81.10 Take 187.
+      CVE-2026-16232 - Jumbo R82.10 Take 36, R82 Take 118, R81.20 Take 158.
+  - step: If hands-on activity on the device is confirmed, rebuild rather than clean
+    detail: A file read or an attempt does not imply implantation; confirmed scripts on a management server or a shell on a gateway make it untrusted.
     when: COMPROMISED
 
 recover:
-  - step: Bring the patched (or rebuilt) gateway online
-  - step: Re-establish remote access after credential rotation
-  - step: Confirm logging is intact and forwarding to the collector
+  - step: Bring the fixed gateway or server back into service
+  - step: Re-establish remote access after credentials and certificates are rotated
+  - step: Confirm logs reach the log server and the SIEM
 
 verify:
-  - step: Confirm the hotfix is applied and no unexpected local accounts or SSH keys remain
-  - step: Review directory logs for the local accounts used in the window
-  - step: Hunt into the domain for the dwell period
+  - step: Re-run the Check Point hunting greps and SmartConsole queries; expect no new hits after the fix date
+  - step: Confirm hotfix and LivePatch state with cpinfo -y all and cplp list
+  - step: Hunt into the network for the dwell period, starting with internal scanning from VPN sessions
 
 do_not:
-  - action: Assume a file-read vulnerability means no hands-on-keyboard follow-up
-    because: Reporting showed directory data extracted within hours of logging in with a local account.
-  - action: Rotate only the obviously-exposed account
-    because: The read returned the whole local password store; rotate all of them.
+  - action: Rely on LivePatch for CVE-2026-93616
+    because: Check Point states LivePatch Takes 28 and 29 do not fix it and no LivePatch exists for it.
+  - action: Disable the VPN implied rules before the explicit replacement rules exist
+    because: It cuts legitimate VPN traffic; Check Point's mitigation depends on the explicit rules being in place first.
+  - action: Treat the patch as proof the server was not attacked
+    because: Check Point says patching does not reveal earlier compromise.
 
 vendor_guidance:
-  - title: Check Point - CVE-2024-24919 advisory (sk182336)
+  - title: Check Point sk1000171 - CVE-2026-93616
+    url: https://support.checkpoint.com/results/sk/sk1000171
+    accessed: "2026-10-22"
+  - title: Check Point sk1000117 - CVE-2026-85102
+    url: https://support.checkpoint.com/results/sk/sk1000117
+    accessed: "2026-10-22"
+  - title: Check Point sk185033 - CVE-2026-50751
+    url: https://support.checkpoint.com/results/sk/sk185033
+    accessed: "2026-10-22"
+  - title: Check Point sk182336 - CVE-2024-24919
     url: https://support.checkpoint.com/results/sk/sk182336
     accessed: "2026-10-22"
 

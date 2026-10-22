@@ -1,0 +1,194 @@
+# Collection profile - Check Point Gaia (Quantum Security Gateway and
+# Security Management Server)
+# Platform: EDGE-0007 (artifacts/catalog/checkpoint-gaia.yml)
+#
+# Runs in Expert mode (bash). Entering Expert from Clish prompts for a second
+# password, which this tool does not type, so the collection account must have
+# /bin/bash as its shell. One profile covers both roles: gateway-only and
+# management-only steps simply find nothing on the other role and are reported
+# as unavailable, which becomes an evidence gap rather than a pass.
+#
+# Most 2026 hunting happens in SmartConsole log queries (certificate logins,
+# IKEv1 Quick Mode, application-token audit entries), which no shell can reach.
+# Those are manual steps: export the query results and ingest them.
+
+profile: checkpoint-gaia
+platform_id: EDGE-0007
+display: Check Point Gaia (Gateway / Management)
+transports: [ssh, replay]
+
+cli:
+  prompt: '\[Expert@[\w.-]+:\d+\]#'
+  pager: null
+  session_setup: []
+  # Allow rules must match the whole command (the engine uses fullmatch).
+  allow:
+    - 'date -u|uptime|ps auxww|netstat -anp|cplp list|listusers|fw ver|crontab -l'
+    - 'cpinfo -y all'
+    - 'ls -[1dlt]+ [\w/.*$-]+( [\w/.*$-]+)*'
+  deny:
+    - '^(rm|mv|cp|chmod|chown|kill|reboot|shutdown|cpstop|cpstart|fw unloadlocal|clish|expert)\b'
+    - '[;&`<>|]|\$\(|\$\{'
+
+expected_evidence: [identity, process, sessions, config, auth-logs, web-logs, system-logs, filesystem]
+
+steps:
+  - id: date_utc
+    tier: V0
+    kind: command
+    cmd: date -u
+    purpose: Device clock in UTC.
+    confidence: high
+
+  - id: uptime
+    tier: V0
+    kind: command
+    cmd: uptime
+    purpose: Time since boot.
+    confidence: high
+
+  - id: fw_ver
+    tier: V0
+    kind: command
+    cmd: fw ver
+    purpose: Product version and build, which decides exposure to each 2026 CVE (the fixes are per Jumbo Hotfix take).
+    confidence: low
+    unverified: true
+
+  - id: hotfixes
+    tier: V0
+    kind: command
+    cmd: cpinfo -y all
+    timeout: 300
+    purpose: Installed hotfixes and Jumbo takes. Read with the version to decide whether CVE-2026-93616, -85102, -50751 and -16232 were ever exploitable here.
+    confidence: medium
+    references:
+      - https://support.checkpoint.com/results/sk/sk92739
+
+  - id: livepatch
+    tier: V0
+    kind: command
+    cmd: cplp list
+    purpose: LivePatch state. The CVE-2026-85102 fix shipped as LivePatch Take 26; LivePatch does NOT fix CVE-2026-93616.
+    confidence: high
+    references:
+      - https://support.checkpoint.com/results/sk/sk1000117
+
+  - id: ps
+    tier: V2
+    kind: command
+    cmd: ps auxww
+    purpose: Process list.
+    confidence: high
+
+  - id: netstat
+    tier: V2
+    kind: command
+    cmd: netstat -anp
+    purpose: Sockets with owning process. After CVE-2026-85102 logins, Check Point advises looking for internal port and service scanning.
+    confidence: medium
+
+  - id: ma_users
+    tier: V3
+    kind: command
+    cmd: listusers
+    purpose: Mobile Access users connected now, with source address.
+    confidence: high
+    references:
+      - https://sc1.checkpoint.com/documents/R82/WebAdminGuides/EN/CP_R82_MobileAccess_AdminGuide/Content/Topics-MABG/CLI/listusers.htm
+
+  - id: usermode_dumps
+    tier: P5
+    kind: command
+    cmd: ls -l /var/log/dump/usermode/
+    purpose: User-mode core dumps. On a management server, fwm or mds dumps alongside a CVE-2026-93616 indicator-1 hit support the authentication-bypass reading.
+    confidence: high
+    references:
+      - https://support.checkpoint.com/results/sk/sk1000171
+
+  - id: crontab
+    tier: P7
+    kind: command
+    cmd: crontab -l
+    purpose: Root crontab. Generic Linux persistence; Check Point has published no attacker persistence locations for Gaia.
+    confidence: low
+    unverified: true
+
+  - id: fetch_cpm
+    tier: P4
+    kind: fetch
+    list_cmd: ls -1d $MDS_FWDIR/log/cpm.elg*
+    purpose: >-
+      Management server CPM log - where Check Point's CVE-2026-93616 hunting
+      indicators appear (oversized login usernames, traversal in version and
+      upload paths, JAR path breakout). Absent on gateways.
+    confidence: high
+    references:
+      - https://support.checkpoint.com/results/sk/sk1000171
+
+  - id: fetch_vpnd
+    tier: P4
+    kind: fetch
+    list_cmd: ls -1d $FWDIR/log/vpnd.elg*
+    purpose: Gateway VPN daemon log. A blocked CVE-2024-24919 attempt logs "Invalid filename" here. Absent on management servers.
+    confidence: medium
+    references:
+      - https://labs.watchtowr.com/check-point-wrong-check-point-cve-2024-24919/
+
+  - id: fetch_messages
+    tier: P5
+    kind: fetch
+    list_cmd: ls -1d /var/log/messages*
+    purpose: General log, including Clish configuration audit entries (auditlog is permanent by default).
+    confidence: high
+    references:
+      - https://sc1.checkpoint.com/documents/R81/WebAdminGuides/EN/CP_R81_Gaia_AdminGuide/Topics-GAG/System-Logging-Gaia-Clish.htm
+
+  - id: fetch_command_logger
+    tier: P3
+    kind: fetch
+    list_cmd: ls -1d /var/log/command_logger.log*
+    purpose: Expert shell command auditing. Documented in the Scalable Platform guide; may not exist on standard gateways.
+    confidence: low
+    unverified: true
+
+  - id: smartconsole_exports
+    tier: P3
+    kind: manual
+    purpose: SmartConsole log queries for the 2026 campaigns, which no shell on the device can run.
+    instructions: |
+      In SmartConsole Logs and Monitor, run each query over the full retention
+      window, export the results (CSV), and ingest each export with its label:
+        CVE-2026-85102 certificate logins (label cp-85102):
+          product: "Mobile Access" AND action: "Log In" AND "Certificate"
+        CVE-2026-50751 IKEv1 Quick Mode (label cp-50751):
+          action:"Key Install" AND "Quick Mode completion"
+          (any hit before the fix or mitigation date is suspicious)
+        CVE-2024-24919 follow-on logins (label cp-24919):
+          blade:"Mobile Access" AND action:"Log In" AND auth_method:Password
+        CVE-2026-16232 (Audit Logs view, label cp-16232):
+          Authentication method: application token
+      Then:  edge-triage ingest <case> --label <label> --bundle <export.csv>
+      Compare source addresses against the IP lists in sk185033, sk185169 and
+      sk182336; they are not copied here because they go stale.
+    references:
+      - https://support.checkpoint.com/results/sk/sk1000117
+      - https://support.checkpoint.com/results/sk/sk185033
+      - https://support.checkpoint.com/results/sk/sk185169
+      - https://support.checkpoint.com/results/sk/sk182336
+
+  - id: cpinfo_bundle
+    tier: B
+    kind: command
+    impact: vendor-bundle
+    cmd: cpinfo -z -i -S -o {cpinfo_out}
+    requires_vars: [cpinfo_out]
+    var_examples: {cpinfo_out: /var/log/edge_cpinfo}
+    timeout: 3600
+    purpose: >-
+      Check Point's diagnostic bundle, compressed, non-interactive, with password
+      hashes censored (-S). Writes a file. Check Point advises not running it
+      while any CPU core is above 70%.
+    confidence: high
+    references:
+      - https://support.checkpoint.com/results/sk/sk92739

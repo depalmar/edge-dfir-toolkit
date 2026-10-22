@@ -1,0 +1,143 @@
+# Edge platform catalog entry
+# EDGE-0008 - Juniper Junos OS / Junos OS Evolved
+# Schema: ../schema/platform.schema.json
+
+id: EDGE-0008
+name: Juniper Junos OS / Junos OS Evolved
+vendor: Juniper Networks
+products: [MX Series routers, SRX Series firewalls, PTX Series (Junos OS Evolved), vSRX]
+os_base: Junos OS is based on a modified FreeBSD; Junos OS Evolved runs natively on Linux
+filesystem: >-
+  /config holds the live configuration and juniper.conf.1-3; /var/db/config
+  holds juniper.conf.4.gz onward; /var/home holds user homes and SSH keys;
+  /var/tmp holds staging and core files. Junos OS Evolved keeps configuration
+  and state in its Distributed Data Store.
+customer_shell: "yes"
+memory_acquisition: not-available
+profile: junos
+response: junos
+collection:
+  - method: Operational CLI over SSH, paging disabled per command with "| no-more"
+    impact: none
+    description: Version, processes, users, configuration, commit history, logs and directory listings, without entering the shell.
+    confidence: high
+  - method: JMRT integrity-check
+    impact: none
+    description: Checks that veriexec (Junos) or IMA (Evolved) is working. Read-only. Bypassed by UNC3886 through process injection, so a pass is one signal.
+    confidence: medium
+    references: [https://juniper.net/documentation/us/en/software/junos/security-services/topics/topic-map/using-the-juniper-malware-removal-tool.html]
+  - method: request support information (printed, not saved)
+    impact: vendor-bundle
+    description: The JTAC bundle. `| save` would write a file and is refused by the guard.
+    confidence: medium
+  - method: JMRT quick-scan
+    impact: break-glass
+    description: Deletes malicious files and kills processes by default. Run last, with the clean action set to warn.
+    confidence: high
+volatility:
+  - The injected payloads lived in process memory and are lost on reboot; Mandiant recovered them from memory with novel methods
+  - Log lines are edited in place on a compromised device; the syslog receiver copy is the durable record
+anti_forensics:
+  - technique: Deleted every line containing "root" from interactive-commands, messages and auth logs with sed
+    seen_in: UNC3886 (Mandiant, March 2025)
+  - technique: Backed up and then edited the login records (wtmp0, utx.log0 left behind)
+    seen_in: UNC3886 (Mandiant, March 2025)
+  - technique: Redirected syslog to /dev/null by editing the runtime syslog.conf
+    seen_in: UNC3886 (Mandiant, March 2025)
+  - technique: Injected code into legitimate processes to get past veriexec
+    seen_in: UNC3886 (tracked as CVE-2025-21590)
+artifacts:
+  - locator: show system processes extensive
+    class: process
+    volatility: live
+    forensic_value: high
+    evidence_type: [execution, defense-evasion]
+    confidence: high
+    collected_by: show_processes
+    description: Backdoors named one character off from real daemons (appid, irad, lmpad, jdosd, oemd, to).
+    seen_in: [UNC3886]
+  - locator: file list /var/tmp detail
+    class: filesystem
+    volatility: stable
+    forensic_value: high
+    evidence_type: [execution, persistence]
+    confidence: high
+    collected_by: listing_var_tmp
+    description: Staging files (ldb.b64, loader.bin, payload.bin, pfed_jdhcp6_trace.log, rts) and a FIFO named null.
+    seen_in: [UNC3886]
+  - locator: file list /var/log detail
+    class: filesystem
+    volatility: stable
+    forensic_value: high
+    evidence_type: [defense-evasion]
+    confidence: high
+    collected_by: listing_var_log
+    description: wtmp0 and utx.log0 are the actor's backups of login records it then edited.
+    seen_in: [UNC3886]
+  - locator: show log interactive-commands
+    class: auth-logs
+    volatility: rotating
+    forensic_value: high
+    evidence_type: [execution, timeline]
+    confidence: medium
+    collected_by: log_interactive
+    description: UI_CMDLINE_READ_LINE records of every CLI command. Edited by the actor; compare with the off-box copy.
+  - locator: show log messages
+    class: system-logs
+    volatility: rotating
+    forensic_value: high
+    evidence_type: [initial-access, timeline]
+    confidence: high
+    collected_by: log_messages
+    description: UI_LOGIN_EVENT, UI_AUTH_EVENT and sshd records. Gaps around root activity are the finding.
+  - locator: show system commit
+    class: config
+    volatility: stable
+    forensic_value: high
+    evidence_type: [configuration, timeline]
+    confidence: high
+    collected_by: show_commits
+    description: Who committed what and how (cli, other, autoinstall).
+  - locator: show configuration | display set
+    class: config
+    volatility: stable
+    forensic_value: high
+    evidence_type: [configuration, persistence]
+    confidence: medium
+    collected_by: show_config
+    description: Diff for logins, classes, scripts and syslog destinations.
+  - locator: /config/usage_db and /var/db/config/usage_db
+    class: persistence
+    volatility: stable
+    forensic_value: medium
+    evidence_type: [persistence]
+    confidence: medium
+    collected_by: listing_config_dir
+    description: Files Mandiant lists as actor-written. Not confirmed to be absent on clean devices.
+    seen_in: [UNC3886]
+  - locator: Syslog receiver copies
+    class: off-box
+    volatility: off-box
+    forensic_value: high
+    evidence_type: [timeline, defense-evasion]
+    confidence: high
+    collected_by: ingest
+    description: The only record the actor's log-line deletion and /dev/null redirect did not reach. Silence from the device is itself evidence.
+confidence: high
+references:
+  - title: Mandiant - China-nexus espionage targets Juniper routers (12 March 2025)
+    url: https://cloud.google.com/blog/topics/threat-intelligence/china-nexus-espionage-targets-juniper-routers
+    accessed: "2026-10-22"
+  - title: Juniper - using the Juniper Malware Removal Tool
+    url: https://juniper.net/documentation/us/en/software/junos/security-services/topics/topic-map/using-the-juniper-malware-removal-tool.html
+    accessed: "2026-10-22"
+  - title: Juniper - Junos OS Evolved overview
+    url: https://www.juniper.net/documentation/us/en/software/junos/overview-evo/topics/concept/evo-overview.html
+    accessed: "2026-10-22"
+notes: >-
+  CVE-2026-21902 (Junos OS Evolved on PTX, unauthenticated root RCE in the
+  On-Box Anomaly detection framework, Feb 2026) is listed in VulnCheck KEV but
+  not in CISA KEV as of the 21 October 2026 catalog. Its exploit details come
+  from secondary sources only, so there is no pack for it yet. The 2023 J-Web
+  chain (CVE-2023-36844 to 36847 and 36851) is in CISA KEV; no pack yet.
+last_modified: "2026-10-22"

@@ -1,0 +1,29 @@
+title: Check Point Mobile Access Login With a Certificate Subject Seen in CVE-2026-85102 Exploitation
+id: f5293372-3bfb-440c-9540-c36c409d8a54
+status: experimental
+description: |
+  Check Point published certificate subjects seen in CVE-2026-85102
+  exploitation against Spark and Quantum gateways from 12 September 2026. The
+  list is not exhaustive. After a hit, look for internal port and service
+  scanning from the session.
+references:
+  - https://support.checkpoint.com/results/sk/sk1000117
+author: Raymond DePalma (edge-dfir-toolkit)
+date: 2026-10-22
+tags:
+  - attack.initial_access
+  - attack.t1190
+  - attack.t1078
+  - cve.2026-85102
+logsource:
+  product: checkpoint
+  service: mobile_access
+detection:
+  keywords:
+    - 'CN=vpn,OU=users,O=global'
+    - 'CN=vpn-user,OU=users,O=global'
+    - 'CN=vpnuser,OU=users,O=global'
+  condition: keywords
+falsepositives:
+  - None expected; these are generic subjects an organisation would not issue.
+level: high

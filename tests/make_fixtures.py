@@ -206,6 +206,192 @@ def fortios(root: Path, malicious: bool) -> None:
     write_cmds(root, out)
 
 
+# ----------------------------------------------------------------- Juniper Junos
+def junos(root: Path, malicious: bool) -> None:
+    procs = [
+        "last pid:  4411;  load averages:  0.10,  0.12,  0.11  up 41+03:10:22",
+        "  PID USERNAME  THR PRI NICE   SIZE    RES STATE    TIME    WCPU COMMAND",
+        " 1520 root        1  20    0   712M   102M select   9:21   0.00% rpd",
+        " 1544 root        1  20    0    92M    18M select   0:11   0.00% appidd",
+        " 1571 root        1  20    0    40M     9M select   0:02   0.00% jddosd",
+    ]
+    if malicious:
+        procs += [" 3301 root        1  20    0    12M     3M select   0:00   0.00% appid",
+                  " 3302 root        1  20    0     9M     2M select   0:00   0.00% to"]
+    var_log = ["/var/log/:", "-rw-r-----  1 root  wheel   88213 Oct 22 14:01 messages",
+               "-rw-rw-r--  1 root  wheel   12001 Oct 22 14:01 interactive-commands",
+               "-rw-r--r--  1 root  wheel    4410 Oct 22 13:58 wtmp"]
+    if malicious:
+        var_log += ["-rw-r--r--  1 root  wheel    4410 Oct 14 07:10 wtmp0",
+                    "-rw-r--r--  1 root  wheel    2048 Oct 14 07:10 utx.log0"]
+    var_tmp = ["/var/tmp/:", "-rw-r--r--  1 root  wheel     512 Oct 01 09:00 rtsdb.tmp"]
+    if malicious:
+        var_tmp += ["-rw-r--r--  1 root  wheel   81232 Oct 14 07:02 ldb.b64",
+                    "-rw-r--r--  1 root  wheel   40960 Oct 14 07:02 loader.bin",
+                    "prw-r--r--  1 root  wheel       0 Oct 14 07:03 null"]
+    out = {
+        "show version | no-more": "Hostname: mx-lab-01\nModel: mx204\nJunos: 21.2R3-S2.9\n",
+        "show system uptime | no-more": "Current time: 2026-10-22 14:02:11 UTC\nSystem booted: 2026-09-10 10:51:49 UTC (6w0d 03:10 ago)\n",
+        "show system processes extensive | no-more": "\n".join(procs) + "\n",
+        "show system users | no-more": "USER     TTY      FROM                              LOGIN@  IDLE WHAT\nir-ro    pts/0    192.0.2.50                         2:01PM     - -cli (cli)\n",
+        "request system malware-scan integrity-check": "Integrity check: PASSED\n",
+        "show configuration | display set | no-more": "set system host-name mx-lab-01\nset system syslog host 192.0.2.60 any any\n",
+        "show system commit | no-more": "0   2026-10-01 09:00:00 UTC by netadmin via cli\n",
+        "show log messages | no-more": "Oct 22 13:58:01  mx-lab-01 mgd[2210]: UI_LOGIN_EVENT: User 'ir-ro' login, class 'j-read-only' [2210]\n",
+        "show log interactive-commands | no-more": "Oct 22 13:58:05  mx-lab-01 mgd[2210]: UI_CMDLINE_READ_LINE: User 'ir-ro', command 'show version '\n",
+        "file list /var/log detail | no-more": "\n".join(var_log) + "\n",
+        "file list /var/tmp detail | no-more": "\n".join(var_tmp) + "\n",
+        "file list /config detail | no-more": "/config/:\n-rw-r-----  1 root  wheel  9921 Oct 01 09:00 juniper.conf.gz\n",
+        "file list /var/db/config detail | no-more": "/var/db/config/:\n-rw-r-----  1 root  wheel  9810 Sep 20 09:00 juniper.conf.4.gz\n",
+        "file list /var/db/scripts detail recursive | no-more": "/var/db/scripts/:\ntotal 0\n",
+    }
+    write_cmds(root, out)
+
+
+# ----------------------------------------------------------------- Cisco IOS XE
+def _smaps(rows: list[tuple[str, str, int]]) -> str:
+    out = []
+    for rng, perms, dirty in rows:
+        out += [f"{rng} {perms} 00000000 00:00 0 /tmp/sw/mount/rp_base/usr/binos/bin/linux_iosd-imag",
+                "Size:               6144 kB", "Rss:                5120 kB",
+                "Private_Clean:      5120 kB", f"Private_Dirty:        {dirty} kB"]
+    return "\n".join(out) + "\n"
+
+
+def iosxe(root: Path, malicious: bool) -> None:
+    rows = [("55d6c4a00000-55d6c5000000", "r-xp", 0), ("55d6c5000000-55d6c5400000", "rw-p", 812),
+            ("55d6c5400000-55d6c5600000", "rwxp", 12 if malicious else 0)]
+    logs = ["*Oct 22 13:58:01.123: %SEC_LOGIN-5-LOGIN_SUCCESS: Login Success [user: netadmin] [Source: 192.0.2.50]"]
+    if malicious:
+        logs += ["*Oct 14 06:51:02.441: %SYS-5-CONFIG_P: Configured programmatically by process SEP_webui_wsma_http from console as user on line",
+                 "*Oct 14 06:51:40.002: %WEBUI-6-INSTALL_OPERATION_INFO: User: cisco_support, Install Operation: ADD bootflash:x.lua"]
+    users = "username netadmin privilege 15 secret 9 REDACTED\n"
+    if malicious:
+        users += "username cisco_support privilege 15 secret 9 REDACTED\n"
+    dirl = ["Directory of bootflash:/", "   11  -rw-  612311040  Jan 05 2026 10:00:00 +00:00  packages.conf",
+            "Directory of harddisk:/tracelogs/", "   40  -rw-      22011  Oct 22 2026 13:00:00 +00:00  iosrp_R0-0.1234.log"]
+    if malicious:
+        dirl.insert(2, "   57  -rw-     481233  Oct 14 2026 07:30:12 +00:00  tac.pcap")
+        dirl.append("   41  -rw-       3302  Oct 14 2026 07:12:00 +00:00  system_shell_R0-0.4411.log")
+    out = {
+        "show clock": "*14:02:11.123 UTC Thu Oct 22 2026\n",
+        "show version": "Cisco IOS XE Software, Version 17.09.04a\nrtr-lab-01 uptime is 6 weeks, 0 days, 3 hours\nSystem image file is \"bootflash:packages.conf\"\n",
+        "show platform software process memory rp active name iosd smaps": _smaps(rows),
+        "show users": "    Line       User       Host(s)              Idle       Location\n*  2 vty 0     netadmin   idle                 00:00:00 192.0.2.50\n",
+        "show iox": "IOx Infrastructure Summary:\nIOx service (CAF)  : Not Running\n",
+        "show app-hosting list": "No App found\n",
+        "show platform integrity sign nonce 12345": "Platform: C8300\nBoot 0 Version: F01001R06.0123\nSignature version: 1\n",
+        "show software authenticity running": "SYSTEM IMAGE\n------------\nImage type    : Production\n  Common Name : CiscoSystems\n",
+        "show platform hardware authentication status": "SUDI Authentication: pass\n",
+        "show running-config": "hostname rtr-lab-01\n" + users + "no ip http server\n",
+        "show running-config | include ip http server|secure|active": "no ip http server\nno ip http secure-server\n",
+        "show logging": "Syslog logging: enabled\n" + "\n".join(logs) + "\n",
+        "dir /recursive all-filesystems": "\n".join(dirl) + "\n",
+        "verify /sha512 bootflash:packages.conf": "verify /sha512 (bootflash:packages.conf) = " + "ab" * 64 + "\n",
+    }
+    write_cmds(root, out)
+
+
+# ----------------------------------------------------------------- F5 BIG-IP
+def f5(root: Path, malicious: bool) -> None:
+    def ls_ioc():
+        if malicious:
+            return ("prw-------. 1 root root 0 Oct 14 07:02 /run/bigtlog.pipe\n"
+                    "-rw-r--r--. 1 root root 812 Oct 14 07:02 /run/bigstart.ltm\n")
+        return ("ls: cannot access '/run/bigtlog.pipe': No such file or directory\n"
+                "ls: cannot access '/run/bigstart.ltm': No such file or directory\n")
+    out = {
+        "date -u": "Thu Oct 22 14:02:11 UTC 2026\n",
+        "tmsh show sys version | cat": "Sys::Version\nMain Package\n  Product     BIG-IP\n  Version     17.1.3\n",
+        "uptime": " 14:02:11 up 41 days,  3:10,  1 user,  load average: 0.10, 0.12, 0.11\n",
+        "ps auxww": "USER PID %CPU COMMAND\nroot 1 0.0 /usr/lib/systemd/systemd\n",
+        "lsof -n": "COMMAND PID USER FD TYPE NAME\nhttpd 2210 apache 4u REG /var/log/httpd/access_log\n"
+                   + ("apmd64 3301 root 9w FIFO /run/bigtlog.pipe\n" if malicious else ""),
+        "netstat -anp": "Proto Recv-Q Send-Q Local Address Foreign Address State PID/Program name\n",
+        "tmsh list apm session | cat": "",
+        "tmctl global_oauth_stat -s total_requests,total_userinfo_requests,total_failed": "total_requests total_userinfo_requests total_failed\n120 40 3\n",
+        "getenforce": "Permissive\n" if malicious else "Enforcing\n",
+        "semanage permissive -l": ("\nBuiltin Permissive Types\n\nCustomized Permissive Types\n\nhttpd_t\n" if malicious
+                                   else "\nBuiltin Permissive Types\n\nCustomized Permissive Types\n\n"),
+        "ls -la /run/bigtlog.pipe /run/bigstart.ltm": ls_ioc(),
+        "mount": ("/dev/mapper/vg-db--vda-set.1._usr on /usr type ext4 (rw,relatime)\n" if malicious
+                  else "/dev/mapper/vg-db--vda-set.1._usr on /usr type ext4 (ro,relatime)\n"),
+        "tmsh list auth user | cat": "auth user admin {\n    role admin\n}\n",
+        "tmsh list sys management-ip | cat": "sys management-ip 192.0.2.30/24 { }\n",
+        "tmsh list ltm rule | cat": "",
+        "ls -lt /etc/cron* /var/spool/cron": "/etc/cron.daily:\ntotal 0\n",
+        "find /usr/local/www -type f -name '.*'": "",
+        "cat /config/startup": "#!/bin/sh\n# Default startup script\n",
+        "cat /etc/rc.d/rc.local": "#!/bin/sh\ntouch /var/lock/subsys/local\n",
+        "ls -1d /var/log/audit*": "/var/log/audit\n",
+        "ls -1d /var/log/restjavad-audit*": "/var/log/restjavad-audit.0.log\n",
+        "ls -1d /var/log/apm*": "/var/log/apm\n",
+        "ls -1d /var/log/auditd/audit.log*": "/var/log/auditd/audit.log\n",
+        "ls -1d /var/log/tomcat/catalina.out*": "/var/log/tomcat/catalina.out\n",
+        "ls -1d /var/log/secure*": "/var/log/secure\n",
+        "ls -1d /var/log/ltm*": "/var/log/ltm\n",
+    }
+    write_cmds(root, out)
+    fail = ("Oct 14 06:{m:02d}:00 bigip-lab err tmm1[30975]: 01990004:3: /Common/oauth_as: Request UserInfo from Source ID "
+            "(null) IP {ip} failed. Error Code (invalid_token) Error Description (The access token is invalid.)")
+    apm = [fail.format(m=i, ip="198.51.100.20") for i in range(3)]
+    if malicious:
+        apm += [fail.format(m=10 + i, ip="203.0.113.77") for i in range(12)]
+    audit = ["Oct 22 13:58:01 bigip-lab notice icrd_child[2210]: AUDIT - user admin - RAW: tmsh show sys version"]
+    rest = ['[I][1][22 Oct 2026 13:58:01 UTC][ForwarderPassThroughWorker] {"user":"local/admin","method":"GET","uri":"http://localhost:8100/mgmt/tm/sys/version","status":200,"from":"192.0.2.50"}']
+    auditd = ["type=USER_LOGIN msg=audit(1729605481.123:401): pid=2210 uid=0 res=success"]
+    if malicious:
+        audit.append("Oct 14 07:01:02 bigip-lab notice tmsh[4410]: AUDIT - user=f5hubblelcdadmin folder=/Common module=(tmos)# status=[Command OK] cmd_data=run util bash")
+        rest.append('[I][1][14 Oct 2026 07:01:00 UTC][ForwarderPassThroughWorker] {"user":"local/f5hubblelcdadmin","method":"POST","uri":"http://localhost:8100/mgmt/tm/util/bash","status":200,"from":"Unknown"}')
+        auditd.append("type=MAC_STATUS msg=audit(1728889262.002:9921): avc: received setenforce notice (enforcing=0)")
+    write_files(root, {
+        "/var/log/apm": "\n".join(apm) + "\n",
+        "/var/log/audit": "\n".join(audit) + "\n",
+        "/var/log/restjavad-audit.0.log": "\n".join(rest) + "\n",
+        "/var/log/auditd/audit.log": "\n".join(auditd) + "\n",
+        "/var/log/tomcat/catalina.out": "INFO: Server startup in 4120 ms\n",
+        "/var/log/secure": "Oct 22 13:58:01 bigip-lab sshd[2210]: Accepted publickey for admin from 192.0.2.50\n",
+        "/var/log/ltm": "Oct 22 13:00:00 bigip-lab info tmm[11]: 01010028:5: No members available for pool /Common/web\n",
+    })
+
+
+# ----------------------------------------------------------------- Check Point Gaia
+CPM = "/opt/CPsuite-R82/fw1/log/cpm.elg"
+VPND = "/opt/CPsuite-R82/fw1/log/vpnd.elg"
+
+
+def checkpoint(root: Path, malicious: bool) -> None:
+    dumps = "total 0\n"
+    if malicious:
+        dumps = "total 81232\n-rw-r--r-- 1 admin root 83177472 Oct 14 06:52 core.fwm.4410.gz\n"
+    out = {
+        "date -u": "Thu Oct 22 14:02:11 UTC 2026\n",
+        "uptime": " 14:02:11 up 41 days,  3:10,  1 user,  load average: 0.10, 0.12, 0.11\n",
+        "fw ver": "This is Check Point's software version R82 - Build 001\n",
+        "cpinfo -y all": "[CPFC]\n    HOTFIX_R82_JUMBO_HF_MAIN    Take:  130\n",
+        "cplp list": "LivePatch: no packages installed\n",
+        "ps auxww": "USER PID %CPU COMMAND\nadmin 1 0.0 init\n",
+        "netstat -anp": "Proto Recv-Q Send-Q Local Address Foreign Address State PID/Program name\n",
+        "listusers": "",
+        "ls -l /var/log/dump/usermode/": dumps,
+        "crontab -l": "no crontab for admin\n",
+        "ls -1d $MDS_FWDIR/log/cpm.elg*": CPM + "\n",
+        "ls -1d $FWDIR/log/vpnd.elg*": VPND + "\n",
+        "ls -1d /var/log/messages*": "/var/log/messages\n",
+        "ls -1d /var/log/command_logger.log*": "ls: cannot access /var/log/command_logger.log*: No such file or directory\n",
+    }
+    write_cmds(root, out)
+    cpm = ["2026-10-22 13:58:01,120 INFO  login(loginRequest=LoginRequest{authenticationInfo=AuthenticationInfoBase{username='netadmin', ...}"]
+    vpnd = ["[vpnd 2210]@gw-lab[22 Oct 13:58:01] ike: SA established"]
+    if malicious:
+        cpm += ["2026-10-14 06:52:00,001 INFO  login(loginRequest=LoginRequest{authenticationInfo=AuthenticationInfoBase{username='"
+                + "A" * 1100 + "', ...}",
+                "2026-10-14 06:53:10,442 INFO  Uploading file ../../../CPupgrade-tools-R82/scripts/check_upgrade_tools.sh"]
+        vpnd += ["[vpnd 2210]@gw-lab[14 Oct 06:50:01] Invalid filename: /clients/MyCRL aCSHELL/../../../../../../../etc/shadow"]
+    write_files(root, {CPM: "\n".join(cpm) + "\n", VPND: "\n".join(vpnd) + "\n",
+                       "/var/log/messages": "Oct 22 13:58:01 gw-lab clish[2210]: User admin logged in\n"})
+
+
 def main(out: Path) -> None:
     out.mkdir(parents=True, exist_ok=True)
     panos(out / "panos-compromised", True)
@@ -217,6 +403,17 @@ def main(out: Path) -> None:
     asa(out / "asa-benign", False)
     fortios(out / "fortios-compromised", True)
     (out / "fortios-baseline.json").write_text(json.dumps(FORTI_HASHES, indent=2))
+    junos(out / "junos-compromised", True)
+    junos(out / "junos-benign", False)
+    iosxe(out / "iosxe-compromised", True)
+    iosxe(out / "iosxe-benign", False)
+    f5(out / "f5-compromised", True)
+    f5(out / "f5-benign", False)
+    checkpoint(out / "checkpoint-compromised", True)
+    checkpoint(out / "checkpoint-benign", False)
+    (out / "iosxe-implant-check.txt").write_text("6d2f1c4e8a9b0f73\n")
+    (out / "cp-85102-export.csv").write_text(
+        "time,product,action,src,user_dn\n2026-09-13 02:11:00,Mobile Access,Log In,203.0.113.88,\"CN=vpn-user,OU=users,O=global\"\n")
     (out / "shell.php").write_bytes(SHELL_PHP)
     (out / "benign.php").write_bytes(BENIGN_PHP)
 

@@ -3,26 +3,29 @@ name: UNC3886
 aliases: []
 reported_by: [Mandiant / Google Threat Intelligence Group]
 link_confidence: medium
-stated_confidence: "Mandiant: 'China-nexus espionage group'"
+stated_confidence: "Mandiant: 'Mandiant attributed these backdoors to the China-nexus espionage group, UNC3886' and 'a highly adept China-nexus cyber espionage group that has historically targeted network devices and virtualization technologies with zero-day exploits'"
 state_nexus: China (as assessed by the reporter)
 motivation: espionage
 summary: >-
-  Long-running operator against network and virtualisation infrastructure.
-  On Juniper MX routers it deployed six TINYSHELL-based backdoors and bypassed
-  veriexec through process injection (CVE-2025-21590); earlier it targeted
-  FortiOS and VMware ESXi. No Juniper platform entry exists yet, so this
-  profile records the gap.
-platforms: [EDGE-0002]
-packs: []
-implants: []
+  Deployed six TINYSHELL-based backdoors on Juniper MX routers, found in mid
+  2024 and reported in March 2025. It got past veriexec by injecting code into
+  the memory of a legitimate process (tracked as CVE-2025-21590, which needs a
+  local attacker with shell access). Mandiant noted the affected routers ran
+  end-of-life hardware and software, and saw no successful use of veriexec
+  bypasses Juniper had already addressed in supported releases. Mandiant also
+  states it found no technical overlap with activity reported as Volt Typhoon
+  or Salt Typhoon. The group's earlier reporting covers FortiOS and VMware ESXi.
+platforms: [EDGE-0008, EDGE-0002]
+packs: [EDGE-PACK-0010]
+implants: [EDGE-IMP-0010]
 tradecraft:
-  - Backdoors disguised as legitimate daemons
-  - Integrity-check bypass through process injection
-  - Disabling logging on the device
-victimology: ["defence, technology and telecommunications (Mandiant)"]
+  - Backdoors named to resemble legitimate daemons
+  - Process injection to get past veriexec
+  - Deleted log lines containing "root" and redirected syslog to /dev/null
+  - Backed up and edited login records
+victimology: ["defence, technology and telecommunications organisations (Mandiant)"]
 first_seen: "2022"
 references:
-  - title: Google Cloud - China-nexus espionage targets Juniper routers
+  - title: Mandiant - China-nexus espionage targets Juniper routers (12 March 2025)
     url: https://cloud.google.com/blog/topics/threat-intelligence/china-nexus-espionage-targets-juniper-routers
     accessed: "2026-10-22"
-notes: Juniper is not yet a platform in this catalog; the FortiOS link is the earlier reporting on the same group.

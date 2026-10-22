@@ -1,0 +1,209 @@
+# Collection profile - Juniper Junos OS (MX / SRX) and Junos OS Evolved
+# Platform: EDGE-0008 (artifacts/catalog/junos.yml)
+#
+# Everything here runs from the operational CLI (`user@host>`), never from
+# `start shell`. Paging is disabled per command with `| no-more`, which is
+# documented and touches no configuration; `set cli screen-length 0` is not
+# used because Juniper does not state whether it is session-scoped.
+#
+# Two things destroy evidence on this platform and are therefore manual,
+# break-glass steps that run last:
+#   - JMRT `request system malware-scan quick-scan` DELETES malicious files and
+#     kills processes by default. Collect first; scan with clean-action warn.
+#   - UNC3886 deleted log lines containing "root" and redirected syslog to
+#     /dev/null, so the off-box syslog copy outranks anything on the device.
+
+profile: junos
+platform_id: EDGE-0008
+display: Juniper Junos OS / Junos OS Evolved
+transports: [ssh, replay]
+
+cli:
+  prompt: '[\w.-]+@[\w.()-]+>'
+  pager: '---\(more( \d+%)?\)---'
+  session_setup: []
+  # Allow rules must match the whole command (the engine uses fullmatch).
+  allow:
+    - 'show [\w ./-]+( \| display set)? \| no-more'
+    - 'file list /[\w./-]+( detail)?( recursive)? \| no-more'
+    - 'request system malware-scan integrity-check'
+  deny:
+    - '^(clear|set|delete|start|configure|commit|rollback|restart|load|edit) '
+    - '^request (?!system malware-scan integrity-check$)'
+    - '^file (delete|copy|rename|archive)'
+    - '\| *(save|append|tee)\b'
+    - '[;&`<>]|\$\('
+
+expected_evidence: [identity, process, sessions, integrity, config, auth-logs, system-logs, filesystem, persistence]
+
+steps:
+  - id: show_version
+    tier: V0
+    kind: command
+    cmd: show version | no-more
+    purpose: Model, Junos release and hostname. The release selects which CVEs apply and whether the device is end-of-life (the UNC3886 victims were).
+    confidence: medium
+
+  - id: show_uptime
+    tier: V0
+    kind: command
+    cmd: show system uptime | no-more
+    purpose: Device clock and time since boot. A reboot since the window means memory-resident payloads are gone.
+    confidence: medium
+
+  - id: show_processes
+    tier: V2
+    kind: command
+    cmd: show system processes extensive | no-more
+    purpose: >-
+      Process table. The UNC3886 backdoors used names one character off from
+      real daemons (appid / appidd, irad / irsd, lmpad / lmpd, jdosd / jddosd,
+      oemd / oamd, to / top), and a hung `cat null &` process marked the
+      injection technique.
+    confidence: high
+    references:
+      - https://cloud.google.com/blog/topics/threat-intelligence/china-nexus-espionage-targets-juniper-routers
+
+  - id: show_users
+    tier: V3
+    kind: command
+    cmd: show system users | no-more
+    purpose: Users logged in now, with source and idle time.
+    confidence: medium
+
+  - id: jmrt_integrity_check
+    tier: P1
+    kind: command
+    cmd: request system malware-scan integrity-check
+    purpose: >-
+      JMRT check that the integrity mechanisms (veriexec on Junos, IMA on Evolved)
+      are working. Read-only, unlike quick-scan. Named veriexec-check on Junos
+      19.2 to 21.3. UNC3886 bypassed veriexec by injecting into a running
+      process, so a pass here does not clear the device.
+    confidence: medium
+    references:
+      - https://juniper.net/documentation/us/en/software/junos/security-services/topics/topic-map/using-the-juniper-malware-removal-tool.html
+
+  - id: show_config
+    tier: P2
+    kind: command
+    cmd: show configuration | display set | no-more
+    timeout: 600
+    purpose: Configuration as set commands, for diffing against the last known-good. Check system syslog (UNC3886 sent logging to /dev/null), login users and classes, scripts and services.
+    confidence: medium
+
+  - id: show_commits
+    tier: P2
+    kind: command
+    cmd: show system commit | no-more
+    purpose: Commit history with user, time and method (cli, other, autoinstall). An unexpected commit or a "via other" entry in the window needs an owner.
+    confidence: high
+    references:
+      - https://juniper.net/documentation/en_US/junos13.1/topics/reference/command-summary/show-system-commit.html
+
+  - id: log_messages
+    tier: P5
+    kind: command
+    cmd: show log messages | no-more
+    timeout: 600
+    purpose: System log including UI_LOGIN_EVENT, UI_AUTH_EVENT and sshd lines. UNC3886 deleted every line containing "root", so gaps around root activity are the finding.
+    confidence: high
+    references:
+      - https://www.juniper.net/documentation/us/en/software/junos/network-mgmt/topics/topic-map/displaying-system-log-files.html
+
+  - id: log_interactive
+    tier: P3
+    kind: command
+    cmd: show log interactive-commands | no-more
+    timeout: 600
+    purpose: CLI command history (UI_CMDLINE_READ_LINE). A target of UNC3886 log-line deletion; compare with the syslog receiver copy.
+    confidence: medium
+
+  - id: listing_var_log
+    tier: P6
+    kind: command
+    cmd: file list /var/log detail | no-more
+    purpose: >-
+      Log directory listing. UNC3886 left backup copies of the login records
+      (wtmp0, utx.log0) while it edited the originals. Their presence is a
+      high-signal anti-forensics indicator.
+    confidence: high
+    references:
+      - https://cloud.google.com/blog/topics/threat-intelligence/china-nexus-espionage-targets-juniper-routers
+
+  - id: listing_var_tmp
+    tier: P6
+    kind: command
+    cmd: file list /var/tmp detail | no-more
+    purpose: >-
+      Staging directory. UNC3886 staged ldb.b64, ldb.tar.gz, loader.bin, pc.bin,
+      payload.bin and a FIFO named null here, plus pfed_jdhcp6_trace.log and
+      rts. Core files also land here.
+    confidence: high
+
+  - id: listing_config_dir
+    tier: P7
+    kind: command
+    cmd: file list /config detail | no-more
+    purpose: Live configuration directory. UNC3886 wrote a usage_db file here and under /var/db/config.
+    confidence: medium
+
+  - id: listing_db_config
+    tier: P7
+    kind: command
+    cmd: file list /var/db/config detail | no-more
+    purpose: Rolled-back configurations (juniper.conf.4.gz and later) and the second usage_db location.
+    confidence: medium
+
+  - id: listing_scripts
+    tier: P7
+    kind: command
+    cmd: file list /var/db/scripts detail recursive | no-more
+    purpose: Commit, op and event scripts. A natural persistence location, but not one Juniper or Mandiant names as used; listed for completeness.
+    confidence: low
+    unverified: true
+
+  - id: support_info
+    tier: B
+    kind: command
+    impact: vendor-bundle
+    cmd: request support information | no-more
+    timeout: 1800
+    purpose: >-
+      The JTAC support bundle, printed to the session rather than saved (`| save`
+      would write a file and is refused by the guard). Opt-in because it is long
+      and loads the routing engine.
+    confidence: medium
+    references:
+      - https://juniper.net/documentation/en_US/junos/topics/task/operational/contact-jtac.html
+
+  - id: jmrt_quick_scan
+    tier: X
+    kind: manual
+    impact: break-glass
+    purpose: JMRT malware scan of running processes.
+    instructions: |
+      Only after every step above is collected and hashed. By default
+      `request system malware-scan quick-scan` DELETES the malicious files and
+      KILLS the processes it finds - the evidence and the implant go together.
+      Run it with the clean action set to warn so it only reports (check the
+      exact option order for your release in Juniper's JMRT documentation),
+      capture the output, then ingest it:
+        edge-triage ingest <case> --label jmrt --bundle <output>
+      Mandiant's guidance was to upgrade to the latest image and run JMRT quick
+      scan and integrity check after the upgrade.
+    references:
+      - https://juniper.net/documentation/us/en/software/junos/security-services/topics/topic-map/using-the-juniper-malware-removal-tool.html
+
+  - id: memory_and_files
+    tier: X
+    kind: manual
+    impact: break-glass
+    purpose: Process memory and the backdoor binaries themselves.
+    instructions: |
+      There is no documented customer path to Junos memory. Mandiant needed
+      "novel methods" and recovered payloads from router memory. Engage Juniper
+      (JTAC) for memory and file acquisition. If you obtain binaries, scan them
+      with 09-juniper-junos/junos_unc3886_tinyshell.yar and ingest the result.
+    references:
+      - https://cloud.google.com/blog/topics/threat-intelligence/china-nexus-espionage-targets-juniper-routers

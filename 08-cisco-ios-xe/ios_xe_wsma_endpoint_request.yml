@@ -1,0 +1,30 @@
+title: Cisco IOS XE Web UI Services Endpoint Request, Including Encoded Forms
+id: 15763c24-c5c9-4d68-b638-44361bc22aa4
+status: experimental
+description: |
+  Requests to /webui_wsma_http or /webui_wsma_https, the endpoint abused for
+  CVE-2023-20198. AA25-239A notes attackers double-encoded it (for example
+  /%2577eb%2575i_%2577sma_Http), so the rule includes the single- and
+  double-encoded forms. A Proxy-Uri-Source header in the request means the
+  device was patched, not exploited.
+references:
+  - https://www.cisa.gov/news-events/cybersecurity-advisories/aa25-239a
+  - https://sec.cloudapps.cisco.com/security/center/content/CiscoSecurityAdvisory/cisco-sa-iosxe-webui-privesc-j22SaA4z
+author: Raymond DePalma (edge-dfir-toolkit)
+date: 2026-10-22
+tags:
+  - attack.initial_access
+  - attack.t1190
+  - cve.2023-20198
+logsource:
+  category: webserver
+detection:
+  selection:
+    cs-uri-stem|contains:
+      - '/webui_wsma_http'
+      - '/%77eb%75i_%77sma_http'
+      - '/%2577eb%2575i_%2577sma_http'
+  condition: selection
+falsepositives:
+  - Legitimate management tools that use the web services management agent. Baseline the sources.
+level: medium

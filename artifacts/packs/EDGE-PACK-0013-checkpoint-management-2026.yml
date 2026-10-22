@@ -1,0 +1,98 @@
+# Detection pack EDGE-PACK-0013
+
+id: EDGE-PACK-0013
+name: Check Point management server exploitation (2026)
+platforms: [EDGE-0007]
+cves: [CVE-2026-93616, CVE-2026-16232]
+actors: []
+implants: []
+summary: >-
+  Two exploited flaws in the Security Management Server and Multi-Domain Server.
+  CVE-2026-93616 is a pre-authentication path traversal with file upload in the
+  Management web service, exploited in a handful of pinpointed attacks from
+  23 July 2026 and added to CISA KEV on 22 September 2026; gateways and Spark
+  are not affected. CVE-2026-16232 is a SmartConsole authentication bypass
+  through an application login token, exploited against a very small number of
+  customers and added to KEV on 22 July 2026. Patching does not reveal whether a
+  server was already attacked, so hunt separately.
+confidence: high
+references:
+  - title: Check Point sk1000171 - CVE-2026-93616 hotfix and indicators
+    url: https://support.checkpoint.com/results/sk/sk1000171
+    accessed: "2026-10-22"
+  - title: Check Point sk185169 - CVE-2026-16232
+    url: https://support.checkpoint.com/results/sk/sk185169
+    accessed: "2026-10-22"
+  - title: Check Point blog - active exploitation of CVE-2026-85102 and CVE-2026-93616
+    url: https://blog.checkpoint.com/security/security-advisory-action-required-active-exploitation-of-cve-2026-85102-and-a-management-pre-authentication-vulnerability-cve-2026-93616/
+    accessed: "2026-10-22"
+
+detect:
+  - id: cp-93616-oversized-username
+    title: CPM login with a username over 1000 characters
+    type: log_regex
+    tier: likely
+    evidence_class: web-logs
+    sources:
+      files: ["**/cpm.elg*"]
+    pattern: 'login\(loginRequest=LoginRequest\{authenticationInfo=AuthenticationInfoBase\{username=''[^'']{1001,}'''
+    attack: [T1190]
+    notes: Check Point's indicator 1, suggesting the authentication bypass. Look for a matching fwm or mds core dump.
+
+  - id: cp-93616-version-path
+    title: Traversal characters in a CPM method version
+    type: log_regex
+    tier: possible
+    evidence_class: web-logs
+    sources:
+      files: ["**/cpm.elg*"]
+    pattern: 'Invoking method .* in version: .*(\.|/|%2f|%2e|\\|%5c|CPupgrade-tools-\.\.)'
+    flags: [ignorecase]
+    attack: [T1190]
+    notes: Check Point's indicator 2a, used exactly as published. It is broad; a match is a lead to review, not proof.
+
+  - id: cp-93616-upload-traversal
+    title: Traversal in a CPM file upload toward the upgrade tools
+    type: log_regex
+    tier: possible
+    evidence_class: web-logs
+    sources:
+      files: ["**/cpm.elg*"]
+    pattern: 'Uploading file .*((\.\./)+|%2e%2e%2f|%2f).*(CPupgrade-tools-|scripts/check_upgrade_tools\.s(h)?)'
+    flags: [ignorecase]
+    attack: [T1190, T1105]
+    notes: Check Point's indicator 2b.
+
+  - id: cp-93616-jar-breakout
+    title: CPM JAR path breaking out of the upgrade tools directory
+    type: log_regex
+    tier: possible
+    evidence_class: web-logs
+    sources:
+      files: ["**/cpm.elg*"]
+    pattern: 'The path to the jars: .*CPupgrade-tools-.*(\.\./|/\./|//|/temp/|/opt/CPsuite-)'
+    attack: [T1190, T1574]
+    notes: Check Point's indicator 2c.
+
+  - id: cp-93616-mgmt-core-dump
+    title: fwm or mds user-mode core dump
+    type: log_regex
+    tier: possible
+    evidence_class: system-logs
+    sources:
+      steps: [usermode_dumps]
+    pattern: '\b(fwm|mds)\S*\s*$'
+    attack: [T1190]
+    notes: Corroborates indicator 1 when the times line up. Crashes have other causes.
+
+  - id: cp-16232-application-token
+    title: Audit log authentication by application token
+    type: log_regex
+    tier: possible
+    evidence_class: auth-logs
+    sources:
+      files: ["[cp-16232]/*"]
+    pattern: 'application token'
+    flags: [ignorecase]
+    attack: [T1550.001]
+    notes: Check Point's hunting query for CVE-2026-16232. Compare source addresses with sk185169.

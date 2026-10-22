@@ -1,0 +1,82 @@
+# Containment and recovery - EDGE-0010 F5 BIG-IP
+# Schema: ../schema/response.schema.json
+
+platform_id: EDGE-0010
+name: F5 BIG-IP (TMOS / APM)
+confidence: high
+
+preserve_first:
+  - step: Isolate the device and preserve evidence first
+    detail: F5 K11438344. Run the f5-bigip profile, take a qkview, then the disk image and TPM attestation if a rebuild is coming.
+  - step: For CVE-2026-94127, apply the mitigation iRule, then triage, then patch
+    detail: CISA's order in the KEV entry. The iRule comes from F5 Support; it stops new attempts without destroying the evidence a patch-and-reboot would.
+  - step: Do not run sys-icheck as your integrity check
+    detail: c05d5254 tampered with sys-icheck and sys-eicheck.py. Use F5 System Scanner from known-good media.
+
+contain:
+  - step: Take the management interface off untrusted networks
+    detail: The control-plane flaws (CVE-2022-1388, CVE-2023-46747) need management reachability; CISA ED 26-01 required hardening of internet-exposed management interfaces.
+    when: COMPROMISED, LIKELY-COMPROMISED, SUSPICIOUS
+  - step: Disable the APM OAuth Authorization Server role if it is not needed
+    detail: Only that configuration is exposed to CVE-2026-94127.
+    when: COMPROMISED, LIKELY-COMPROMISED, SUSPICIOUS
+
+credential_exposure:
+  - what: Every key, certificate and credential on the device
+    why: F5 K11438344 says to assume all of them are compromised on a compromised system.
+    action: Regenerate device keys and certificates, rotate every account, and reissue the certificates of every virtual server that terminated TLS on the device.
+  - what: Embedded credentials and API keys in the configuration
+    why: CISA ED 26-01 warns exploitation could expose embedded credentials and API keys.
+    action: Rotate LDAP, RADIUS, OAuth client secrets, iControl REST tokens and pool member credentials.
+  - what: APM user sessions and credentials
+    why: An attacker in the APM data plane sees authentication traffic.
+    action: Terminate APM sessions and force resets for users who authenticated during the window.
+
+eradicate:
+  - step: Clean install, not in-place repair
+    detail: F5 K11438344.
+    when: COMPROMISED, LIKELY-COMPROMISED
+  - step: Restore only from a UCS taken before the compromise, or rebuild from scratch
+    detail: F5 warns that UCS files from compromised systems can contain persistent malware (K11438344, K000156741).
+    when: COMPROMISED, LIKELY-COMPROMISED
+  - step: Replace hardware if TPM attestation shows tampering
+    detail: F5 K11438344.
+    when: COMPROMISED
+
+recover:
+  - step: Bring the rebuilt system up on a fixed release
+    detail: CVE-2026-94127 is fixed in 21.1.0.3, 17.5.1.10 and 17.1.3.6 (or the engineering hotfixes F5 lists); CVE-2025-53521 in 17.5.1.3, 17.1.3, 16.1.6.1 and 15.1.10.8.
+  - step: Re-apply hardening from iHealth and send events to the SIEM
+    detail: F5's post-breach guidance (K000154696) - iHealth hardening checks, remote syslog (K13080) and login monitoring (K13426).
+
+verify:
+  - step: Run F5 System Scanner on the rebuilt system; expect no mismatches
+  - step: Re-run the f5-bigip profile; expect SELinux Enforcing, no permissive domains, no /run IOC files, no util/bash REST calls you cannot explain
+  - step: Hunt from the device into the network for the dwell period
+
+do_not:
+  - action: Restore a UCS taken after the compromise
+    because: F5 says it can carry persistent malware back onto the clean system.
+  - action: Trust sys-icheck on a suspect device
+    because: c05d5254 modified it.
+  - action: Patch and reboot before triage on CVE-2026-94127
+    because: CISA's order is mitigation iRule, forensic triage, then patch.
+
+vendor_guidance:
+  - title: F5 K11438344 - checking a BIG-IP system for compromise
+    url: https://my.f5.com/manage/s/article/K11438344
+    accessed: "2026-10-22"
+  - title: F5 K000160515 - F5 System Scanner
+    url: https://my.f5.com/manage/s/article/K000160515
+    accessed: "2026-10-22"
+  - title: F5 K000162605 - CVE-2026-94127
+    url: https://my.f5.com/manage/s/article/K000162605
+    accessed: "2026-10-22"
+
+references:
+  - title: CISA ED 26-01 - mitigate vulnerabilities in F5 devices
+    url: https://www.cisa.gov/news-events/directives/ed-26-01-mitigate-vulnerabilities-f5-devices
+    accessed: "2026-10-22"
+  - title: CERT-EU - security advisory 2026-013
+    url: https://cert.europa.eu/publications/security-advisories/2026-013
+    accessed: "2026-10-22"

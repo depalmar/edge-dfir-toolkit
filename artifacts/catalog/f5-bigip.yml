@@ -1,0 +1,147 @@
+# Edge platform catalog entry
+# EDGE-0010 - F5 BIG-IP
+# Schema: ../schema/platform.schema.json
+
+id: EDGE-0010
+name: F5 BIG-IP (TMOS / APM)
+vendor: F5
+products: [BIG-IP LTM, BIG-IP APM, BIG-IP Virtual Edition, VELOS and rSeries tenants]
+os_base: Linux host OS with the TMM data plane and tmsh control plane
+filesystem: >-
+  /config holds bigip.conf and startup; /var/log holds the audit, apm, ltm and
+  restjavad-audit logs; /var/tmp receives qkview output. Restoring a UCS taken
+  after compromise can carry malware back.
+customer_shell: "yes"
+memory_acquisition: not-available
+profile: f5-bigip
+response: f5-bigip
+collection:
+  - method: Advanced Shell (bash) with tmsh piped to cat
+    impact: none
+    description: Version, processes, open files, SELinux state, users, iRules, persistence files and log fetches. Appliance mode removes bash.
+    confidence: high
+    references: [https://my.f5.com/manage/s/article/K000160515]
+  - method: qkview
+    impact: vendor-bundle
+    description: Diagnostic bundle written to /var/tmp. F5 asks for it with System Scanner results.
+    confidence: high
+    references: [https://my.f5.com/manage/s/article/K12878]
+  - method: F5 System Scanner
+    impact: break-glass
+    description: The vendor's file-integrity check, run from known-good media because c05d5254 tampered with sys-icheck.
+    confidence: high
+    references: [https://my.f5.com/manage/s/article/K000160515]
+  - method: Disk image and TPM attestation
+    impact: break-glass
+    description: F5's disk image (K17551329) and TPM attestation (K58311205) procedures.
+    confidence: high
+    references: [https://my.f5.com/manage/s/article/K11438344]
+volatility:
+  - c05d5254 webshells ran in memory, so webtop PHP files on disk may be unmodified
+  - A reboot loses the in-memory webshells; the runtime files under /run are also tmpfs
+anti_forensics:
+  - technique: Tampered with the integrity checker (sys-icheck, sys-eicheck.py)
+    seen_in: c05d5254 (F5 K000160486)
+  - technique: Set SELinux to permissive and specific domains permissive
+    seen_in: c05d5254 (F5 K000160486)
+  - technique: In-memory webshells that leave served files unchanged
+    seen_in: c05d5254 (F5 K000160486)
+artifacts:
+  - locator: /run/bigtlog.pipe and /run/bigstart.ltm
+    class: persistence
+    volatility: live
+    forensic_value: high
+    evidence_type: [persistence, execution]
+    confidence: high
+    collected_by: ioc_files
+    description: Runtime files F5 names as c05d5254 indicators.
+    seen_in: [c05d5254]
+  - locator: getenforce / semanage permissive -l
+    class: integrity
+    volatility: live
+    forensic_value: high
+    evidence_type: [defense-evasion]
+    confidence: high
+    collected_by: getenforce
+    description: Anything but Enforcing, or httpd_t, mount_t or apd_t permissive, is an F5-listed indicator.
+    seen_in: [c05d5254]
+  - locator: /var/log/restjavad-audit.*.log
+    class: web-logs
+    volatility: rotating
+    forensic_value: high
+    evidence_type: [execution, initial-access]
+    confidence: high
+    collected_by: fetch_restjavad_audit
+    description: POSTs to /mgmt/tm/util/bash, the shared follow-on of CVE-2022-1388 and c05d5254.
+    seen_in: [CVE-2022-1388, c05d5254]
+  - locator: /var/log/audit
+    class: system-logs
+    volatility: rotating
+    forensic_value: high
+    evidence_type: [execution, configuration]
+    confidence: high
+    collected_by: fetch_audit
+    description: tmsh command audit, including run util bash entries.
+  - locator: /var/log/apm
+    class: auth-logs
+    volatility: rotating
+    forensic_value: high
+    evidence_type: [initial-access]
+    confidence: high
+    collected_by: fetch_apm
+    description: CVE-2026-94127 attempts as bursts of 01990004 invalid_token UserInfo failures.
+    seen_in: [CVE-2026-94127]
+  - locator: /var/log/tomcat/catalina.out
+    class: web-logs
+    volatility: rotating
+    forensic_value: high
+    evidence_type: [initial-access, execution]
+    confidence: high
+    collected_by: fetch_catalina
+    description: A SQL error then "sh - no job control in this shell" marked CVE-2023-46748.
+    seen_in: [CVE-2023-46748]
+  - locator: /config/startup, /etc/rc.d/rc.local, cron, /usr/local/www hidden files
+    class: persistence
+    volatility: stable
+    forensic_value: high
+    evidence_type: [persistence]
+    confidence: high
+    collected_by: startup_script
+    description: Persistence locations from F5's compromise-checking articles.
+  - locator: tmsh list ltm rule
+    class: config
+    volatility: stable
+    forensic_value: medium
+    evidence_type: [persistence, exfiltration]
+    confidence: high
+    collected_by: irules
+    description: iRules can capture or redirect traffic on the data plane; diff against change control.
+  - locator: Syslog receiver and SIEM copies
+    class: off-box
+    volatility: off-box
+    forensic_value: high
+    evidence_type: [timeline]
+    confidence: high
+    collected_by: ingest
+    description: F5 asks customers to stream events to a SIEM (K13080, K13426); those copies outlast on-box rotation.
+confidence: high
+references:
+  - title: F5 K11438344 - checking a BIG-IP system for compromise
+    url: https://my.f5.com/manage/s/article/K11438344
+    accessed: "2026-10-22"
+  - title: F5 K000160486 - c05d5254 indicators
+    url: https://my.f5.com/manage/s/article/K000160486
+    accessed: "2026-10-22"
+  - title: F5 K000154696 - security incident (October 2025)
+    url: https://my.f5.com/manage/s/article/K000154696
+    accessed: "2026-10-22"
+  - title: CISA ED 26-01 - mitigate vulnerabilities in F5 devices
+    url: https://www.cisa.gov/news-events/directives/ed-26-01-mitigate-vulnerabilities-f5-devices
+    accessed: "2026-10-22"
+notes: >-
+  F5 disclosed in October 2025 that a "highly sophisticated nation-state threat
+  actor" had long-term access to its environment and took BIG-IP source code and
+  undisclosed vulnerability information; F5 found no evidence of supply-chain
+  modification. Press reports linking it to a named actor or to BRICKSTORM are
+  not reflected here because no primary source makes that link.
+last_modified: "2026-10-22"

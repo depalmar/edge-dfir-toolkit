@@ -1,0 +1,41 @@
+id: EDGE-TA-0007
+name: AA25-239A APT actors
+aliases: [Salt Typhoon, OPERATOR PANDA, RedMike, UNC5807, GhostEmperor]
+reported_by: [CISA, NSA, FBI and international partners (AA25-239A), Cisco Talos]
+link_confidence: medium
+stated_confidence: "AA25-239A: 'People's Republic of China (PRC) state-sponsored cyber threat actors ... This activity partially overlaps with cyber threat actor reporting by the cybersecurity industry—commonly referred to as Salt Typhoon, OPERATOR PANDA, RedMike, UNC5807, and GhostEmperor, among others. The authoring agencies are not adopting a particular commercial naming convention'"
+state_nexus: China (as assessed by the authoring agencies)
+motivation: espionage
+summary: >-
+  The authoring agencies describe a campaign against telecommunications and
+  network infrastructure that modified router configurations for persistent
+  access, captured TACACS+ traffic, and used Guest Shell. The aliases are listed
+  because the advisory itself names them as partial overlaps; the toolkit does
+  not merge these clusters on its own. Sources disagree on initial access:
+  AA25-239A lists CVE-2023-20198, CVE-2023-20273 and CVE-2018-0171 as exploited,
+  while Talos found evidence for CVE-2018-0171 in one case and otherwise stolen
+  credentials, and had not confirmed the IOS XE web UI claims. The JumbledPath
+  tool Talos describes ran in Guest Shell on Nexus (NX-OS) devices, not IOS XE.
+platforms: [EDGE-0009]
+packs: [EDGE-PACK-0012]
+implants: []
+tradecraft:
+  - Packet captures of TACACS+ (TCP/49) staged on bootflash for retrieval
+  - Requests to the web UI services endpoint, including double-encoded forms
+  - Guest Shell used to host tooling, with shell history and login records cleared
+  - Configuration changes for persistence (ACLs, tunnels, AAA servers)
+victimology: ["telecommunications, government, transportation, lodging and military infrastructure (AA25-239A)"]
+first_seen: "2021"
+references:
+  - title: CISA and partners - AA25-239A (canonical URL)
+    url: https://www.cisa.gov/news-events/cybersecurity-advisories/aa25-239a
+    accessed: "2026-10-22"
+  - title: AA25-239A as published by IC3 (read because cisa.gov refused automated access)
+    url: https://www.ic3.gov/CSA/2025/250827.pdf
+    accessed: "2026-10-22"
+  - title: Cisco Talos - Salt Typhoon analysis (20 February 2025)
+    url: https://blog.talosintelligence.com/salt-typhoon-analysis/
+    accessed: "2026-10-22"
+notes: >-
+  Victimology and first-seen year are taken from the advisory's framing and
+  should be checked against the full text before being quoted elsewhere.

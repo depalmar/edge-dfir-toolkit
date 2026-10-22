@@ -1,0 +1,93 @@
+# Detection pack EDGE-PACK-0010
+# Schema: ../schema/pack.schema.json
+
+id: EDGE-PACK-0010
+name: Juniper Junos UNC3886 TINYSHELL backdoors
+platforms: [EDGE-0008]
+cves: [CVE-2025-21590]
+actors: [UNC3886]
+implants: [appid, to, irad, lmpad, jdosd, oemd]
+summary: >-
+  Six TINYSHELL-based backdoors on Juniper MX routers, each named one character
+  off from a legitimate daemon. UNC3886 bypassed veriexec by injecting code into
+  the memory of a legitimate process (tracked as CVE-2025-21590, which needs a
+  local attacker with shell access). It staged payloads in /var/tmp, backed up
+  and then edited the login records, deleted log lines containing "root", and
+  redirected syslog to /dev/null. Mandiant noted the affected routers ran
+  end-of-life hardware and software.
+confidence: high
+references:
+  - title: Mandiant - China-nexus espionage targets Juniper routers (12 March 2025)
+    url: https://cloud.google.com/blog/topics/threat-intelligence/china-nexus-espionage-targets-juniper-routers
+    accessed: "2026-10-22"
+  - title: NVD - CVE-2025-21590
+    url: https://nvd.nist.gov/vuln/detail/CVE-2025-21590
+    accessed: "2026-10-22"
+
+detect:
+  - id: junos-unc3886-masquerade-proc
+    title: Process named like a UNC3886 backdoor
+    type: log_regex
+    tier: likely
+    evidence_class: process
+    sources:
+      steps: [show_processes]
+    pattern: '\s(appid|irad|lmpad|jdosd|oemd|to)\s*$'
+    attack: [T1036.005, T1205]
+    notes: >-
+      Exact command names only. The legitimate daemons are appidd, irsd, lmpd,
+      jddosd and oamd, and top; an exact match on the short name is the tell.
+
+  - id: junos-unc3886-staging-files
+    title: UNC3886 staging file in /var/tmp
+    type: log_regex
+    tier: likely
+    evidence_class: filesystem
+    sources:
+      steps: [listing_var_tmp]
+    pattern: '\s(ldb\.b64|ldb\.tar\.gz|loader\.bin|pc\.bin|payload\.bin|pfed_jdhcp6_trace\.log(\.bak)?|rts)\s*$'
+    attack: [T1105, T1055]
+
+  - id: junos-unc3886-null-fifo
+    title: FIFO named null in /var/tmp
+    type: log_regex
+    tier: likely
+    evidence_class: filesystem
+    sources:
+      steps: [listing_var_tmp]
+    pattern: '^\s*p[rwx-]{9}.*\snull\s*$'
+    attack: [T1055]
+    notes: The process-injection technique wrote through a FIFO named null kept open by a hung cat process.
+
+  - id: junos-login-record-backups
+    title: Backup copies of the login records
+    type: log_regex
+    tier: likely
+    evidence_class: persistence
+    sources:
+      steps: [listing_var_log]
+    pattern: '\s(wtmp0|utx\.log0)\s*$'
+    attack: [T1070.002]
+    notes: UNC3886 kept wtmp0 and utx.log0 while it edited the originals. Their presence means the live records may have been altered.
+
+  - id: junos-usage-db
+    title: usage_db file in a configuration directory
+    type: log_regex
+    tier: possible
+    evidence_class: persistence
+    sources:
+      steps: [listing_config_dir, listing_db_config]
+    pattern: '\susage_db\s*$'
+    attack: [T1074.001]
+    notes: Mandiant lists /config/usage_db and /var/db/config/usage_db as actor-written. Not confirmed to be absent on clean devices, so possible only.
+
+  - id: junos-unc3886-tinyshell-yara
+    title: TINYSHELL backdoor strings in a recovered file
+    type: yara
+    tier: confirmed
+    evidence_class: persistence
+    rule: 09-juniper-junos/junos_unc3886_tinyshell.yar
+    sources:
+      files: ["**"]
+    attack: [T1205, T1573]
+    notes: Evaluated against files recovered through JTAC or ingested images; the CLI cannot read the binaries.

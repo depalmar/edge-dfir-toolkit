@@ -1,0 +1,134 @@
+# Edge platform catalog entry
+# EDGE-0009 - Cisco IOS XE
+# Schema: ../schema/platform.schema.json
+
+id: EDGE-0009
+name: Cisco IOS XE
+vendor: Cisco
+products: [Catalyst switches, ISR and ASR routers, Catalyst 9800 wireless controllers, Catalyst 8000 edge]
+os_base: Linux host running the IOSd process
+filesystem: >-
+  bootflash: holds images, packages.conf and anything an operator or attacker
+  leaves (packet captures were left there). harddisk:/tracelogs holds trace
+  logs, including system_shell logs that record shell access.
+customer_shell: restricted
+memory_acquisition: customer
+profile: cisco-iosxe
+response: cisco-iosxe
+collection:
+  - method: Exec CLI show, dir and verify commands
+    impact: none
+    description: Memory map of iosd, integrity and authenticity checks, configuration, logs and filesystem listings, following Cisco's forensic guide.
+    confidence: high
+    references: [https://sec.cloudapps.cisco.com/security/center/resources/forensic_guides/iosxe_forensic_guide.html]
+  - method: Cisco's HTTP implant check, from a workstation
+    impact: none
+    description: The published curl request to /webui/logoutconfirm.html; a hexadecimal response means a known 2023 implant variant is present.
+    confidence: high
+    references: [https://sec.cloudapps.cisco.com/security/center/content/CiscoSecurityAdvisory/cisco-sa-iosxe-webui-privesc-j22SaA4z]
+  - method: copy system:memory/text and verify /md5 system:memory/text
+    impact: break-glass
+    description: The IOSd text segment for hashing against the image. Some memory commands need service internal, a configuration change to record and revert.
+    confidence: high
+  - method: request platform software process core ios rp active
+    impact: break-glass
+    description: Full IOSd core dump. Cisco warns it may reboot the platform.
+    confidence: high
+volatility:
+  - The 2023 web UI implant was not persistent; a reboot removes it but the local accounts it created remain
+  - Cisco's forensic guide says it is extremely important the device is not rebooted before collection
+anti_forensics:
+  - technique: Cleared logs and removed created accounts
+    seen_in: 2023 web UI campaign (Talos)
+  - technique: Packet captures staged on bootflash for retrieval
+    seen_in: AA25-239A
+  - technique: Shell history and login records cleared inside Guest Shell
+    seen_in: Talos Salt Typhoon analysis (Feb 2025)
+artifacts:
+  - locator: show platform software process memory rp active name iosd smaps
+    class: memory
+    volatility: live
+    forensic_value: high
+    evidence_type: [execution, defense-evasion]
+    confidence: high
+    collected_by: iosd_smaps
+    description: An rwxp iosd segment with Private_Dirty above zero may indicate tampered running code (Cisco's forensic guide).
+  - locator: show running-config
+    class: config
+    volatility: stable
+    forensic_value: high
+    evidence_type: [persistence, credential-access, configuration]
+    confidence: high
+    collected_by: show_running_config
+    description: Privilege-15 local users, ip http server, monitor capture, tunnels, ACL and TACACS+ changes, EEM applets.
+    seen_in: [CVE-2023-20198, AA25-239A]
+  - locator: show logging
+    class: system-logs
+    volatility: rotating
+    forensic_value: high
+    evidence_type: [initial-access, timeline]
+    confidence: high
+    collected_by: show_logging
+    description: "%SYS-5-CONFIG_P from SEP_webui_wsma_http and %WEBUI-6-INSTALL_OPERATION_INFO ADD were the 2023 hunting strings."
+    seen_in: [CVE-2023-20198]
+  - locator: dir /recursive all-filesystems
+    class: filesystem
+    volatility: stable
+    forensic_value: high
+    evidence_type: [exfiltration, execution]
+    confidence: high
+    collected_by: dir_all
+    description: Packet captures on bootflash (tac.pcap, mycap.pcap, 1.pcap) and system_shell trace logs.
+    seen_in: [AA25-239A]
+  - locator: show platform integrity sign nonce / show software authenticity running
+    class: integrity
+    volatility: live
+    forensic_value: medium
+    evidence_type: [defense-evasion]
+    confidence: high
+    collected_by: platform_integrity
+    description: Signed measurements and image signature checks, compared with Cisco's published values.
+  - locator: Cisco implant check response (curl to /webui/logoutconfirm.html)
+    class: memory
+    volatility: live
+    forensic_value: high
+    evidence_type: [persistence]
+    confidence: high
+    collected_by: manual
+    description: A hexadecimal response means a known implant is present. Gone after reboot.
+    seen_in: [CVE-2023-20198]
+  - locator: Web server request logs (upstream proxy or WAF)
+    class: web-logs
+    volatility: rotating
+    forensic_value: high
+    evidence_type: [initial-access]
+    confidence: medium
+    collected_by: ingest
+    description: Requests to /webui_wsma_http, including double-encoded forms.
+    seen_in: [AA25-239A]
+  - locator: Syslog receiver copies
+    class: off-box
+    volatility: off-box
+    forensic_value: high
+    evidence_type: [timeline, defense-evasion]
+    confidence: high
+    collected_by: ingest
+    description: Survives the log clearing seen in 2023.
+confidence: high
+references:
+  - title: Cisco IOS XE forensic investigation guide (v1.7, April 2026)
+    url: https://sec.cloudapps.cisco.com/security/center/resources/forensic_guides/iosxe_forensic_guide.html
+    accessed: "2026-10-22"
+  - title: Cisco advisory cisco-sa-iosxe-webui-privesc-j22SaA4z
+    url: https://sec.cloudapps.cisco.com/security/center/content/CiscoSecurityAdvisory/cisco-sa-iosxe-webui-privesc-j22SaA4z
+    accessed: "2026-10-22"
+  - title: Cisco IOS XE security hardening release, August 2026
+    url: https://sec.cloudapps.cisco.com/security/center/content/CiscoSecurityAdvisory/cisco-sa-hardening-iosxe-V8NMuMZJ
+    accessed: "2026-10-22"
+notes: >-
+  The seven CVEs in the August 2026 hardening release (CVE-2026-20267 to 20273)
+  were found internally and Cisco reports no exploitation; none is in CISA KEV.
+  CVE-2026-20273 is unrelated to CVE-2023-20273. CVE-2025-20352 (SNMP) is in KEV
+  and was exploited after local administrator credentials were compromised;
+  there is no pack for it yet.
+last_modified: "2026-10-22"

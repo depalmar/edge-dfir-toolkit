@@ -218,7 +218,7 @@ def main() -> int:
             err(f"catalog {pid}: response playbook '{r}' does not exist")
 
     # ---- rule directories
-    for d in sorted(ROOT.glob("0[0-9]-*")):
+    for d in sorted(ROOT.glob("[0-9][0-9]-*")):
         if d.is_dir() and not (d / "README.md").is_file():
             err(f"{d.name}: missing README.md")
 

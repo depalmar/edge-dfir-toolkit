@@ -1,0 +1,33 @@
+id: EDGE-IMP-0011
+name: IOS XE web UI implant (2023)
+platforms: [EDGE-0009]
+actors: []
+cves: [CVE-2023-20198, CVE-2023-20273]
+type: web-shell
+resides: memory
+survives_reboot: "no"
+survives_upgrade: "no"
+summary: >-
+  An implant written through the web UI after CVE-2023-20198 created a
+  privilege-15 account and CVE-2023-20273 gave root command injection. It
+  answered a specific HTTP request with a hexadecimal string. Talos tracked
+  three variants: the original, one that added an Authorization header check
+  around 20 October 2023, and one that also accepted an X-Csrf-Token header
+  from 2 November 2023. Not persistent - a reboot removes it - but the local
+  accounts created by the exploit remain.
+artifacts:
+  - nginx service configuration at /usr/binos/conf/nginx-conf/cisco_service.conf
+  - Response to Cisco's curl check against /webui/logoutconfirm.html?logon_hash=1
+  - Privilege-15 local accounts such as cisco_tac_admin, cisco_support, cisco_sys_manager
+anti_forensics:
+  - Later variants added header checks so earlier scans returned clean
+  - Logs cleared and created accounts removed in some intrusions
+detections: [iosxe-implant-check-positive, iosxe-webui-install-add, iosxe-talos-named-users, iosxe-iosd-rwx-dirty]
+confidence: high
+references:
+  - title: Cisco Talos - active exploitation of Cisco IOS XE software
+    url: https://blog.talosintelligence.com/active-exploitation-of-cisco-ios-xe-software/
+    accessed: "2026-10-22"
+  - title: Cisco advisory cisco-sa-iosxe-webui-privesc-j22SaA4z
+    url: https://sec.cloudapps.cisco.com/security/center/content/CiscoSecurityAdvisory/cisco-sa-iosxe-webui-privesc-j22SaA4z
+    accessed: "2026-10-22"

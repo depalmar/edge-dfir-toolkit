@@ -45,7 +45,7 @@ jobs:
       - name: Convert every rule
         run: |
           failed=0
-          for f in $(find ./0*-* -name '*.yml'); do
+          for f in $(find ./[0-9][0-9]-* -name '*.yml'); do
             echo "=== $f"
             if ! sigma convert -t lucene --without-pipeline "$f" > /dev/null 2>&1; then
               sigma convert -t lucene --without-pipeline "$f" 2>&1 | head -5

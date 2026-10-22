@@ -71,6 +71,19 @@ confirmed; do not hard-code a guess.
 **Omit rather than guess.** A missing step or detection is honest. A guessed
 command or path becomes somebody's failed collection during an incident.
 
+**Placeholders need realistic examples.** The load-time guard renders `{var}`
+with `/placeholder` unless the step declares `var_examples`. Declare one
+whenever a value has a shape a path does not (an IOS XE `bootflash:` file).
+
+**Bash-shell profiles get the strictest guards.** F5 and Check Point run in
+bash, so their allow-lists are fixed command grammars, pipes are refused except
+F5's trailing `| cat`, and mutating tmsh verbs are denied anywhere in the line,
+not just first (`tmsh list apm session delete all` once passed).
+
+**A parser that sees nothing must say so.** Every coded check returns
+not-evaluated when it parsed zero rows. The ASA and IOS XE checks have tests
+that feed them an error message.
+
 **Ids are permanent.** `EDGE-0004` and `EDGE-PACK-0006` never change meaning.
 New entries take the next free id. Pack files are named `<id>-<slug>.yml` and
 the validator enforces it.

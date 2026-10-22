@@ -20,14 +20,18 @@ Ordered by value. Effort figures are judgment, not measurement.
 
 ## Phase 2 - breadth
 
-- Profiles for Check Point (expert mode), F5 BIG-IP (bash + qkview), Juniper
-  Junos (shell + JMRT orchestration), SonicWall (TSR + image mode), IOS XE.
+- Profiles for SonicWall (TSR + image mode) and FortiManager. Check Point, F5,
+  Juniper and IOS XE landed in 0.3.0.
+- Packs still missing: Juniper J-Web (CVE-2023-36844 chain), Junos Evolved PTX
+  (CVE-2026-21902, once primary indicators exist), IOS XE SNMP (CVE-2025-20352).
 - PAN-OS XML API transport, so collection works where SSH is disabled.
 - Dissect-based image ingestion for NetScaler and SonicWall, producing the same
   `files/` view the analyzer already reads.
 - Ivanti October 2026 (UTA0576) pack once indicators are stable: core dumps
-  produced by exploitation, `/tmp/*.py` and `*.json` staging, root mounted
-  read-write, iptables rules dropping syslog.
+  produced by exploitation, `/tmp/*.py` and `*.json` staging, capture files under
+  `/data/.icscap/`, and gaps in debuglog and audit.log. (The read-write root
+  remount and iptables syslog block belong to the 2025 UNC5221 activity, not
+  this one.)
 
 ## Phase 3 - analysis
 

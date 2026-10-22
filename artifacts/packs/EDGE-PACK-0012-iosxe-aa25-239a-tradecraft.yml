@@ -1,0 +1,73 @@
+# Detection pack EDGE-PACK-0012
+
+id: EDGE-PACK-0012
+name: IOS XE tradecraft from the AA25-239A joint advisory
+platforms: [EDGE-0009]
+cves: [CVE-2023-20198, CVE-2023-20273, CVE-2018-0171]
+actors: [AA25-239A APT actors]
+implants: []
+summary: >-
+  Device-side tradecraft from the August 2025 joint advisory on PRC
+  state-sponsored actors targeting network infrastructure: packet captures of
+  TACACS+ traffic left on bootflash, Guest Shell use, and requests to the web UI
+  services endpoint including double-encoded forms. The advisory lists
+  CVE-2023-20198, CVE-2023-20273 and CVE-2018-0171 as exploited; Talos, writing
+  about the same campaign earlier, found evidence only for CVE-2018-0171 and
+  stolen credentials. Both positions are recorded on the actor profile.
+confidence: medium
+references:
+  - title: CISA and partners - AA25-239A (IC3 copy, read because cisa.gov refused automated access)
+    url: https://www.ic3.gov/CSA/2025/250827.pdf
+    accessed: "2026-10-22"
+  - title: CISA - AA25-239A (canonical URL)
+    url: https://www.cisa.gov/news-events/cybersecurity-advisories/aa25-239a
+    accessed: "2026-10-22"
+  - title: Cisco Talos - Salt Typhoon analysis (20 February 2025)
+    url: https://blog.talosintelligence.com/salt-typhoon-analysis/
+    accessed: "2026-10-22"
+
+detect:
+  - id: iosxe-named-pcap-on-flash
+    title: Packet capture file with a name from the advisory
+    type: log_regex
+    tier: likely
+    evidence_class: filesystem
+    sources:
+      steps: [dir_all]
+    pattern: '\s(tac|mycap|1)\.pcap\s*$'
+    attack: [T1040, T1074.001]
+
+  - id: iosxe-any-pcap-on-flash
+    title: Packet capture file on a device filesystem
+    type: log_regex
+    tier: possible
+    evidence_class: filesystem
+    sources:
+      steps: [dir_all]
+    pattern: '\.pcap\s*$'
+    exclude: ['\s(tac|mycap|1)\.pcap\s*$']
+    attack: [T1040]
+    notes: Engineers capture traffic legitimately; every capture file needs an owner and a reason.
+
+  - id: iosxe-system-shell-trace
+    title: Shell-access trace log present
+    type: log_regex
+    tier: possible
+    evidence_class: system-logs
+    sources:
+      steps: [dir_all]
+    pattern: 'system_shell'
+    attack: [T1059]
+    notes: Cisco's forensic guide treats system_shell trace logs as evidence that the underlying shell was used. TAC sessions also produce them.
+
+  - id: iosxe-wsma-endpoint-request
+    title: Request to the web UI services endpoint, including encoded forms
+    type: log_regex
+    tier: possible
+    evidence_class: web-logs
+    sources:
+      files: ["**/*.log*", "**/*.csv", "**/*.txt"]
+    pattern: '/(w|%77|%2577)eb(u|%75|%2575)i_(w|%77|%2577)sma_https?'
+    flags: [ignorecase]
+    attack: [T1190]
+    notes: The advisory notes that a Proxy-Uri-Source header in the request means the device was patched, not exploited.

@@ -1,0 +1,82 @@
+# Detection pack EDGE-PACK-0011
+
+id: EDGE-PACK-0011
+name: Cisco IOS XE web UI privilege escalation and implant (2023)
+platforms: [EDGE-0009]
+cves: [CVE-2023-20198, CVE-2023-20273]
+actors: []
+implants: [IOS XE web UI implant]
+summary: >-
+  CVE-2023-20198 let an unauthenticated attacker create a privilege-15 account
+  through the web UI; CVE-2023-20273 then injected commands as root to write an
+  implant. Activity began 18 September 2023, and Talos assessed with high
+  confidence that both clusters were the same actor, without naming one. The
+  implant was not persistent - a reboot removes it - but the local accounts it
+  created remain. Not to be confused with CVE-2026-20273 from the August 2026
+  hardening release, which is a different flaw.
+confidence: high
+references:
+  - title: Cisco advisory cisco-sa-iosxe-webui-privesc-j22SaA4z
+    url: https://sec.cloudapps.cisco.com/security/center/content/CiscoSecurityAdvisory/cisco-sa-iosxe-webui-privesc-j22SaA4z
+    accessed: "2026-10-22"
+  - title: Cisco Talos - active exploitation of Cisco IOS XE software
+    url: https://blog.talosintelligence.com/active-exploitation-of-cisco-ios-xe-software/
+    accessed: "2026-10-22"
+  - title: Cisco IOS XE forensic investigation guide (v1.7)
+    url: https://sec.cloudapps.cisco.com/security/center/resources/forensic_guides/iosxe_forensic_guide.html
+    accessed: "2026-10-22"
+
+detect:
+  - id: iosxe-webui-config-programmatic
+    title: Configuration changed by the web UI process
+    type: log_regex
+    tier: possible
+    evidence_class: system-logs
+    sources:
+      steps: [show_logging]
+      files: ["**/*.log*", "**/*syslog*"]
+    pattern: '%SYS-5-CONFIG_P: Configured programmatically by process SEP_webui_wsma_http'
+    attack: [T1190, T1136.001]
+    notes: Cisco's hunting string. Legitimate web UI configuration produces it too; correlate with new local users.
+
+  - id: iosxe-webui-install-add
+    title: File added through a web UI install operation
+    type: log_regex
+    tier: likely
+    evidence_class: persistence
+    sources:
+      steps: [show_logging]
+      files: ["**/*.log*", "**/*syslog*"]
+    pattern: '%WEBUI-6-INSTALL_OPERATION_INFO: User: \S+, Install Operation: ADD'
+    attack: [T1505.003]
+
+  - id: iosxe-talos-named-users
+    title: Local account name used in the 2023 campaign
+    type: log_regex
+    tier: likely
+    evidence_class: config
+    sources:
+      steps: [show_running_config]
+    pattern: '^username (cisco_tac_admin|cisco_support|cisco_sys_manager)\b'
+    attack: [T1136.001]
+    notes: Names reported by Talos. Absence proves little - other names were possible - so review every privilege-15 account against change control.
+
+  - id: iosxe-iosd-rwx-dirty
+    title: Executable and writable IOSd memory with dirty pages
+    type: check
+    check: iosxe_iosd_rwx_dirty
+    tier: likely
+    evidence_class: memory
+    attack: [T1055, T1601.001]
+    notes: Cisco's forensic-guide indicator of tampered running code. Collect before any reload.
+
+  - id: iosxe-implant-check-positive
+    title: Cisco's implant check returned the implant's hexadecimal response
+    type: log_regex
+    tier: confirmed
+    evidence_class: memory
+    sources:
+      files: ["[implant-check]/*"]
+    pattern: '^\s*[0-9a-fA-F]{16,}\s*$'
+    attack: [T1505.003]
+    notes: Evaluated only against the saved response from the manual implant_check step, ingested with --label implant-check.

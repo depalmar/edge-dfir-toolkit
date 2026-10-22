@@ -1,0 +1,79 @@
+# Containment and recovery - EDGE-0009 Cisco IOS XE
+# Schema: ../schema/response.schema.json
+
+platform_id: EDGE-0009
+name: Cisco IOS XE
+confidence: medium
+
+preserve_first:
+  - step: Do not reboot
+    detail: Cisco's forensic guide - "It is extremely important ... that it is not rebooted." The 2023 implant lived in memory; a reboot removes it.
+  - step: Isolate the device from the network before the examination
+    detail: Also from Cisco's forensic guide. Keep a management path you control.
+  - step: Collect, then run Cisco's implant check from a workstation
+    detail: Run the cisco-iosxe profile, then the published curl check, and ingest the response.
+
+contain:
+  - step: Disable the web UI if it is not needed
+    detail: Cisco's mitigation for the 2023 flaws - no ip http server and no ip http secure-server, or restrict with ip http access-class.
+    when: COMPROMISED, LIKELY-COMPROMISED, SUSPICIOUS
+  - step: Plan a simultaneous eviction
+    detail: AA25-239A warns that partial response actions may alert the actors. Prepare all steps, then act together, over communications the actor cannot see.
+    when: COMPROMISED, LIKELY-COMPROMISED
+
+credential_exposure:
+  - what: Local accounts, including any privilege-15 accounts created by the attacker
+    why: CVE-2023-20198 created privilege-15 accounts; those survive a reboot.
+    action: Remove unknown accounts and rotate every local password.
+  - what: TACACS+ and RADIUS secrets, and credentials captured from TACACS+ traffic
+    why: AA25-239A describes packet captures of TACACS+ (TCP/49) staged on bootflash.
+    action: Rotate the shared secrets and the passwords of every administrator authenticated through the device during the window.
+  - what: SNMP communities, routing keys and stored password hashes
+    why: All are in the configuration.
+    action: Rotate. Use type 8 passwords and type 6 key encryption, never type 7 (AA25-239A).
+
+eradicate:
+  - step: Upgrade to a fixed release
+    detail: For the 2023 flaws, 17.9.4a, 17.6.6a, 17.3.8a or 16.12.10a and later. For the August 2026 hardening release, 17.9.10, 17.12.8, 17.15.6, 17.18.4 or 26.1.2.
+    when: COMPROMISED, LIKELY-COMPROMISED, SUSPICIOUS
+  - step: Rebuild the configuration from a central, trusted copy
+    detail: Talos - "Do NOT allow devices to be the trusted source of truth for their configurations."
+  - step: Remove Guest Shell and IOx if not required
+    detail: guestshell disable and no iox (AA25-239A). Disable Smart Install with no vstack.
+
+recover:
+  - step: Return the device to service on the fixed release with the trusted configuration
+  - step: Re-establish authentication and peerings after rotation
+  - step: Confirm remote syslog reaches the collector, and end ACLs with deny any any log
+
+verify:
+  - step: Re-run Cisco's implant check; expect the clean response
+  - step: Compare running image hashes on disk and in memory with Cisco's published values
+  - step: Re-run the profile; expect no unknown privilege-15 users, no packet captures on bootflash, and a clean iosd memory map
+  - step: Hunt into the network for the dwell period
+
+do_not:
+  - action: Reboot before collecting
+    because: It removes the memory-resident implant but leaves the attacker's accounts, so the evidence goes and the access stays.
+  - action: Take a core dump casually
+    because: Cisco warns the core-dump command may reboot the platform.
+  - action: Act piecemeal against a state-sponsored actor
+    because: AA25-239A warns partial response actions may alert the actors.
+  - action: Confuse CVE-2026-20273 with CVE-2023-20273
+    because: They are different flaws; the 2026 one is not known to be exploited.
+
+vendor_guidance:
+  - title: Cisco IOS XE forensic investigation guide (v1.7)
+    url: https://sec.cloudapps.cisco.com/security/center/resources/forensic_guides/iosxe_forensic_guide.html
+    accessed: "2026-10-22"
+  - title: Cisco advisory cisco-sa-iosxe-webui-privesc-j22SaA4z
+    url: https://sec.cloudapps.cisco.com/security/center/content/CiscoSecurityAdvisory/cisco-sa-iosxe-webui-privesc-j22SaA4z
+    accessed: "2026-10-22"
+
+references:
+  - title: CISA and partners - AA25-239A
+    url: https://www.cisa.gov/news-events/cybersecurity-advisories/aa25-239a
+    accessed: "2026-10-22"
+  - title: Cisco Talos - Salt Typhoon analysis
+    url: https://blog.talosintelligence.com/salt-typhoon-analysis/
+    accessed: "2026-10-22"

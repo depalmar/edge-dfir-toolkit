@@ -80,6 +80,7 @@ class Step:
     paths: list[str] = field(default_factory=list)  # fetch: literal remote paths
     instructions: str | None = None      # manual steps
     requires_vars: list[str] = field(default_factory=list)
+    var_examples: dict[str, str] = field(default_factory=dict)  # realistic values for the load-time guard
     timeout: int = 120
     confidence: str = "medium"           # how sure we are the command exists as written
     unverified: bool = False
@@ -153,7 +154,9 @@ def _step(raw: dict[str, Any], pname: str) -> Step:
         id=raw["id"], tier=raw["tier"], kind=raw["kind"], purpose=raw["purpose"].strip(),
         impact=impact, cmd=raw.get("cmd"), list_cmd=raw.get("list_cmd"),
         paths=list(raw.get("paths", [])), instructions=raw.get("instructions"),
-        requires_vars=list(raw.get("requires_vars", [])), timeout=int(raw.get("timeout", 120)),
+        requires_vars=list(raw.get("requires_vars", [])),
+        var_examples={str(k): str(v) for k, v in (raw.get("var_examples") or {}).items()},
+        timeout=int(raw.get("timeout", 120)),
         confidence=raw.get("confidence", "medium"), unverified=bool(raw.get("unverified", False)),
         references=list(raw.get("references", [])),
     )
@@ -197,7 +200,7 @@ def load_profile(path: Path) -> Profile:
     for s in steps:
         if s.impact != "none":
             continue
-        probe = s.render({v: "/placeholder" for v in s.requires_vars})
+        probe = s.render({v: s.var_examples.get(v, "/placeholder") for v in s.requires_vars})
         for c in (probe.cmd, probe.list_cmd):
             if c:
                 prof.check_command(c)

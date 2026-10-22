@@ -1,0 +1,26 @@
+title: Check Point Management CPM Login With an Oversized Username (CVE-2026-93616)
+id: 1844e206-8905-4532-8490-4e05d39fb3ca
+status: experimental
+description: |
+  Check Point's first CVE-2026-93616 indicator is a CPM login whose username is
+  longer than 1000 characters, recorded in cpm.elg on the Security Management
+  Server or Multi-Domain Server. This rule matches the login record; the
+  length test needs the regex in EDGE-PACK-0013 or the grep in sk1000171.
+references:
+  - https://support.checkpoint.com/results/sk/sk1000171
+author: Raymond DePalma (edge-dfir-toolkit)
+date: 2026-10-22
+tags:
+  - attack.initial_access
+  - attack.t1190
+  - cve.2026-93616
+logsource:
+  product: checkpoint
+  service: cpm
+detection:
+  keywords:
+    - 'login(loginRequest=LoginRequest{authenticationInfo=AuthenticationInfoBase{username='
+  condition: keywords
+falsepositives:
+  - Every CPM login produces this record; the rule is a pre-filter for the length test, not an alert on its own.
+level: informational
