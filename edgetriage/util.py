@@ -7,7 +7,22 @@ import re
 from pathlib import Path
 
 PKG_DIR = Path(__file__).resolve().parent
-REPO_ROOT = PKG_DIR.parent
+
+
+def _find_root() -> Path:
+    """Locate the content tree (profiles, packs, rules).
+
+    Content lives beside the package in the repository, not inside the wheel,
+    so a non-editable install needs EDGETRIAGE_ROOT or a run from the checkout.
+    """
+    import os
+    for cand in (os.environ.get("EDGETRIAGE_ROOT"), PKG_DIR.parent, Path.cwd()):
+        if cand and (Path(cand) / "collectors" / "profiles").is_dir():
+            return Path(cand).resolve()
+    return PKG_DIR.parent
+
+
+REPO_ROOT = _find_root()
 
 
 def utcnow() -> str:

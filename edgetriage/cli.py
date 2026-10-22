@@ -215,7 +215,11 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     a = build_parser().parse_args(argv)
-    return a.fn(a)
+    try:
+        return a.fn(a)
+    except ProfileError as e:
+        print(f"[!] {e}", file=sys.stderr)
+        return 2
 
 
 if __name__ == "__main__":

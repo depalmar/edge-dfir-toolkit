@@ -175,6 +175,9 @@ def load_profile(path: Path) -> Profile:
 
 
 def available_profiles() -> dict[str, Path]:
+    if not PROFILE_DIR.is_dir():
+        raise ProfileError(f"no profiles at {PROFILE_DIR}: run from the repository checkout, "
+                           "use pip install -e ., or set EDGETRIAGE_ROOT")
     return {p.stem: p for p in sorted(PROFILE_DIR.glob("*.yaml"))}
 
 
