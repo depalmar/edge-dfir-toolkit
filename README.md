@@ -25,12 +25,13 @@ So this toolkit does three things a generic collector does not:
    report lists its evidence gaps.
 
 **Browse it at [depalmar.github.io/edge-dfir-toolkit](https://depalmar.github.io/edge-dfir-toolkit/)** -
-the platform catalog with per-artifact detail, every collection plan in order
-of volatility with a command builder, the detection packs, threat intelligence
-and attribution, containment and recovery playbooks, the rules, a coverage
-matrix and the [investigation guide](docs/edge-dfir-investigation-guide.md),
-rebuilt from this repository on every push so the page cannot drift from the
-content.
+filterable libraries of every artifact, platform, detection, rule and threat
+actor or implant (facet filters with live counts, a detail panel per record,
+shareable filtered links, CSV/JSON export of what you pick), every collection
+plan in order of volatility with a command builder, containment and recovery
+playbooks, clickable coverage matrices and the
+[investigation guide](docs/edge-dfir-investigation-guide.md). It is rebuilt from
+this repository on every push, so the page cannot drift from the content.
 
 License: Apache 2.0.
 

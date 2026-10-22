@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.4.0 - 2026-10-22
+
+### Site
+- Rebuilt around five filterable libraries - artifacts (new, 78 rows across
+  every platform), platforms, detections (68, no longer grouped under packs),
+  rules and threat intel - each with a facet rail and live counts, search with
+  "N of M shown", a detail drawer with a deep link per record and keyboard
+  stepping, and CSV/JSON export of the picked or shown records.
+- Filter state is in the URL, so a filtered view can be shared. Old
+  `#packs/<id>` links land on the detections library filtered to that pack.
+- Coverage matrices are clickable, and a new artifacts-by-platform-and-class
+  matrix shows where collection is thin.
+- Threat intel opens with clickable summary tiles (coverage gaps, implants that
+  survive a reboot); response playbooks are one platform at a time with the
+  do-not list first.
+- Phone layout: filters fold into one button, rows become cards, the drawer goes
+  full screen.
+- `tests/test_site.py` drives the page in Chromium (skipped without Playwright).
+
+### Project
+- Verification no longer assumes a hardware lab: vendor virtual editions,
+  contributed sanitized replay captures and vendor-documented output samples
+  (ROADMAP, CONTRIBUTING).
+
 ## 0.3.0 - 2026-10-22
 
 ### Platforms

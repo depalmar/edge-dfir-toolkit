@@ -130,8 +130,9 @@ correction in `docs/VERIFICATION.md`.
 
 - `SSHTransport` has only been exercised against a scripted fake channel
   (`test_ssh_transport_handles_pager_echo_and_ansi`). Prompt and pager regexes
-  in each profile are untested against real devices. First real-device run per
-  platform should be in a lab, and any correction recorded in `docs/VERIFICATION.md`.
+  in each profile are untested against real devices. The maintainer has no
+  hardware lab: verify on vendor virtual editions or from contributed, sanitized
+  replay captures, and record any correction in `docs/VERIFICATION.md`.
 - Several profile commands are `medium` or `low` confidence for the same reason.
   `edge-triage plan` prints `[unverified]` beside the low ones.
 - The ASA region parser was once written against an invented format and
@@ -151,9 +152,16 @@ correction in `docs/VERIFICATION.md`.
 
 ## Site generation
 
-`artifacts/scripts/build_site.py` emits one self-contained vanilla-JS HTML file:
-no framework, no CDN, no build step, never hand-edited, never committed. The
-Pages workflow builds it at deploy time. Every embedded data blob goes through
+`artifacts/scripts/build_site.py` emits one self-contained vanilla-JS HTML file.
+Artifacts, platforms, detections, rules and intel are client-side libraries
+built from one JSON block (facet rail, search, drawer, export); filter state is
+in the URL (`#artifacts?platform=EDGE-0003&volatility=live`). `FACET_KEYS` in the
+generator must match the facets the JS defines - the page logs an error if they
+differ, and `--check` validates every static `#lib?key=` link against it. Rule
+directories map to platforms through `RULE_DIR_PLATFORM`; a new directory
+without an entry fails `--check`. `tests/test_site.py` drives the page in
+Chromium and skips when Playwright is not installed. No framework, no CDN, no
+build step; never hand-edited, never committed. The Pages workflow builds it at deploy time. Every embedded data blob goes through
 `js_data()`, which escapes `</` so a rule body cannot close the script element.
 Page changes go in the generator. `--check` fails on duplicate or non-URL-safe
 element ids, dangling `#tab/anchor` links and any external script or stylesheet.

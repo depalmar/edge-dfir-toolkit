@@ -4,10 +4,22 @@ Ordered by value. Effort figures are judgment, not measurement.
 
 ## Phase 1 - make the MVP true on real devices (now)
 
-1. **Lab-verify every profile.** PA-VM, FortiGate-VM, NetScaler VPX and ASAv
-   first. For each: prompt and pager regexes, every command's existence and
-   output shape, SFTP availability on NetScaler. Raise `confidence` only for
-   what ran. Record each correction in `docs/VERIFICATION.md`.
+1. **Verify every profile without a hardware lab.** There is no physical
+   device access, so verification has three sources, in this order:
+   - *Vendor virtual editions* under evaluation or trial licences - VM-Series,
+     FortiGate-VM, NetScaler VPX, ASAv, Catalyst 8000V (or Cisco Modeling
+     Labs), vSRX, BIG-IP VE, CloudGuard. Check each vendor's current terms;
+     they change. These confirm prompts, pagers, command syntax and output
+     shape, which is most of what is unverified today.
+   - *Sanitized replay captures* contributed by responders (see
+     CONTRIBUTING.md). A capture from a real appliance becomes a fixture and can
+     raise a step's confidence.
+   - *Vendor documentation* with a published output sample, which is what most
+     `high` ratings rest on now.
+   What a virtual edition cannot show - hardware-specific paths, appliance-only
+   filesystems, Ivanti and SonicWall SMA behaviour without a VA - stays
+   `medium` or `low` until a capture confirms it. Record each correction in
+   `docs/VERIFICATION.md`.
 2. **TSF parser.** Map the PAN-OS tech support file layout so packs can target
    known paths instead of broad globs, and list which persistence locations the
    TSF does *not* carry.

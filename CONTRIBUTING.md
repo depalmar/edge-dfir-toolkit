@@ -14,11 +14,18 @@ Both must pass. CI runs them plus a Sigma conversion and a YARA compile.
 
 ## Corrections from a real device
 
-The most valuable contribution. If a profile command, prompt regex or pager
+The most valuable contribution, because the maintainer has no hardware lab:
+profiles are checked against vendor virtual editions where they exist, and
+against responders' reports everywhere else. If a profile command, prompt regex or pager
 pattern is wrong on a real device, say which model and release you ran it on,
 fix the profile, raise the step's `confidence` if you verified it, and record
 what changed in `docs/VERIFICATION.md`. Do not include device output that
 identifies your organization.
+
+A sanitized replay capture is the best evidence: the `commands/<slug>.txt` files
+from a real collection, with hostnames, addresses, serials and usernames replaced
+by documentation values (192.0.2.0/24, `example-fw`). It becomes a fixture, and
+the step's confidence can be raised on the strength of it.
 
 ## Profiles
 
