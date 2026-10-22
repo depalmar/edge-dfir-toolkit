@@ -66,6 +66,7 @@ FACET_KEYS = {
     "detections": ["platform", "pack", "tier", "evidence", "type", "attack", "cve", "actor"],
     "rules": ["format", "level", "platform", "cve", "attack"],
     "intel": ["kind", "platform", "motivation", "type", "resides", "reboot", "coverage", "reporter"],
+    "hardening": ["platform", "category", "priority", "confidence"],
 }
 LIBS = list(FACET_KEYS)
 e = html.escape
@@ -119,8 +120,9 @@ def load() -> dict:
     actors = sorted((yaml.safe_load(f.read_text()) for f in (intel / "actors").glob("*.yml")), key=lambda a: a["id"])
     implants = sorted((yaml.safe_load(f.read_text()) for f in (intel / "implants").glob("*.yml")), key=lambda i: i["id"])
     response = {f.stem: yaml.safe_load(f.read_text()) for f in sorted((ROOT / "artifacts" / "response").glob("*.yml"))}
+    hardening = {f.stem: yaml.safe_load(f.read_text()) for f in sorted((ROOT / "artifacts" / "hardening").glob("*.yml"))}
     return {"catalog": catalog, "profiles": profiles, "packs": packs, "rules": rules, "guide": guide,
-            "actors": actors, "implants": implants, "response": response}
+            "actors": actors, "implants": implants, "response": response, "hardening": hardening}
 
 
 # --------------------------------------------------------------------------- data for the libraries
@@ -221,6 +223,7 @@ def build_data(d: dict) -> dict:
             "packs": packs_by_plat.get(c["id"], []),
             "n_art": len(c.get("artifacts", [])), "n_steps": len(prof[c["profile"]].steps) if c.get("profile") else 0,
             "n_det": sum(1 for x in dets if c["id"] in x["platforms"]),
+            "n_hard": sum(len(h["controls"]) for h in d["hardening"].values() if h["platform_id"] == c["id"]),
         })
 
     packs = [{"id": p["id"], "name": p["name"], "summary": p["summary"].strip(), "platforms": p["platforms"],
@@ -267,8 +270,30 @@ def build_data(d: dict) -> dict:
             "references": refs_of(i.get("references")),
         })
 
+    # Hardening: baseline (platform ALL) first, then per platform. A CVE or actor
+    # the source names becomes a link when the toolkit has something on it.
+    def blunt_links(names) -> list[dict]:
+        out = []
+        for n in names or []:
+            if re.fullmatch(r"CVE-\d{4}-\d+", n):
+                out.append({"label": n, "href": f"#detections?cve={n}"} if n in det_cves else {"label": n})
+            else:
+                out.append(intel_links([n])[0])
+        return out
+    hard = []
+    for stem, h in sorted(d["hardening"].items(), key=lambda kv: (kv[1]["platform_id"] != "ALL", kv[1]["platform_id"])):
+        for c in h["controls"]:
+            hard.append({
+                "id": c["id"], "platform": h["platform_id"], "control": c["control"], "category": c["category"],
+                "priority": c["priority"], "why": c["why"].strip(), "how": c["how"].strip(),
+                "blunts": c.get("blunts", []), "blunt_links": blunt_links(c.get("blunts")),
+                "confidence": c["confidence"], "unv": bool(c.get("unverified")),
+                "sources": [{"title": x["title"], "url": x["url"], "quote": (x.get("quote") or "").strip()} for x in c["sources"]],
+                "stem": stem,
+            })
+
     return {"platforms": platforms, "artifacts": artifacts, "detections": dets, "packs": packs, "rules": rules,
-            "intel": intel, "facetKeys": FACET_KEYS, "repo": REPO_URL,
+            "intel": intel, "hardening": hard, "facetKeys": FACET_KEYS, "repo": REPO_URL,
             "profiles": [{"name": p.name, "ssh": "ssh" in p.transports,
                           "vars": sorted({v for s in p.steps for v in s.requires_vars})} for p in d["profiles"]]}
 
@@ -437,6 +462,10 @@ LIB_COPY = {
                    "it becomes an evidence gap in the report.", "Search detections, patterns, CVEs, ATT&CK..."),
     "rules": ("Rules", "Vendor-neutral Sigma and YARA. Convert Sigma for your SIEM with sigma convert -t <backend>; "
               "no vendor query dialect is shipped.", "Search rules, files, tags..."),
+    "hardening": ("Hardening", "Controls that would have prevented or blunted the exploitation waves these platforms "
+                  "have seen - first among them, keeping management interfaces off the internet. The baseline applies to "
+                  "every platform; each control cites the vendor or government source it comes from.",
+                  "Search controls, CVEs, settings..."),
     "intel": ("Threat intel", "Attribution is reported, never computed. Each actor carries our link confidence (how well "
               "sourced the link is) beside the reporting party's own words. Clusters are merged only where the reporters "
               "themselves equate them.", "Search actors, implants, aliases, reporters..."),
@@ -514,6 +543,11 @@ def render_plans(d: dict) -> str:
 <div class="planwrap"><div class="plans">{"".join(sections)}</div>{builder}</div>'''
 
 
+def hard_link(pid: str, d: dict) -> str:
+    n = sum(len(h["controls"]) for h in d["hardening"].values() if h["platform_id"] == pid)
+    return f'<a class="chip link" href="#hardening?platform={pid}">hardening ({n})</a>' if n else ""
+
+
 def render_response(d: dict) -> str:
     """Containment and recovery, ordered: preserve, contain, rotate, eradicate,
     recover, verify. Guidance a human acts on, not automation."""
@@ -536,7 +570,7 @@ def render_response(d: dict) -> str:
         secs.append(f'''
 <article class="card resp" id="response-{e(stem)}" data-resp="{e(stem)}"{'' if n == 0 else ' hidden'}>
   <header class="card-h"><div><span class="id">{e(r['platform_id'])}</span><h3>{e(r['name'])}</h3></div>
-    <div class="badges"><a class="chip link" href="#platforms/{e(r['platform_id'])}">platform entry</a>{conf_badge(r.get('confidence', 'medium'), False)}</div></header>
+    <div class="badges"><a class="chip link" href="#platforms/{e(r['platform_id'])}">platform entry</a>{hard_link(r['platform_id'], d)}{conf_badge(r.get('confidence', 'medium'), False)}</div></header>
   <div class="dont top"><h4>Do not</h4><ul class="plain">{dont}</ul></div>
   <div class="phases">
     <div class="phase"><h4><span class="pn">1</span>Preserve first</h4><ol>{steps("preserve_first")}</ol></div>
@@ -593,6 +627,7 @@ FLOW = [
     ("Ingest", "Vendor bundles, SIEM copies, image triage - hashed into the same case.", "#guide/bringing-in-exports"),
     ("Analyze", "Each detection: hit, no hit or not evaluated. Gaps are reported, never passed.", "#detections"),
     ("Respond", "Preserve, contain, rotate, eradicate, recover, verify - in that order.", "#response"),
+    ("Harden", "Prevent the next one: management off the internet, MFA, logs off-box, patch or replace.", "#hardening"),
 ]
 
 
@@ -619,6 +654,8 @@ def render_start(d: dict, data: dict) -> str:
             links.append(f'<a href="#plans/{e(p["profile"])}">Collect</a>')
         if p["response"]:
             links.append(f'<a href="#response/{e(p["response"])}">Respond</a>')
+        if p["n_hard"]:
+            links.append(f'<a href="#hardening?platform={p["id"]}">Harden</a>')
         arts = [a for a in data["artifacts"] if a["platform"] == p["id"]]
         tiles.append(
             f'<div class="ptile"><a class="ptile-h" href="#platforms/{p["id"]}"><span class="id">{p["id"]}</span>'
@@ -691,6 +728,7 @@ def render_start(d: dict, data: dict) -> str:
         f'<a class="tile" href="#artifacts"><b>{n["artifacts"]}</b><span>artifacts - what each trace proves and how long it lasts</span></a>',
         f'<a class="tile" href="#detections"><b>{n["detections"]}</b><span>detections in {len(d["packs"])} packs, each able to say &quot;not evaluated&quot;</span></a>',
         f'<a class="tile" href="#intel"><b>{n["intel"]}</b><span>actors and implants, attribution quoted from the reporter</span></a>',
+        f'<a class="tile" href="#hardening"><b>{len(data["hardening"])}</b><span>hardening controls, each with its vendor or government source</span></a>',
         f'<a class="tile" href="#rules"><b>{n["rules"]}</b><span>Sigma and YARA rule files; no vendor query dialect</span></a>',
         f'<a class="tile" href="#coverage"><b>{n_prof}/{len(data["platforms"])}</b><span>platforms with a collection profile - coverage lists the gaps</span></a>',
         "</div></div>",
@@ -714,6 +752,11 @@ def render_coverage(d: dict, data: dict) -> str:
         gaps.append(("No collection profile",
                      ", ".join(f'<a href="#platforms/{p["id"]}">{e(p["short"])}</a>' for p in nop),
                      "Collection is manual: exports and images only."))
+    noh = [p for p in plats if not p["n_hard"]]
+    if noh and data["hardening"]:
+        gaps.append(("No platform-specific hardening",
+                     ", ".join(f'<a href="#platforms/{p["id"]}">{e(p["short"])}</a>' for p in noh),
+                     "The cross-platform baseline still applies."))
     gimp = [i for i in data["intel"] if i["kind"] == "implant" and i["coverage"] == "gap"]
     if gimp:
         gaps.append((f"{len(gimp)} implants with no detection",
@@ -1241,7 +1284,7 @@ details.fold{margin:8px 0 20px}details.fold summary{font-size:var(--fs-sm);color
 .vb-live{background:var(--crit)}.vb-rotating{background:var(--high)}.vb-stable{background:var(--med)}.vb-off-box{background:var(--conf-strong)}
 .vbl{font-size:var(--fs-xs);color:var(--muted);font-variant-numeric:tabular-nums}
 .callout ol.cols2{columns:2 340px;column-gap:32px}.callout ol.cols2 li{break-inside:avoid}
-.flowd{list-style:none;padding:0;margin:0;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:14px;counter-reset:f}
+.flowd{list-style:none;padding:0;margin:0;display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:14px;counter-reset:f}
 .flowd li{position:relative}
 .flowd li:not(:last-child)::after{content:"";position:absolute;top:50%;right:-12px;width:10px;height:10px;border-top:2px solid var(--accent-border);border-right:2px solid var(--accent-border);transform:translateY(-50%) rotate(45deg)}
 .flowd a{display:flex;flex-direction:column;gap:4px;height:100%;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px;text-decoration:none;color:var(--ink)}
@@ -1249,6 +1292,8 @@ details.fold{margin:8px 0 20px}details.fold summary{font-size:var(--fs-sm);color
 .flowd .fn{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--accent);color:var(--on-accent);font-size:var(--fs-xs);font-weight:600}
 .flowd b{font-size:var(--fs-md)}.flowd span:last-child{font-size:var(--fs-sm);color:var(--ink-2);line-height:1.45}
 .flowd li:first-child a{border-color:var(--crit);background:var(--alert-bg)}
+.flowd li:last-child a{border-color:var(--low);background:color-mix(in srgb,var(--low) 8%,var(--panel))}
+.flowd li:last-child .fn{background:var(--low)}
 .verdline{margin:12px 0 4px;line-height:2}
 .oov{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
 .oovarrow{display:flex;justify-content:space-between;font-size:var(--fs-xs);color:var(--muted);margin-bottom:8px;position:relative;padding:0 2px}
@@ -1269,6 +1314,13 @@ details.fold{margin:8px 0 20px}details.fold summary{font-size:var(--fs-sm);color
 @media (max-width:1100px){.flowd{grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}.flowd li::after{display:none}.oovgs{flex-wrap:wrap}.oovg{flex:1 1 260px!important}}
 @media (max-width:640px){.flowd{grid-template-columns:1fr;gap:8px}.flowd a{flex-direction:row;flex-wrap:wrap;align-items:center;column-gap:10px}.flowd span:last-child{flex:1 1 100%}
   .oovarrow{display:none}.vbwrap{padding:0 11px 8px}.vbl{display:none}}
+
+/* ---- hardening ---- */
+.pr{font-weight:600}.pr-critical{color:var(--on-accent);background:var(--crit);border-color:var(--crit)}
+.pr-high{color:var(--high);border-color:currentColor}.pr-medium{color:var(--med);border-color:currentColor}
+.lc.base{box-shadow:inset 3px 0 0 var(--low),0 1px 2px var(--shadow)}
+.srcs{padding-left:18px}.srcs li{margin:6px 0}
+.srcs blockquote{margin:6px 0 0;padding:6px 10px;border-left:3px solid var(--line);color:var(--ink-2);font-size:var(--fs-sm);font-style:italic;background:var(--panel-2);border-radius:0 6px 6px 0}
 """
 
 JS = r"""
@@ -1322,6 +1374,7 @@ function F(k, label, get, name, order){ return {k:k, label:label, get:get, name:
 var ORD = {vol:['live','rotating','stable','off-box'], hml:['high','medium','low'], tier:['confirmed','likely','possible'],
            level:['critical','high','medium','low','informational','-'], yn:['yes','partial','no','unknown']};
 var KIND = {step:'Collection step', ingest:'Off-box export (ingest)', manual:'Manual'};
+var HCAT = {exposure:'Internet exposure', access:'Management access', identity:'Accounts and MFA', services:'Unused services', logging:'Logging off-box', patching:'Patching and end of life', integrity:'Integrity and boot', recovery:'Backups and recovery'};
 
 var LIB = {
 artifacts: {
@@ -1397,7 +1450,8 @@ platforms: {
     h += '<div class="links">' + lnk('#artifacts?platform=' + p.id, p.n_art + ' artifacts') +
       (p.profile ? lnk('#plans/' + p.profile, 'Collection plan: ' + p.profile + ' (' + p.n_steps + ' steps)') : '<span class="chip ghost">no profile yet</span>') +
       (p.n_det ? lnk('#detections?platform=' + p.id, p.n_det + ' detections') : '') +
-      (p.response ? lnk('#response/' + p.response, 'Containment and recovery') : '') + '</div>';
+      (p.response ? lnk('#response/' + p.response, 'Containment and recovery') : '') +
+      (p.n_hard ? lnk('#hardening?platform=' + p.id, p.n_hard + ' hardening controls') : '') + '</div>';
     if (p.products.length) h += sec('Products', '<div class="links">' + chips(p.products) + '</div>');
     if (p.filesystem) h += sec('Filesystem', para(p.filesystem));
     h += sec('Collection paths', '<ul class="plain">' + p.collection.map(function(x){ return '<li><div class="row2">' + b(x.impact, IMP[x.impact]) + '<b>' + esc(x.method) + '</b>' + conf(x.confidence, x.unverified) + '</div><div class="muted small">' + rich(x.description) + '</div></li>'; }).join('') + '</ul>');
@@ -1547,6 +1601,52 @@ intel: {
     return '<div class="tiles">' + tile(actors, 'actors and named clusters', 'kind', 'actor') + tile(imps.length, 'implants and tool families', 'kind', 'implant') +
       tile(gaps, 'implants with no detection - each says why', 'coverage', 'gap', true) + tile(boot, 'implants that survive a reboot', 'reboot', 'yes', true) +
       tile(Object.keys(rep).length, 'reporting parties, quoted verbatim') + tile(Object.keys(dets).length, 'detections tied to a named implant') + '</div>';
+  }
+},
+
+hardening: {
+  noun:'controls', items:D.hardening, view:'cards',
+  facets:[
+    F('platform', 'Applies to', function(c){ return [c.platform]; }, function(v){ return v === 'ALL' ? 'Every platform (baseline)' : (PN[v] || v); }),
+    F('category', 'Category', function(c){ return [c.category]; }, function(v){ return HCAT[v] || v; }),
+    F('priority', 'Priority', function(c){ return [c.priority]; }, null, ['critical','high','medium']),
+    F('confidence', 'Confidence', function(c){ return [c.confidence]; }, null, ORD.hml)
+  ],
+  text:function(c){ return [c.id, c.control, c.why, c.how, c.category, c.platform === 'ALL' ? 'baseline every platform' : PN[c.platform], c.blunts.join(' '),
+    c.sources.map(function(x){ return x.title; }).join(' ')].join(' '); },
+  card:function(c){
+    return hd(c.platform === 'ALL' ? 'Every platform' : PN[c.platform], c.control, '', b(c.priority, 'pr pr-' + c.priority)) +
+      '<p class="clamp">' + rich(c.why) + '</p>' +
+      '<div class="lc-f"><span class="chip">' + esc(HCAT[c.category] || c.category) + '</span>' + chips(c.blunts.slice(0, 3), 'cve') +
+      (c.blunts.length > 3 ? '<span class="chip ghost">+' + (c.blunts.length - 3) + '</span>' : '') + '</div>';
+  },
+  cls:function(c){ return c.platform === 'ALL' ? ' base' : ''; },
+  title:function(c){ return c.control; },
+  label:function(c){ return (c.platform === 'ALL' ? 'Baseline' : PN[c.platform]) + ' · ' + c.id; },
+  drawer:function(c){
+    var h = '<div class="links" style="margin-top:14px">' + b(c.priority, 'pr pr-' + c.priority) + '<span class="chip">' + esc(HCAT[c.category] || c.category) + '</span>' + conf(c.confidence, c.unv) + '</div>';
+    h += sec('Why', para(c.why));
+    h += sec('How', '<div class="stepbox">' + c.how.split(/\n{2,}/).map(function(x){ return '<p>' + rich(x) + '</p>'; }).join('') + '</div>');
+    if (c.blunts.length) h += sec('Would have blunted', '<div class="links">' + lnks(c.blunt_links, 'cve') + '</div>');
+    h += sec('Sources', '<ul class="srcs">' + c.sources.map(function(x){ return '<li><a href="' + esc(x.url) + '" rel="noopener" target="_blank">' + esc(x.title) + '</a>' +
+      (x.quote ? '<blockquote>' + esc(x.quote) + '</blockquote>' : '') + '</li>'; }).join('') + '</ul>');
+    h += '<div class="links">' + (c.platform === 'ALL' ? lnk('#hardening?platform=ALL', 'All baseline controls')
+      : lnk('#platforms/' + c.platform, PN[c.platform]) + lnk('#hardening?platform=' + c.platform, 'All ' + PN[c.platform] + ' controls') + lnk('#hardening?platform=ALL', 'Baseline')) + '</div>';
+    return h;
+  },
+  exp:function(c){ return {id:c.id, applies_to:c.platform === 'ALL' ? 'all platforms' : PN[c.platform], control:c.control, category:c.category,
+    priority:c.priority, why:c.why, how:c.how, blunts:c.blunts, confidence:c.confidence, unverified:c.unv,
+    sources:c.sources.map(function(x){ return x.url; })}; },
+  summary:function(){
+    var all = D.hardening, st = S.hardening.sel;
+    function n(k, v){ return all.filter(function(c){ return c[k] === v; }).length; }
+    function on(k, v){ return st[k] && st[k].length === 1 && st[k][0] === v && Object.keys(st).filter(function(x){ return st[x].length; }).length === 1; }
+    function tile(num, label, k, v, warn){ return '<button type="button" class="tile' + (warn ? ' warn' : '') + (on(k, v) ? ' on' : '') + '" data-only="' + k + '" data-v="' + v + '"><b>' + num + '</b><span>' + esc(label) + '</span></button>'; }
+    var plats = {}; all.forEach(function(c){ if (c.platform !== 'ALL') plats[c.platform] = 1; });
+    return '<div class="tiles">' + tile(n('platform', 'ALL'), 'baseline controls - start here, they apply to every platform', 'platform', 'ALL') +
+      tile(n('category', 'exposure'), 'about what faces the internet - the management interface first', 'category', 'exposure', true) +
+      tile(n('priority', 'critical'), 'critical-priority controls', 'priority', 'critical', true) +
+      '<div class="tile"><b>' + Object.keys(plats).length + '</b><span>platforms with their own controls</span></div></div>';
   }
 }
 };
@@ -1945,7 +2045,8 @@ def page(d: dict) -> tuple[str, dict]:
     # material sit after the divider; Start links every platform's plan directly.
     tabs = [("start", "Start", None), ("artifacts", "Artifacts", len(data["artifacts"])),
             ("platforms", "Platforms", len(data["platforms"])), ("detections", "Detections", n_det),
-            ("intel", "Threat intel", len(data["intel"])), ("response", "Response", len(d["response"])), None,
+            ("intel", "Threat intel", len(data["intel"])), ("response", "Response", len(d["response"])),
+            ("hardening", "Hardening", len(data["hardening"])), None,
             ("plans", "Collection plans", len(d["profiles"])), ("rules", "Rules", len(d["rules"])),
             ("coverage", "Coverage", None), ("guide", "Guide", None)]
     tabbar = "".join('<span class="tabsep" aria-hidden="true"></span>' if t is None else
@@ -2051,7 +2152,7 @@ def check(d: dict, doc: str, data: dict) -> list[str]:
         tab, anchor, query = m.groups()
         if not anchor and not query and f'id="{tab}"' in doc:
             return  # an in-page anchor such as the skip link
-        if tab not in LIBS + ["start", "plans", "response", "coverage", "guide", "packs"]:
+        if tab not in LIBS + ["start", "plans", "response", "coverage", "guide", "packs"]:  # hardening is in LIBS
             problems.append(f"{where}: link to unknown tab #{tab}")
             return
         if anchor:
@@ -2072,7 +2173,7 @@ def check(d: dict, doc: str, data: dict) -> list[str]:
                 if k not in FACET_KEYS[tab] + ["q", "unv"]:
                     problems.append(f"{where}: #{tab} has no facet {k}")
                 vals = v.split(",")
-                if k == "platform" and not set(vals) <= plat:
+                if k == "platform" and not set(vals) <= plat | {"ALL"}:
                     problems.append(f"{where}: unknown platform in {href}")
                 if k == "pack" and not set(vals) <= pack_ids:
                     problems.append(f"{where}: unknown pack in {href}")

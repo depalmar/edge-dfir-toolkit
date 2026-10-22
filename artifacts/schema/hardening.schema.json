@@ -1,0 +1,141 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Prevention and hardening controls",
+  "description": "Controls that prevent or blunt edge-device exploitation. Guidance a person applies, never automation. Every control cites a primary source.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "platform_id",
+    "name",
+    "summary",
+    "controls"
+  ],
+  "properties": {
+    "platform_id": {
+      "type": "string",
+      "pattern": "^(EDGE-[0-9]{4}|ALL)$",
+      "description": "ALL for the cross-platform baseline"
+    },
+    "name": {
+      "type": "string"
+    },
+    "summary": {
+      "type": "string"
+    },
+    "controls": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/control"
+      }
+    },
+    "notes": {
+      "type": "string"
+    },
+    "last_modified": {
+      "type": "string"
+    }
+  },
+  "$defs": {
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "title",
+        "url",
+        "accessed"
+      ],
+      "properties": {
+        "title": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string",
+          "pattern": "^https://"
+        },
+        "accessed": {
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+        },
+        "quote": {
+          "type": "string",
+          "description": "verbatim from the source"
+        }
+      }
+    },
+    "control": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "control",
+        "category",
+        "priority",
+        "why",
+        "how",
+        "confidence",
+        "sources"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]+$"
+        },
+        "control": {
+          "type": "string",
+          "description": "imperative, one line"
+        },
+        "category": {
+          "enum": [
+            "exposure",
+            "access",
+            "identity",
+            "services",
+            "logging",
+            "patching",
+            "integrity",
+            "recovery"
+          ]
+        },
+        "priority": {
+          "enum": [
+            "critical",
+            "high",
+            "medium"
+          ]
+        },
+        "why": {
+          "type": "string"
+        },
+        "how": {
+          "type": "string",
+          "description": "as the vendor documents it; say so when the vendor gives no syntax"
+        },
+        "blunts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "CVEs or campaigns the SOURCE says this blunts"
+        },
+        "confidence": {
+          "enum": [
+            "high",
+            "medium",
+            "low"
+          ]
+        },
+        "unverified": {
+          "type": "boolean"
+        },
+        "sources": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/source"
+          }
+        }
+      }
+    }
+  }
+}

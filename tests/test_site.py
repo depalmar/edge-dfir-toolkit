@@ -64,7 +64,7 @@ def test_site_runs_without_errors(browser, tmp_path):
     shown, total = _counts(page, "artifacts")
     assert shown == total > 0
 
-    for lib in ("artifacts", "platforms", "detections", "rules", "intel"):
+    for lib in ("artifacts", "platforms", "detections", "rules", "intel", "hardening"):
         page.goto(f"{url}#{lib}")
         page.locator(f"#tab-{lib}").wait_for(state="visible")
         items = page.locator(f"#tab-{lib} .item")
@@ -101,7 +101,7 @@ def test_filters_live_in_the_url(browser, tmp_path):
 def test_phone_width_has_no_horizontal_scroll(browser, tmp_path):
     url = _build(tmp_path)
     page = browser.new_page(viewport={"width": 390, "height": 844})
-    for tab in ("start", "artifacts", "detections", "intel", "plans", "response", "coverage", "guide"):
+    for tab in ("start", "artifacts", "detections", "intel", "hardening", "plans", "response", "coverage", "guide"):
         page.goto(f"{url}#{tab}")
         page.locator(f"#tab-{tab}").wait_for(state="visible")
         assert not page.evaluate("document.documentElement.scrollWidth > window.innerWidth"), tab

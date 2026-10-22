@@ -255,6 +255,10 @@
     "response": {
       "type": "string",
       "description": "response playbook file stem under artifacts/response/"
+    },
+    "hardening": {
+      "type": "string",
+      "description": "stem of artifacts/hardening/<stem>.yml"
     }
   },
   "$defs": {

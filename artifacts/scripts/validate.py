@@ -217,6 +217,35 @@ def main() -> int:
         if r and r not in response_stems:
             err(f"catalog {pid}: response playbook '{r}' does not exist")
 
+    # ---- hardening: every control cites a primary source; low confidence is flagged
+    hv = schema("hardening.schema.json")
+    hardening_stems: set[str] = set()
+    control_ids: set[str] = set()
+    n_controls = 0
+    for p in sorted((ROOT / "artifacts" / "hardening").glob("*.yml")):
+        doc = yaml.safe_load(p.read_text())
+        validate_doc(hv, doc, f"hardening/{p.name}")
+        hardening_stems.add(p.stem)
+        pid = doc.get("platform_id")
+        if pid != "ALL" and pid not in platforms:
+            err(f"hardening/{p.name}: platform {pid} not in catalog")
+        if (pid == "ALL") != (p.stem == "baseline"):
+            err(f"hardening/{p.name}: only baseline.yml may use platform_id ALL, and it must")
+        for c in doc.get("controls", []):
+            n_controls += 1
+            if c.get("id") in control_ids:
+                err(f"hardening/{p.name}: duplicate control id {c.get('id')}")
+            control_ids.add(c.get("id"))
+            if c.get("confidence") == "low" and not c.get("unverified"):
+                err(f"hardening/{p.name}: {c.get('id')} is low confidence without unverified: true")
+            for x in c.get("blunts", []):
+                if x.startswith("CVE") and not re.fullmatch(r"CVE-[0-9]{4}-[0-9]{4,}", x):
+                    err(f"hardening/{p.name}: {c.get('id')} has a malformed CVE {x}")
+    for pid, doc in platforms.items():
+        h = doc.get("hardening")
+        if h and h not in hardening_stems:
+            err(f"catalog {pid}: hardening '{h}' does not exist")
+
     # ---- rule directories
     for d in sorted(ROOT.glob("[0-9][0-9]-*")):
         if d.is_dir() and not (d / "README.md").is_file():
@@ -230,7 +259,7 @@ def main() -> int:
     n_det = len(det_ids)
     print(f"OK  {len(platforms)} platforms, {len(profiles)} profiles, {len(pack_ids)} packs, "
           f"{n_det} detections, {len(actor_ids)} actors, {len(implant_ids)} implants, "
-          f"{len(response_stems)} response playbooks")
+          f"{len(response_stems)} response playbooks, {n_controls} hardening controls")
     return 0
 
 
