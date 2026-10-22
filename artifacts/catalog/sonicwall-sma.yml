@@ -23,6 +23,7 @@ anti_forensics:
   - technique: Removed its own log lines
     seen_in: OVERSTEP (UNC6148, 2025)
 response: sonicwall-sma
+hardening: sonicwall-sma
 artifacts:
   - locator: /etc/ld.so.preload (offline image)
     class: persistence

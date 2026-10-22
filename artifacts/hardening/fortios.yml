@@ -1,0 +1,153 @@
+# Prevention and hardening - EDGE-0002 FortiOS
+# Schema: ../schema/hardening.schema.json
+
+platform_id: EDGE-0002
+name: FortiOS (FortiGate / FortiProxy)
+summary: >-
+  Fortinet's own 2025-2026 analyses keep returning to the same points:
+  administration reachable from the internet (CVE-2024-55591, the FortiCloud SSO
+  bypasses), credentials without MFA (the June 2026 credential-compromise
+  campaign) and SSL-VPN as the persistent attack surface (the symlink
+  persistence of April 2025).
+
+controls:
+  - id: fortios-no-internet-admin
+    control: Remove internet administration altogether; a local-in policy is second best, trusted hosts third
+    category: exposure
+    priority: critical
+    why: Fortinet's ranking in its June 2026 analysis of compromised FortiGate credentials.
+    how: >-
+      Administer only from inside, or through a separate access proxy. Where that
+      is not yet possible, see the local-in policy and trusted-host controls.
+    confidence: high
+    sources:
+      - title: Fortinet PSIRT blog - analysis of reported credential compromise of FortiGate devices (19 June 2026)
+        url: https://www.fortinet.com/blog/psirt-blogs/analysis-of-reported-credential-compromise-of-fortigate-devices
+        accessed: "2026-10-22"
+        quote: "Restrict external management of your devices via trusted hosts (good), a local-in policy (better), or remove internet administration altogether (best)."
+      - title: Fortinet PSIRT blog - analysis of SSO abuse on FortiOS (22 January 2026)
+        url: https://www.fortinet.com/blog/psirt-blogs/analysis-of-sso-abuse-on-fortios
+        accessed: "2026-10-22"
+        quote: "It is best practice to not allow unrestricted administration of any edge network device via the internet"
+
+  - id: fortios-local-in-policy
+    control: Restrict administrative access with local-in policies - allow the management address group, deny the rest
+    category: exposure
+    priority: critical
+    why: >-
+      The workaround for CVE-2024-55591. The advisory notes that trusted hosts
+      achieve the same only if every GUI user is configured with them.
+    how: >-
+      FG-IR-24-535 gives the full CLI: an address group of management sources, a
+      `config firewall local-in-policy` entry accepting HTTPS/HTTP from that group
+      on the management interface, and a second entry denying the same services
+      from all sources. Copy it from the advisory rather than from here. The same
+      advisory says to disable the Security Fabric (`config system csf` / `set
+      status disable`) where it is not used.
+    blunts: [CVE-2024-55591]
+    confidence: high
+    sources:
+      - title: Fortinet FG-IR-24-535 - CVE-2024-55591
+        url: https://fortiguard.fortinet.com/psirt/FG-IR-24-535
+        accessed: "2026-10-22"
+
+  - id: fortios-no-admin-on-wan
+    control: Remove administrative access from the internet-facing interface
+    category: exposure
+    priority: critical
+    why: Fortinet's hardening guide.
+    how: >-
+      `config system interface`, `edit <external-interface>`, `unset allowaccess`,
+      `end`; on internal management interfaces allow only `https ssh`. From the
+      6.4 hardening guide; confirm on your release.
+    confidence: high
+    sources:
+      - title: Fortinet - hardening your FortiGate, system administrator best practices (6.4)
+        url: https://docs.fortinet.com/document/fortigate/6.4.0/hardening-your-fortigate/582009
+        accessed: "2026-10-22"
+        quote: "When possible, don't allow administration access on the external (Internet-facing) interface."
+
+  - id: fortios-trusted-hosts
+    control: Configure trusted hosts on every administrator account, as a fallback
+    category: access
+    priority: high
+    why: A login from a non-trusted host is dropped even with valid credentials.
+    how: >-
+      Per administrator under `config system admin`. The keyword is rendered
+      differently in the documents read (trusthost / trustedhost), so check it on
+      your release; it protects only if set on every administrator.
+    confidence: high
+    sources:
+      - title: Fortinet - hardening your FortiGate, system administrator best practices (6.4)
+        url: https://docs.fortinet.com/document/fortigate/6.4.0/hardening-your-fortigate/582009
+        accessed: "2026-10-22"
+        quote: "A login, even with proper credentials, from a non-trusted host is dropped."
+
+  - id: fortios-forticloud-sso-off
+    control: Disable FortiCloud SSO administrative login unless you need it
+    category: access
+    priority: critical
+    why: CVE-2025-59718 and CVE-2025-59719 were FortiCloud SSO authentication bypasses abused against FortiGates.
+    how: >-
+      `config system global`, `set admin-forticloud-sso-login disable`, `end`. GUI:
+      System > Settings, "Allow administrative login using FortiCloud SSO" off.
+    blunts: [CVE-2025-59718, CVE-2025-59719]
+    confidence: high
+    sources:
+      - title: Fortinet PSIRT blog - analysis of SSO abuse on FortiOS (22 January 2026)
+        url: https://www.fortinet.com/blog/psirt-blogs/analysis-of-sso-abuse-on-fortios
+        accessed: "2026-10-22"
+
+  - id: fortios-mfa-pbkdf2
+    control: MFA on every administrator and VPN account; upgrade for PBKDF2 administrator password hashing
+    category: identity
+    priority: critical
+    why: >-
+      Fortinet tied the June 2026 credential compromises to reused credentials and
+      to brute force against devices with weak passwords and no MFA.
+    how: >-
+      MFA for all administrators and VPN users. FortiOS 7.4, 7.6 and 8.0 support
+      PBKDF2 for administrator credentials; Fortinet's post references `set
+      login-lockout-upon-weaker-encryption` for retiring legacy hashes without
+      giving full syntax, so take it from Fortinet's documentation.
+    confidence: high
+    sources:
+      - title: Fortinet PSIRT blog - analysis of reported credential compromise of FortiGate devices (19 June 2026)
+        url: https://www.fortinet.com/blog/psirt-blogs/analysis-of-reported-credential-compromise-of-fortigate-devices
+        accessed: "2026-10-22"
+
+  - id: fortios-sslvpn-off
+    control: Disable SSL-VPN where it is not used, and plan the move to IPsec
+    category: services
+    priority: high
+    why: >-
+      The April 2025 symlink persistence affected only devices that had SSL-VPN
+      enabled. From FortiOS 7.6.3 SSL VPN tunnel mode is removed and Fortinet
+      advises migrating to IPsec.
+    how: >-
+      Turn SSL-VPN off where unused. The upgrades that remove the symlink
+      persistence are 7.6.2, 7.4.7, 7.2.11, 7.0.17 and 6.4.16.
+    blunts: [FortiOS symlink persistence]
+    confidence: high
+    sources:
+      - title: Fortinet PSIRT blog - analysis of threat actor activity (10 April 2025)
+        url: https://www.fortinet.com/blog/psirt-blogs/analysis-of-threat-actor-activity
+        accessed: "2026-10-22"
+      - title: ASD's ACSC - mitigation strategies for edge devices, practitioner guidance
+        url: https://www.cyber.gov.au/business-government/protecting-devices-systems/hardening-systems-applications/network-hardening/securing-edge-devices/mitigation-strategies-for-edge-devices-practitioner-guidance
+        accessed: "2026-10-22"
+        quote: "If a VPN feature is not being used, disable the service and block the service from the internet."
+
+  - id: fortios-usb-autoinstall-off
+    control: Disable USB auto-install of configuration and firmware
+    category: integrity
+    priority: medium
+    why: Fortinet's hardening best practices.
+    how: "`config system auto-install`, `set auto-install-config disable`, `set auto-install-image disable`."
+    confidence: high
+    sources:
+      - title: Fortinet - FortiOS 7.0 best practices, hardening
+        url: https://docs.fortinet.com/document/fortigate/7.0.0/best-practices/555436
+        accessed: "2026-10-22"
+
+last_modified: "2026-10-22"

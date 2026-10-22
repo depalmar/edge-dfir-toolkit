@@ -1,0 +1,108 @@
+# Prevention and hardening - EDGE-0006 SonicWall SMA 100 series
+# Schema: ../schema/hardening.schema.json
+#
+# SonicWall's English SMA 100 advisory URL now returns "Article Not Found"; the
+# vendor controls below were read from SonicWall's Japanese-locale copy of the
+# same notice (published 2025-08-01), so they carry medium confidence until an
+# English primary is found. GTIG's controls are read in English.
+
+platform_id: EDGE-0006
+name: SonicWall SMA 100 series
+summary: >-
+  UNC6148 came back to patched SMA 100 appliances with credentials and OTP seeds
+  stolen earlier, then installed the OVERSTEP rootkit, which deletes log lines on
+  the device. The controls that matter: reset every secret, MFA, no management
+  on the WAN side, and logs that live somewhere else.
+
+controls:
+  - id: sma-reset-creds-otp
+    control: Reset every credential and OTP binding, and reissue certificates whose keys were on the appliance
+    category: identity
+    priority: critical
+    why: >-
+      GTIG assesses with high confidence that UNC6148 reused credentials and OTP
+      seeds stolen in earlier intrusions to regain access after patching.
+    how: >-
+      Reset passwords and OTP bindings for all local and directory users on the
+      appliance; revoke and reissue any certificate whose private key was stored
+      on it.
+    blunts: [UNC6148, OVERSTEP]
+    confidence: high
+    sources:
+      - title: GTIG - SonicWall SMA exploitation and the OVERSTEP backdoor
+        url: https://cloud.google.com/blog/topics/threat-intelligence/sonicwall-secure-mobile-access-exploitation-overstep-backdoor?hl=en
+        accessed: "2026-10-22"
+        quote: "This is the most critical step to invalidate secrets stolen in previous compromises."
+
+  - id: sma-no-wan-mgmt
+    control: Disable remote management access on the X1 (WAN) interface
+    category: exposure
+    priority: critical
+    why: SonicWall's urgent SMA 100 notice.
+    how: The notice gives no GUI path.
+    confidence: medium
+    sources:
+      - title: SonicWall - urgent SMA 100 notice (Japanese-locale copy)
+        url: https://www.sonicwall.com/ja-jp/support/notices/kA1VN0000000RGN0A2
+        accessed: "2026-10-22"
+
+  - id: sma-mfa
+    control: Enforce MFA for all users
+    category: identity
+    priority: critical
+    why: SonicWall's urgent SMA 100 notice.
+    how: The notice gives no configuration steps.
+    confidence: medium
+    sources:
+      - title: SonicWall - urgent SMA 100 notice (Japanese-locale copy)
+        url: https://www.sonicwall.com/ja-jp/support/notices/kA1VN0000000RGN0A2
+        accessed: "2026-10-22"
+
+  - id: sma-upgrade-rebuild
+    control: Upgrade to 10.2.2.1-90sv or later; rebuild SMA 500v from a verified image
+    category: patching
+    priority: critical
+    why: >-
+      CVE-2024-38475 was exploited (fixed in 10.2.1.14-75sv); CVE-2025-40599 is
+      fixed in 10.2.2.1-90sv.
+    how: >-
+      Upgrade physical units. For SMA 500v, deploy from a checksum-verified image
+      and delete the old VM's disks and snapshots.
+    blunts: [CVE-2024-38475, CVE-2025-40599]
+    confidence: medium
+    sources:
+      - title: SonicWall - urgent SMA 100 notice (Japanese-locale copy)
+        url: https://www.sonicwall.com/ja-jp/support/notices/kA1VN0000000RGN0A2
+        accessed: "2026-10-22"
+
+  - id: sma-external-syslog
+    control: Send logs to an external syslog collector, not just the appliance
+    category: logging
+    priority: high
+    why: >-
+      OVERSTEP selectively deletes entries from the appliance's own logs, per
+      GTIG; SonicWall's notice asks for an external collector.
+    how: Configure remote syslog to a collector the appliance cannot reach to modify.
+    blunts: [OVERSTEP]
+    confidence: medium
+    sources:
+      - title: SonicWall - urgent SMA 100 notice (Japanese-locale copy)
+        url: https://www.sonicwall.com/ja-jp/support/notices/kA1VN0000000RGN0A2
+        accessed: "2026-10-22"
+      - title: GTIG - SonicWall SMA exploitation and the OVERSTEP backdoor
+        url: https://cloud.google.com/blog/topics/threat-intelligence/sonicwall-secure-mobile-access-exploitation-overstep-backdoor?hl=en
+        accessed: "2026-10-22"
+
+  - id: sma-waf
+    control: Enable the Web Application Firewall on every portal
+    category: services
+    priority: medium
+    why: SonicWall's urgent SMA 100 notice (it needs a licence).
+    how: The notice gives no configuration steps.
+    confidence: medium
+    sources:
+      - title: SonicWall - urgent SMA 100 notice (Japanese-locale copy)
+        url: https://www.sonicwall.com/ja-jp/support/notices/kA1VN0000000RGN0A2
+        accessed: "2026-10-22"
+
+last_modified: "2026-10-22"

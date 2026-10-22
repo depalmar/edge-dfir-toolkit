@@ -33,6 +33,7 @@ anti_forensics:
   - technique: Backdoors remained on devices that had been patched
     seen_in: CVE-2023-3519 mass exploitation (Fox-IT / NCC Group)
 response: netscaler
+hardening: netscaler
 artifacts:
   - locator: /var/log/ns.log*
     class: auth-logs

@@ -186,6 +186,65 @@ anything, and one proposed correction was rejected on that basis (below).
 - `/mfs/var/etc` on platforms and releases other than Mandiant's victims.
 - CVE-2026-21902 in VulnCheck KEV (absence from CISA KEV is confirmed).
 
+## 2026-10-22 - hardening controls
+
+Two research passes read vendor and government sources for every platform;
+the controls that carry the most weight were then re-read by the maintainer
+session before writing. Sources are recorded per control in
+`artifacts/hardening/`.
+
+### Re-read and confirmed verbatim
+
+- CISA BOD 23-02: the two required actions, the 14-day timeline, the device
+  scope and the 13 June 2023 issue date.
+- Cisco IOS XE web UI advisory: disable the HTTP server on internet-facing
+  systems, the two commands, and the access-class example.
+- Cisco ASA continued-attacks page: Secure Boot platforms not seen compromised,
+  migrate to supported hardware, disable SSL/TLS VPN web services as an interim
+  mitigation, upgrade to a fixed release.
+- F5's October 2025 blog: management interfaces never exposed to the internet.
+- Check Point management-plane hardening page: restrict SmartConsole, Gaia
+  Portal, SSH and API to internal ranges or jump hosts; direct internet admin
+  access "Avoid. Require VPN."
+- Palo Alto Networks CVE-2025-0108: restrict management to trusted internal
+  addresses; GlobalProtect not affected unless a management profile is on its
+  interface; the Customer Support Portal path.
+- Fortinet 19 June 2026 post: trusted hosts (good), local-in policy (better),
+  no internet administration (best). Fortinet 22 January 2026 post: FortiCloud
+  SSO CVEs are CVE-2025-59718 and CVE-2025-59719 (a research note had garbled
+  the pair), and the `admin-forticloud-sso-login disable` CLI.
+- Ivanti ICS hardening guide: no admin on the external port, management
+  interface, admin-realm source IP restrictions, MFA, external syslog. Ivanti's
+  CVE-2025-22457 post: exploitation on 22.7R2.5 or earlier and Pulse Connect
+  Secure 9.1x; Policy Secure "should not be an internet facing solution".
+- NetScaler secure deployment guide: NSIP and Management Service IP not exposed,
+  traffic separation, `-gui SECUREONLY`, `-restrictAccess enabled`,
+  `localAuth DISABLED`; the CVE-2023-4966 session-kill commands.
+- GTIG OVERSTEP post: credential and OTP reset as "the most critical step",
+  certificate reissue, and the credential-reuse assessment.
+
+### Deliberately left without syntax
+
+- J-Web disable or restrict command (Juniper's workaround gives none; the
+  JSA pages did not render).
+- IOS XE Type 8 password command (not in the sources read).
+- FortiOS trusted-host keyword (rendered as both trusthost and trustedhost)
+  and the full `login-lockout-upon-weaker-encryption` syntax.
+- The full FG-IR-24-535 local-in CLI (one value was lost in the fetch); the
+  control points to the advisory instead.
+- Ivanti ICS management-port path (only a Policy Secure guide gave one).
+
+### Sources read through copies, and confidence set accordingly
+
+- SonicWall's English SMA 100 notice now returns "Article Not Found"; the
+  vendor controls come from SonicWall's Japanese-locale copy and are medium.
+- The NSA network infrastructure guidance was read from a mirror (the .gov PDF
+  refused automated access); the controls citing it are medium.
+- The Cisco ASA and IOS XE hardening guides were read in Dutch and Portuguese
+  editions because the English URLs redirect; the advisory quotes are English.
+- ED 26-01 was read through FedRAMP's restatement and the Canadian Cyber
+  Centre's alert; AA25-239A through the Australian co-sealed copy.
+
 ## Device verification
 
 | Date | Platform / release | Step | Change | Basis |

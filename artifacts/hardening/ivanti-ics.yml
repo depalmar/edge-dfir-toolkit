@@ -1,0 +1,125 @@
+# Prevention and hardening - EDGE-0003 Ivanti Connect Secure / Policy Secure
+# Schema: ../schema/hardening.schema.json
+
+platform_id: EDGE-0003
+name: Ivanti Connect Secure / Policy Secure
+summary: >-
+  Ivanti appliances were exploited in 2024, 2025 and 2026, often through the
+  user-facing portal, so exposure alone does not explain them. What Ivanti's own
+  hardening guide adds is keeping administration off the external port, MFA for
+  every administrator, logs off the box, Policy Secure off the internet, and
+  retiring end-of-support releases.
+
+controls:
+  - id: ivanti-no-admin-external
+    control: Do not let administrators sign in on the External port
+    category: exposure
+    priority: critical
+    why: Ivanti's own hardening guide.
+    how: >-
+      Administrators > Admin Realms > [realm] > Authentication Policy: make sure
+      "Enable administrators to sign in on the External Port" is not checked.
+    confidence: high
+    sources:
+      - title: Ivanti Connect Secure security best practices - additional hardening measures
+        url: https://help.ivanti.com/ps/help/en_US/ICS/vNow/bp/additional_hardening_measures.htm
+        accessed: "2026-10-22"
+        quote: "Disable administrative access to the ICS VPN appliance(s) from the external (internet-facing) port."
+
+  - id: ivanti-mgmt-interface
+    control: Use the dedicated management interface and disable management on the Internal and External interfaces
+    category: exposure
+    priority: high
+    why: Keeps administrative traffic apart from user VPN traffic.
+    how: >-
+      Where the appliance has a management interface, enable it and turn off ICS
+      management access on both other interfaces. The configuration path for ICS
+      was not confirmed; use Ivanti's admin guide for your appliance.
+    confidence: high
+    sources:
+      - title: Ivanti Connect Secure security best practices - additional hardening measures
+        url: https://help.ivanti.com/ps/help/en_US/ICS/vNow/bp/additional_hardening_measures.htm
+        accessed: "2026-10-22"
+
+  - id: ivanti-admin-realm-ip-mfa
+    control: Source-IP restrictions on the administrator realm and MFA for every administrator
+    category: identity
+    priority: critical
+    why: Ivanti's hardening guide makes both mandatory for administrative access.
+    how: >-
+      Source IP restrictions on the Administrator realm; MFA for all internal and
+      external admin access. The same guide adds a non-default admin URL, one
+      break-glass local administrator per device, and session lifetime limits.
+    confidence: high
+    sources:
+      - title: Ivanti Connect Secure security best practices - additional hardening measures
+        url: https://help.ivanti.com/ps/help/en_US/ICS/vNow/bp/additional_hardening_measures.htm
+        accessed: "2026-10-22"
+        quote: "MFA (Multifactor Authentication) must be enabled for all external and internal admin access."
+
+  - id: ivanti-syslog
+    control: Forward logs to an external syslog server or SIEM
+    category: logging
+    priority: high
+    why: >-
+      In 2025 an operator's iptables rule blocked syslog forwarding on compromised
+      appliances; the external copy is the one that dates that gap.
+    how: External syslog configured for all event, user access and admin access logs.
+    confidence: high
+    sources:
+      - title: Ivanti Connect Secure security best practices - additional hardening measures
+        url: https://help.ivanti.com/ps/help/en_US/ICS/vNow/bp/additional_hardening_measures.htm
+        accessed: "2026-10-22"
+        quote: "Ensure logs are forwarded to an external syslog server (or SIEM solution) for aggregation, monitoring, and analysis."
+
+  - id: ivanti-ips-internal-only
+    control: Keep Policy Secure off the internet
+    category: exposure
+    priority: critical
+    why: Ivanti states Policy Secure is for internal use only (CVE-2025-22457 advisory).
+    how: No internet reachability for Policy Secure appliances.
+    blunts: [CVE-2025-22457]
+    confidence: high
+    sources:
+      - title: Ivanti - security update for Connect Secure, Policy Secure and ZTA gateways (CVE-2025-22457)
+        url: https://www.ivanti.com/blog/security-update-pulse-connect-secure-ivanti-connect-secure-policy-secure-and-neurons-for-zta-gateways
+        accessed: "2026-10-22"
+        quote: "Ivanti Policy Secure should not be an internet facing solution."
+
+  - id: ivanti-retire-91x
+    control: Retire Pulse Connect Secure 9.1x
+    category: patching
+    priority: critical
+    why: >-
+      It reached end of support on 31 December 2024 and receives no fixes. Ivanti
+      saw CVE-2025-22457 exploited on appliances running Connect Secure 22.7R2.5
+      or earlier, or Pulse Connect Secure 9.1x.
+    how: Move to a supported Connect Secure release on supported hardware.
+    blunts: [CVE-2025-22457]
+    confidence: high
+    sources:
+      - title: Ivanti - security update for Connect Secure, Policy Secure and ZTA gateways (CVE-2025-22457)
+        url: https://www.ivanti.com/blog/security-update-pulse-connect-secure-ivanti-connect-secure-policy-secure-and-neurons-for-zta-gateways
+        accessed: "2026-10-22"
+        quote: "Pulse Connect Secure 9.1x reached End-of-Support on December 31, 2024, and no longer receives code support or changes."
+
+  - id: ivanti-ict-and-rebuild
+    control: Run the internal and external Integrity Checker with continuous monitoring; rebuild rather than factory-reset
+    category: integrity
+    priority: high
+    why: >-
+      Attackers modified the internal ICT in 2024. Ivanti now recommends the
+      external ICT alongside continuous monitoring, and a new build instead of a
+      factory reset for virtual appliances.
+    how: >-
+      External ICT on a schedule you set (Ivanti gives no frequency in the posts
+      read) - but on a suspect appliance only after evidence is collected,
+      because it reboots the device.
+    confidence: high
+    sources:
+      - title: Ivanti - enhanced external Integrity Checking Tool (29 February 2024)
+        url: https://www.ivanti.com/blog/enhanced-external-integrity-checking-tool-to-provide-additional-visibility-and-protection-for-customers-against-evolving-threat-actor-techniques-in-relation-to-previously-disclosed-vulnerabilities
+        accessed: "2026-10-22"
+        quote: "Our recommendation remains that you should use the updated ICT in concert with continuous monitoring."
+
+last_modified: "2026-10-22"

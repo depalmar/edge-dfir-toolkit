@@ -1,0 +1,266 @@
+# Prevention and hardening - baseline for every edge platform
+# Schema: ../schema/hardening.schema.json
+#
+# Drawn from government guidance written for exactly this device class: CISA
+# BOD 23-02 (internet-exposed management interfaces), the February 2025 joint
+# edge-device guidance led by ASD's ACSC with CISA, NCSC-UK and CCCS among
+# others, and NSA's network infrastructure guidance. Platform files add the
+# vendor-specific how.
+
+platform_id: ALL
+name: Baseline for every edge device
+summary: >-
+  The controls every platform in this toolkit shares. Most of the 2023-2026
+  exploitation began with an internet-reachable management interface or VPN
+  portal, single-factor administration, or an end-of-life device; most
+  investigations were then hampered by logs that only lived on the device.
+
+controls:
+  - id: base-mgmt-off-internet
+    control: Take management interfaces off the internet
+    category: exposure
+    priority: critical
+    why: >-
+      CISA BOD 23-02 requires US federal agencies to remove any networked
+      management interface from the internet, or put it behind a separate policy
+      enforcement point, within 14 days of finding it. The scope is routers,
+      switches, firewalls, VPN concentrators, proxies, load balancers and
+      out-of-band server management (iLO, iDRAC). ASD and CCCS say the same for
+      everyone.
+    how: >-
+      Make management reachable only from an internal management network, a
+      dedicated management VLAN or interface terminated on a firewall with ACLs,
+      or through a jump host. Each platform file gives the vendor's setting.
+    confidence: high
+    sources:
+      - title: CISA BOD 23-02 - mitigating the risk from internet-exposed management interfaces
+        url: https://www.cisa.gov/news-events/directives/binding-operational-directive-23-02
+        accessed: "2026-10-22"
+        quote: "Remove the interface from the internet by making it only accessible from an internal enterprise network"
+      - title: ASD's ACSC - mitigation strategies for edge devices, practitioner guidance
+        url: https://www.cyber.gov.au/business-government/protecting-devices-systems/hardening-systems-applications/network-hardening/securing-edge-devices/mitigation-strategies-for-edge-devices-practitioner-guidance
+        accessed: "2026-10-22"
+        quote: "Networked management interfaces for IT equipment are not directly exposed to the internet."
+      - title: CCCS - security considerations for edge devices (ITSM.80.101)
+        url: https://cyber.gc.ca/en/guidance/security-considerations-edge-devices-itsm80101
+        accessed: "2026-10-22"
+        quote: "We recommend that network management interfaces (NMIs) should not be directly exposed to the Internet."
+
+  - id: base-separate-pep
+    control: If management must be remote, mediate it through a policy enforcement point separate from the device
+    category: exposure
+    priority: high
+    why: >-
+      BOD 23-02's preferred alternative. The device's own login page is the thing
+      being attacked, so it cannot be the first line of defence.
+    how: >-
+      A zero-trust access proxy or SASE private-access service in front of the
+      interface, as the implementation guidance describes; the interface itself
+      stays unreachable from the internet.
+    confidence: high
+    sources:
+      - title: CISA BOD 23-02 implementation guidance
+        url: https://cisa.gov/news-events/directives/binding-operational-directive-23-02-implementation-guidance
+        accessed: "2026-10-22"
+        quote: "The policy enforcement should be separate from the device itself"
+
+  - id: base-phishing-resistant-mfa
+    control: Require phishing-resistant MFA for administration and remote access
+    category: identity
+    priority: critical
+    why: >-
+      Stolen and reused credentials recur across these campaigns: FortiGate
+      brute-forcing in 2026, UNC6148 reusing SMA credentials and OTP seeds, Salt
+      Typhoon's stolen logins.
+    how: >-
+      Phishing-resistant MFA (FIDO2 or certificate-based) for every administrative
+      login and VPN user. Where a device cannot do MFA, ASD sets a floor of a
+      passphrase of at least four random words and 15 characters.
+    confidence: medium
+    sources:
+      - title: CCCS - security considerations for edge devices (ITSM.80.101)
+        url: https://cyber.gc.ca/en/guidance/security-considerations-edge-devices-itsm80101
+        accessed: "2026-10-22"
+        quote: "Use strong, phishing-resistant multi-factor authentication (MFA) for all administrative access to devices."
+      - title: ASD's ACSC - mitigation strategies for edge devices, practitioner guidance
+        url: https://www.cyber.gov.au/business-government/protecting-devices-systems/hardening-systems-applications/network-hardening/securing-edge-devices/mitigation-strategies-for-edge-devices-practitioner-guidance
+        accessed: "2026-10-22"
+
+  - id: base-segregate-from-ad
+    control: Keep edge devices out of the corporate AD forest and their local admin credentials in a PAM system
+    category: identity
+    priority: high
+    why: >-
+      A compromised edge device that authenticates against the corporate domain
+      hands the attacker a path into it. Several playbooks in this toolkit rotate
+      LDAP bind accounts for exactly that reason.
+    how: >-
+      A separate identity store for device administration; local break-glass
+      accounts held in a privileged access management system or secrets manager;
+      no credential reused across devices.
+    confidence: high
+    sources:
+      - title: ASD's ACSC - mitigation strategies for edge devices, practitioner guidance
+        url: https://www.cyber.gov.au/business-government/protecting-devices-systems/hardening-systems-applications/network-hardening/securing-edge-devices/mitigation-strategies-for-edge-devices-practitioner-guidance
+        accessed: "2026-10-22"
+        quote: "it is critical to segregate edge devices from an organisation's corporate AD forest"
+
+  - id: base-logs-offbox
+    control: Forward logs off the device in real time to a store the device cannot change
+    category: logging
+    priority: critical
+    why: >-
+      LINE DANCER disabled syslog, UNC3886 deleted log lines on Junos, OVERSTEP
+      deleted entries on SonicWall SMA, UPSTYLE removed its own lines on PAN-OS.
+      In every case the off-box copy was the record that survived.
+    how: >-
+      Real-time forwarding over a protected channel to a central collector (NSA
+      recommends at least two), alerting on administrator logins and
+      configuration changes, and no credentials on the device that can modify or
+      delete the stored logs.
+    blunts: [LINE DANCER, UNC3886, OVERSTEP, UPSTYLE]
+    confidence: medium
+    sources:
+      - title: ASD's ACSC - mitigation strategies for edge devices, practitioner guidance
+        url: https://www.cyber.gov.au/business-government/protecting-devices-systems/hardening-systems-applications/network-hardening/securing-edge-devices/mitigation-strategies-for-edge-devices-practitioner-guidance
+        accessed: "2026-10-22"
+        quote: "Log events from edge devices should be sent in real time to a centralised system."
+      - title: CCCS - security considerations for edge devices (ITSM.80.101)
+        url: https://cyber.gc.ca/en/guidance/security-considerations-edge-devices-itsm80101
+        accessed: "2026-10-22"
+        quote: "Enable centralized (off-device) logging and configure log levels to be as detailed as possible."
+      - title: NSA - network infrastructure security guidance (PP-22-0266; read from a mirror, the .gov PDF refused automated access)
+        url: https://www.aha.org/system/files/media/file/2022/03/nsa-network-infrastructure-security-guidance-for-network-administrators-march-2022.pdf
+        accessed: "2026-10-22"
+
+  - id: base-time-sync
+    control: Synchronise time to at least two trusted sources and alert when it fails
+    category: logging
+    priority: medium
+    why: A timeline built from unsynchronised clocks puts events in the wrong order.
+    how: Two or more NTP sources; timestamps in UTC; an alert when synchronisation is lost.
+    confidence: medium
+    sources:
+      - title: NCSC-UK - digital forensics and protective monitoring specifications for producers of network devices and appliances
+        url: https://www.ncsc.gov.uk/guidance/guidance-on-digital-forensics-protective-monitoring
+        accessed: "2026-10-22"
+      - title: NSA - network infrastructure security guidance (mirror)
+        url: https://www.aha.org/system/files/media/file/2022/03/nsa-network-infrastructure-security-guidance-for-network-administrators-march-2022.pdf
+        accessed: "2026-10-22"
+
+  - id: base-patch-check-first
+    control: Patch fast, check for compromise before and after, and use interim mitigations while you wait
+    category: patching
+    priority: critical
+    why: >-
+      Patching does not remove an implant that is already there - most
+      backdoored NetScalers in 2023 had been patched, and FortiGate symlink
+      persistence survived upgrades.
+    how: >-
+      Daily vulnerability scanning of internet-facing devices, interim mitigations
+      the day an advisory lands, then triage (this toolkit) before and after the
+      patch.
+    confidence: medium
+    sources:
+      - title: ASD's ACSC - mitigation strategies for edge devices, practitioner guidance
+        url: https://www.cyber.gov.au/business-government/protecting-devices-systems/hardening-systems-applications/network-hardening/securing-edge-devices/mitigation-strategies-for-edge-devices-practitioner-guidance
+        accessed: "2026-10-22"
+        quote: "Applying a patch will not remedy a device that has already been compromised"
+      - title: CCCS - security considerations for edge devices (ITSM.80.101)
+        url: https://cyber.gc.ca/en/guidance/security-considerations-edge-devices-itsm80101
+        accessed: "2026-10-22"
+
+  - id: base-no-eol
+    control: Replace end-of-life edge devices
+    category: patching
+    priority: critical
+    why: >-
+      ArcaneDoor's 2025 ROMMON tampering, UNC3886's Junos backdoors and the
+      Ivanti 9.1x exploitation all landed on hardware or software past its
+      support date.
+    how: >-
+      Track end-of-life dates for every edge model and release; replace before
+      the date, and use compensating controls only while replacement is under way.
+    blunts: [RayInitiator, UNC3886]
+    confidence: medium
+    sources:
+      - title: ASD's ACSC - mitigation strategies for edge devices, practitioner guidance
+        url: https://www.cyber.gov.au/business-government/protecting-devices-systems/hardening-systems-applications/network-hardening/securing-edge-devices/mitigation-strategies-for-edge-devices-practitioner-guidance
+        accessed: "2026-10-22"
+        quote: "Organisations should not use EOL edge devices."
+      - title: CCCS - security considerations for edge devices (ITSM.80.101)
+        url: https://cyber.gc.ca/en/guidance/security-considerations-edge-devices-itsm80101
+        accessed: "2026-10-22"
+
+  - id: base-disable-unused
+    control: Turn off every feature, service, API and port you do not use
+    category: services
+    priority: high
+    why: >-
+      Many of these CVEs sat in features the victim did not need: the IOS XE web
+      UI, FortiOS SSL-VPN, Smart Install, J-Web.
+    how: >-
+      Disable unused VPN features and block them from the internet, disable the
+      API where possible, SNMPv3 only and only from approved managers, and audit
+      the open ports regularly.
+    confidence: medium
+    sources:
+      - title: ASD's ACSC - mitigation strategies for edge devices, practitioner guidance
+        url: https://www.cyber.gov.au/business-government/protecting-devices-systems/hardening-systems-applications/network-hardening/securing-edge-devices/mitigation-strategies-for-edge-devices-practitioner-guidance
+        accessed: "2026-10-22"
+        quote: "If a VPN feature is not being used, disable the service and block the service from the internet."
+      - title: CCCS - security considerations for edge devices (ITSM.80.101)
+        url: https://cyber.gc.ca/en/guidance/security-considerations-edge-devices-itsm80101
+        accessed: "2026-10-22"
+        quote: "Deactivate any functionality that is not required."
+
+  - id: base-default-creds
+    control: Change every default credential, and prefer products that make you create one
+    category: identity
+    priority: high
+    why: Default and pre-configured accounts are the first thing scanned for.
+    how: Change or remove default and pre-configured accounts at deployment; note it in procurement.
+    confidence: high
+    sources:
+      - title: ASD's ACSC - mitigation strategies for edge devices, practitioner guidance
+        url: https://www.cyber.gov.au/business-government/protecting-devices-systems/hardening-systems-applications/network-hardening/securing-edge-devices/mitigation-strategies-for-edge-devices-practitioner-guidance
+        accessed: "2026-10-22"
+        quote: "Default accounts or credentials for network devices, including for any pre-configured accounts, are changed."
+
+  - id: base-config-backups
+    control: Keep change-controlled configuration backups and load firmware only from trusted vendor channels
+    category: recovery
+    priority: medium
+    why: >-
+      A known-good configuration is what you compare a suspect device against and
+      rebuild from. Response playbooks here warn against restoring backups taken
+      after compromise.
+    how: >-
+      Configuration change control that creates backups securely; firmware from
+      the vendor through a trusted channel, flashed before first use.
+    confidence: medium
+    sources:
+      - title: NSA - network infrastructure security guidance (mirror)
+        url: https://www.aha.org/system/files/media/file/2022/03/nsa-network-infrastructure-security-guidance-for-network-administrators-march-2022.pdf
+        accessed: "2026-10-22"
+      - title: ASD's ACSC - mitigation strategies for edge devices, practitioner guidance
+        url: https://www.cyber.gov.au/business-government/protecting-devices-systems/hardening-systems-applications/network-hardening/securing-edge-devices/mitigation-strategies-for-edge-devices-practitioner-guidance
+        accessed: "2026-10-22"
+
+  - id: base-procure-forensics
+    control: Ask vendors for forensic visibility when you buy
+    category: logging
+    priority: medium
+    why: >-
+      Most gaps this toolkit reports exist because the appliance cannot show its
+      own state. NCSC-UK's specification asks producers for near-real-time log
+      transfer over TLS, logging of any attempt to clear or rotate logs,
+      configuration-hash heartbeats and volatile collection of running state.
+    how: Make the NCSC-UK specification a procurement requirement for edge devices.
+    confidence: high
+    sources:
+      - title: NCSC-UK - digital forensics and protective monitoring specifications for producers of network devices and appliances
+        url: https://www.ncsc.gov.uk/guidance/guidance-on-digital-forensics-protective-monitoring
+        accessed: "2026-10-22"
+
+last_modified: "2026-10-22"

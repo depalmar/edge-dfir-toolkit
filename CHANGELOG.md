@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.5.0 - 2026-10-22
+
+### Prevention and hardening
+- New `artifacts/hardening/`: 83 controls - a 12-control baseline for every
+  edge device (CISA BOD 23-02, the 2025 joint edge-device guidance, NCSC-UK's
+  forensic-monitoring specification, NSA) and vendor-specific controls for all
+  ten platforms, led by keeping management interfaces off the internet.
+- Every control states what to do, why (with the CVEs or campaigns the source
+  says it blunts, linked into the detections and intel), how in the vendor's
+  own syntax - or says the vendor gives none - and its sources with verbatim
+  quotes. The validator requires a source on every control and flags low
+  confidence.
+- Site: a Hardening library (filters for applies-to, category, priority,
+  confidence), a sixth "Harden" step on Start, hardening links from platforms
+  and response playbooks, and a "Prevent the next one" section in the guide.
+
 ## 0.4.2 - 2026-10-22
 
 ### Site

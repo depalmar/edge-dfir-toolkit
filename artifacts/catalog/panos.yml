@@ -33,6 +33,7 @@ anti_forensics:
     seen_in: UPSTYLE (CVE-2024-3400)
     detail: Gaps in sslvpn_ngx_error.log are as meaningful as hits.
 response: panos
+hardening: panos
 artifacts:
   - locator: tail lines N mp-log gpsvc.log
     class: web-logs

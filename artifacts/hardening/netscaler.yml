@@ -1,0 +1,136 @@
+# Prevention and hardening - EDGE-0004 NetScaler ADC / Gateway
+# Schema: ../schema/hardening.schema.json
+
+platform_id: EDGE-0004
+name: NetScaler ADC / Gateway
+summary: >-
+  NetScaler's own secure deployment guide starts where the 2025 bulletins do:
+  the NSIP and Management Service IP must not face the internet. CitrixBleed
+  (2023) and CitrixBleed 2 (2025) added a lesson about sessions: patching did not
+  end the hijacked ones, killing them did.
+
+controls:
+  - id: netscaler-nsip-not-internet
+    control: Never expose the NSIP or Management Service IP to the internet; keep them behind a stateful firewall
+    category: exposure
+    priority: critical
+    why: CVE-2025-5349 required access to the NSIP, Cluster Management IP or local GSLB Site IP.
+    how: Management addresses on an internal management network behind a stateful inspection firewall.
+    blunts: [CVE-2025-5349]
+    confidence: high
+    sources:
+      - title: NetScaler secure deployment guide (PDF)
+        url: https://docs.netscaler.com/en-us/netscaler-adc-secure-deployment/netscaler-secure-deployment-guide.pdf
+        accessed: "2026-10-22"
+        quote: "Do not expose the NSIP and Management Service IP address to the Internet:"
+      - title: Cloud Software Group CTX693420 - NetScaler ADC and Gateway security bulletin
+        url: https://support.citrix.com/external/article/CTX693420/netscaler-adc-and-netscaler-gateway-secu.html
+        accessed: "2026-10-22"
+
+  - id: netscaler-mgmt-separated
+    control: Separate management traffic physically or logically, with the LOM port in the management VLAN
+    category: exposure
+    priority: high
+    why: The secure deployment guide.
+    how: A dedicated management VLAN or network for NSIP and LOM; LOM access restricted to a known address range.
+    confidence: high
+    sources:
+      - title: NetScaler secure deployment guide (PDF)
+        url: https://docs.netscaler.com/en-us/netscaler-adc-secure-deployment/netscaler-secure-deployment-guide.pdf
+        accessed: "2026-10-22"
+        quote: "is separated, either physically or logically, from normal network traffic."
+
+  - id: netscaler-restrict-mgmt
+    control: Restrict management to known sources, HTTPS only, and block non-management applications on the NSIP
+    category: access
+    priority: high
+    why: By default every protocol and port, including GUI and SSH, is reachable.
+    how: >-
+      ACLs for the management sources (`add acl ... -srcip <range>`, then `apply
+      acls`), `set ns ip <NSIP> -gui SECUREONLY` and `set ns ip <NSIP>
+      -restrictAccess enabled`.
+    confidence: high
+    sources:
+      - title: NetScaler secure deployment guide (PDF)
+        url: https://docs.netscaler.com/en-us/netscaler-adc-secure-deployment/netscaler-secure-deployment-guide.pdf
+        accessed: "2026-10-22"
+        quote: "By default, all protocols and ports, including GUI and SSH, are accessible"
+
+  - id: netscaler-external-auth
+    control: Authenticate administrators externally (RADIUS, TACACS+, LDAPS) and disable local authentication
+    category: identity
+    priority: high
+    why: The secure deployment guide.
+    how: >-
+      Configure the external server, then `set system parameter localAuth DISABLED`.
+      On NetScaler Console, clear "Enable fallback local authentication".
+    confidence: high
+    sources:
+      - title: NetScaler secure deployment guide (PDF)
+        url: https://docs.netscaler.com/en-us/netscaler-adc-secure-deployment/netscaler-secure-deployment-guide.pdf
+        accessed: "2026-10-22"
+
+  - id: netscaler-remote-syslog
+    control: Send audit logs to a remote syslog host and use trusted NTP
+    category: logging
+    priority: high
+    why: The secure deployment guide; on-box ns.log rotates quickly on a busy gateway.
+    how: >-
+      `set audit nslogparams -serverip <host> -serverport <port>` (the guide prints
+      an en-dash before serverip; type a hyphen), `add ntp server <ip> 10`, then
+      `enable ntp sync`.
+    confidence: high
+    sources:
+      - title: NetScaler secure deployment guide (PDF)
+        url: https://docs.netscaler.com/en-us/netscaler-adc-secure-deployment/netscaler-secure-deployment-guide.pdf
+        accessed: "2026-10-22"
+
+  - id: netscaler-snmp-ssh-forwarding
+    control: Disable SNMP if unused (SNMPv3 otherwise) and SSH port forwarding
+    category: services
+    priority: medium
+    why: The secure deployment guide.
+    how: "`set ns ip <ip> -snmp disabled`; `AllowTcpForwarding no` in the sshd configuration."
+    confidence: high
+    sources:
+      - title: NetScaler secure deployment guide (PDF)
+        url: https://docs.netscaler.com/en-us/netscaler-adc-secure-deployment/netscaler-secure-deployment-guide.pdf
+        accessed: "2026-10-22"
+
+  - id: netscaler-kill-sessions
+    control: After patching a session-leak flaw, kill all sessions on every node; do not reboot instead
+    category: recovery
+    priority: critical
+    why: >-
+      Sessions hijacked through CitrixBleed and CitrixBleed 2 stayed valid after
+      the patch. NetScaler's guidance was to kill them.
+    how: >-
+      CVE-2023-4966: `kill aaa session -all`, `kill icaconnection -all`, `kill rdp
+      connection -all`, `kill pcoipConnection -all`, `clear lb persistentSessions`.
+      CVE-2025-5777: `kill icaconnection -all`, `kill pcoipConnection -all`. On every
+      node of an HA pair or cluster.
+    blunts: [CVE-2023-4966, CVE-2025-5777]
+    confidence: high
+    sources:
+      - title: NetScaler - critical security updates for NetScaler, NetScaler Gateway and NetScaler Console (17 June 2025)
+        url: https://www.netscaler.com/blog/news/critical-security-updates-for-netscaler-netscaler-gateway-and-netscaler-console/
+        accessed: "2026-10-22"
+        quote: "Rebooting appliances instead of firing these commands isn't recommended."
+      - title: NetScaler - investigation recommendations for CVE-2023-4966
+        url: https://www.netscaler.com/blog/news/netscaler-investigation-recommendations-for-cve-2023-4966
+        accessed: "2026-10-22"
+
+  - id: netscaler-retire-eol
+    control: Move off end-of-life firmware (12.1 and 13.0)
+    category: patching
+    priority: high
+    why: They receive no fixes.
+    how: Upgrade to a supported release line.
+    confidence: high
+    sources:
+      - title: Cloud Software Group CTX693420 - NetScaler ADC and Gateway security bulletin
+        url: https://support.citrix.com/external/article/CTX693420/netscaler-adc-and-netscaler-gateway-secu.html
+        accessed: "2026-10-22"
+        quote: "versions 12.1 and 13.0 are now End Of Life (EOL) and no longer supported."
+
+last_modified: "2026-10-22"

@@ -33,6 +33,7 @@ anti_forensics:
   - technique: Implants that survive reboot and upgrade
     seen_in: COATHANGER
 response: fortios
+hardening: fortios
 artifacts:
   - locator: diagnose sys filesystem hash
     class: integrity

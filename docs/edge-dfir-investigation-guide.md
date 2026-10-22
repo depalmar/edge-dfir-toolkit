@@ -175,3 +175,21 @@ configurations carry credentials and keys.
   in-place cleanup.
 - **No indicators:** close the listed gaps before closing the case. The most
   common honest outcome is "no indicators in the evidence available".
+
+## Prevent the next one
+
+Most of the intrusions behind this toolkit started at a management interface or
+VPN portal reachable from the internet, an administrator login without MFA, or
+a device past its end of life, and were then hard to investigate because the
+logs only lived on the device. The site's Hardening section lists the controls
+for each platform with their vendor or government sources. The baseline, from
+CISA BOD 23-02 and the 2025 joint edge-device guidance:
+
+- **Take management interfaces off the internet**, or put them behind a policy
+  enforcement point that is separate from the device.
+- **Phishing-resistant MFA** for every administrator and VPN user, with device
+  administration kept out of the corporate AD forest.
+- **Forward logs off the device in real time** to a store it cannot modify.
+- **Replace end-of-life devices**, and patch knowing that a patch does not
+  remove an implant that is already there.
+

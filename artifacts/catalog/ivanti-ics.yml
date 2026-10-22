@@ -43,6 +43,7 @@ anti_forensics:
   - technique: In-memory library patch (on-disk library untouched) with manual log-line removal
     seen_in: UTA0576 (October 2026)
 response: ivanti-ics
+hardening: ivanti-ics
 artifacts:
   - locator: Hypervisor snapshot with memory (virtual appliance)
     class: memory

@@ -122,6 +122,11 @@ or remediates. Order is fixed: preserve, contain, rotate, eradicate, recover,
 verify. Every playbook has a `do_not` list - most evidence is destroyed by a
 well-meant action taken too early.
 
+**Hardening controls cite their source.** Every control in
+`artifacts/hardening/` has at least one vendor or government source and states
+the vendor's own syntax or says there is none - never a guessed command. A CVE
+or campaign goes in `blunts` only when the source ties it to the control.
+
 **Prefer primary sources.** A press summary is a placeholder until replaced by
 the vendor, government or researcher's own publication. Record every
 correction in `docs/VERIFICATION.md`.

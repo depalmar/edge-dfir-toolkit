@@ -1,0 +1,124 @@
+# Prevention and hardening - EDGE-0001 PAN-OS / GlobalProtect
+# Schema: ../schema/hardening.schema.json
+
+platform_id: EDGE-0001
+name: PAN-OS / GlobalProtect
+summary: >-
+  CVE-2024-0012, CVE-2024-9474 and CVE-2025-0108 all needed the management web
+  interface, and Palo Alto Networks' own advisories say the risk is greatly
+  reduced when it is reachable only from trusted internal addresses.
+  CVE-2024-3400 hit the GlobalProtect portal instead, where the fix and
+  Vulnerability Protection were the controls.
+
+controls:
+  - id: panos-mgmt-trusted-ips
+    control: Restrict the management web interface to trusted internal IP addresses
+    category: exposure
+    priority: critical
+    why: The control each management-interface advisory leads with.
+    how: >-
+      Device > Setup > Interfaces > Management > Permitted IP Addresses, listing
+      only the management network or bastion hosts.
+    blunts: [CVE-2024-0012, CVE-2024-9474, CVE-2025-0108]
+    confidence: high
+    sources:
+      - title: Palo Alto Networks - CVE-2025-0108
+        url: https://security.paloaltonetworks.com/CVE-2025-0108
+        accessed: "2026-10-22"
+        quote: "Specifically, you should restrict management interface access to only trusted internal IP addresses."
+      - title: Palo Alto Networks - CVE-2024-0012
+        url: https://security.paloaltonetworks.com/CVE-2024-0012
+        accessed: "2026-10-22"
+
+  - id: panos-no-mgmt-profile-on-gp
+    control: Never attach an Interface Management profile to GlobalProtect portal or gateway interfaces
+    category: exposure
+    priority: critical
+    why: >-
+      GlobalProtect itself was not vulnerable to CVE-2025-0108, but a management
+      profile on its interface exposes the management web interface (typically on
+      port 4443) through it.
+    how: Network > Network Profiles > Interface Mgmt; remove the profile from any GlobalProtect-facing interface.
+    blunts: [CVE-2025-0108]
+    confidence: high
+    sources:
+      - title: Palo Alto Networks - CVE-2025-0108
+        url: https://security.paloaltonetworks.com/CVE-2025-0108
+        accessed: "2026-10-22"
+        quote: "GlobalProtect portals and gateways are not vulnerable to this issue."
+
+  - id: panos-find-exposed
+    control: Check the Customer Support Portal for devices Palo Alto Networks sees as internet-exposed
+    category: exposure
+    priority: high
+    why: The vendor flags assets it observes with management reachable from the internet.
+    how: Customer Support Portal, Products > Assets > All Assets > Remediation Required.
+    confidence: high
+    sources:
+      - title: Palo Alto Networks - CVE-2025-0108
+        url: https://security.paloaltonetworks.com/CVE-2025-0108
+        accessed: "2026-10-22"
+        quote: "(Products → Assets → All Assets → Remediation Required)"
+
+  - id: panos-bastion-admin
+    control: Administer only from a dedicated management network, ideally through bastion hosts
+    category: access
+    priority: high
+    why: Palo Alto Networks' administrative access best practices.
+    how: >-
+      Permitted IP Addresses set to the bastion hosts' addresses; service routes
+      sent from an interface with no management access enabled.
+    confidence: high
+    sources:
+      - title: Palo Alto Networks - deploy administrative access best practices
+        url: https://docs.paloaltonetworks.com/best-practices/10-1/administrative-access-best-practices/administrative-access-best-practices/deploy-administrative-access-best-practices
+        accessed: "2026-10-22"
+        quote: "Enable access to the management interface only from within your dedicated management network."
+
+  - id: panos-admin-mfa
+    control: Require MFA and named administrator accounts; delete the default admin account
+    category: identity
+    priority: high
+    why: Palo Alto Networks' administrative access best practices.
+    how: >-
+      MFA for administrators (the best-practice page links to the setup), Admin
+      Role Profiles per person, and the default admin account deleted.
+    confidence: high
+    sources:
+      - title: Palo Alto Networks - deploy administrative access best practices
+        url: https://docs.paloaltonetworks.com/best-practices/10-1/administrative-access-best-practices/administrative-access-best-practices/deploy-administrative-access-best-practices
+        accessed: "2026-10-22"
+        quote: "Always require MFA to prevent attacks based on stolen credentials."
+
+  - id: panos-no-cleartext-mgmt
+    control: Disable cleartext management protocols and enable only the management services you need
+    category: services
+    priority: medium
+    why: Palo Alto Networks' administrative access best practices.
+    how: No HTTP or Telnet on any management profile; an SSL/TLS service profile with TLSv1.2 as the minimum.
+    confidence: high
+    sources:
+      - title: Palo Alto Networks - deploy administrative access best practices
+        url: https://docs.paloaltonetworks.com/best-practices/10-1/administrative-access-best-practices/administrative-access-best-practices/deploy-administrative-access-best-practices
+        accessed: "2026-10-22"
+
+  - id: panos-gp-fix-and-vuln-protection
+    control: Run a fixed release; until then apply Vulnerability Protection with the advisory's Threat IDs to the GlobalProtect interface
+    category: patching
+    priority: critical
+    why: >-
+      CVE-2024-3400 was exploited as a zero-day through the GlobalProtect portal.
+      The advisory later withdrew disabling telemetry as a mitigation.
+    how: >-
+      Upgrade to the fixed release. Interim: a Vulnerability Protection profile
+      with Threat IDs 95187, 95189 and 95191 attached to the GlobalProtect
+      interface.
+    blunts: [CVE-2024-3400, UTA0218, UPSTYLE]
+    confidence: high
+    sources:
+      - title: Palo Alto Networks - CVE-2024-3400
+        url: https://security.paloaltonetworks.com/CVE-2024-3400
+        accessed: "2026-10-22"
+        quote: "Disabling device telemetry is no longer an effective mitigation."
+
+last_modified: "2026-10-22"
