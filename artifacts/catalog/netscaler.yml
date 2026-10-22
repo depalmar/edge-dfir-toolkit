@@ -32,6 +32,75 @@ anti_forensics:
     seen_in: CVE-2025-6543 exploitation (NCSC-NL)
   - technique: Backdoors remained on devices that had been patched
     seen_in: CVE-2023-3519 mass exploitation (Fox-IT / NCC Group)
+response: netscaler
+artifacts:
+  - locator: /var/log/ns.log*
+    class: auth-logs
+    volatility: rotating
+    retention: Hours on a busy gateway; rotations are compressed in /var/log
+    forensic_value: high
+    evidence_type: [initial-access, credential-access, timeline]
+    confidence: high
+    collected_by: fetch_logs
+    description: AAA events. Memory-disclosure attempts (Citrix Bleed class) surface as LOGIN_FAILED lines carrying non-printable leaked bytes; session reuse across addresses shows hijack.
+    seen_in: [CVE-2023-4966, CVE-2025-5777]
+  - locator: /var/log/httpaccess.log* and httperror.log*
+    class: web-logs
+    volatility: rotating
+    forensic_value: high
+    evidence_type: [initial-access, timeline]
+    confidence: medium
+    collected_by: fetch_httpaccess
+    description: Management and gateway web requests, including exploitation attempts against the SAML and gateway endpoints.
+  - locator: /var/netscaler/logon/**/*.php, /var/vpn/**, /netscaler/ns_gui/**
+    class: persistence
+    volatility: stable
+    forensic_value: high
+    evidence_type: [persistence, execution]
+    confidence: high
+    collected_by: fetch_php
+    description: Web roots where the 2023 mass-exploitation web shells lived. Shipped PHP is read-only; a writable or recently modified PHP file is a lead.
+    seen_in: [CVE-2023-3519]
+  - locator: crontab -l, /etc/crontab
+    class: persistence
+    volatility: stable
+    forensic_value: high
+    evidence_type: [persistence]
+    confidence: high
+    collected_by: crontab_root
+    description: Cron persistence.
+  - locator: find /var /tmp /flash -perm -4000
+    class: persistence
+    volatility: stable
+    forensic_value: high
+    evidence_type: [persistence]
+    confidence: medium
+    collected_by: suid_files
+    description: SUID binaries outside the shipped set.
+  - locator: sockstat -46 / netstat -an / ps auxww
+    class: process
+    volatility: live
+    forensic_value: high
+    evidence_type: [execution]
+    confidence: high
+    collected_by: shell_sockstat
+    description: "A shell or interpreter owning a socket is a reverse shell. Trust is limited: a userland hook can hide processes from these binaries."
+  - locator: show aaa session / show system session
+    class: sessions
+    volatility: live
+    forensic_value: medium
+    evidence_type: [credential-access, initial-access]
+    confidence: medium
+    collected_by: show_aaa_session
+    description: Gateway and management sessions now active.
+  - locator: Disk images of md0 (memory-disk root) and the persistent disk (da0/ad0/ada0 by model)
+    class: filesystem
+    volatility: live
+    forensic_value: high
+    evidence_type: [persistence, defense-evasion, timeline]
+    confidence: high
+    collected_by: manual
+    description: Offline triage that does not depend on the device's own binaries. Anything on md0 is lost at reboot.
 confidence: high
 references:
   - title: Fox-IT / NCC Group - approximately 2000 NetScalers backdoored

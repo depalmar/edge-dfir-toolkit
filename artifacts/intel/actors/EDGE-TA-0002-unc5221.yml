@@ -1,0 +1,34 @@
+id: EDGE-TA-0002
+name: UNC5221
+aliases: [UTA0178]
+reported_by: [Mandiant / Google Threat Intelligence Group, Volexity]
+link_confidence: medium
+stated_confidence: "Mandiant: 'suspected China-nexus espionage actor'; Volexity: 'Chinese nation-state-level threat actor' (UTA0178)"
+state_nexus: China (as assessed by the reporters)
+motivation: espionage
+summary: >-
+  Exploited Ivanti Connect Secure zero-days in January 2024 (CVE-2023-46805,
+  CVE-2024-21887) and again in 2025 (CVE-2025-0282), deploying web shells and
+  the SPAWN family, and modifying the Integrity Checker Tool. Mandiant later
+  linked BRICKSTORM operations against VMware and other appliances to the same
+  cluster. UTA0178 (Volexity) and UNC5221 (Mandiant) are both listed because
+  the reporters themselves equate them; the toolkit does not merge clusters on
+  its own.
+platforms: [EDGE-0003]
+packs: [EDGE-PACK-0007]
+implants: [EDGE-IMP-0005, EDGE-IMP-0006]
+tradecraft:
+  - Authentication bypass chained with command injection
+  - Web shells written into legitimate CGI, Perl and Python components
+  - Modified the internal ICT so it reported clean
+  - Credential harvesting from the appliance and the connected directory
+  - Long dwell; BRICKSTORM operations averaged 393 days (Mandiant, 2025)
+victimology: ["government, defence and technology organisations (reporters' statements)"]
+first_seen: "2023-12"
+references:
+  - title: Volexity - Ivanti Connect Secure exploitation, new observations (January 2024)
+    url: https://www.volexity.com/blog/2024/01/18/ivanti-connect-secure-vpn-exploitation-new-observations/
+    accessed: "2026-10-22"
+  - title: CISA AA24-060B
+    url: https://www.cisa.gov/news-events/cybersecurity-advisories/aa24-060b
+    accessed: "2026-10-22"

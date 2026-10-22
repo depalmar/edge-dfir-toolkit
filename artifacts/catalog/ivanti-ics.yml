@@ -5,7 +5,7 @@ id: EDGE-0003
 name: Ivanti Connect Secure / Policy Secure
 vendor: Ivanti
 products: [Connect Secure, Policy Secure]
-os_base: CentOS-derived Linux with SELinux; encrypted filesystem
+os_base: Linux with SELinux; encrypted filesystem (base distribution has changed across releases)
 filesystem: Root normally mounted read-only; a read-write root mount is itself an indicator in post-2025 intrusions
 customer_shell: "no"
 memory_acquisition: hypervisor-only
@@ -36,10 +36,76 @@ anti_forensics:
     seen_in: UTA0178 (January 2024)
   - technique: Re-signed the ICT manifest after recalculating hashes
     seen_in: SPAWNANT (2025)
-  - technique: Blocked syslog forwarding with iptables and tampered with logs
-    seen_in: SPAWN family (2025)
-  - technique: In-memory library patching with log-line removal and no on-disk implant
+  - technique: Operator iptables DROP rules on syslog ports and a read-write root remount
+    seen_in: UNC5221 hands-on-keyboard (2025)
+  - technique: In-process syslog suppression by hooking the log function
+    seen_in: SPAWNSLOTH (2025)
+  - technique: In-memory library patch (on-disk library untouched) with manual log-line removal
     seen_in: UTA0576 (October 2026)
+response: ivanti-ics
+artifacts:
+  - locator: Hypervisor snapshot with memory (virtual appliance)
+    class: memory
+    volatility: live
+    forensic_value: high
+    evidence_type: [execution, persistence, defense-evasion]
+    confidence: medium
+    collected_by: manual
+    description: The only customer-controlled path to memory. The 2026 intrusion patched a library in memory (the on-disk copy was never modified) and restored the in-memory patch afterwards; on-disk tooling still appeared in /tmp and /data/.icscap/.
+    seen_in: [UTA0576 2026, SPAWN]
+  - locator: Internal ICT history (admin UI)
+    class: integrity
+    volatility: stable
+    forensic_value: medium
+    evidence_type: [defense-evasion]
+    confidence: high
+    collected_by: manual
+    description: One signal. Both the internal tool and an earlier external tool failed to detect compromise, and SPAWNANT re-signed the manifest.
+    seen_in: [CVE-2023-46805, SPAWNANT]
+  - locator: Events / User Access / Admin Access logs (admin UI export)
+    class: auth-logs
+    volatility: rotating
+    forensic_value: high
+    evidence_type: [initial-access, credential-access, timeline]
+    confidence: high
+    collected_by: manual
+    description: Local logs, subject to tampering; SPAWNSLOTH suppressed logging while the SSH backdoor ran and the operator removed entries by hand. Prefer the syslog copy.
+    seen_in: [SPAWNSLOTH]
+  - locator: Syslog receiver copies of the above
+    class: off-box
+    volatility: off-box
+    forensic_value: high
+    evidence_type: [timeline, defense-evasion]
+    confidence: high
+    collected_by: ingest
+    description: In 2025 the operator added iptables DROP rules on the syslog ports and SPAWNSLOTH suppressed logging in-process; a gap in the off-box stream dates the intrusion.
+    seen_in: [SPAWN]
+  - locator: system.cfg / user.cfg / XML export
+    class: config
+    volatility: stable
+    forensic_value: high
+    evidence_type: [persistence, configuration, credential-access]
+    confidence: high
+    collected_by: manual
+    description: Diff for new admin accounts, auth servers and resource policies.
+  - locator: Web-server request logs (where retained) for /api/v1/totp/user-backup-code/
+    class: web-logs
+    volatility: rotating
+    forensic_value: high
+    evidence_type: [initial-access]
+    confidence: medium
+    collected_by: ingest
+    description: The 2024 traversal chain is visible as a raw URI where the appliance or an upstream proxy logs it.
+    seen_in: [CVE-2023-46805, CVE-2024-21887]
+  - locator: /home/runtime/dlogs/debuglog and /var/log/audit/audit.log (vendor-assisted)
+    class: system-logs
+    volatility: rotating
+    forensic_value: high
+    evidence_type: [defense-evasion, timeline]
+    confidence: medium
+    collected_by: manual
+    description: The 2026 actor removed its own lines from both. Compare against the syslog copy for gaps.
+    seen_in: [UTA0576 2026]
 confidence: high
 references:
   - title: CISA AA24-060B

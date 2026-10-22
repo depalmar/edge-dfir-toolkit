@@ -1,0 +1,131 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Threat actor profile",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "name",
+    "aliases",
+    "reported_by",
+    "link_confidence",
+    "stated_confidence",
+    "summary",
+    "platforms",
+    "packs",
+    "references"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^EDGE-TA-[0-9]{4}$"
+    },
+    "name": {
+      "type": "string"
+    },
+    "aliases": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "reported_by": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string"
+      }
+    },
+    "link_confidence": {
+      "enum": [
+        "high",
+        "medium",
+        "low"
+      ],
+      "description": "ours: provenance of the link between this actor and the activity"
+    },
+    "stated_confidence": {
+      "type": "string",
+      "description": "the attributing party's own words, verbatim"
+    },
+    "state_nexus": {
+      "type": "string"
+    },
+    "motivation": {
+      "enum": [
+        "espionage",
+        "financial",
+        "unknown",
+        "mixed"
+      ]
+    },
+    "summary": {
+      "type": "string"
+    },
+    "platforms": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^EDGE-[0-9]{4}$"
+      }
+    },
+    "packs": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^EDGE-PACK-[0-9]{4}$"
+      }
+    },
+    "implants": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^EDGE-IMP-[0-9]{4}$"
+      }
+    },
+    "tradecraft": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "victimology": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "first_seen": {
+      "type": "string"
+    },
+    "last_seen": {
+      "type": "string"
+    },
+    "references": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "title",
+          "url"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "accessed": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "notes": {
+      "type": "string"
+    }
+  }
+}

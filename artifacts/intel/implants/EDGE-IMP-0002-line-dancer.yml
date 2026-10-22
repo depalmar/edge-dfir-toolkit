@@ -1,0 +1,31 @@
+id: EDGE-IMP-0002
+name: LINE DANCER
+platforms: [EDGE-0005]
+actors: [EDGE-TA-0003]
+cves: [CVE-2024-20353, CVE-2024-20359]
+type: memory-implant
+resides: memory
+survives_reboot: "no"
+survives_upgrade: "no"
+summary: >-
+  Memory-resident shellcode interpreter on Cisco ASA (ArcaneDoor, 2024).
+  Reported capabilities: disable syslog, run and exfiltrate configuration
+  commands, packet capture, AAA bypass, and a hook on the crash-dump routine so
+  a dump request rebooted the device instead.
+artifacts:
+  - "show memory region: more than one executable region mapped to lina"
+  - "show logging: syslog disabled"
+  - Silence at the syslog receiver during the activity
+anti_forensics:
+  - Disabled syslog
+  - Forced a reboot instead of a core dump
+  - Memory-only; erased by reload
+detections: [asa-lina-multiple-exec-regions, asa-syslog-disabled]
+confidence: high
+references:
+  - title: Cisco Talos - ArcaneDoor
+    url: https://blog.talosintelligence.com/arcanedoor-new-espionage-focused-campaign-found-targeting-perimeter-network-devices/
+    accessed: "2026-10-22"
+  - title: NCSC UK - LINE DANCER malware analysis report
+    url: https://www.ncsc.gov.uk/sites/default/files/documents/ncsc-tip-line-dancer.pdf
+    accessed: "2026-10-22"

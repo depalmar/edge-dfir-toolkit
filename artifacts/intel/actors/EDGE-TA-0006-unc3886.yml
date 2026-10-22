@@ -1,0 +1,28 @@
+id: EDGE-TA-0006
+name: UNC3886
+aliases: []
+reported_by: [Mandiant / Google Threat Intelligence Group]
+link_confidence: medium
+stated_confidence: "Mandiant: 'China-nexus espionage group'"
+state_nexus: China (as assessed by the reporter)
+motivation: espionage
+summary: >-
+  Long-running operator against network and virtualisation infrastructure.
+  On Juniper MX routers it deployed six TINYSHELL-based backdoors and bypassed
+  veriexec through process injection (CVE-2025-21590); earlier it targeted
+  FortiOS and VMware ESXi. No Juniper platform entry exists yet, so this
+  profile records the gap.
+platforms: [EDGE-0002]
+packs: []
+implants: []
+tradecraft:
+  - Backdoors disguised as legitimate daemons
+  - Integrity-check bypass through process injection
+  - Disabling logging on the device
+victimology: ["defence, technology and telecommunications (Mandiant)"]
+first_seen: "2022"
+references:
+  - title: Google Cloud - China-nexus espionage targets Juniper routers
+    url: https://cloud.google.com/blog/topics/threat-intelligence/china-nexus-espionage-targets-juniper-routers
+    accessed: "2026-10-22"
+notes: Juniper is not yet a platform in this catalog; the FortiOS link is the earlier reporting on the same group.

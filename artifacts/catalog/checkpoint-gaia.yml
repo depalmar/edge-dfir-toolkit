@@ -17,10 +17,41 @@ collection:
     impact: vendor-bundle
     description: Vendor diagnostic bundle.
     confidence: high
+response: checkpoint-gaia
+artifacts:
+  - locator: Mobile Access / VPN portal web logs (POST /clients/MyCRL)
+    class: web-logs
+    volatility: rotating
+    forensic_value: high
+    evidence_type: [initial-access]
+    confidence: medium
+    collected_by: ingest
+    description: The CVE-2024-24919 file read leaves only the request. Baseline sources first; the endpoint is also used legitimately.
+    seen_in: [CVE-2024-24919]
+  - locator: VPN authentication logs (local and LDAP accounts)
+    class: auth-logs
+    volatility: rotating
+    forensic_value: high
+    evidence_type: [credential-access, lateral-movement, timeline]
+    confidence: medium
+    collected_by: ingest
+    description: Logins with local accounts in the hours after a MyCRL request are the follow-on; password hashes were read from the device. Public reporting showed directory data extracted within hours.
+    seen_in: [CVE-2024-24919]
+  - locator: Expert-mode Linux live response (UAC)
+    class: process
+    volatility: live
+    forensic_value: medium
+    evidence_type: [execution, persistence]
+    confidence: high
+    collected_by: manual
+    description: Standard Linux collection is available; nothing appliance-specific is needed beyond cpinfo.
 confidence: medium
 references:
-  - title: Help Net Security - CVE-2024-24919
-    url: https://www.helpnetsecurity.com/2024/05/31/cve-2024-24919/
+  - title: Check Point - CVE-2024-24919 advisory (sk182336)
+    url: https://support.checkpoint.com/results/sk/sk182336
+    accessed: "2026-10-22"
+  - title: watchTowr - Check Point wrong check point (CVE-2024-24919)
+    url: https://labs.watchtowr.com/check-point-wrong-check-point-cve-2024-24919/
     accessed: "2026-10-22"
 notes: >-
   No collection profile yet; expert mode makes an existing Linux collector the

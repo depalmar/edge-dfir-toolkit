@@ -1,0 +1,159 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Implant / malware family",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "name",
+    "platforms",
+    "type",
+    "resides",
+    "survives_reboot",
+    "survives_upgrade",
+    "summary",
+    "anti_forensics",
+    "detections",
+    "confidence",
+    "references"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^EDGE-IMP-[0-9]{4}$"
+    },
+    "name": {
+      "type": "string"
+    },
+    "aliases": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "platforms": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "pattern": "^EDGE-[0-9]{4}$"
+      }
+    },
+    "actors": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^EDGE-TA-[0-9]{4}$"
+      }
+    },
+    "cves": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^CVE-[0-9]{4}-[0-9]{4,}$"
+      }
+    },
+    "type": {
+      "enum": [
+        "web-shell",
+        "backdoor",
+        "memory-implant",
+        "bootkit",
+        "rootkit",
+        "persistence-mechanism",
+        "tunneler",
+        "credential-harvester",
+        "loader"
+      ]
+    },
+    "resides": {
+      "enum": [
+        "memory",
+        "disk",
+        "boot",
+        "memory+disk"
+      ]
+    },
+    "survives_reboot": {
+      "enum": [
+        "yes",
+        "no",
+        "unknown"
+      ]
+    },
+    "survives_upgrade": {
+      "enum": [
+        "yes",
+        "no",
+        "partial",
+        "unknown"
+      ]
+    },
+    "survives_factory_reset": {
+      "enum": [
+        "yes",
+        "no",
+        "unknown"
+      ]
+    },
+    "summary": {
+      "type": "string"
+    },
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "anti_forensics": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "detections": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "detection ids from packs that cover this family; empty means a gap"
+    },
+    "gap": {
+      "type": "string",
+      "description": "why coverage is missing or partial"
+    },
+    "confidence": {
+      "enum": [
+        "high",
+        "medium",
+        "low"
+      ]
+    },
+    "unverified": {
+      "type": "boolean"
+    },
+    "references": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "title",
+          "url"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "accessed": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

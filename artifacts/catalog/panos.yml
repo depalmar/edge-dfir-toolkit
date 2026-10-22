@@ -32,6 +32,96 @@ anti_forensics:
   - technique: Deleted its own log lines and restored file timestamps
     seen_in: UPSTYLE (CVE-2024-3400)
     detail: Gaps in sslvpn_ngx_error.log are as meaningful as hits.
+response: panos
+artifacts:
+  - locator: tail lines N mp-log gpsvc.log
+    class: web-logs
+    volatility: rotating
+    retention: Rotates by size on the management plane; older generations in the TSF
+    forensic_value: high
+    evidence_type: [initial-access, timeline]
+    confidence: high
+    collected_by: mp_gpsvc
+    description: GlobalProtect service log. CVE-2024-3400 attempts leave "failed to unmarshal session(...)" entries whose session id is a path or command instead of a GUID.
+    seen_in: [CVE-2024-3400]
+  - locator: tail lines N mp-log sslvpn_ngx_error.log
+    class: web-logs
+    volatility: rotating
+    forensic_value: high
+    evidence_type: [execution, defense-evasion, timeline]
+    confidence: high
+    collected_by: mp_sslvpn_ngx_error
+    description: Portal nginx error log. UPSTYLE read its commands from requests logged here and deleted its own lines afterwards; a gap is as meaningful as a hit.
+    seen_in: [UPSTYLE]
+  - locator: /etc/cron.d/* and /var/spool/cron/*
+    class: persistence
+    volatility: stable
+    forensic_value: high
+    evidence_type: [persistence, execution]
+    confidence: high
+    collected_by: manual
+    description: Cron persistence (wget piped to bash) installed after CVE-2024-3400 exploitation. Not reachable through the CLI; request through the vendor.
+    seen_in: [CVE-2024-3400]
+  - locator: /usr/lib/python3.6/site-packages/system.pth
+    class: persistence
+    volatility: stable
+    forensic_value: high
+    evidence_type: [persistence, execution]
+    confidence: high
+    collected_by: manual
+    description: UPSTYLE loader. Python executes .pth files at interpreter start, so any .pth in site-packages that is not from a package needs explaining.
+    seen_in: [UPSTYLE]
+  - locator: /var/appweb/sslvpndocs/global-protect/portal/css/bootstrap.min.css
+    class: filesystem
+    volatility: stable
+    forensic_value: high
+    evidence_type: [execution, exfiltration]
+    confidence: high
+    collected_by: ingest
+    description: UPSTYLE wrote command output into this served CSS file and restored its timestamp afterwards. Compare against a clean copy of the same release.
+    seen_in: [UPSTYLE]
+  - locator: /var/appweb/sslvpndocs/global-protect/portal/js/* and /var/appweb/htdocs/unauth/*
+    class: filesystem
+    volatility: stable
+    forensic_value: high
+    evidence_type: [exfiltration, persistence]
+    confidence: medium
+    collected_by: ingest
+    description: Unauthenticated web roots. Copies of running_config.xml and web shells were staged here for retrieval without credentials.
+    seen_in: [CVE-2024-3400, CVE-2024-0012]
+  - locator: mp-monitor.log (inside the TSF)
+    class: process
+    volatility: rotating
+    forensic_value: medium
+    evidence_type: [execution, timeline]
+    confidence: medium
+    collected_by: ingest
+    description: Periodic netstat and top snapshots. The nearest thing PAN-OS has to historical process and socket state.
+  - locator: show jobs all
+    class: config
+    volatility: live
+    forensic_value: medium
+    evidence_type: [exfiltration, configuration, timeline]
+    confidence: high
+    collected_by: show_jobs
+    description: Commits, content installs and exports with the admin who ran them. A config export job is the record of config theft through supported channels.
+  - locator: show log system / config / auth
+    class: system-logs
+    volatility: rotating
+    retention: Bounded by log quota on the management plane; forward to Panorama or syslog for retention
+    forensic_value: medium
+    evidence_type: [timeline, configuration]
+    confidence: high
+    collected_by: show_log_system
+    description: System, configuration-audit and authentication logs. crond lines in the system log are where the cron persistence first shows.
+  - locator: Panorama / syslog receiver copies of the above
+    class: off-box
+    volatility: off-box
+    forensic_value: high
+    evidence_type: [timeline, defense-evasion]
+    confidence: high
+    collected_by: ingest
+    description: The copies the attacker is least likely to have touched. A gap in forwarding during the window is itself a finding.
 confidence: high
 references:
   - title: Vendor advisory CVE-2024-3400

@@ -420,3 +420,39 @@ def test_ingest_label_and_duplicate_members(fx, tmp_path):
     assert (root / rec["extracted_to"] / "a" / "x.log").read_bytes() == b"first"
     joined = " | ".join(rec["extract_rejected"])
     assert "duplicate" in joined and "clashes" in joined and "C:evil" in joined
+
+
+# ------------------------------------------------------------------ claim-verification regressions (2026-10-22)
+def test_asa_region_parser_matches_published_format():
+    """Pin the real `show memory region` row from the Talos ArcaneDoor example.
+
+    An earlier parser expected a 0x-prefixed length column that no ASA prints,
+    so it matched nothing and reported 'no hit' on a compromised device. This
+    test fails if the parser ever drifts away from the published format again.
+    """
+    from edgetriage.checks.cisco import _REGION
+    published = "561d9fee9000-561d9feea000 r-xp 02696000 00:02 5955    /asa/bin/lina"
+    m = _REGION.match(published)
+    assert m is not None, "parser no longer matches the published ASA row format"
+    assert m.group("perms") == "r-xp"
+    assert int(m.group("end"), 16) - int(m.group("start"), 16) == 0x1000
+    # The invented layout the old parser wanted must NOT be what we depend on.
+    assert _REGION.match("0x000055d3e5c00000 0x000055d3e9a77000 0x0000000003e77000 r-xp 0 1234 /asa/bin/lina") is None
+
+
+def test_line_runner_matches_variant_bundle_names():
+    """The ASA loader accepts client_bundle*.zip, so the detection must too."""
+    import re
+    import yaml
+    pack = yaml.safe_load((ROOT / "artifacts/packs/EDGE-PACK-0006-cisco-asa-arcanedoor.yml").read_text())
+    pat = next(d["pattern"] for d in pack["detect"] if d["id"] == "asa-line-runner-zip")
+    for name in ("client_bundle_install.zip", "client_bundle_x.zip", "client_bundle.zip"):
+        assert re.search(pat, name, re.I), name
+
+
+def test_every_implant_without_coverage_states_a_gap():
+    """A coverage hole must be visible: no detections means a written gap."""
+    import yaml
+    for p in (ROOT / "artifacts/intel/implants").glob("*.yml"):
+        doc = yaml.safe_load(p.read_text())
+        assert doc.get("detections") or doc.get("gap"), p.name

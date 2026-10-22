@@ -72,7 +72,12 @@ def load() -> dict:
         rules.append({"file": f.relative_to(ROOT).as_posix(), "dir": f.parent.name, "format": fmt,
                       "title": title, "description": desc, "level": level, "tags": tags, "body": text})
     guide = (ROOT / "docs" / "edge-dfir-investigation-guide.md").read_text()
-    return {"catalog": catalog, "profiles": profiles, "packs": packs, "rules": rules, "guide": guide}
+    intel = ROOT / "artifacts" / "intel"
+    actors = sorted((yaml.safe_load(f.read_text()) for f in (intel / "actors").glob("*.yml")), key=lambda a: a["id"])
+    implants = sorted((yaml.safe_load(f.read_text()) for f in (intel / "implants").glob("*.yml")), key=lambda i: i["id"])
+    response = {f.stem: yaml.safe_load(f.read_text()) for f in sorted((ROOT / "artifacts" / "response").glob("*.yml"))}
+    return {"catalog": catalog, "profiles": profiles, "packs": packs, "rules": rules, "guide": guide,
+            "actors": actors, "implants": implants, "response": response}
 
 
 # --------------------------------------------------------------------------- markdown
@@ -188,6 +193,24 @@ def render_platforms(d: dict, packs_by_platform: dict) -> str:
         prof = (f'<a class="chip link" href="#plans/{e(c["profile"])}">profile: {e(c["profile"])}</a>'
                 if c.get("profile") else '<span class="chip ghost">no profile yet</span>')
         refs = "".join(f'<li><a href="{e(r["url"])}" rel="noopener">{e(r["title"])}</a></li>' for r in c["references"])
+        unv = unv or any(a.get("unverified") for a in c.get("artifacts", []))
+        art_rows = "".join(
+            f'<tr class="{"unv" if a.get("unverified") else ""}"><td><code class="loc">{e(a["locator"])}</code>'
+            f'<div class="muted small">{e(a["description"])}</div>'
+            + (f'<div class="small">{chips(a["seen_in"], "chip implant")}</div>' if a.get("seen_in") else "")
+            + f'</td><td>{badge(a["class"], "cls")}</td><td>{badge(a["volatility"], "vol vol-" + a["volatility"])}'
+            + (f'<div class="muted small">{e(a["retention"])}</div>' if a.get("retention") else "")
+            + f'</td><td>{badge(a["forensic_value"], "fv fv-" + a["forensic_value"])}</td>'
+            f'<td>{chips(a["evidence_type"], "chip mono nw")}</td>'
+            f'<td><span class="chip mono nw">{e(a.get("collected_by", "-"))}</span></td>'
+            f'<td>{conf_badge(a["confidence"], a.get("unverified", False))}</td></tr>'
+            for a in c.get("artifacts", []))
+        artifacts = (f'<details class="arts" open><summary>Artifacts ({len(c.get("artifacts", []))})</summary>'
+                     f'<div class="scroll"><table class="tbl arttbl"><thead><tr><th>Locator and what it proves</th><th>Class</th>'
+                     f'<th>Volatility</th><th>Value</th><th>Evidence</th><th>Collected by</th><th>Conf.</th></tr></thead>'
+                     f'<tbody>{art_rows}</tbody></table></div></details>') if art_rows else ""
+        resp = (f'<a class="chip link" href="#response/{e(c["response"])}">containment and recovery</a>'
+                if c.get("response") else "")
         cards.append(f'''
 <article class="card item{' unv' if unv else ''}" id="platform-{e(c['id'])}"
   data-search="{search_blob(c['id'], c['name'], c['vendor'], c.get('os_base'), *c.get('products', []))}">
@@ -196,14 +219,15 @@ def render_platforms(d: dict, packs_by_platform: dict) -> str:
     <div class="badges">{badge(shell[c['customer_shell']], 'sh-' + c['customer_shell'])}{badge('memory: ' + c['memory_acquisition'], 'mem')}{conf_badge(c['confidence'], c.get('unverified', False))}</div>
   </header>
   {f'<p class="fs">{e(c["filesystem"])}</p>' if c.get('filesystem') else ''}
-  <div class="links">{prof}{pk}</div>
+  <div class="links">{prof}{pk}{resp}</div>
   <h4>Collection paths</h4><ul class="plain">{coll}</ul>
+  {artifacts}
   {f'<h4>Lost on reboot or upgrade</h4><ul>{vol}</ul>' if vol else ''}
   {f'<h4>Anti-forensics seen in public reporting</h4><ul class="plain">{af}</ul>' if af else ''}
   {f'<p class="note">{e(c["notes"])}</p>' if c.get('notes') else ''}
   <details><summary>References</summary><ul>{refs}</ul></details>
 </article>''')
-    return f'<div class="lede">What a responder can reach on each platform, how, and what disappears if you wait. Cards marked <span class="badge unv-b">unverified</span> carry at least one claim nobody has confirmed on a device.</div><div class="grid">{"".join(cards)}</div>'
+    return f'<div class="lede">What a responder can reach on each platform, how, and what disappears if you wait. Each card lists its artifacts with forensic value, volatility and the step that collects them. Cards marked <span class="badge unv-b">unverified</span> carry at least one claim nobody has confirmed on a device.</div><div class="stack">{"".join(cards)}</div>'
 
 
 def render_plans(d: dict) -> str:
@@ -298,6 +322,107 @@ def render_rules(d: dict) -> str:
 </details>''')
     return ('<div class="lede">Vendor-neutral Sigma and YARA. Convert Sigma for your SIEM with '
             '<code>sigma convert -t &lt;backend&gt;</code>; no vendor query dialect is shipped.</div>' + "".join(out))
+
+
+def render_intel(d: dict, plat_names: dict) -> str:
+    """Actors and implants. Attribution is reported, never computed: each actor
+    shows our link confidence (provenance) beside the reporter's own words, and
+    each implant shows which detections cover it or why nothing does."""
+    imp_by_id = {i["id"]: i for i in d["implants"]}
+    det_owner = {x["id"]: p["id"] for p in d["packs"] for x in p["detect"]}
+    actors = []
+    for a in d["actors"]:
+        imps = "".join(f'<a class="chip implant" href="#intel/{e(i)}">{e(imp_by_id[i]["name"] if i in imp_by_id else i)}</a>'
+                       for i in a.get("implants", []))
+        pks = "".join(f'<a class="chip link" href="#packs/{e(x)}">{e(x)}</a>' for x in a.get("packs", []))
+        plats = "".join(f'<a class="chip link" href="#platforms/{e(x)}">{e(plat_names.get(x, x))}</a>' for x in a["platforms"])
+        trade = "".join(f"<li>{e(t)}</li>" for t in a.get("tradecraft", []))
+        refs = "".join(f'<li><a href="{e(r["url"])}" rel="noopener">{e(r["title"])}</a></li>' for r in a["references"])
+        nopack = '' if a.get("packs") else '<span class="chip ghost">no detection pack yet</span>'
+        actors.append(f'''
+<article class="card item" id="intel-{e(a['id'])}" data-search="{search_blob(a['id'], a['name'], *a.get('aliases', []), *a.get('reported_by', []), a.get('summary'))}">
+  <header class="card-h"><div><span class="id">{e(a['id'])}</span><h3>{e(a['name'])}</h3>
+    {f'<div class="muted small">also: {e(", ".join(a["aliases"]))}</div>' if a.get('aliases') else ''}</div>
+    <div class="badges">{badge(a.get('motivation', 'unknown'), 'mot mot-' + a.get('motivation', 'unknown'))}{badge('link: ' + a['link_confidence'], 'conf c-' + a['link_confidence'])}</div></header>
+  <div class="attrib"><div><span class="k">Reported by</span> {e(", ".join(a["reported_by"]))}</div>
+    <div><span class="k">In their words</span> <q>{e(a["stated_confidence"])}</q></div>
+    {f'<div><span class="k">State nexus</span> {e(a["state_nexus"])}</div>' if a.get("state_nexus") else ''}</div>
+  <p>{e(a['summary'].strip())}</p>
+  <div class="links">{plats}{pks}{nopack}{imps}</div>
+  {f'<h4>Tradecraft</h4><ul>{trade}</ul>' if trade else ''}
+  {f'<p class="note">{e(a["notes"].strip())}</p>' if a.get('notes') else ''}
+  <details><summary>References</summary><ul>{refs}</ul></details>
+</article>''')
+    implants = []
+    for i in d["implants"]:
+        dets = "".join(f'<a class="chip mono nw link" href="#packs/{e(det_owner.get(x, ""))}">{e(x)}</a>' for x in i.get("detections", []))
+        cov = dets or '<span class="badge gap-b">coverage gap</span>'
+        surv = "".join(badge(f"{k.replace('survives_', '').replace('_', ' ')}: {i[k]}", "surv surv-" + str(i[k]))
+                       for k in ("survives_reboot", "survives_upgrade", "survives_factory_reset") if k in i)
+        arts = "".join(f"<li><code>{e(x)}</code></li>" for x in i.get("artifacts", []))
+        af = "".join(f"<li>{e(x)}</li>" for x in i.get("anti_forensics", []))
+        refs = "".join(f'<li><a href="{e(r["url"])}" rel="noopener">{e(r["title"])}</a></li>' for r in i["references"])
+        implants.append(f'''
+<article class="card item{' gapcard' if not i.get('detections') else ''}" id="intel-{e(i['id'])}"
+  data-search="{search_blob(i['id'], i['name'], *i.get('aliases', []), *i.get('cves', []), i.get('summary'))}">
+  <header class="card-h"><div><span class="id">{e(i['id'])}</span><h3>{e(i['name'])}</h3>
+    {f'<div class="muted small">{e(", ".join(i["aliases"]))}</div>' if i.get('aliases') else ''}</div>
+    <div class="badges">{badge(i['type'], 'itype')}{badge('resides: ' + i['resides'], 'res res-' + i['resides'])}{conf_badge(i['confidence'], i.get('unverified', False))}</div></header>
+  <div class="links">{surv}</div>
+  <div class="links">{chips(i.get('cves', []), 'chip cve')}</div>
+  <p>{e(i['summary'].strip())}</p>
+  {f'<h4>Artifacts</h4><ul>{arts}</ul>' if arts else ''}
+  {f'<h4>Anti-forensics</h4><ul>{af}</ul>' if af else ''}
+  <h4>Detection coverage</h4><div class="links">{cov}</div>
+  {f'<p class="note">{e(i["gap"].strip())}</p>' if i.get('gap') else ''}
+  <details><summary>References</summary><ul>{refs}</ul></details>
+</article>''')
+    n_gap = sum(1 for i in d["implants"] if not i.get("detections"))
+    return f'''<div class="lede">Attribution here is <b>reported, never computed</b>. Each actor carries two confidences: our <b>link</b> confidence (how well-sourced the link is) and the reporting party's <b>own words</b>, quoted. Clusters are only merged where the reporters themselves equate them.</div>
+<h3 class="sect">Actors <span class="muted">({len(d["actors"])})</span></h3><div class="grid">{"".join(actors)}</div>
+<h3 class="sect">Implants <span class="muted">({len(d["implants"])}, {n_gap} with a coverage gap)</span></h3>
+<div class="lede">What survives a reboot, an upgrade or a factory reset decides your recovery. An implant with no detection shows its gap and why.</div>
+<div class="grid">{"".join(implants)}</div>'''
+
+
+def render_response(d: dict, plat_names: dict) -> str:
+    """Containment and recovery, ordered: preserve, contain, rotate, eradicate,
+    recover, verify. Guidance a human acts on, not automation."""
+    secs = []
+    for stem, r in d["response"].items():
+        def steps(key):
+            out = []
+            for st in r.get(key, []):
+                detail = f'<div class="muted">{e(st["detail"])}</div>' if st.get("detail") else ""
+                when = f'<div class="when">applies to: {e(st["when"])}</div>' if st.get("when") else ""
+                out.append(f'<li><b>{e(st["step"])}</b>{detail}{when}</li>')
+            return "".join(out)
+        cred = "".join(f'<tr><td><b>{e(c["what"])}</b></td><td class="muted">{e(c["why"])}</td><td>{e(c["action"])}</td></tr>'
+                       for c in r.get("credential_exposure", []))
+        dont = "".join(f'<li><b>{e(x["action"])}</b><div class="muted">{e(x["because"])}</div></li>' for x in r.get("do_not", []))
+        vg = "".join(f'<li><a href="{e(x["url"])}" rel="noopener">{e(x["title"])}</a></li>' for x in r.get("vendor_guidance", []))
+        refs = "".join(f'<li><a href="{e(x["url"])}" rel="noopener">{e(x["title"])}</a></li>' for x in r["references"])
+        secs.append(f'''
+<article class="card item resp" id="response-{e(stem)}" data-search="{search_blob(r['name'], r['platform_id'], stem)}">
+  <header class="card-h"><div><span class="id">{e(r['platform_id'])}</span><h3>{e(r['name'])}</h3></div>
+    <div class="badges"><a class="chip link" href="#platforms/{e(r['platform_id'])}">platform entry</a>{conf_badge(r.get('confidence', 'medium'), False)}</div></header>
+  <div class="phases">
+    <div class="phase"><h4><span class="pn">1</span>Preserve first</h4><ol>{steps("preserve_first")}</ol></div>
+    <div class="phase"><h4><span class="pn">2</span>Contain</h4><ol>{steps("contain")}</ol></div>
+  </div>
+  <h4><span class="pn">3</span>Credential exposure - rotate</h4>
+  <div class="scroll"><table class="tbl"><thead><tr><th>What</th><th>Why it is exposed</th><th>Action</th></tr></thead><tbody>{cred}</tbody></table></div>
+  <div class="phases">
+    <div class="phase"><h4><span class="pn">4</span>Eradicate</h4><ol>{steps("eradicate")}</ol></div>
+    <div class="phase"><h4><span class="pn">5</span>Recover</h4><ol>{steps("recover")}</ol></div>
+    <div class="phase"><h4><span class="pn">6</span>Verify</h4><ol>{steps("verify")}</ol></div>
+  </div>
+  <div class="dont"><h4>Do not</h4><ul class="plain">{dont}</ul></div>
+  {f'<p class="note">{e(r["notes"].strip())}</p>' if r.get('notes') else ''}
+  <details><summary>Vendor guidance and references</summary><ul>{vg}{refs}</ul></details>
+</article>''')
+    return f'''<div class="lede">Containment and recovery for each platform, in the order that protects evidence: <b>preserve</b>, contain, rotate credentials, eradicate, recover, verify. This is guidance a person acts on after triage - the toolkit never contains or remediates on its own. Always follow the vendor's current guidance for your exact release.</div>
+<div class="stack">{"".join(secs)}</div>'''
 
 
 def render_coverage(d: dict, plat_names: dict) -> str:
@@ -479,6 +604,33 @@ table.cov .num{text-align:center;font-family:ui-monospace,Menlo,monospace;min-wi
 .guide code{background:var(--code-bg);border-radius:4px;padding:1px 4px;font-size:12.5px}
 .guide pre code{background:none;padding:0}
 footer{max-width:1440px;margin:0 auto;padding:22px 28px 40px;color:var(--faint);font-size:12px;border-top:1px solid var(--line)}
+.sect{margin:26px 0 10px;font-size:15px}
+.arts{margin-top:12px}.arts summary{font-size:12.5px;font-weight:600;color:var(--ink)}
+.arttbl td{font-size:12.5px}.arttbl code.loc{background:var(--code-bg);border-radius:5px;padding:1px 5px;word-break:break-all;font-size:12px}
+.arttbl tr.unv td:first-child{box-shadow:inset 3px 0 0 var(--crit)}
+.cls{color:var(--muted)}
+.vol-live{color:var(--crit);border-color:currentColor}.vol-rotating{color:var(--high);border-color:currentColor}
+.vol-stable{color:var(--low);border-color:currentColor}.vol-off-box{color:var(--conf-strong);border-color:currentColor;background:var(--conf-bg)}
+.fv-high{color:var(--on-accent);background:var(--accent);border-color:var(--accent)}.fv-medium{color:var(--accent);border-color:var(--accent-border)}.fv-low{color:var(--faint)}
+.mot-espionage{color:var(--conf-strong);border-color:currentColor}.mot-financial{color:var(--high);border-color:currentColor}
+.mot-unknown,.mot-mixed{color:var(--muted)}
+.attrib{background:var(--panel-2);border:1px solid var(--line-soft);border-radius:8px;padding:8px 11px;margin:10px 0;font-size:13px;display:grid;gap:3px}
+.attrib .k{display:inline-block;min-width:104px;font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--faint)}
+.attrib q{font-style:italic;color:var(--ink)}
+.gap-b{color:var(--on-accent);background:var(--crit);border-color:var(--crit)}
+.gapcard{border-left:3px solid var(--crit)}
+.surv-yes{color:var(--crit);border-color:currentColor}.surv-no{color:var(--low);border-color:currentColor}
+.surv-partial{color:var(--high);border-color:currentColor}.surv-unknown{color:var(--faint)}
+.itype{color:var(--accent);border-color:var(--accent-border);background:var(--accent-soft)}
+.res-memory{color:var(--crit);border-color:currentColor}.res-boot{color:var(--on-accent);background:var(--crit);border-color:var(--crit)}
+.res-disk,.res-memory\+disk{color:var(--high);border-color:currentColor}
+.phases{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;margin-top:8px}
+.phase{background:var(--panel-2);border:1px solid var(--line-soft);border-radius:8px;padding:6px 12px 10px}
+.phase ol,.resp ol{margin:4px 0;padding-left:18px}.phase li{margin:5px 0;font-size:13px}
+.pn{display:inline-grid;place-items:center;width:18px;height:18px;border-radius:50%;background:var(--accent);color:var(--on-accent);font-size:10.5px;margin-right:7px;vertical-align:1px;letter-spacing:0}
+.when{font-size:11.5px;color:var(--high);margin-top:2px}
+.dont{margin-top:14px;background:var(--alert-bg);border:1px solid var(--line-soft);border-left:3px solid var(--crit);border-radius:8px;padding:4px 12px 8px}
+.dont h4{color:var(--crit)}
 [hidden]{display:none!important}
 .empty{color:var(--muted);padding:30px 0;text-align:center}
 @media (max-width:980px){.planwrap{grid-template-columns:1fr}.builder{position:static}}
@@ -511,7 +663,7 @@ function show(tab, anchor){
   document.querySelectorAll('.panel').forEach(function(p){ p.hidden = p.id !== 'tab-' + tab; });
   if (tab === 'plans' && anchor) pickProfile(anchor);
   if (anchor){
-    var prefix = {platforms:'platform-', packs:'pack-', plans:'plan-'}[tab] || '';
+    var prefix = {platforms:'platform-', packs:'pack-', plans:'plan-', intel:'intel-', response:'response-'}[tab] || '';
     var el = document.getElementById(prefix + anchor);
     if (el) setTimeout(function(){ el.scrollIntoView({block:'start'}); }, 0);
   }
@@ -616,7 +768,8 @@ def page(d: dict) -> tuple[str, dict]:
     data = {"profiles": [{"name": p.name, "ssh": "ssh" in p.transports,
                           "vars": sorted({v for s in p.steps for v in s.requires_vars})} for p in d["profiles"]]}
     tabs = [("platforms", "Platforms", len(d["catalog"])), ("plans", "Collection plans", len(d["profiles"])),
-            ("packs", "Detection packs", len(d["packs"])), ("rules", "Rules", len(d["rules"])),
+            ("packs", "Detection packs", len(d["packs"])), ("intel", "Threat intel", len(d["actors"]) + len(d["implants"])),
+            ("response", "Response", len(d["response"])), ("rules", "Rules", len(d["rules"])),
             ("coverage", "Coverage", None), ("guide", "Investigation guide", None)]
     tabbar = "".join(f'<button type="button" role="tab" data-tab="{t}" aria-selected="false">{label}'
                      + (f'<span class="n">{n}</span>' if n is not None else "") + "</button>" for t, label, n in tabs)
@@ -625,6 +778,8 @@ def page(d: dict) -> tuple[str, dict]:
         "platforms": render_platforms(d, packs_by_platform) + empty,
         "plans": render_plans(d) + empty,
         "packs": render_packs(d, plat_names) + empty,
+        "intel": render_intel(d, plat_names) + empty,
+        "response": render_response(d, plat_names) + empty,
         "rules": render_rules(d) + empty,
         "coverage": render_coverage(d, plat_names),
         "guide": f'<article class="guide">{markdown(d["guide"])}</article>',
@@ -688,7 +843,7 @@ def check(d: dict, doc: str) -> list[str]:
         if c.get("profile") and c["profile"] not in {p.name for p in d["profiles"]}:
             problems.append(f"{c['id']} names profile {c['profile']} that does not exist")
     for href in set(re.findall(r'href="#(\w+)/([^"]+)"', doc)):
-        prefix = {"platforms": "platform-", "packs": "pack-", "plans": "plan-"}.get(href[0])
+        prefix = {"platforms": "platform-", "packs": "pack-", "plans": "plan-", "intel": "intel-", "response": "response-"}.get(href[0])
         if prefix and f'id="{prefix}{href[1]}"' not in doc:
             problems.append(f"dangling link #{href[0]}/{href[1]}")
     data_block = re.search(r'<script type="application/json" id="data">(.*?)</script>', doc, re.S)

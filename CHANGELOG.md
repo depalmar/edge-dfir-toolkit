@@ -1,5 +1,37 @@
 # Changelog
 
+## 0.2.0 - 2026-10-22
+
+### Verification
+- Every claim checked against primary sources in three independent passes. Full
+  audit trail with the basis for each change in `docs/VERIFICATION.md`.
+- **Fixed a silent false negative:** the ASA `show memory region` parser expected
+  a layout no device prints, so it reported "no hit" on a compromised ASA. It
+  now parses the real `/proc/maps` format and is pinned by a regression test.
+- Corrected attribution (UTA0576 is assessed criminal, not espionage), the
+  Ivanti syslog-blocking attribution (operator commands, not SPAWN malware),
+  and fifteen further facts. Secondary sources replaced with primaries.
+
+### Artifacts
+- Every platform entry now carries per-artifact rows: locator, what it proves,
+  evidence class, volatility and retention, forensic value, evidence type, the
+  step that collects it, and confidence.
+
+### Threat intelligence and attribution
+- `artifacts/intel/actors/` - 6 actor profiles. Attribution is reported, never
+  computed: each carries our link confidence and the reporter's own words.
+- `artifacts/intel/implants/` - 9 implant entries with what survives reboot,
+  upgrade and factory reset. An implant with no detection must state its gap.
+
+### Containment and recovery
+- `artifacts/response/` - 7 playbooks ordered preserve, contain, rotate
+  credentials, eradicate, recover, verify, each with a "do not" list.
+
+### Site
+- New Threat intel and Response tabs; artifact tables on every platform card.
+- Validator cross-checks actors, implants, response playbooks and every
+  `collected_by` reference.
+
 ## 0.1.0 - 2026-10-22
 
 First cut.

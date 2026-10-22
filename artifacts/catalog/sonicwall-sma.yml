@@ -5,7 +5,7 @@ id: EDGE-0006
 name: SonicWall SMA 100 series
 vendor: SonicWall
 products: [SMA 200, SMA 210, SMA 400, SMA 410, SMA 500v]
-os_base: Linux (32-bit x86 on SMA 100)
+os_base: Linux
 customer_shell: "no"
 memory_acquisition: vendor-assisted
 collection:
@@ -15,17 +15,55 @@ collection:
     confidence: medium
   - method: Offline disk image
     impact: break-glass
-    description: Recommended by the reporting team for OVERSTEP because the rootkit lies to on-box tools. Physical units may need the vendor.
+    description: GTIG advises acquiring disk images because the rootkit hides from on-box tools, and notes organisations may need to engage SonicWall for physical units.
     confidence: medium
 anti_forensics:
   - technique: Userland rootkit hooking file and directory APIs through ld.so.preload
     seen_in: OVERSTEP (UNC6148, 2025)
   - technique: Removed its own log lines
     seen_in: OVERSTEP (UNC6148, 2025)
+response: sonicwall-sma
+artifacts:
+  - locator: /etc/ld.so.preload (offline image)
+    class: persistence
+    volatility: stable
+    forensic_value: high
+    evidence_type: [persistence, defense-evasion]
+    confidence: medium
+    collected_by: ingest
+    description: OVERSTEP loaded through the dynamic linker's preload file. Visible only on an offline image because the hook hides it from on-box tools.
+    seen_in: [OVERSTEP]
+  - locator: /usr/lib/libsamba-errors.so.6 (offline image)
+    class: persistence
+    volatility: stable
+    forensic_value: high
+    evidence_type: [persistence]
+    confidence: medium
+    collected_by: ingest
+    description: The OVERSTEP library.
+    seen_in: [OVERSTEP]
+  - locator: /etc/rc.d/rc.fwboot and the INITRD (offline image)
+    class: persistence
+    volatility: stable
+    forensic_value: high
+    evidence_type: [persistence]
+    confidence: medium
+    collected_by: ingest
+    description: Boot script and initrd modified to re-establish the rootkit on boot.
+    seen_in: [OVERSTEP]
+  - locator: Tech support report and exported logs
+    class: system-logs
+    volatility: rotating
+    forensic_value: low
+    evidence_type: [timeline]
+    confidence: medium
+    collected_by: ingest
+    description: OVERSTEP removed its own log lines, so these establish the baseline of what is missing rather than what happened.
+    seen_in: [OVERSTEP]
 confidence: medium
 references:
-  - title: SecurityAffairs - UNC6148 deploys OVERSTEP
-    url: https://securityaffairs.com/180035/hacking/unc6148-deploys-overstep-malware-on-sonicwall-devices-possibly-for-ransomware-operations.html
+  - title: Google Threat Intelligence Group - SonicWall SMA exploitation and the OVERSTEP backdoor (16 July 2025)
+    url: https://cloud.google.com/blog/topics/threat-intelligence/sonicwall-secure-mobile-access-exploitation-overstep-backdoor
     accessed: "2026-10-22"
 notes: No collection profile yet. Analysis runs against ingested image-triage output.
 last_modified: "2026-10-22"

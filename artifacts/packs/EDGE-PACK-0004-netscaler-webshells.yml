@@ -3,14 +3,17 @@
 id: EDGE-PACK-0004
 name: NetScaler web shells and persistence after code-execution flaws
 platforms: [EDGE-0004]
-cves: [CVE-2023-3519, CVE-2025-6543, CVE-2025-7775]
+cves: [CVE-2023-3519, CVE-2025-7775]
 actors: []
 implants: []
 summary: >-
-  Unauthenticated code execution followed by PHP web shells under the web
-  roots, SUID binaries and cron persistence. In the 2023 mass-exploitation
-  campaign most backdoored devices had already been patched, so patch state
-  says nothing about compromise state.
+  Unauthenticated code execution (CVE-2023-3519; CVE-2025-7775 is titled RCE
+  and/or DoS by the vendor) followed by PHP web shells under the web roots,
+  SUID binaries and cron persistence. CVE-2025-6543 is titled a memory overflow
+  and denial of service by Citrix, with code execution reported only in the
+  field by NCSC-NL; it is tracked in the catalog, not asserted as RCE here. In
+  the 2023 campaign most backdoored devices had already been patched, so patch
+  state says nothing about compromise state.
 confidence: high
 references:
   - title: Fox-IT / NCC Group - approximately 2000 NetScalers backdoored

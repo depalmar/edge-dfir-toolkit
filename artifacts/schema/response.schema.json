@@ -1,0 +1,164 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Containment and recovery playbook",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "platform_id",
+    "name",
+    "preserve_first",
+    "contain",
+    "credential_exposure",
+    "eradicate",
+    "recover",
+    "verify",
+    "do_not",
+    "references"
+  ],
+  "properties": {
+    "platform_id": {
+      "type": "string",
+      "pattern": "^EDGE-[0-9]{4}$"
+    },
+    "name": {
+      "type": "string"
+    },
+    "preserve_first": {
+      "$ref": "#/$defs/steps"
+    },
+    "contain": {
+      "$ref": "#/$defs/steps"
+    },
+    "credential_exposure": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "what",
+          "why",
+          "action"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "what": {
+            "type": "string"
+          },
+          "why": {
+            "type": "string"
+          },
+          "action": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "eradicate": {
+      "$ref": "#/$defs/steps"
+    },
+    "recover": {
+      "$ref": "#/$defs/steps"
+    },
+    "verify": {
+      "$ref": "#/$defs/steps"
+    },
+    "do_not": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "action",
+          "because"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "type": "string"
+          },
+          "because": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "vendor_guidance": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "title",
+          "url"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "accessed": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "references": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "title",
+          "url"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "accessed": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "confidence": {
+      "enum": [
+        "high",
+        "medium",
+        "low"
+      ]
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "$defs": {
+    "steps": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "step"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "step": {
+            "type": "string"
+          },
+          "detail": {
+            "type": "string"
+          },
+          "when": {
+            "type": "string",
+            "description": "verdict levels this applies to, e.g. 'COMPROMISED, LIKELY-COMPROMISED'"
+          }
+        }
+      }
+    }
+  }
+}

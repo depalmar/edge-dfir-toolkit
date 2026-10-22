@@ -168,8 +168,9 @@ steps:
     impact: break-glass
     purpose: Offline image of the persistent disks, the check that does not trust the device's own binaries.
     instructions: |
-      Image the memory disk and the persistent disk (md0 and da0 on VPX/MPX) to an
-      external target, or snapshot the VPX at the hypervisor with memory. Analyse
+      Image the memory-disk root (md0) and the persistent disk - named da0, ad0,
+      ada0 or similar depending on model, BIOS and hypervisor - to an external
+      target, or snapshot the VPX at the hypervisor with memory. Analyse
       the images offline (Dissect-based triage such as fox-it/citrix-netscaler-triage
       or NCSC-NL citrix-2025 disk-image checks). Then ingest the triage output:
         edge-triage ingest <case> --label image-triage --bundle <output>

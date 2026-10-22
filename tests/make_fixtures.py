@@ -140,13 +140,17 @@ def netscaler(root: Path, malicious: bool) -> None:
 
 # ----------------------------------------------------------------- Cisco ASA
 def asa(root: Path, malicious: bool) -> None:
+    # Real `show memory region` is /proc/maps-style: start-end joined by a hyphen,
+    # perms, offset, dev, inode, pathname. No 0x prefix, no length column.
+    # Format pinned from Cisco's command reference and the Talos ArcaneDoor example.
     regions = [
-        "Start              End                Length             Perms  Offset    Inode  Name",
-        "0x000055d3e5c00000 0x000055d3e9a77000 0x0000000003e77000 r-xp   00000000  1234   /asa/bin/lina",
-        "0x000055d3e9c77000 0x000055d3ea2a1000 0x000000000062a000 rw-p   03e77000  1234   /asa/bin/lina",
+        "Address                   Perm Offset   Dev   Inode   Pathname",
+        "561d9fee9000-561da3b60000 r-xp 00000000 00:02 5955    /asa/bin/lina",
+        "561da3b60000-561da4180000 rw-p 03c77000 00:02 5955    /asa/bin/lina",
     ]
     if malicious:
-        regions.append("0x00007f1c2a3b4000 0x00007f1c2a3b5000 0x0000000000001000 r-xp   00000000  1234   /asa/bin/lina")
+        # One extra executable lina region, exactly 0x1000 bytes long.
+        regions.append("7f1c2a3b4000-7f1c2a3b5000 r-xp 00000000 00:02 5955    /asa/bin/lina")
     lina = "\n".join(r for r in regions if "lina" in r) + "\n"
     disk0 = ["Directory of disk0:/", "  11  -rwx  112640512  10:00:00 Jan 05 2026  asa9-20-3-smp-k8.bin"]
     if malicious:

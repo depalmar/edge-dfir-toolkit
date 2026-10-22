@@ -1,0 +1,65 @@
+# Containment and recovery - EDGE-0003 Ivanti Connect Secure / Policy Secure
+# Schema: ../schema/response.schema.json
+
+platform_id: EDGE-0003
+name: Ivanti Connect Secure / Policy Secure
+confidence: medium
+
+preserve_first:
+  - step: Snapshot the virtual appliance with memory before anything else
+    detail: The external ICT reboots the appliance and the 2026 activity was memory-only. Capture memory and disk first.
+  - step: Pull the syslog receiver's copy of the logs
+    detail: In 2025 the operator added iptables DROP rules on the syslog ports and SPAWNSLOTH suppressed logging in-process; a forwarding gap dates the intrusion.
+
+contain:
+  - step: Disconnect the appliance from untrusted networks
+    detail: For an actively exploited zero-day with no patch, isolation may be the only control. Weigh against the outage, but the 2024 and 2026 chains were unauthenticated.
+    when: COMPROMISED, LIKELY-COMPROMISED
+  - step: Do not run the external ICT as a containment step
+    detail: It reboots the appliance and destroys memory-only evidence; run it only after the snapshot, as a break-glass collection step.
+
+credential_exposure:
+  - what: Connected directory bind accounts and any cached domain credentials
+    why: The appliance authenticates against AD/LDAP; the 2024 and 2026 activity harvested credentials and, in 2026, LAPS and BitLocker material from the connected environment.
+    action: Rotate the appliance's directory bind account. Treat domain credentials used during the intrusion as compromised and reset them; consider a krbtgt reset if domain compromise is confirmed.
+  - what: VPN user credentials
+    why: WARPWIRE-class harvesters captured credentials from the login page.
+    action: Force VPN user password resets.
+  - what: Session cookies and secrets on the appliance
+    why: Config and memory access expose them.
+    action: Invalidate active sessions; rotate secrets on the rebuilt appliance.
+
+eradicate:
+  - step: Rebuild, do not clean
+    detail: CISA reported that an actor may retain root-level persistence through a factory reset, and the ICT can be made to lie. A confirmed-compromised appliance is replaced or rebuilt from vendor-supplied clean media, following Ivanti's current guidance.
+    when: COMPROMISED, LIKELY-COMPROMISED
+  - step: Apply the fixed release on the rebuilt appliance
+    detail: Patch the specific CVE chain in scope; confirm the build with the vendor.
+
+recover:
+  - step: Bring the rebuilt appliance online on a fixed release
+  - step: Re-establish VPN after credentials and the directory bind account are rotated
+  - step: Restore syslog forwarding and confirm it reaches the collector
+
+verify:
+  - step: Confirm the external ICT (post-rebuild) is clean and the manifest signing key is the vendor's
+  - step: Confirm syslog forwarding is intact and SELinux is enforcing, root filesystem read-only
+  - step: Hunt into the domain for the dwell period; the directory is the real target
+
+do_not:
+  - action: Run the external ICT before snapshotting
+    because: It reboots the appliance and erases memory-only implants and the 2026 in-memory patches.
+  - action: Treat a clean internal ICT as a clean device
+    because: CISA AA24-060B reports the internal and an earlier external ICT failed to detect compromise, and SPAWNANT re-signed the manifest.
+  - action: Rely on a factory reset to evict the actor
+    because: CISA reported root-level persistence surviving factory reset.
+
+vendor_guidance:
+  - title: CISA AA24-060B
+    url: https://www.cisa.gov/news-events/cybersecurity-advisories/aa24-060b
+    accessed: "2026-10-22"
+
+references:
+  - title: Volexity - chained exploitation of Ivanti Connect Secure zero-days (October 2026)
+    url: https://www.volexity.com/blog/2026/10/13/a-series-of-unauthenticated-events-chained-exploitation-of-ivanti-connect-secure-zero-days/
+    accessed: "2026-10-22"

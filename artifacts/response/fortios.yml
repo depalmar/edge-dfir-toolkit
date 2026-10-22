@@ -1,0 +1,64 @@
+# Containment and recovery - EDGE-0002 FortiOS
+# Schema: ../schema/response.schema.json
+
+platform_id: EDGE-0002
+name: FortiOS (FortiGate / FortiProxy)
+confidence: medium
+
+preserve_first:
+  - step: Collect before remediation
+    detail: Run the fortios profile, including the filesystem hash against a baseline of the same build and the SSL-VPN language-directory listing.
+  - step: Pull off-box logs from FortiAnalyzer / FortiCloud / syslog
+    detail: On-box logs are short; the off-box copies are the ones the attacker is least likely to have touched.
+
+contain:
+  - step: Restrict SSL-VPN and administrative access upstream
+    detail: Apply controls on an upstream device rather than editing the suspect config.
+    when: COMPROMISED, LIKELY-COMPROMISED, SUSPICIOUS
+  - step: Remember that patching does not evict an established actor
+    detail: The 2025 symlink persistence survived patching; a patch closes the door but does not remove a tenant already inside.
+
+credential_exposure:
+  - what: SSL-VPN user credentials
+    why: SSL-VPN exploitation and the read-only root filesystem exposure put authentication material at risk.
+    action: Force SSL-VPN user password resets; rotate any LDAP/RADIUS bind account the firewall used.
+  - what: Local admin accounts and API keys
+    why: Config access exposes local accounts and REST API keys.
+    action: Rotate all local admin passwords and API keys; rotate the configuration encryption password.
+  - what: Certificates and private keys
+    why: Exportable with config access.
+    action: Reissue and revoke.
+
+eradicate:
+  - step: Do not clean the symlink and declare victory
+    detail: The language-directory symlink is one artefact; a confirmed-compromised device is untrusted. Look for secondary persistence (automation stitches, scripts, modified binaries by hash).
+  - step: Rebuild on a fixed build and remove post-patch persistence per vendor guidance
+    detail: Fortinet published specific guidance and later a fix for a bypass of the symlink remediation (CVE-2025-68686); apply the current one.
+  - step: Re-import a reviewed configuration
+    detail: Diff against known-good; do not blind-restore a post-compromise backup.
+
+recover:
+  - step: Restore service on the rebuilt device on a fixed build
+  - step: Re-establish SSL-VPN after credentials are rotated
+  - step: Keep heightened monitoring and confirm filesystem hashes match the clean baseline
+
+verify:
+  - step: Re-run diagnose sys filesystem hash against the baseline; expect no deltas
+  - step: Confirm no symlinks into the root filesystem from served directories
+  - step: Hunt into the network for the dwell period
+
+do_not:
+  - action: Rely on patching alone after suspected compromise
+    because: The symlink persistence survived patching, and a bypass of the fix was later disclosed.
+  - action: Trust diagnose sys filesystem hash without a baseline
+    because: A list of hashes with nothing to compare against proves nothing.
+
+vendor_guidance:
+  - title: Fortinet PSIRT - analysis of threat actor activity
+    url: https://www.fortinet.com/blog/psirt-blogs/analysis-of-threat-actor-activity
+    accessed: "2026-10-22"
+
+references:
+  - title: Fortinet PSIRT FG-IR-22-398 (CVE-2022-42475)
+    url: https://www.fortiguard.com/psirt/FG-IR-22-398
+    accessed: "2026-10-22"

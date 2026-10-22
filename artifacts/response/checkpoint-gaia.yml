@@ -1,0 +1,61 @@
+# Containment and recovery - EDGE-0007 Check Point Quantum (Gaia)
+# Schema: ../schema/response.schema.json
+
+platform_id: EDGE-0007
+name: Check Point Quantum Security Gateway (Gaia)
+confidence: medium
+
+preserve_first:
+  - step: Collect in expert mode and capture cpinfo
+    detail: Standard Linux live response is available. Pull the VPN/Mobile Access web logs and authentication logs before remediation.
+  - step: Pull off-box copies of the web and auth logs
+    detail: The file read leaves only the request; off-box copies are the reliable record.
+
+contain:
+  - step: Restrict the Remote Access / Mobile Access portal upstream
+    detail: CVE-2024-24919 is reachable only where the portal is exposed; limit reachability while investigating.
+    when: COMPROMISED, LIKELY-COMPROMISED, SUSPICIOUS
+
+credential_exposure:
+  - what: Local account password hashes
+    why: The published exploit read /etc/shadow, so the local password store is exposed; public reporting showed local accounts used to pull directory data.
+    action: Rotate all local account passwords and the hashes behind them.
+  - what: Directory/LDAP accounts and any credentials reachable from the gateway
+    why: Reporting described escalation to directory data extraction within hours.
+    action: Rotate directory accounts used by or reachable from the gateway; treat domain credentials in scope as exposed.
+  - what: Certificates and keys on the gateway
+    why: Readable through the high-privilege file read.
+    action: Reissue and revoke.
+
+eradicate:
+  - step: Apply the vendor hotfix and remove any local accounts the attacker added
+    detail: Follow Check Point's advisory (sk182336). Review local accounts, administrators and any added SSH keys.
+  - step: If follow-on compromise is confirmed, rebuild rather than clean
+    detail: A file read alone may not mean implantation, but confirmed hands-on activity on the gateway makes it untrusted.
+    when: COMPROMISED
+
+recover:
+  - step: Bring the patched (or rebuilt) gateway online
+  - step: Re-establish remote access after credential rotation
+  - step: Confirm logging is intact and forwarding to the collector
+
+verify:
+  - step: Confirm the hotfix is applied and no unexpected local accounts or SSH keys remain
+  - step: Review directory logs for the local accounts used in the window
+  - step: Hunt into the domain for the dwell period
+
+do_not:
+  - action: Assume a file-read vulnerability means no hands-on-keyboard follow-up
+    because: Reporting showed directory data extracted within hours of logging in with a local account.
+  - action: Rotate only the obviously-exposed account
+    because: The read returned the whole local password store; rotate all of them.
+
+vendor_guidance:
+  - title: Check Point - CVE-2024-24919 advisory (sk182336)
+    url: https://support.checkpoint.com/results/sk/sk182336
+    accessed: "2026-10-22"
+
+references:
+  - title: watchTowr - Check Point wrong check point (CVE-2024-24919)
+    url: https://labs.watchtowr.com/check-point-wrong-check-point-cve-2024-24919/
+    accessed: "2026-10-22"

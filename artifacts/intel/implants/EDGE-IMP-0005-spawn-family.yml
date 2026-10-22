@@ -1,0 +1,38 @@
+id: EDGE-IMP-0005
+name: SPAWN family
+aliases: [SPAWNANT, SPAWNMOLE, SPAWNSNAIL, SPAWNSLOTH]
+platforms: [EDGE-0003]
+actors: [EDGE-TA-0002]
+cves: [CVE-2025-0282, CVE-2025-22457]
+type: backdoor
+resides: disk
+survives_reboot: "yes"
+survives_upgrade: "yes"
+survives_factory_reset: unknown
+summary: >-
+  Modular Ivanti Connect Secure implant set: an installer that persists across
+  upgrades, a tunneler, an SSH backdoor and a log-tampering component. The
+  installer recalculated file hashes and re-signed the Integrity Checker Tool
+  manifest so the tool reported clean. The log-tampering component suppresses
+  logging in-process while the SSH backdoor runs; the iptables syslog block and
+  the read-write root remount were the operator's own commands, not the malware.
+artifacts:
+  - ICT manifest and signing-key changes
+  - iptables DROP rules on the syslog ports (operator command)
+  - Root filesystem remounted read-write; SELinux disabled (operator commands)
+anti_forensics:
+  - Re-signed the ICT manifest (SPAWNANT)
+  - Suppressed logging in-process while the SSH backdoor ran (SPAWNSLOTH)
+detections: []
+gap: >-
+  The indicators sit on the root filesystem and inside ICT internals a customer
+  cannot read. Coverage needs a vendor-assisted image or snapshot parser; the
+  off-box syslog gap is the only customer-visible signal today.
+confidence: medium
+references:
+  - title: CISA AA24-060B
+    url: https://www.cisa.gov/news-events/cybersecurity-advisories/aa24-060b
+    accessed: "2026-10-22"
+  - title: The Record - Mandiant on Ivanti exploitation (secondary; replace with the primary GTIG post)
+    url: https://therecord.media/china-espionage-ivanti-vulnerabilities-mandiant
+    accessed: "2026-10-22"

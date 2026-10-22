@@ -1,0 +1,57 @@
+# Containment and recovery - EDGE-0006 SonicWall SMA 100
+# Schema: ../schema/response.schema.json
+
+platform_id: EDGE-0006
+name: SonicWall SMA 100 series
+confidence: medium
+
+preserve_first:
+  - step: Take an offline disk image
+    detail: OVERSTEP hides from on-box tools, so the tech support report and live listing under-report. The reporting team recommended an offline image; physical units may need the vendor.
+  - step: Pull any off-box logs and upstream VPN/firewall records
+    detail: The rootkit deletes its own log lines, so off-box records carry more weight than on-box ones.
+
+contain:
+  - step: Disconnect the appliance from untrusted networks
+    detail: These are end-of-life SMA 100 devices re-entered with stolen credentials; isolation is the reliable control.
+    when: COMPROMISED, LIKELY-COMPROMISED, SUSPICIOUS
+
+credential_exposure:
+  - what: VPN user credentials and OTP seeds
+    why: OVERSTEP steals credentials and one-time-password seeds from the device.
+    action: Force VPN user password resets and re-enrol OTP/MFA seeds; assume every account that authenticated through the device is exposed.
+  - what: Local admin credentials
+    why: Device compromise exposes local accounts.
+    action: Rotate on the replacement device.
+
+eradicate:
+  - step: Replace the device
+    detail: SMA 100 is end-of-life. The reliable path is replacement, or a rebuild from clean firmware (GTIG names 10.2.1.15-81sv as the fixed release) with the entry vector closed, following SonicWall guidance.
+    when: COMPROMISED, LIKELY-COMPROMISED
+
+recover:
+  - step: Stand up a supported replacement (the SMA 100 line is end-of-life; plan migration)
+  - step: Re-establish VPN after credentials and OTP seeds are rotated
+
+verify:
+  - step: On a replacement, confirm no ld.so.preload, no rogue libsamba-errors.so.6, expected rc.fwboot and initrd
+  - step: Hunt into the network for the dwell period; ransomware staging was the suspected objective
+
+do_not:
+  - action: Trust the tech support report or a live listing on a suspected OVERSTEP host
+    because: The rootkit hooks file and directory calls and hides itself; only an offline image is reliable.
+  - action: Clean in place and return the device to service
+    because: Boot-level persistence and hidden files make in-place cleaning unreliable on end-of-life hardware.
+
+vendor_guidance:
+  - title: SonicWall - SMA 100 series guidance (locate the current advisory for your firmware)
+    url: https://www.sonicwall.com/support/product-notification
+    accessed: "2026-10-22"
+
+references:
+  - title: Google Threat Intelligence Group - SonicWall SMA exploitation and the OVERSTEP backdoor (16 July 2025)
+    url: https://cloud.google.com/blog/topics/threat-intelligence/sonicwall-secure-mobile-access-exploitation-overstep-backdoor
+    accessed: "2026-10-22"
+notes: >-
+  The fixed-release version is from GTIG's report; confirm it against SonicWall's
+  own notice for your hardware before operational use.

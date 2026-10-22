@@ -15,7 +15,7 @@ collection:
     impact: none
     description: Status, process snapshot, admin and SSL-VPN sessions, configuration, crash log.
     confidence: high
-  - method: diagnose sys filesystem hash (7.2.6+)
+  - method: diagnose sys filesystem hash (7.0.13+, 7.2.6+, 7.4.0+)
     impact: none
     description: SHA-256 of system files. Meaningful only against a baseline of the same build.
     confidence: high
@@ -25,13 +25,74 @@ collection:
     description: Limited read access to the filesystem, used for directory listings.
     confidence: medium
 volatility:
-  - The crash log persists across reboots; /tmp does not
+  - The crash log is expected to survive a reboot and /tmp not to, but no vendor statement confirms either; collect both before any reboot
 anti_forensics:
   - technique: Symlink persistence in the user filesystem that survived patching
     seen_in: Vendor PSIRT disclosure, April 2025
     detail: The vendor stated it avoided detection; patching did not remove it.
   - technique: Implants that survive reboot and upgrade
     seen_in: COATHANGER
+response: fortios
+artifacts:
+  - locator: diagnose sys filesystem hash
+    class: integrity
+    volatility: live
+    forensic_value: high
+    evidence_type: [persistence, defense-evasion]
+    confidence: high
+    collected_by: fs_hash
+    description: SHA-256 of system files (FortiOS 7.0.13+, 7.2.6+, 7.4.0+). Only meaningful against a baseline from the same build; the toolkit refuses to score it without one.
+  - locator: diagnose debug crashlog read
+    class: system-logs
+    volatility: stable
+    forensic_value: high
+    evidence_type: [initial-access, timeline]
+    confidence: high
+    collected_by: crashlog
+    description: Crash log; persists across reboots. sslvpnd signal 11 crashes were the vendor's published indicator for CVE-2022-42475 attempts.
+    seen_in: [CVE-2022-42475]
+  - locator: SSL-VPN language-file directory (operator-supplied path)
+    class: persistence
+    volatility: stable
+    forensic_value: high
+    evidence_type: [persistence, defense-evasion]
+    confidence: low
+    unverified: true
+    collected_by: listing_sslvpn_lang
+    description: Where the 2025 symlink persistence lived, giving read-only root filesystem access that survived patching. The exact path is not confirmed by this project; supply it with --var.
+    seen_in: [symlink persistence 2025]
+  - locator: diagnose sys top
+    class: process
+    volatility: live
+    forensic_value: medium
+    evidence_type: [execution]
+    confidence: medium
+    collected_by: diag_sys_top
+    description: Process snapshot. Implanted daemons and renamed binaries show here first.
+  - locator: get system admin list / get vpn ssl monitor
+    class: sessions
+    volatility: live
+    forensic_value: medium
+    evidence_type: [initial-access, credential-access]
+    confidence: high
+    collected_by: get_admin_list
+    description: Administrators and SSL-VPN users logged in now, with source address.
+  - locator: show (full configuration)
+    class: config
+    volatility: stable
+    forensic_value: high
+    evidence_type: [persistence, configuration]
+    confidence: high
+    collected_by: show_config
+    description: Diff against backup for new admins, local users, SSL-VPN portals, automation stitches and scripts.
+  - locator: FortiAnalyzer / FortiCloud / syslog event, VPN and admin logs
+    class: off-box
+    volatility: off-box
+    forensic_value: high
+    evidence_type: [timeline, initial-access, credential-access]
+    confidence: high
+    collected_by: ingest
+    description: Off-box copies for the full retention window; on-box logs are short and attacker-reachable.
 confidence: high
 references:
   - title: Fortinet PSIRT - analysis of threat actor activity

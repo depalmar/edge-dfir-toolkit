@@ -1,0 +1,31 @@
+id: EDGE-TA-0003
+name: UAT4356
+aliases: [STORM-1849]
+reported_by: [Cisco Talos, Microsoft]
+link_confidence: medium
+stated_confidence: "Cisco Talos: 'a state-sponsored actor'; Talos did not attribute to a specific government"
+state_nexus: "not stated by the reporter"
+motivation: espionage
+summary: >-
+  ArcaneDoor: exploitation of Cisco ASA and FTD devices disclosed in April 2024
+  (CVE-2024-20353, CVE-2024-20359) with the memory-resident LINE DANCER and the
+  disk-persistent LINE RUNNER. Cisco and CISA tied the 2025 activity
+  (CVE-2025-20333, CVE-2025-20362, RayInitiator, LINE VIPER) to the same
+  campaign.
+platforms: [EDGE-0005]
+packs: [EDGE-PACK-0006]
+implants: [EDGE-IMP-0002, EDGE-IMP-0003, EDGE-IMP-0004]
+tradecraft:
+  - Memory-only shellcode interpreter that disabled syslog and bypassed AAA
+  - Hooked the core-dump routine so that a dump request reloaded the device
+  - Boot-loader persistence on models without Secure Boot (2025)
+  - Packet capture and configuration exfiltration from the device
+victimology: ["government networks (Talos)"]
+first_seen: "2024-01"
+references:
+  - title: Cisco Talos - ArcaneDoor
+    url: https://blog.talosintelligence.com/arcanedoor-new-espionage-focused-campaign-found-targeting-perimeter-network-devices/
+    accessed: "2026-10-22"
+  - title: CISA ED 25-03 implementation guidance update
+    url: https://www.cisa.gov/news-events/alerts/2025/11/12/update-implementation-guidance-emergency-directive-cisco-asa-and-firepower-device-vulnerabilities
+    accessed: "2026-10-22"

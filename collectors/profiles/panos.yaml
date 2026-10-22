@@ -119,7 +119,7 @@ steps:
     tier: P4
     kind: command
     cmd: tail lines 10000 mp-log gpsvc.log
-    purpose: GlobalProtect service log. CVE-2024-3400 exploitation leaves "failed to unmarshal session(...)" entries carrying a path instead of a session GUID.
+    purpose: GlobalProtect service log. CVE-2024-3400 exploitation leaves "failed to unmarshal session(...)" entries carrying a path instead of a session GUID. The vendor's own on-box check is `grep pattern "failed to unmarshal session(.\+.\/" mp-log gpsvc.log*`.
     confidence: medium
     references:
       - https://www.volexity.com/blog/2024/05/15/detecting-compromise-of-cve-2024-3400-on-palo-alto-networks-globalprotect-devices/
@@ -138,8 +138,7 @@ steps:
     kind: command
     cmd: tail lines 10000 mp-log appweb3-sslvpn.log
     purpose: Portal web server log, for request timing around exploitation.
-    confidence: low
-    unverified: true
+    confidence: medium
 
   - id: tsf_export
     tier: B
@@ -159,7 +158,8 @@ steps:
     instructions: |
       PAN-OS customers cannot collect memory or read the root filesystem themselves.
       Open a support case and request, through vendor-assisted access:
-        - /etc/cron.d/ and /var/spool/cron/ (CVE-2024-3400 "Level 3" persistence)
+        - /etc/cron.d/ and /var/spool/cron/ (cron persistence; Unit 42 classes it
+          as a "Level 3 - interactive access" indicator)
         - Python site-packages *.pth files (UPSTYLE used system.pth)
         - /var/appweb/ document roots (copied running-config, web shells)
         - a memory capture, if the vendor will take one

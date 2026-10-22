@@ -1,0 +1,24 @@
+id: EDGE-IMP-0003
+name: LINE RUNNER
+platforms: [EDGE-0005]
+actors: [EDGE-TA-0003]
+cves: [CVE-2024-20359]
+type: backdoor
+resides: disk
+survives_reboot: "yes"
+survives_upgrade: partial
+summary: >-
+  Lua-based persistent web shell on Cisco ASA, delivered as a zip on disk0 that
+  a legacy pre-load feature unpacked at boot. Cisco's guidance was to check
+  disk0 for the archive after a reload.
+artifacts:
+  - "disk0:/client_bundle_install.zip"
+  - Any unexpected .zip on disk0
+anti_forensics:
+  - Installed through a legitimate boot-time feature
+detections: [asa-line-runner-zip, asa-zip-on-disk0]
+confidence: high
+references:
+  - title: Cisco Talos - ArcaneDoor
+    url: https://blog.talosintelligence.com/arcanedoor-new-espionage-focused-campaign-found-targeting-perimeter-network-devices/
+    accessed: "2026-10-22"

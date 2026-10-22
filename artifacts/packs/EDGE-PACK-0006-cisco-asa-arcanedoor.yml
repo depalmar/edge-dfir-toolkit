@@ -44,7 +44,7 @@ detect:
     evidence_class: persistence
     sources:
       steps: [dir_disk0]
-    pattern: 'client_bundle_install\.zip'
+    pattern: 'client_bundle[\w-]*\.zip'
     flags: [ignorecase]
     attack: [T1542, T1505]
 

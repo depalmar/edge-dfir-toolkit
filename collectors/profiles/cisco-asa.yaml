@@ -43,7 +43,7 @@ steps:
     tier: V0
     kind: command
     cmd: show version
-    purpose: Version, hardware, uptime and last reload reason. An unexplained reload after the exploitation window is itself a finding.
+    purpose: Version, hardware and uptime. A low uptime (unexpected reboot) after the exploitation window is itself a finding; ASA does not print a reload reason here, so pair it with show crashinfo.
     confidence: high
 
   - id: mem_region_lina

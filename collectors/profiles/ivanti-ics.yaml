@@ -8,8 +8,8 @@
 # brings each output into the case with a hash.
 #
 # The Integrity Checker Tool is one signal, never a verdict. CISA AA24-060B
-# reports that both the internal and the then-current external ICT failed to
-# detect compromise, SPAWNANT re-signed the ICT manifest, and the October 2026
+# reports that the internal and a previous external ICT failed to detect
+# compromise, SPAWNANT re-signed the ICT manifest, and the October 2026
 # exploitation reported by Volexity executed only in memory.
 
 profile: ivanti-ics
@@ -41,9 +41,9 @@ steps:
     purpose: Off-box copies of event, user-access and admin-access logs.
     instructions: |
       Export the appliance's syslog stream from your SIEM for the full retention window.
-      These are the copies most likely to be intact: SPAWN-family malware blocked syslog
-      forwarding with iptables and tampered with local logs, so a gap in the off-box
-      stream is itself evidence. Ingest with --label siem.
+      These are the copies most likely to be intact: in 2025 the operator added
+      iptables DROP rules on the syslog ports and SPAWNSLOTH suppressed logging
+      in-process, so a gap in the off-box stream is itself evidence. Ingest with --label siem.
 
   - id: ui_log_export
     tier: P3

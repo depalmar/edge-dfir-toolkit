@@ -1,0 +1,26 @@
+id: EDGE-IMP-0008
+name: FortiOS symlink persistence
+platforms: [EDGE-0002]
+actors: []
+cves: [CVE-2022-42475, CVE-2023-27997, CVE-2024-21762]
+type: persistence-mechanism
+resides: disk
+survives_reboot: "yes"
+survives_upgrade: "yes"
+summary: >-
+  Disclosed by the vendor in April 2025: after earlier SSL-VPN exploitation an
+  actor left a symbolic link in the directory that serves SSL-VPN language
+  files, exposing the root filesystem read-only to anyone who could reach the
+  portal. It lived in the user filesystem, so patching the original flaw did
+  not remove it.
+artifacts:
+  - Symbolic link in the SSL-VPN language-file directory pointing at the root filesystem
+anti_forensics:
+  - Survives patching; no process, no log event
+detections: [fortios-symlink-root]
+gap: The directory path is operator-supplied until confirmed on a device.
+confidence: medium
+references:
+  - title: Fortinet PSIRT - analysis of threat actor activity
+    url: https://www.fortinet.com/blog/psirt-blogs/analysis-of-threat-actor-activity
+    accessed: "2026-10-22"

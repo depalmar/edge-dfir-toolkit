@@ -1,0 +1,33 @@
+id: EDGE-TA-0005
+name: UTA0576
+aliases: []
+reported_by: [Volexity]
+link_confidence: medium
+stated_confidence: "Volexity assesses with low confidence that UTA0576 is a criminal actor"
+motivation: financial
+summary: >-
+  Exploited Ivanti Connect Secure in 2026 (CVE-2026-104935, an authentication
+  bypass and code execution, chained with an unnumbered privilege escalation)
+  without leaving a backdoor or web shell: the device was re-exploited for
+  every command, a shared library was patched in memory only (the on-disk copy
+  was never modified) and the patch was restored afterwards, and the actor's own
+  lines were removed from debuglog and audit.log. On-disk tooling still appeared
+  in /tmp and /data/.icscap/, including a renamed packet-capture binary. Directory, LAPS and
+  BitLocker material was targeted downstream.
+platforms: [EDGE-0003]
+packs: []
+implants: []
+tradecraft:
+  - Re-exploitation per command with no persistent implant
+  - In-memory patching of a shared library (on-disk copy untouched), restored afterwards
+  - Removal of its own log lines on the appliance
+  - Harvesting LDAP traffic captured on the appliance
+victimology: ["not stated"]
+first_seen: "2026"
+references:
+  - title: Volexity - chained exploitation of Ivanti Connect Secure zero-days (October 2026)
+    url: https://www.volexity.com/blog/2026/10/13/a-series-of-unauthenticated-events-chained-exploitation-of-ivanti-connect-secure-zero-days/
+    accessed: "2026-10-22"
+notes: >-
+  No pack yet: the indicators are memory-only and a reliable check needs a core
+  dump or snapshot parser. Listed as a gap on purpose.

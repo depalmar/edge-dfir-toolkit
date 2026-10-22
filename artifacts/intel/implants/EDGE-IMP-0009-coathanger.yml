@@ -1,0 +1,27 @@
+id: EDGE-IMP-0009
+name: COATHANGER
+platforms: [EDGE-0002]
+actors: []
+cves: [CVE-2022-42475]
+type: backdoor
+resides: disk
+survives_reboot: "yes"
+survives_upgrade: "yes"
+summary: >-
+  FortiGate remote-access implant reported by the Dutch MIVD and AIVD in
+  February 2024, attributed by them to a Chinese state actor. Survives reboots
+  and firmware upgrades and hides itself from the device's own file and
+  process listings.
+artifacts:
+  - Hidden files and processes on the device (reported; not reachable through the customer CLI)
+  - Integrity mismatch against a known-good baseline of the same build
+anti_forensics:
+  - Hooks system calls to hide its files and processes
+  - Persists through upgrade
+detections: [fortios-fs-hash-baseline]
+gap: Coverage depends entirely on a baseline of the same build being supplied.
+confidence: medium
+references:
+  - title: NCSC-NL - COATHANGER advisory (TLP:CLEAR)
+    url: https://www.ncsc.nl/documenten/publicaties/2024/februari/6/mivd-aivd-advisory-coathanger-tlp-clear
+    accessed: "2026-10-22"

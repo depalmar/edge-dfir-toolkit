@@ -1,0 +1,28 @@
+id: EDGE-IMP-0006
+name: Ivanti 2024 web shells
+aliases: [GIFTEDVISITOR, LIGHTWIRE, WIREFIRE, ZIPLINE, THINSPOOL, WARPWIRE]
+platforms: [EDGE-0003]
+actors: [EDGE-TA-0002]
+cves: [CVE-2023-46805, CVE-2024-21887]
+type: web-shell
+resides: disk
+survives_reboot: "yes"
+survives_upgrade: unknown
+summary: >-
+  Web shells and a credential harvester written into legitimate CGI, Perl,
+  Python and JavaScript components of Ivanti Connect Secure in the January 2024
+  campaign.
+  Found by comparing files against known-good copies; the internal ICT had been
+  modified to report clean.
+artifacts:
+  - Modified files under the web root and CGI directories (vendor-assisted)
+  - External ICT mismatches, when the tool itself was intact
+anti_forensics:
+  - Internal ICT modified to report clean
+detections: [ivanti-totp-traversal, ivanti-traversal-to-injectable-endpoint]
+gap: Only the exploitation request is visible in customer-reachable logs; the shells need the vendor-decrypted snapshot.
+confidence: medium
+references:
+  - title: Volexity - Ivanti Connect Secure exploitation, new observations
+    url: https://www.volexity.com/blog/2024/01/18/ivanti-connect-secure-vpn-exploitation-new-observations/
+    accessed: "2026-10-22"

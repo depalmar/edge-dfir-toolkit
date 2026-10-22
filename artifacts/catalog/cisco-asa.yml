@@ -22,7 +22,7 @@ collection:
     references: [https://github.com/cisagov/RayDetect]
 volatility:
   - LINE DANCER was memory-only; a reboot erases it
-  - Last reload reason in show version records an unexplained reload
+  - An unexplained reboot (uptime reset) or a crashinfo record can reveal a forced reload
 anti_forensics:
   - technique: Hooked the core-dump routine so a dump request rebooted the device
     seen_in: LINE DANCER (ArcaneDoor, 2024)
@@ -30,6 +30,77 @@ anti_forensics:
     seen_in: LINE DANCER (ArcaneDoor, 2024)
   - technique: Boot-level persistence below the OS on models without Secure Boot
     seen_in: RayInitiator (2025)
+response: cisco-asa
+artifacts:
+  - locator: show memory region | include lina
+    class: memory
+    volatility: live
+    forensic_value: high
+    evidence_type: [execution, defense-evasion]
+    confidence: high
+    collected_by: mem_region_lina
+    description: The vendor's LINE DANCER check - more than one executable region for lina. Gone on reload. Runs before anything else.
+    seen_in: [LINE DANCER]
+  - locator: "dir /recursive disk0:"
+    class: persistence
+    volatility: stable
+    forensic_value: high
+    evidence_type: [persistence]
+    confidence: high
+    collected_by: dir_disk0
+    description: LINE RUNNER arrived as client_bundle_install.zip, processed at boot by a legacy capability. Every zip here needs an owner.
+    seen_in: [LINE RUNNER]
+  - locator: Core dump (vendor / CISA procedure)
+    class: memory
+    volatility: live
+    forensic_value: high
+    evidence_type: [execution, persistence, defense-evasion]
+    confidence: high
+    collected_by: manual
+    description: Scanned with RayDetect (confident only for ASA 5500-X on 9.12 and 9.14; not Firepower or ASAv) for the 2025 bootkit activity. Break-glass - LINE DANCER turned a dump request into a reload.
+    seen_in: [RayInitiator, LINE VIPER]
+  - locator: show logging
+    class: system-logs
+    volatility: live
+    forensic_value: medium
+    evidence_type: [defense-evasion]
+    confidence: high
+    collected_by: show_logging
+    description: Logging state and buffer. ArcaneDoor disabled syslog; a buffer that ends abruptly is a finding.
+    seen_in: [LINE DANCER]
+  - locator: show version (uptime)
+    class: identity
+    volatility: live
+    forensic_value: medium
+    evidence_type: [timeline, defense-evasion]
+    confidence: high
+    collected_by: show_version
+    description: A low uptime (unexpected reboot) after the window is itself evidence; a reload also erased anything memory-only. ASA prints uptime here, not a reload reason.
+  - locator: show running-config (logging, aaa, capture sections)
+    class: config
+    volatility: stable
+    forensic_value: high
+    evidence_type: [defense-evasion, credential-access, configuration]
+    confidence: high
+    collected_by: show_running_config
+    description: ArcaneDoor altered AAA and set up packet captures. Diff these sections first.
+    seen_in: [LINE DANCER]
+  - locator: show vpn-sessiondb anyconnect / show ssh sessions
+    class: sessions
+    volatility: live
+    forensic_value: medium
+    evidence_type: [initial-access, credential-access]
+    confidence: high
+    collected_by: show_vpn_anyconnect
+    description: Remote-access and management sessions now active.
+  - locator: Syslog receiver copies
+    class: off-box
+    volatility: off-box
+    forensic_value: high
+    evidence_type: [timeline, defense-evasion]
+    confidence: high
+    collected_by: ingest
+    description: The device stopped sending during LINE DANCER activity; the silence is the indicator.
 confidence: high
 references:
   - title: Cisco Talos - ArcaneDoor

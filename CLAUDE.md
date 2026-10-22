@@ -86,6 +86,33 @@ detection. No working exploit, implant or exploitation steps.
 **Synthetic data only.** Fixtures use documentation address ranges
 (192.0.2.0/24, 198.51.100.0/24, 203.0.113.0/24) and placeholder names.
 
+## Threat intel and response rules
+
+**Attribution is reported, never computed.** An actor profile carries two
+confidences: `link_confidence` is ours and measures provenance (one reporting
+party is `medium`, however authoritative); `stated_confidence` is the
+attributing party's own words, verbatim. Never upgrade a reporter's hedge, and
+never merge two clusters unless the reporters themselves equate them.
+
+**Motivation comes from the reporter.** UTA0576 was first filed as espionage;
+Volexity's own assessment was "low confidence" criminal. Read the source.
+
+**Attribute the action to the right actor.** The 2025 Ivanti syslog block was
+the operator's iptables command, not SPAWN malware. Malware behaviour and
+hands-on-keyboard behaviour are different claims.
+
+**An implant with no detection states its gap.** `detections: []` without a
+`gap` fails the validator, so a coverage hole is always visible.
+
+**Response playbooks are guidance, not automation.** The toolkit never contains
+or remediates. Order is fixed: preserve, contain, rotate, eradicate, recover,
+verify. Every playbook has a `do_not` list - most evidence is destroyed by a
+well-meant action taken too early.
+
+**Prefer primary sources.** A press summary is a placeholder until replaced by
+the vendor, government or researcher's own publication. Record every
+correction in `docs/VERIFICATION.md`.
+
 ## Where the sharp edges are
 
 - `SSHTransport` has only been exercised against a scripted fake channel
@@ -94,6 +121,10 @@ detection. No working exploit, implant or exploitation steps.
   platform should be in a lab, and any correction recorded in `docs/VERIFICATION.md`.
 - Several profile commands are `medium` or `low` confidence for the same reason.
   `edge-triage plan` prints `[unverified]` beside the low ones.
+- The ASA region parser was once written against an invented format and
+  silently passed compromised devices. It now matches the published
+  `/proc/maps` row; `test_asa_region_parser_matches_published_format` pins it.
+  Never change a parser without a fixture copied from published output.
 - The ns.log memory-leak check depends on raw bytes surviving. Do not "fix"
   `iter_lines` to decode text.
 - `safe_extract` refuses links but records them. The FortiOS symlink check reads

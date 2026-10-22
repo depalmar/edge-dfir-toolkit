@@ -3,11 +3,11 @@ id: 84365f16-6dd9-4fc7-83de-ae395e4ac7c0
 status: experimental
 description: |
   The 2024 Ivanti Connect Secure chain bypassed authentication by traversing
-  out of /api/v1/totp/user-backup-code/ into other REST endpoints, two of which
-  passed input to a shell. Logs that record the raw URI show the traversal;
+  out of /api/v1/totp/user-backup-code/ into other REST endpoints, including
+  license/keys-status, which passed input to a shell. Logs that record the raw URI show the traversal;
   appliances that normalise the path before logging will not.
 references:
-  - https://www.cisa.gov/news-events/cybersecurity-advisories/aa24-060b
+  - https://www.assetnote.io/resources/research/high-signal-detection-and-exploitation-of-ivantis-pulse-connect-secure-auth-bypass-rce
   - https://www.volexity.com/blog/2024/01/18/ivanti-connect-secure-vpn-exploitation-new-observations/
 author: Raymond DePalma (edge-dfir-toolkit)
 date: 2026-10-22

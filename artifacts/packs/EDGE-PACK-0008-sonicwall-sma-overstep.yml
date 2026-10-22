@@ -12,10 +12,10 @@ summary: >-
   own log lines. Because it lies to on-box tools, the reporting team recommended
   an offline disk image. This pack therefore only evaluates against image or
   image-triage output ingested into the case.
-confidence: medium
+confidence: high
 references:
-  - title: SecurityAffairs - UNC6148 deploys OVERSTEP on SonicWall devices
-    url: https://securityaffairs.com/180035/hacking/unc6148-deploys-overstep-malware-on-sonicwall-devices-possibly-for-ransomware-operations.html
+  - title: Google Threat Intelligence Group - SonicWall SMA exploitation and the OVERSTEP backdoor (16 July 2025)
+    url: https://cloud.google.com/blog/topics/threat-intelligence/sonicwall-secure-mobile-access-exploitation-overstep-backdoor
     accessed: "2026-10-22"
 
 detect:

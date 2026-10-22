@@ -6,7 +6,8 @@
 # by the transport with a space rather than by `config system console`, which
 # would change the device configuration.
 #
-# The highest-value step is `diagnose sys filesystem hash` (FortiOS 7.2.6+),
+# The highest-value step is `diagnose sys filesystem hash` (FortiOS 7.0.13+,
+# 7.2.6+ and 7.4.0+),
 # which prints SHA-256 values for system files. On its own it proves nothing;
 # compared with a baseline from the same build it is the integrity signal that
 # symlink persistence and implanted binaries do not survive.
@@ -121,9 +122,8 @@ steps:
     tier: P6
     kind: command
     cmd: fnsysctl ls -la /data
-    purpose: Top of the persistent user filesystem. Unexpected files and links here survive reboot.
-    confidence: low
-    unverified: true
+    purpose: Top of the persistent user filesystem. Unexpected files and links here survive reboot. Listed in the vendor's IOC tech tip.
+    confidence: medium
 
   - id: log_export
     tier: P3

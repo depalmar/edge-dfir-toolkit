@@ -1,0 +1,25 @@
+id: EDGE-TA-0004
+name: UNC6148
+aliases: []
+reported_by: [Google Threat Intelligence Group / Mandiant]
+link_confidence: medium
+stated_confidence: "GTIG: overlaps with earlier Abyss-related reporting 'suggest UNC6148 is the same actor or a related one' (no confidence level given for that link). GTIG's 'moderate confidence' statement concerns possible zero-day use, not attribution."
+motivation: financial
+summary: >-
+  Deployed the OVERSTEP rootkit on fully patched, end-of-life SonicWall SMA 100
+  appliances in 2025, using credentials stolen in earlier intrusions. GTIG
+  recommended an offline disk image for investigation because the rootkit hides
+  from on-box tools.
+platforms: [EDGE-0006]
+packs: [EDGE-PACK-0008]
+implants: [EDGE-IMP-0007]
+tradecraft:
+  - Re-entry with previously stolen local administrator credentials
+  - Userland rootkit through ld.so.preload with log-line deletion
+  - Persistence through a modified boot script and initrd
+victimology: ["not stated"]
+first_seen: "2024-10"
+references:
+  - title: Google Threat Intelligence Group - SonicWall SMA exploitation and the OVERSTEP backdoor (16 July 2025)
+    url: https://cloud.google.com/blog/topics/threat-intelligence/sonicwall-secure-mobile-access-exploitation-overstep-backdoor
+    accessed: "2026-10-22"

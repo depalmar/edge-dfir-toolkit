@@ -25,10 +25,12 @@ So this toolkit does three things a generic collector does not:
    report lists its evidence gaps.
 
 **Browse it at [depalmar.github.io/edge-dfir-toolkit](https://depalmar.github.io/edge-dfir-toolkit/)** -
-the platform catalog, every collection plan in order of volatility with a
-command builder, the detection packs, the rules, a coverage matrix and the
-[investigation guide](docs/edge-dfir-investigation-guide.md), rebuilt from this
-repository on every push so the page cannot drift from the content.
+the platform catalog with per-artifact detail, every collection plan in order
+of volatility with a command builder, the detection packs, threat intelligence
+and attribution, containment and recovery playbooks, the rules, a coverage
+matrix and the [investigation guide](docs/edge-dfir-investigation-guide.md),
+rebuilt from this repository on every push so the page cannot drift from the
+content.
 
 License: Apache 2.0.
 
@@ -59,8 +61,11 @@ edge-dfir-toolkit/
 ├── edgetriage/               # the engine: collect, ingest, analyze, timeline, brief
 ├── collectors/profiles/      # declarative per-vendor collection profiles
 ├── artifacts/
-│   ├── catalog/              # EDGE-NNNN platform entries: access, collection paths, anti-forensics
+│   ├── catalog/              # EDGE-NNNN platforms: access, collection paths, per-artifact detail
 │   ├── packs/                # EDGE-PACK-NNNN per-CVE detection packs the analyzer runs
+│   ├── intel/actors/         # EDGE-TA-NNNN actor profiles (attribution reported, not computed)
+│   ├── intel/implants/       # EDGE-IMP-NNNN implants: survival, coverage, gaps
+│   ├── response/             # containment and recovery playbook per platform
 │   ├── schema/               # JSON schemas for both
 │   └── scripts/validate.py   # the CI gate
 ├── docs/                     # investigation guide, roadmap, verification log
@@ -164,6 +169,14 @@ against a local or tenant-controlled model: configurations carry secrets.
 **Detections are Sigma and YARA only.** No vendor query dialect is committed.
 Convert with pySigma for your platform.
 
+**Attribution is reported, never computed.** Each actor carries two
+confidences: ours (how well-sourced the link is) and the reporting party's own
+words, quoted. Clusters are merged only where the reporters themselves equate
+them.
+
+**Every claim is sourced.** Content was checked against primary sources;
+`docs/VERIFICATION.md` records every correction and what is still unverified.
+
 ---
 
 ## Testing
@@ -171,7 +184,7 @@ Convert with pySigma for your platform.
 ```bash
 python artifacts/scripts/validate.py     # catalog, packs, profiles, rules - the CI gate
 python artifacts/scripts/build_site.py --check   # site data contract, writes nothing
-python -m pytest -q tests/               # 53 tests against synthetic fixtures
+python -m pytest -q tests/               # 56 tests against synthetic fixtures
 ```
 
 All fixture data is synthetic: documentation-range addresses, placeholder

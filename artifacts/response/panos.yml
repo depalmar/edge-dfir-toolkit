@@ -1,0 +1,71 @@
+# Containment and recovery - EDGE-0001 PAN-OS / GlobalProtect
+# Schema: ../schema/response.schema.json
+# This is guidance, not automation. The toolkit collects evidence; a human
+# decides and acts. Follow the vendor's remediation guidance for your release.
+
+platform_id: EDGE-0001
+name: PAN-OS / GlobalProtect
+confidence: medium
+
+preserve_first:
+  - step: Collect before you change anything
+    detail: Run the panos profile and export the tech support file. Logs from the prior install become inaccessible after an upgrade, so the TSF must predate it.
+  - step: Record whether the device rebooted or was upgraded in the suspected window
+    detail: Both destroy evidence; the answer changes what the report can claim.
+
+contain:
+  - step: Restrict the management interface
+    detail: If the management interface was reachable from untrusted networks (the CVE-2024-0012 precondition), limit it to a management network or jump host.
+    when: COMPROMISED, LIKELY-COMPROMISED, SUSPICIOUS
+  - step: Disable GlobalProtect portal/gateway if exploitation is ongoing and the business can tolerate it
+    detail: Weigh against the outage. Capturing evidence comes first.
+    when: COMPROMISED, LIKELY-COMPROMISED
+  - step: Block known C2 egress at an upstream device, not on the firewall itself
+    detail: Changing the suspect device's own config destroys evidence and may trip attacker tripwires.
+
+credential_exposure:
+  - what: Admin and local account credentials and API keys in the configuration
+    why: CVE-2024-0012/9474 exposed the management plane; running config and secrets were reachable.
+    action: Rotate all local admin passwords and API keys. Rotate the master key.
+  - what: GlobalProtect / VPN user credentials
+    why: Config theft and session access expose authentication material and connected-directory bind accounts.
+    action: Force password resets for VPN users; rotate any service or LDAP bind account the firewall used.
+  - what: Certificates and private keys stored on the device
+    why: An attacker with config access can export them.
+    action: Reissue and replace certificates that lived on the device; revoke the old ones.
+
+eradicate:
+  - step: Do not clean in place
+    detail: UPSTYLE persistence (cron, .pth, web-root files) and any secondary implant may not be fully visible to the customer. Treat a confirmed-compromised device as untrusted.
+  - step: Rebuild from a known-good image of a fixed release, with vendor guidance
+    detail: Follow Palo Alto's CVE-2024-3400 remediation guidance. A Private Data Reset or full reimage, not a config restore that may carry the attacker's changes.
+  - step: Re-import a reviewed configuration, not a blind backup
+    detail: Diff the running config against the last known-good and import a cleaned version.
+
+recover:
+  - step: Restore service on the rebuilt device on the fixed release
+  - step: Re-enrol certificates and re-establish VPN after credentials are rotated
+  - step: Keep heightened monitoring on the rebuilt device and the hosts the VPN reached
+
+verify:
+  - step: Re-run the panos profile and analyze against a baseline, expecting NO-INDICATORS-FOUND with no open gaps
+  - step: Confirm the management interface is no longer exposed and logging/forwarding is intact
+  - step: Hunt from the device into the network for the dwell period, not just on the device
+
+do_not:
+  - action: Upgrade before exporting the tech support file
+    because: The vendor advisory states logs from the prior install become inaccessible after an upgrade.
+  - action: Trust a config backup taken after compromise
+    because: It may carry attacker changes (new admins, modified logging, scheduled jobs).
+  - action: Treat a clean TAC IOC check as proof the device is clean
+    because: Memory and some persistence paths are not covered by a standard customer collection.
+
+vendor_guidance:
+  - title: Palo Alto Networks - CVE-2024-3400 advisory and remediation
+    url: https://security.paloaltonetworks.com/CVE-2024-3400
+    accessed: "2026-10-22"
+
+references:
+  - title: Volexity - detecting compromise of CVE-2024-3400
+    url: https://www.volexity.com/blog/2024/05/15/detecting-compromise-of-cve-2024-3400-on-palo-alto-networks-globalprotect-devices/
+    accessed: "2026-10-22"

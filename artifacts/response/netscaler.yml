@@ -1,0 +1,68 @@
+# Containment and recovery - EDGE-0004 Citrix NetScaler ADC / Gateway
+# Schema: ../schema/response.schema.json
+
+platform_id: EDGE-0004
+name: Citrix NetScaler ADC / Gateway
+confidence: medium
+
+preserve_first:
+  - step: Collect live state before any reboot
+    detail: Run the netscaler profile. Anything on the memory-disk root is lost on reboot. Image md0 and the persistent disk (da0/ad0/ada0 by model) as the break-glass step.
+  - step: Pull ns.log and web logs promptly
+    detail: ns.log rotates in hours on a busy gateway; the memory-disclosure signature is only in the window you capture.
+
+contain:
+  - step: Restrict management and gateway reachability upstream
+    detail: Apply controls on an upstream device rather than editing the suspect config.
+    when: COMPROMISED, LIKELY-COMPROMISED, SUSPICIOUS
+  - step: Patch state tells you nothing about compromise state
+    detail: Most backdoored NetScalers in 2023 were already patched. A patched device still needs investigation.
+
+credential_exposure:
+  - what: Session tokens (Citrix Bleed class)
+    why: CVE-2023-4966 and CVE-2025-5777 leak session tokens from memory that are replayed to bypass MFA.
+    action: Terminate all active sessions (kill ICA/AAA/PCoIP sessions) after patching; a patch alone does not invalidate already-stolen tokens.
+  - what: Local system users and the nsroot account
+    why: Shell and config access expose local accounts.
+    action: Rotate nsroot and all local system user passwords.
+  - what: Directory bind accounts and LDAP credentials
+    why: The gateway authenticates users against a directory.
+    action: Rotate the bind account; force resets for users whose sessions were active during the window.
+  - what: Certificates and keys on the appliance
+    why: Exportable with shell access.
+    action: Reissue and revoke.
+
+eradicate:
+  - step: Rebuild, do not clean in place
+    detail: Web shells, SUID binaries and cron persistence may have been installed; a userland rootkit can hide from on-box tools. Rebuild from clean media on a fixed build.
+    when: COMPROMISED, LIKELY-COMPROMISED
+  - step: Remove web shells and persistence identified in the image triage
+    detail: Use the offline image findings (fox-it/citrix-netscaler-triage, NCSC-NL citrix-2025) as the eradication checklist.
+
+recover:
+  - step: Bring the rebuilt appliance online on a fixed build
+  - step: Terminate stale sessions and re-establish gateway access after credential rotation
+  - step: Keep heightened monitoring on the connected published apps and VDAs
+
+verify:
+  - step: Confirm no unexpected PHP under the web roots, no unexpected SUID binaries, no unexpected cron entries
+  - step: Confirm active sessions are only legitimate ones
+  - step: Hunt into the published-app environment for the dwell period
+
+do_not:
+  - action: Reboot before imaging md0
+    because: The memory-disk root is rebuilt at boot; implants written there are lost.
+  - action: Treat patched as clean
+    because: The 2023 campaign left backdoors on devices that were already patched.
+  - action: Assume a patch invalidates stolen session tokens
+    because: It does not; sessions must be explicitly terminated.
+
+vendor_guidance:
+  - title: NCSC-NL citrix-2025 (live-host and disk-image checks)
+    url: https://github.com/NCSC-NL/citrix-2025
+    accessed: "2026-10-22"
+
+references:
+  - title: Fox-IT / NCC Group - approximately 2000 NetScalers backdoored
+    url: https://www.nccgroup.com/research/approximately-2000-citrix-netscalers-backdoored-in-mass-exploitation-campaign/
+    accessed: "2026-10-22"

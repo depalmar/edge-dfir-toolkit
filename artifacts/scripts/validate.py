@@ -138,6 +138,85 @@ def main() -> int:
                 if sid not in known_steps:
                     err(f"{p.name}/{did}: reads step '{sid}' that no profile for {doc.get('platforms')} defines")
 
+    # A catalog artifact's collected_by must name a real step, 'ingest' or 'manual'.
+    for pid, doc in platforms.items():
+        steps = steps_by_platform.get(pid, set())
+        for a in doc.get("artifacts", []):
+            cb = a.get("collected_by")
+            if cb and cb not in steps and cb not in ("ingest", "manual"):
+                err(f"catalog {pid}: artifact collected_by '{cb}' is not a step, 'ingest' or 'manual'")
+            if a.get("confidence") == "low" and not a.get("unverified"):
+                err(f"catalog {pid}: a low-confidence artifact needs unverified: true")
+
+    # ---- threat intel: implants and actors
+    iv = schema("implant.schema.json")
+    implant_ids: dict[str, dict] = {}
+    for p in sorted((ROOT / "artifacts" / "intel" / "implants").glob("*.yml")):
+        doc = yaml.safe_load(p.read_text())
+        validate_doc(iv, doc, p.name)
+        iid = doc.get("id", "")
+        if iid in implant_ids:
+            err(f"{p.name}: duplicate implant id {iid}")
+        implant_ids[iid] = doc
+        if not p.name.startswith(iid + "-"):
+            err(f"{p.name}: file name must start with its id {iid}")
+        for plat in doc.get("platforms", []):
+            if plat not in platforms:
+                err(f"{p.name}: platform {plat} not in catalog")
+        for cve in doc.get("cves", []):
+            pass  # shape only
+        # Every detection an implant claims must be a real detection id.
+        for did in doc.get("detections", []):
+            if did not in det_ids:
+                err(f"{p.name}: lists detection '{did}' that no pack defines")
+        # An implant with no detections must say why (gap), so a silent hole is impossible.
+        if not doc.get("detections") and not doc.get("gap"):
+            err(f"{p.name}: no detections and no 'gap' explaining the coverage hole")
+        if doc.get("confidence") == "low" and not doc.get("unverified"):
+            err(f"{p.name}: low confidence requires unverified: true")
+
+    av = schema("actor.schema.json")
+    actor_ids: set[str] = set()
+    for p in sorted((ROOT / "artifacts" / "intel" / "actors").glob("*.yml")):
+        doc = yaml.safe_load(p.read_text())
+        validate_doc(av, doc, p.name)
+        aid = doc.get("id", "")
+        if aid in actor_ids:
+            err(f"{p.name}: duplicate actor id {aid}")
+        actor_ids.add(aid)
+        if not p.name.startswith(aid.lower() + "-") and not p.name.startswith(aid + "-"):
+            err(f"{p.name}: file name must start with its id {aid}")
+        for plat in doc.get("platforms", []):
+            if plat not in platforms:
+                err(f"{p.name}: platform {plat} not in catalog")
+        for pk in doc.get("packs", []):
+            if pk not in pack_ids:
+                err(f"{p.name}: references pack '{pk}' that does not exist")
+        for im in doc.get("implants", []):
+            if im not in implant_ids:
+                err(f"{p.name}: references implant '{im}' that does not exist")
+
+    # Implant->actor links resolve the other way too.
+    for iid, doc in implant_ids.items():
+        for aid in doc.get("actors", []):
+            if aid not in actor_ids:
+                err(f"implant {iid}: references actor '{aid}' that has no profile")
+
+    # ---- response playbooks
+    rv = schema("response.schema.json")
+    response_stems: set[str] = set()
+    for p in sorted((ROOT / "artifacts" / "response").glob("*.yml")):
+        doc = yaml.safe_load(p.read_text())
+        validate_doc(rv, doc, p.name)
+        response_stems.add(p.stem)
+        if doc.get("platform_id") not in platforms:
+            err(f"response/{p.name}: platform {doc.get('platform_id')} not in catalog")
+    # A catalog entry that names a response playbook must have one, and vice versa.
+    for pid, doc in platforms.items():
+        r = doc.get("response")
+        if r and r not in response_stems:
+            err(f"catalog {pid}: response playbook '{r}' does not exist")
+
     # ---- rule directories
     for d in sorted(ROOT.glob("0[0-9]-*")):
         if d.is_dir() and not (d / "README.md").is_file():
@@ -149,7 +228,9 @@ def main() -> int:
         print(f"\n{len(problems)} problem(s)")
         return 1
     n_det = len(det_ids)
-    print(f"OK  {len(platforms)} platforms, {len(profiles)} profiles, {len(pack_ids)} packs, {n_det} detections")
+    print(f"OK  {len(platforms)} platforms, {len(profiles)} profiles, {len(pack_ids)} packs, "
+          f"{n_det} detections, {len(actor_ids)} actors, {len(implant_ids)} implants, "
+          f"{len(response_stems)} response playbooks")
     return 0
 
 

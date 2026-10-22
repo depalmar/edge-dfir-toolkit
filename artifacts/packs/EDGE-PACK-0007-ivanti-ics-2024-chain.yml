@@ -8,10 +8,10 @@ actors: [UTA0178, UNC5221]
 implants: [GIFTEDVISITOR, ZIPLINE, THINSPOOL, LIGHTWIRE, WARPWIRE]
 summary: >-
   A path traversal past authentication into REST endpoints that pass input to
-  a shell. Web shells were written into legitimate CGI and Perl components and
-  credentials were harvested. CISA reported that the internal and the then
-  current external Integrity Checker Tool failed to detect compromise, so this
-  pack looks at off-box web logs rather than at ICT output.
+  a shell. Web shells were written into legitimate CGI, Perl and Python
+  components and credentials were harvested. CISA reported that the internal and
+  a previous external Integrity Checker Tool failed to detect compromise, so
+  this pack looks at off-box web logs rather than at ICT output.
 confidence: high
 references:
   - title: CISA AA24-060B
@@ -19,6 +19,9 @@ references:
     accessed: "2026-10-22"
   - title: Volexity - Ivanti Connect Secure VPN exploitation, new observations
     url: https://www.volexity.com/blog/2024/01/18/ivanti-connect-secure-vpn-exploitation-new-observations/
+    accessed: "2026-10-22"
+  - title: Assetnote - detection and exploitation of the Ivanti auth bypass and RCE (source for the traversal path and endpoints)
+    url: https://www.assetnote.io/resources/research/high-signal-detection-and-exploitation-of-ivantis-pulse-connect-secure-auth-bypass-rce
     accessed: "2026-10-22"
 
 detect:
@@ -40,7 +43,10 @@ detect:
     evidence_class: web-logs
     sources:
       files: ["**/*.log*", "**/*.csv", "**/*.txt"]
-    pattern: '/api/v1/totp/user-backup-code/(\.\.|%2e%2e)[^\s"]*(license/keys-status|cloud-server-test-connection)'
+    pattern: '/api/v1/totp/user-backup-code/(\.\.|%2e%2e)[^\s"]*license/keys-status'
     flags: [ignorecase]
     attack: [T1190, T1059]
-    notes: Reaching these endpoints through the traversal is the exploitation chain, not a scan.
+    notes: >-
+      Reaching license/keys-status through the traversal is the documented
+      injection chain. Other reported sinks (cloud-server-test-connection) are not
+      included until confirmed from a primary source.
