@@ -12,8 +12,8 @@ summary: >-
   BIG-IP APM. Webshells ran in memory, so served PHP files may be unchanged. It
   left runtime files under /run, set SELinux to permissive, modified system
   binaries including the ones F5's integrity check uses, and drove the device
-  through REST calls to util/bash as f5hubblelcdadmin. Command-and-control
-  responses used HTTP 201 or 401 with a CSS content type.
+  through REST calls to util/bash as f5hubblelcdadmin. F5 says its traffic
+  disguised activity with HTTP 201 or 401 responses carrying a CSS content type.
 artifacts:
   - /run/bigtlog.pipe and /run/bigstart.ltm
   - Hash or size changes in /usr/bin/umount, /usr/sbin/httpd, /usr/sbin/chroot, /usr/libexec/apmd64, /usr/bin/sys-icheck, /usr/libexec/sys-eicheck.py, /etc/rc.d/rc.local

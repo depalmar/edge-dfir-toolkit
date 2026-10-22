@@ -7,11 +7,13 @@ cves: [CVE-2026-93616, CVE-2026-16232]
 actors: []
 implants: []
 summary: >-
-  Two exploited flaws in the Security Management Server and Multi-Domain Server.
+  Two exploited flaws on Check Point management infrastructure.
   CVE-2026-93616 is a pre-authentication path traversal with file upload in the
-  Management web service, exploited in a handful of pinpointed attacks from
-  23 July 2026 and added to CISA KEV on 22 September 2026; gateways and Spark
-  are not affected. CVE-2026-16232 is a SmartConsole authentication bypass
+  Management web service of the Security Management Server, Multi-Domain Server,
+  Log Server, Multi-Domain Log Server and SmartEvent - collect from every one of
+  those roles. Check Point reports a handful of pinpointed attacks on 23 July
+  2026; CISA added it to KEV on 22 September 2026. Gateways, Spark and Smart-1
+  Cloud are not affected. CVE-2026-16232 is a SmartConsole authentication bypass
   through an application login token, exploited against a very small number of
   customers and added to KEV on 22 July 2026. Patching does not reveal whether a
   server was already attacked, so hunt separately.
@@ -47,9 +49,12 @@ detect:
     sources:
       files: ["**/cpm.elg*"]
     pattern: 'Invoking method .* in version: .*(\.|/|%2f|%2e|\\|%5c|CPupgrade-tools-\.\.)'
-    flags: [ignorecase]
     attack: [T1190]
-    notes: Check Point's indicator 2a, used exactly as published. It is broad; a match is a lead to review, not proof.
+    notes: >-
+      Check Point's indicator 2a, used exactly as published (grep -aE,
+      case-sensitive). The trailing .* means any dot or slash later on the line
+      matches, so it may fire on ordinary CPM lines; no sample line was available
+      to confirm. A match is a lead to review, not proof.
 
   - id: cp-93616-upload-traversal
     title: Traversal in a CPM file upload toward the upgrade tools
@@ -59,7 +64,6 @@ detect:
     sources:
       files: ["**/cpm.elg*"]
     pattern: 'Uploading file .*((\.\./)+|%2e%2e%2f|%2f).*(CPupgrade-tools-|scripts/check_upgrade_tools\.s(h)?)'
-    flags: [ignorecase]
     attack: [T1190, T1105]
     notes: Check Point's indicator 2b.
 

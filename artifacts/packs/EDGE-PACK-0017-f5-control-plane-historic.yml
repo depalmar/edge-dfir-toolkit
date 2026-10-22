@@ -43,7 +43,7 @@ detect:
     evidence_class: system-logs
     sources:
       files: ["**/audit", "**/audit.*", "**/log/audit*"]
-    pattern: 'cmd_data run util bash -c'
+    pattern: 'cmd_data=run util bash -c'
     attack: [T1059.004]
 
   - id: f5-46748-tomcat-shell
@@ -55,4 +55,6 @@ detect:
       files: ["**/catalina.out*"]
     pattern: 'sh: no job control in this shell'
     attack: [T1190, T1059.004]
-    notes: F5's indicator follows a "java.sql.SQLException - Column not found" line. A shell banner in the Tomcat log has no ordinary cause.
+    notes: >-
+      F5's indicator follows "java.sql.SQLException: Column not found: 0." A
+      shell banner in the Tomcat log has no ordinary cause.

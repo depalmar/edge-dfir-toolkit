@@ -38,7 +38,7 @@ collection:
     references: [https://my.f5.com/manage/s/article/K11438344]
 volatility:
   - c05d5254 webshells ran in memory, so webtop PHP files on disk may be unmodified
-  - A reboot loses the in-memory webshells; the runtime files under /run are also tmpfs
+  - F5 says the c05d5254 webshells ran in memory; that a reboot removes them, and the /run files with them, is this toolkit's inference, not F5's statement
 anti_forensics:
   - technique: Tampered with the integrity checker (sys-icheck, sys-eicheck.py)
     seen_in: c05d5254 (F5 K000160486)
@@ -98,7 +98,9 @@ artifacts:
     evidence_type: [initial-access, execution]
     confidence: high
     collected_by: fetch_catalina
-    description: A SQL error then "sh - no job control in this shell" marked CVE-2023-46748.
+    description: >-
+      "java.sql.SQLException: Column not found: 0." followed by "sh: no job
+      control in this shell" marked CVE-2023-46748.
     seen_in: [CVE-2023-46748]
   - locator: /config/startup, /etc/rc.d/rc.local, cron, /usr/local/www hidden files
     class: persistence

@@ -140,6 +140,10 @@ correction in `docs/VERIFICATION.md`.
   Never change a parser without a fixture copied from published output.
 - The ns.log memory-leak check depends on raw bytes surviving. Do not "fix"
   `iter_lines` to decode text.
+- `iter_lines` decompresses gzip by magic bytes. Rotated logs were once read as
+  compressed bytes and silently passed; `test_rotated_gzip_logs_are_read` pins it.
+- Vendor diagnostic bundles must not phone home. `cpinfo` runs with `-D -d`;
+  check any new bundle command for a default upload.
 - `safe_extract` refuses links but records them. The FortiOS symlink check reads
   those refusals; keep the `"<name>: link -> <target>"` format stable.
 

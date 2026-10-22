@@ -368,6 +368,7 @@ def checkpoint(root: Path, malicious: bool) -> None:
         "date -u": "Thu Oct 22 14:02:11 UTC 2026\n",
         "uptime": " 14:02:11 up 41 days,  3:10,  1 user,  load average: 0.10, 0.12, 0.11\n",
         "fw ver": "This is Check Point's software version R82 - Build 001\n",
+        "fwm ver": "This is Check Point Security Management Server R82 - Build 001\n",
         "cpinfo -y all": "[CPFC]\n    HOTFIX_R82_JUMBO_HF_MAIN    Take:  130\n",
         "cplp list": "LivePatch: no packages installed\n",
         "ps auxww": "USER PID %CPU COMMAND\nadmin 1 0.0 init\n",
@@ -387,7 +388,7 @@ def checkpoint(root: Path, malicious: bool) -> None:
         cpm += ["2026-10-14 06:52:00,001 INFO  login(loginRequest=LoginRequest{authenticationInfo=AuthenticationInfoBase{username='"
                 + "A" * 1100 + "', ...}",
                 "2026-10-14 06:53:10,442 INFO  Uploading file ../../../CPupgrade-tools-R82/scripts/check_upgrade_tools.sh"]
-        vpnd += ["[vpnd 2210]@gw-lab[14 Oct 06:50:01] Invalid filename: /clients/MyCRL aCSHELL/../../../../../../../etc/shadow"]
+        vpnd += ["[vpnd 2210]@gw-lab[14 Oct 06:50:01] Suspected path traversal attack from 203.0.113.9"]
     write_files(root, {CPM: "\n".join(cpm) + "\n", VPND: "\n".join(vpnd) + "\n",
                        "/var/log/messages": "Oct 22 13:58:01 gw-lab clish[2210]: User admin logged in\n"})
 

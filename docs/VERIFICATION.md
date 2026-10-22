@@ -76,6 +76,48 @@ as CONFIRMED, CORRECTED or UNVERIFIABLE against a primary source.
 - CISA ED 25-03 and the 13 Oct 2026 Ivanti alert: cisa.gov refused automated fetches; content confirmed through mirrors and press.
 - The FortiOS SSL-VPN language directory path: not named by the vendor, so it stays operator-supplied.
 
+## 2026-10-22 (round 2) - Check Point and F5 against primary sources
+
+An independent pass re-read every Check Point and F5 claim against the vendor
+articles, CISA and the researchers' write-ups. It found two silent failures in
+the engine and detections, so those come first.
+
+### Corrections that changed detection behaviour
+
+| Item | Was | Now | Basis |
+|---|---|---|---|
+| Rotated logs (all platforms) | `iter_lines` read `.gz` files as raw bytes, so every rotated log was searched as compressed noise and reported as no-hit | gzip is detected by magic bytes and decompressed; truncated archives stop cleanly | `test_rotated_gzip_logs_are_read`, `test_truncated_gzip_does_not_crash` |
+| `EDGE-PACK-0017` util-bash audit pattern | Matched `cmd=`; the F5 audit format is `cmd_data=` | `cmd_data=run util bash -c` | F5 audit log format; `test_f5_audit_patterns_use_the_real_format` |
+| `f5_apm_oauth_userinfo_burst` | 10 or more failures from one address | 10 or more `01990004` invalid-token UserInfo failures in one log, reporting whether one address accounts for all of them; route-domain suffixes (`%2`) parsed | F5 K000162605 ("10 or more ... in one log, especially if all observed from a single IP"); `test_f5_burst_spread_across_addresses_is_caught` |
+| `EDGE-PACK-0009` vpnd detection | `Invalid filename`, which is not the blocked-traversal message | `Suspected path traversal attack from` | Check Point sk182336 hunting guidance |
+| `EDGE-PACK-0013` patterns 2a/2b | Case-insensitive | Case-sensitive, as published | Check Point sk1000171 |
+| Check Point `cpinfo_bundle` | `cpinfo` without flags, which uploads to Check Point and self-updates by default | `cpinfo -z -i -S -D -d`; `-D` no upload, `-d` no update | Check Point cpinfo usage; `test_cpinfo_never_uploads` |
+
+### Corrections to facts, scope and attribution
+
+| Item | Correction | Basis |
+|---|---|---|
+| CVE-2026-93616 scope | Collect `cpm.elg` on SMS, MDS, Log Server, MDLS and SmartEvent, not the SMS alone | sk1000171 |
+| CVE-2026-50751 attribution | Replaced a paraphrase with Check Point's verbatim medium-confidence statement; actor stays unnamed, so no profile | Check Point blog |
+| CVE-2026-50751 Vendor ID mechanism | Attributed to watchTowr, not Check Point | watchTowr |
+| CVE-2026-85102 scope | Site-to-Site only where certificate authentication is used or allowed; PSK-only communities and R82.20 not affected | sk1000117 |
+| VPN implied-rules mitigation | "Do not disable" overstated Check Point; now "exercise caution", with replacement rules as this toolkit's addition | sk1000117 |
+| Check Point LivePatch | LivePatch Takes 28 and 29 do not fix CVE-2026-93616 | sk1000171 |
+| c05d5254 C2 | "C2 channel" replaced by F5's "disguised activity" wording | K000160486 |
+| c05d5254 memory residency | Reboot-clears-it marked as this toolkit's inference, not F5's statement | K000160486 |
+| CVE-2023-46748 indicator | Exact catalina.out strings quoted | F5 K000137365 |
+| K11438344 wording | Keys and credentials "may be compromised, and it may be prudent to assume that they are" | K11438344 |
+| F5 citation | K16197 replaced by K23605346 and K000160486 | F5 |
+| F5 System Scanner | `--scan-procs` named as the process check | K000160515 |
+
+### Confidence changes
+
+| Item | Before | After | Basis |
+|---|---|---|---|
+| Check Point `fw_ver` | medium | high | Documented in the Gaia CLI reference; a reference URL that had been constructed rather than found was removed |
+| Check Point `fwm_ver` | - | medium (new) | Management-side version; added to the allow-list and fixture |
+| F5 `sys_version`, `auth_users`, `mgmt_ip`, `irules` | high | medium | `tmsh ... \| cat` as a way to suppress paging is not documented by F5 |
+
 ## Device verification
 
 | Date | Platform / release | Step | Change | Basis |

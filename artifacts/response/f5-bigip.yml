@@ -23,7 +23,7 @@ contain:
 
 credential_exposure:
   - what: Every key, certificate and credential on the device
-    why: F5 K11438344 says to assume all of them are compromised on a compromised system.
+    why: F5 K11438344 says they "may be compromised, and it may be prudent to assume that they are".
     action: Regenerate device keys and certificates, rotate every account, and reissue the certificates of every virtual server that terminated TLS on the device.
   - what: Embedded credentials and API keys in the configuration
     why: CISA ED 26-01 warns exploitation could expose embedded credentials and API keys.

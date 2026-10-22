@@ -23,7 +23,7 @@ cli:
   session_setup: []
   # Allow rules must match the whole command (the engine uses fullmatch).
   allow:
-    - 'date -u|uptime|ps auxww|netstat -anp|cplp list|listusers|fw ver|crontab -l'
+    - 'date -u|uptime|ps auxww|netstat -anp|cplp list|listusers|fw ver|fwm ver|crontab -l'
     - 'cpinfo -y all'
     - 'ls -[1dlt]+ [\w/.*$-]+( [\w/.*$-]+)*'
   deny:
@@ -51,9 +51,15 @@ steps:
     tier: V0
     kind: command
     cmd: fw ver
-    purpose: Product version and build, which decides exposure to each 2026 CVE (the fixes are per Jumbo Hotfix take).
-    confidence: low
-    unverified: true
+    purpose: Gateway product version and build, which decides exposure to each 2026 CVE (the fixes are per Jumbo Hotfix take).
+    confidence: high
+
+  - id: fwm_ver
+    tier: V0
+    kind: command
+    cmd: fwm ver
+    purpose: Management server version, the management-side equivalent of fw ver. Reported unavailable on a gateway.
+    confidence: medium
 
   - id: hotfixes
     tier: V0
@@ -119,9 +125,11 @@ steps:
     kind: fetch
     list_cmd: ls -1d $MDS_FWDIR/log/cpm.elg*
     purpose: >-
-      Management server CPM log - where Check Point's CVE-2026-93616 hunting
-      indicators appear (oversized login usernames, traversal in version and
-      upload paths, JAR path breakout). Absent on gateways.
+      CPM log on management infrastructure - where Check Point's CVE-2026-93616
+      hunting indicators appear (oversized login usernames, traversal in version
+      and upload paths, JAR path breakout). Collect from every Security
+      Management Server, Multi-Domain Server, Log Server, Multi-Domain Log Server
+      and SmartEvent server. Absent on gateways.
     confidence: high
     references:
       - https://support.checkpoint.com/results/sk/sk1000171
@@ -130,7 +138,7 @@ steps:
     tier: P4
     kind: fetch
     list_cmd: ls -1d $FWDIR/log/vpnd.elg*
-    purpose: Gateway VPN daemon log. A blocked CVE-2024-24919 attempt logs "Invalid filename" here. Absent on management servers.
+    purpose: Gateway VPN daemon log. A patched gateway logs "Suspected path traversal attack from" when it blocks a CVE-2024-24919 attempt. Absent on management servers.
     confidence: medium
     references:
       - https://labs.watchtowr.com/check-point-wrong-check-point-cve-2024-24919/
@@ -181,14 +189,16 @@ steps:
     tier: B
     kind: command
     impact: vendor-bundle
-    cmd: cpinfo -z -i -S -o {cpinfo_out}
+    cmd: cpinfo -z -i -S -D -d -o {cpinfo_out}
     requires_vars: [cpinfo_out]
     var_examples: {cpinfo_out: /var/log/edge_cpinfo}
     timeout: 3600
     purpose: >-
       Check Point's diagnostic bundle, compressed, non-interactive, with password
-      hashes censored (-S). Writes a file. Check Point advises not running it
-      while any CPU core is above 70%.
+      hashes censored (-S). -D stops the upload: with the default "Allow Upload"
+      consent cpinfo otherwise sends the file to Check Point without asking.
+      -d skips its own update check and download. Writes a file. Check Point
+      advises not running it while any CPU core is above 70%.
     confidence: high
     references:
       - https://support.checkpoint.com/results/sk/sk92739

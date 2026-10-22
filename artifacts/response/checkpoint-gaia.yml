@@ -61,8 +61,8 @@ verify:
 do_not:
   - action: Rely on LivePatch for CVE-2026-93616
     because: Check Point states LivePatch Takes 28 and 29 do not fix it and no LivePatch exists for it.
-  - action: Disable the VPN implied rules before the explicit replacement rules exist
-    because: It cuts legitimate VPN traffic; Check Point's mitigation depends on the explicit rules being in place first.
+  - action: Disable the VPN implied rules without planning the replacement rules
+    because: Check Point advises caution with this mitigation because a wrong configuration can cause connectivity issues; the replacement rules are this toolkit's way of applying that caution.
   - action: Treat the patch as proof the server was not attacked
     because: Check Point says patching does not reveal earlier compromise.
 

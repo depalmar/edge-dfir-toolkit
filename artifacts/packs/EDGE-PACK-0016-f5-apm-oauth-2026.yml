@@ -25,13 +25,16 @@ references:
 
 detect:
   - id: f5-94127-userinfo-burst
-    title: Ten or more invalid-token UserInfo failures from one address
+    title: Ten or more invalid-token UserInfo failures in one log
     type: check
     check: f5_apm_oauth_userinfo_burst
     tier: possible
     evidence_class: auth-logs
     attack: [T1190]
-    notes: F5's alert threshold. An attempt, not proof of success.
+    notes: >-
+      F5's rule - 10 or more in one log, especially if all from a single address -
+      which F5 rates medium confidence. The hit says whether one address accounts
+      for all of them. An attempt, not proof of success.
 
   - id: f5-tmm-sigabrt
     title: TMM aborted

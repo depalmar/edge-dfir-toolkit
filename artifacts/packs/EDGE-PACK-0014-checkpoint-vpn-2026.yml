@@ -8,15 +8,19 @@ actors: []
 implants: []
 summary: >-
   CVE-2026-85102 is improper validation of certificate data during VPN
-  negotiation, a pre-authentication RCE on Security Gateways and Spark that
-  use or allow certificate authentication; fixed 9 September 2026, exploited
-  against Spark from 12 September from VPN and proxy infrastructure, KEV
-  22 September. CVE-2026-50751 is an IKEv1 Remote Access authentication bypass
-  (a crafted Vendor ID makes iked skip peer authentication), exploited from
-  7 May 2026, KEV 8 June. Check Point assessed the CVE-2026-50751 actor with
-  "medium confidence" as financially motivated and using Qilin ransomware, and
-  saw it exploiting Palo Alto, Fortinet and F5 VPNs as well. The actor is
-  unnamed, so it has no profile here.
+  negotiation, a pre-authentication RCE on Security Gateways and Spark. Remote
+  Access VPN is affected generally; for Site-to-Site only gateways that use or
+  allow certificate authentication are (PSK-only communities are not). R82.20
+  is not affected. Fixed 9 September 2026, exploited against Spark from
+  12 September from VPN and proxy infrastructure, KEV 22 September.
+  CVE-2026-50751 is an IKEv1 Remote Access authentication bypass, exploited
+  from 7 May 2026, KEV 8 June; watchTowr showed that a crafted VPNExtFeatures
+  Vendor ID makes iked skip peer authentication. Check Point's attribution, in
+  its own words - "we assess with medium confidence that the actor behind the
+  exploitation of CVE-2026-50751 is financially motivated, uses Qilin
+  ransomware. We believe that this threat actor infrastructure is exploiting
+  other VPN related vulnerabilities such as the ones published by Palo Alto,
+  Fortinet and F5." The actor is unnamed, so it has no profile here.
 confidence: high
 references:
   - title: Check Point sk1000117 - CVE-2026-85102

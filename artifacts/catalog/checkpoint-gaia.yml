@@ -36,7 +36,7 @@ collection:
     confidence: high
     references: [https://support.checkpoint.com/results/sk/sk92739]
 volatility:
-  - LivePatch fixed CVE-2026-85102 without a reboot but does not fix CVE-2026-93616; read hotfix state before judging exposure
+  - LivePatch Take 26 fixes CVE-2026-85102 but no LivePatch fixes CVE-2026-93616; read hotfix and LivePatch state before judging exposure
   - Gateway and management roles keep different logs; a role-specific log that is absent is a gap, not a pass
 artifacts:
   - locator: $MDS_FWDIR/log/cpm.elg*
@@ -64,7 +64,7 @@ artifacts:
     evidence_type: [initial-access]
     confidence: medium
     collected_by: fetch_vpnd
-    description: An "Invalid filename" line records a blocked CVE-2024-24919 attempt.
+    description: A patched gateway logs "Suspected path traversal attack from" when it blocks a CVE-2024-24919 attempt.
     seen_in: [CVE-2024-24919]
   - locator: SmartConsole - Mobile Access certificate logins
     class: auth-logs
@@ -133,6 +133,6 @@ references:
 notes: >-
   Check Point has published no vendor-supported memory acquisition or attacker
   persistence locations for Gaia, so the entry claims only the hypervisor path
-  for memory. The Clish prompt format, kernel base and fw ver output are not
-  confirmed from a primary source.
+  for memory. The Clish prompt format and kernel base are not confirmed from a
+  primary source.
 last_modified: "2026-10-22"

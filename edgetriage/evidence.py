@@ -135,16 +135,35 @@ class EvidenceView:
         return covered
 
 
+GZIP_MAGIC = b"\x1f\x8b"
+
+
 def iter_lines(src: Source, limit_bytes: int = 512 * 1024 * 1024) -> Iterator[tuple[int, bytes]]:
     """Yield (line_no, raw bytes). Raw so non-printable bytes survive for checks
-    that depend on them (memory-disclosure signatures)."""
-    with open(src.local, "rb") as fh:
-        read = 0
-        for n, line in enumerate(fh, 1):
-            read += len(line)
-            if read > limit_bytes:
-                return
-            yield n, line.rstrip(b"\r\n")
+    that depend on them (memory-disclosure signatures).
+
+    Rotated logs on these appliances are gzip-compressed (F5 compresses daily
+    and keeps eight days; NetScaler keeps ns.log.N.gz). Reading those as raw
+    bytes silently found nothing, so gzip is detected by its magic bytes and
+    decompressed on the fly. limit_bytes caps the DECOMPRESSED size, so a
+    crafted archive from a compromised device cannot expand without bound. A
+    truncated or corrupt gzip stops at the last good line rather than raising.
+    """
+    import gzip
+    import zlib
+    with open(src.local, "rb") as raw:
+        compressed = raw.read(2) == GZIP_MAGIC
+    opener = gzip.open if compressed else open
+    read = 0
+    try:
+        with opener(src.local, "rb") as fh:
+            for n, line in enumerate(fh, 1):
+                read += len(line)
+                if read > limit_bytes:
+                    return
+                yield n, line.rstrip(b"\r\n")
+    except (EOFError, OSError, zlib.error):
+        return
 
 
 _TS = [

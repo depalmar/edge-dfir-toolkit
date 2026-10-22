@@ -15,7 +15,7 @@
 - **F5 BIG-IP** (`EDGE-0010`, profile `f5-bigip`, packs 0015-0017): c05d5254
   after CVE-2025-53521, CVE-2026-94127 (APM OAuth), and the 2022-2023
   control-plane flaws. New coded check for bursts of invalid-token UserInfo
-  failures at F5's threshold of 10 per address.
+  failures, using F5's rule of 10 or more in one log (especially from one address).
 - **Check Point** (`EDGE-0007`): now has a profile, and packs 0013-0014 cover
   CVE-2026-93616, CVE-2026-16232, CVE-2026-85102 and CVE-2026-50751 using
   Check Point's published indicators.
@@ -33,6 +33,14 @@
 - Profile steps can declare `var_examples` so the load-time guard probes with
   realistic values (an IOS XE `bootflash:` path rather than `/placeholder`).
 - Rule directories may now be numbered past 09.
+- Rotated `.gz` logs are now decompressed before matching. Previously every
+  rotated log was searched as compressed bytes and silently came back no-hit.
+
+### Verification round 2 (same day)
+- F5 audit detection matched `cmd=` instead of the real `cmd_data=` field.
+- Check Point `cpinfo` now runs with `-D -d` so it never uploads to the vendor
+  or self-updates; the vpnd detection uses the real blocked-traversal message.
+- Every correction is in `docs/VERIFICATION.md`.
 
 ## 0.2.0 - 2026-10-22
 

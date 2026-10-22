@@ -3,10 +3,11 @@ id: f5c9de77-0ba1-4cb4-af9f-02607a255e7b
 status: experimental
 description: |
   F5's CVE-2026-94127 log indicator: "Request UserInfo ... failed. Error Code
-  (invalid_token)" with message id 01990004 in /var/log/apm. F5 advises alerting
-  on 10 or more from one address; this rule finds the events and the threshold
-  belongs in the SIEM (or the f5_apm_oauth_userinfo_burst check in this
-  toolkit). Only APM configured as an OAuth Authorization Server is exposed.
+  (invalid_token)" with message id 01990004 in /var/log/apm. F5's rule is 10 or
+  more in one log, especially if all come from a single address, and F5 rates it
+  a medium-confidence indicator. This rule finds the events; the count belongs
+  in the SIEM (or the f5_apm_oauth_userinfo_burst check in this toolkit). Only
+  APM configured as an OAuth Authorization Server is exposed.
 references:
   - https://my.f5.com/manage/s/article/K000162605
 author: Raymond DePalma (edge-dfir-toolkit)

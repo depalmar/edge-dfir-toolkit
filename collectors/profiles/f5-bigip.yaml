@@ -5,9 +5,11 @@
 # its shell; Appliance mode removes bash entirely, in which case only qkview
 # and the vendor-assisted steps remain.
 #
-# tmsh is called from bash with its output piped to `cat`, so it never pages.
-# The alternative, `modify cli preference pager disabled`, changes CLI
-# configuration and is not used.
+# tmsh is called from bash with its output piped to `cat`, so its stdout is not
+# a terminal and it should not page. No F5 source documents this; it is ordinary
+# Unix pager behaviour and unverified on a device, so those steps are medium
+# confidence. The documented alternative, `modify cli preference pager
+# disabled`, changes CLI configuration and is not used.
 #
 # Do not trust the box's own integrity tools on a suspect device: the c05d5254
 # malware (CVE-2025-53521) tampered with /usr/bin/sys-icheck and
@@ -54,7 +56,7 @@ steps:
     kind: command
     cmd: tmsh show sys version | cat
     purpose: Release and hotfix. Selects which of CVE-2026-94127, CVE-2025-53521, CVE-2023-46747 and CVE-2022-1388 apply.
-    confidence: high
+    confidence: medium
     references:
       - https://clouddocs.f5.com/cli/tmsh-reference/latest/modules/
 
@@ -62,7 +64,7 @@ steps:
     tier: V0
     kind: command
     cmd: uptime
-    purpose: Time since boot. The c05d5254 webshells ran in memory, so a reboot since the window removes them.
+    purpose: Time since boot. F5 says the c05d5254 webshells ran in memory; this toolkit infers (F5 does not state it) that a reboot since the window removed them.
     confidence: high
 
   - id: ps
@@ -145,14 +147,14 @@ steps:
     kind: command
     cmd: tmsh list auth user | cat
     purpose: Local accounts and roles. Diff against the known set.
-    confidence: high
+    confidence: medium
 
   - id: mgmt_ip
     tier: P2
     kind: command
     cmd: tmsh list sys management-ip | cat
     purpose: Management address, to judge exposure of the control plane (the CVE-2022-1388 and CVE-2023-46747 surface).
-    confidence: high
+    confidence: medium
 
   - id: irules
     tier: P2
@@ -160,7 +162,7 @@ steps:
     cmd: tmsh list ltm rule | cat
     timeout: 300
     purpose: iRules. Data-plane logic an attacker can use for traffic capture or redirection; diff against change control.
-    confidence: high
+    confidence: medium
 
   - id: cron_listing
     tier: P7
@@ -203,7 +205,8 @@ steps:
     purpose: Configuration and command audit log. Carries the tmsh `run util bash` entries from CVE-2022-1388 and c05d5254 activity.
     confidence: high
     references:
-      - https://my.f5.com/manage/s/article/K16197
+      - https://my.f5.com/manage/s/article/K23605346
+      - https://my.f5.com/manage/s/article/K000160486
 
   - id: fetch_restjavad_audit
     tier: P4
@@ -218,7 +221,7 @@ steps:
     tier: P3
     kind: fetch
     list_cmd: ls -1d /var/log/apm*
-    purpose: APM log. CVE-2026-94127 attempts appear as bursts of "Request UserInfo ... failed. Error Code (invalid_token)" (01990004) from one address.
+    purpose: APM log. CVE-2026-94127 attempts appear as 10 or more "Request UserInfo ... failed. Error Code (invalid_token)" (01990004) lines in one log, especially from a single address.
     confidence: high
     references:
       - https://my.f5.com/manage/s/article/K000162605
@@ -234,7 +237,10 @@ steps:
     tier: P4
     kind: fetch
     list_cmd: ls -1d /var/log/tomcat/catalina.out*
-    purpose: Configuration utility (Tomcat) log. CVE-2023-46748 exploitation left a SQL error followed by "sh - no job control in this shell".
+    purpose: >-
+      Configuration utility (Tomcat) log. CVE-2023-46748 exploitation left
+      "java.sql.SQLException: Column not found: 0." followed by
+      "sh: no job control in this shell".
     confidence: high
     references:
       - https://my.f5.com/manage/s/article/K000137365
@@ -275,6 +281,8 @@ steps:
         nice -n 19 ./f5-system-scanner --dat-file ./<release>.ndjson \
           --dat-file-sha512 "$(cut -d' ' -f1 <release>.ndjson.sha512)" \
           --root / --format text --progress --output ./scanner-report.txt
+      Scanner 1.2 adds --scan-procs and --scan-all-procs, which scan process
+      memory - the only vendor check that reaches the in-memory webshells.
       Do not substitute sys-icheck: c05d5254 tampered with it. On any mismatch F5
       asks for a support case with the scanner results and a qkview. Ingest the
       report:  edge-triage ingest <case> --label scanner --bundle scanner-report.txt

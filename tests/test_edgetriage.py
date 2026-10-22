@@ -535,7 +535,9 @@ def test_iosxe_implant_check_response_confirms(fx, tmp_path):
 def test_f5_userinfo_burst_uses_vendor_threshold(fx, tmp_path):
     f = analyze(run(fx, tmp_path, "f5-bigip", "f5-compromised"))
     r = det(f, "f5-94127-userinfo-burst")
-    assert r["hit_count"] == 1 and r["hits"][0]["extra"]["ip"] == "203.0.113.77"   # 3 from another IP stay below 10
+    hit = r["hits"][0]["extra"]
+    assert r["hit_count"] == 1 and hit["total"] == 15 and hit["top_ip"] == "203.0.113.77"
+    assert hit["addresses"] == 2 and not hit["single_source"]
     benign = analyze(run(fx, tmp_path, "f5-bigip", "f5-benign", case_id="IR-F5B"))
     assert det(benign, "f5-94127-userinfo-burst")["status"] == "no-hit"
 
@@ -567,3 +569,53 @@ def test_new_bash_guards_refuse_smuggling():
         for c in cmds:
             with pytest.raises(ProfileError):
                 p.check_command(c)
+
+
+
+# ------------------------------------------------------------------ verification regressions, round 2 (2026-10-22)
+def test_rotated_gzip_logs_are_read(fx, tmp_path):
+    """Rotated appliance logs are gzip. Reading them as raw bytes found nothing."""
+    import gzip
+    root = run(fx, tmp_path, "netscaler", "netscaler-benign")
+    leak = (b'Oct 13 06:05:01 <local0.info> 192.0.2.20 10/13/2026:06:05:01 GMT ns-gw 0-PPE-0 : default AAA '
+            b'LOGIN_FAILED 102 0 :  User \x00\x07\xc3\x1fX\x02 - Client_ip 198.51.100.66 - Failure_reason ""\n')
+    rot = root / "files" / "fetch_logs" / "var" / "log" / "ns.log.1.gz"
+    rot.parent.mkdir(parents=True, exist_ok=True)
+    rot.write_bytes(gzip.compress(leak))
+    r = det(analyze(root), "netscaler-auth-nonprintable")
+    assert r["hit_count"] == 1 and r["hits"][0]["source"].endswith("ns.log.1.gz")
+
+
+def test_truncated_gzip_does_not_crash(tmp_path):
+    import gzip
+    from edgetriage.evidence import Source, iter_lines
+    good = gzip.compress(b"line one\nline two\n" * 1000)
+    bad = tmp_path / "x.log.gz"
+    bad.write_bytes(good[: len(good) // 2])
+    lines = list(iter_lines(Source("file", "/x.log.gz", bad)))
+    assert lines and lines[0][1] == b"line one"
+
+
+def test_f5_burst_spread_across_addresses_is_caught(fx, tmp_path):
+    """F5's rule is per log, not per address: 12 failures from 12 sources must fire."""
+    root = run(fx, tmp_path, "f5-bigip", "f5-benign")
+    apm = root / "files" / "fetch_apm" / "var" / "log" / "apm"
+    line = ("Oct 14 06:{m:02d}:00 bigip-lab err tmm1[30975]: 01990004:3: /Common/oauth_as: Request UserInfo from "
+            "Source ID (null) IP 203.0.113.{i}%2 failed. Error Code (invalid_token) Error Description (The access token is invalid.)")
+    apm.write_text("\n".join(line.format(m=i, i=i) for i in range(12)) + "\n")
+    r = det(analyze(root), "f5-94127-userinfo-burst")
+    assert r["hit_count"] == 1 and r["hits"][0]["extra"]["addresses"] == 12   # route-domain suffix parsed too
+
+
+def test_cpinfo_never_uploads():
+    cmd = next(s for s in get_profile("checkpoint-gaia").steps if s.id == "cpinfo_bundle").cmd
+    assert " -D " in cmd and " -d " in cmd    # no upload to Check Point, no self-update
+
+
+def test_f5_audit_patterns_use_the_real_format():
+    import re
+    import yaml
+    line = "Oct 14 07:01:02 bigip notice icrd_child[1]: AUDIT - pid=1 user=admin folder=/Common module=(tmos)# status=[Command OK] cmd_data=run util bash -c id"
+    pack = yaml.safe_load((ROOT / "artifacts/packs/EDGE-PACK-0017-f5-control-plane-historic.yml").read_text())
+    pat = next(d["pattern"] for d in pack["detect"] if d["id"] == "f5-audit-util-bash-c")
+    assert re.search(pat, line)
