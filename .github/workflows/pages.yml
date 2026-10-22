@@ -1,0 +1,48 @@
+name: pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'artifacts/**'
+      - 'collectors/profiles/**'
+      - 'edgetriage/**'
+      - 'docs/edge-dfir-investigation-guide.md'
+      - '0*/**'
+      - 'requirements.txt'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      # Built at deploy time from the catalog, profiles, packs and rules, which
+      # the validate workflow gates. The page cannot drift from the content.
+      - name: Install dependencies
+        run: pip install pyyaml jsonschema
+      - name: Validate before publishing
+        run: python artifacts/scripts/build_site.py --check
+      - name: Build site
+        run: python artifacts/scripts/build_site.py
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs/site
+      - uses: actions/deploy-pages@v4
+        id: deployment

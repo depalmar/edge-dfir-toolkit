@@ -56,7 +56,7 @@ def test_guard_rejects_state_changing_command(tmp_path):
     p = tmp_path / "bad.yaml"
     p.write_text(
         "profile: bad\nplatform_id: EDGE-0001\ndisplay: bad\n"
-        "cli: {allow: ['^show ', '^request '], deny: ['^request ']}\n"
+        "cli: {allow: ['show [\\w ]+', 'request [\\w ]+'], deny: ['^request ']}\n"
         "steps:\n  - {id: x, tier: V0, kind: command, cmd: 'request restart system', purpose: p}\n"
     )
     with pytest.raises(ProfileError, match="deny"):
@@ -67,7 +67,7 @@ def test_guard_rejects_non_session_setup(tmp_path):
     p = tmp_path / "bad.yaml"
     p.write_text(
         "profile: bad\nplatform_id: EDGE-0002\ndisplay: bad\n"
-        "cli: {allow: ['^get '], session_setup: ['config system console']}\n"
+        "cli: {allow: ['get [\\w ]+'], session_setup: ['config system console']}\n"
         "steps:\n  - {id: x, tier: V0, kind: command, cmd: 'get system status', purpose: p}\n"
     )
     with pytest.raises(ProfileError, match="session"):
@@ -77,7 +77,7 @@ def test_guard_rejects_non_session_setup(tmp_path):
 def test_low_confidence_step_must_be_marked_unverified(tmp_path):
     p = tmp_path / "bad.yaml"
     p.write_text(
-        "profile: bad\nplatform_id: EDGE-0002\ndisplay: bad\ncli: {allow: ['^get ']}\n"
+        "profile: bad\nplatform_id: EDGE-0002\ndisplay: bad\ncli: {allow: ['get [\\w ]+']}\n"
         "steps:\n  - {id: x, tier: V0, kind: command, cmd: 'get system status', purpose: p, confidence: low}\n"
     )
     with pytest.raises(ProfileError, match="unverified"):
@@ -108,11 +108,11 @@ def test_bundle_and_break_glass_are_opt_in():
 
 # ------------------------------------------------------------------ collection / custody
 def test_var_cannot_smuggle_shell_syntax(fx, tmp_path):
-    root = run(fx, tmp_path, "fortios", "fortios-compromised",
-               variables={"sslvpn_lang_dir": "/data/lang/custom; rm -rf /"})
-    m = json.loads((root / "manifest.json").read_text())
-    step = next(s for s in m["steps"] if s["step_id"] == "listing_sslvpn_lang")
-    assert step["status"] == "refused"
+    # Refused before anything is typed or a case is written.
+    with pytest.raises(ProfileError):
+        run(fx, tmp_path, "fortios", "fortios-compromised",
+            variables={"sslvpn_lang_dir": "/data/lang/custom; rm -rf /"})
+    assert not (tmp_path / "IR-TEST").exists()
 
 
 def test_missing_var_skips_step(fx, tmp_path):
@@ -316,3 +316,107 @@ def test_ssh_transport_handles_pager_echo_and_ansi():
     out = t.run("show system info", timeout=5)
     assert out == "hostname: fw-lab-01\nsw-version: 10.2.9\n"
     assert t.chan.sent == ["show system info\n", " "]
+
+
+# ------------------------------------------------------------------ guard regressions (independent review, 2026-10-22)
+@pytest.mark.parametrize("profile,cmd", [
+    ("panos", "show clock\nrequest restart system"),
+    ("panos", "show clock\rrequest restart system"),
+    ("fortios", "get system status\nexecute reboot"),
+    ("netscaler", "show ns version\nshell rm -rf /var/log"),
+    ("netscaler", "shell find /var/tmp\nreboot -warm"),
+    ("netscaler", "shell find /var/tmp -de''lete"),
+    ("netscaler", "shell find /var/tmp -ex'e'c rm -f {} +"),
+    ("netscaler", "shell find /var/tmp -de\\lete"),
+    ("netscaler", "shell find /var/tmp -fprint0 /var/x"),
+    ("netscaler", "show techsupport"),
+    ("cisco-asa", "show clock | redirect disk0:/x"),
+    ("cisco-asa", "show clock\nreload noconfirm"),
+])
+def test_guard_refuses_smuggled_commands(profile, cmd):
+    with pytest.raises(ProfileError):
+        get_profile(profile).check_command(cmd)
+
+
+def test_multiline_cmd_in_profile_is_refused(tmp_path):
+    p = tmp_path / "bad.yaml"
+    p.write_text("profile: bad\nplatform_id: EDGE-0001\ndisplay: bad\ncli: {allow: ['show [\\w -]+']}\n"
+                 "steps:\n  - id: x\n    tier: V0\n    kind: command\n    purpose: p\n    cmd: |\n      show clock\n      write erase\n")
+    with pytest.raises(ProfileError, match="control character"):
+        load_profile(p)
+
+
+def test_session_setup_newline_is_refused(tmp_path):
+    p = tmp_path / "bad.yaml"
+    p.write_text("profile: bad\nplatform_id: EDGE-0005\ndisplay: bad\n"
+                 "cli: {allow: ['show [\\w -]+'], session_setup: [\"terminal pager 0\\nreload noconfirm\"]}\n"
+                 "steps:\n  - {id: x, tier: V0, kind: command, cmd: 'show clock', purpose: p}\n")
+    with pytest.raises(ProfileError):
+        load_profile(p)
+
+
+@pytest.mark.parametrize("value", ["u@h:/x\nrequest restart system", "/data;reboot", "/data$(id)", "/data/ x"])
+def test_var_values_are_constrained_for_every_impact(fx, tmp_path, value):
+    with pytest.raises(ProfileError):
+        run(fx, tmp_path, "panos", "panos-benign", variables={"bundle_dest": value}, allow_bundle=True)
+
+
+def test_shipped_commands_still_pass():
+    for name in available_profiles():
+        prof = get_profile(name)
+        for s in prof.steps:
+            if s.impact == "none":
+                for c in (s.cmd, s.list_cmd):
+                    if c:
+                        prof.check_command(c.format(**{v: "/data/lang/custom" for v in s.requires_vars}))
+
+
+def test_forged_listing_lines_are_not_fetched(fx, tmp_path):
+    import shutil
+    rp = tmp_path / "replay"
+    shutil.copytree(fx / "netscaler-compromised", rp)
+    from edgetriage.util import slugify
+    listing = rp / "commands" / (slugify("shell find /var/netscaler/logon /var/vpn /netscaler/ns_gui /var/netscaler/ns_gui -type f -name '*.php'") + ".txt")
+    listing.write_text(listing.read_text() + "/dev/zero\n/var/netscaler/logon/a b.php\n")
+    root = run(fx, tmp_path, "netscaler", "netscaler-compromised")  # warm-up with clean fixture
+    m = json.loads((root / "manifest.json").read_text())
+    case = Case(tmp_path / "IR-FORGED")
+    collect(get_profile("netscaler"), ReplayTransport(rp), case, case_id="IR-FORGED", operator="t",
+            target={"host": "192.0.2.20"}, preflight={}, variables={})
+    m = case.load()
+    step = next(s for s in m["steps"] if s["step_id"] == "fetch_php")
+    refused = {f["remote"] for f in step["files"] if f.get("error", "").startswith("refused")}
+    assert "/dev/zero" in refused and "/var/netscaler/logon/a b.php" in refused
+
+
+def test_prompt_lookalike_inside_output_does_not_end_capture():
+    from edgetriage.transport import SSHTransport
+    t = SSHTransport("192.0.2.10", "ir-ro", prompt=r"fw-lab-01> ?$", pager="--More--")
+    t.QUIET = 0.05
+    t.chan = FakeChannel({
+        "tail lines 5 mp-log gpsvc.log\n": [
+            "tail lines 5 mp-log gpsvc.log\r\n",
+            "line one says fw-lab-01> but is data\r\nline two mentions --More-- mid-line\r\n",
+            "line three\r\nfw-lab-01> "],
+    })
+    out = t.run("tail lines 5 mp-log gpsvc.log", timeout=5)
+    assert "line three" in out and "--More-- mid-line" in out and t.chan.sent == ["tail lines 5 mp-log gpsvc.log\n"]
+
+
+def test_ingest_label_and_duplicate_members(fx, tmp_path):
+    import io
+    import tarfile
+    root = run(fx, tmp_path, "panos", "panos-benign")
+    case = Case(root)
+    with pytest.raises(ValueError):
+        case.ingest(fx / "panos-tsf.tgz", "../..")
+    tgz = tmp_path / "dupes.tgz"
+    with tarfile.open(tgz, "w:gz") as tf:
+        for name, data in [("a/x.log", b"first"), ("a/x.log", b"second"), ("a/x.log/y", b"clash"), ("C:evil", b"d")]:
+            info = tarfile.TarInfo(name)
+            info.size = len(data)
+            tf.addfile(info, io.BytesIO(data))
+    rec = case.ingest(tgz, "dupes")
+    assert (root / rec["extracted_to"] / "a" / "x.log").read_bytes() == b"first"
+    joined = " | ".join(rec["extract_rejected"])
+    assert "duplicate" in joined and "clashes" in joined and "C:evil" in joined

@@ -24,6 +24,8 @@ jobs:
         run: python artifacts/scripts/validate.py
       - name: MAPPINGS.md is current
         run: python artifacts/scripts/mappings.py --check
+      - name: Site data contract
+        run: python artifacts/scripts/build_site.py --check
       - name: Test suite
         run: python -m pytest -q tests/
 

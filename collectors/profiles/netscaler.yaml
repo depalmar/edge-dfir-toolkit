@@ -16,12 +16,18 @@ display: Citrix NetScaler ADC / Gateway
 transports: [ssh, replay]
 
 cli:
-  prompt: '(?:^|\n)\s*>\s*$'
+  prompt: '>'
   pager: '--More--'
   session_setup: []
+  # Allow rules must match the whole command (the engine uses fullmatch). The
+  # shell rules are a grammar, not a prefix: `shell` hands the line to sh, which
+  # strips quotes and backslashes, so any free-form text would let -delete or
+  # -exec through in disguise. Quotes appear only around a -name glob.
   allow:
-    - '^show '
-    - '^shell (date -u|uptime|ps auxww|netstat -an|sockstat -46|crontab -l|cat /etc/crontab|ls -la [\w/. -]+|find [^;&|`<>]+)$'
+    - 'show (ns version|ns runningConfig|system session|aaa session)'
+    - 'shell (date -u|uptime|ps auxww|netstat -an|sockstat -46|crontab -l|cat /etc/crontab)'
+    - 'shell ls -la( /[\w./-]+)+'
+    - "shell find( /[\\w./-]+)+( -xdev| -maxdepth \\d+| -type [fd]| -perm [-+]?[0-7]{3,4}| -name '[\\w*.?-]+')*( -ls)?"
   deny:
     - '^(set|unset|add|rm|enable|disable|save|reboot|shutdown|clear|apply|sync|batch|kill)( |$)'
     - '[;&|`<>]|\$\('

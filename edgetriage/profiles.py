@@ -47,6 +47,27 @@ class ProfileError(ValueError):
     pass
 
 
+# Anything typed at a device is one line of printable text. A newline or carriage
+# return would let a second command ride along with an approved first one, so
+# control characters are refused everywhere: commands, session setup, --var values.
+CONTROL = re.compile(r"[\x00-\x1f\x7f]")
+# Operator-supplied values are substituted into commands. They may carry paths,
+# hosts and user@host:/dest targets, nothing that a shell or CLI parses further.
+VAR_VALUE = re.compile(r"[\w@:./+=,-]+")
+SESSION_SETUP = re.compile(r"set cli pager off|set cli scripting-mode on|terminal (pager|length) 0|terminal width \d{2,3}")
+
+
+def check_line(text: str, what: str) -> None:
+    if CONTROL.search(text):
+        raise ProfileError(f"{what} contains a control character: {text!r}")
+
+
+def check_var(name: str, value: str) -> None:
+    check_line(value, f"--var {name}")
+    if not VAR_VALUE.fullmatch(value):
+        raise ProfileError(f"--var {name} may only contain letters, digits and @:./+=,- : {value!r}")
+
+
 @dataclass
 class Step:
     id: str
@@ -103,8 +124,14 @@ class Profile:
         return sorted((s for s in self.steps if s.impact in permitted), key=lambda s: s.order_key)
 
     def check_command(self, cmd: str) -> None:
-        """Raise ProfileError if an impact-free command fails the read-only guard."""
-        if not any(re.search(a, cmd) for a in self.allow):
+        """Raise ProfileError if an impact-free command fails the read-only guard.
+
+        Allow rules must match the WHOLE command (fullmatch), so a rule written
+        as '^show ' cannot admit 'show x' followed by anything else. Deny rules
+        are searched anywhere in it.
+        """
+        check_line(cmd, f"{self.name}: command")
+        if not any(re.fullmatch(a.removeprefix("^").removesuffix("$"), cmd) for a in self.allow):
             raise ProfileError(f"{self.name}: command not on allow-list: {cmd!r}")
         for d in self.deny:
             if re.search(d, cmd):
@@ -158,6 +185,12 @@ def load_profile(path: Path) -> Profile:
         expected_evidence=list(raw.get("expected_evidence", [])), steps=steps,
         notes=raw.get("notes", ""), source=path,
     )
+    # Every command of every impact is one printable line; only impact-free ones
+    # are additionally held to the allow/deny lists.
+    for s in steps:
+        for c in (s.cmd, s.list_cmd, *s.paths):
+            if c:
+                check_line(c, f"{name}/{s.id}")
     # Load-time guard: every impact-free command and list_cmd must pass, with
     # placeholders filled by an inert value. The engine checks again after the
     # operator's real values are substituted, so a --var cannot smuggle in ';'.
@@ -169,7 +202,8 @@ def load_profile(path: Path) -> Profile:
             if c:
                 prof.check_command(c)
     for c in prof.session_setup:
-        if not re.search(r"^(set cli |terminal (pager|length|width) )", c):
+        check_line(c, f"{name}: session_setup")
+        if not SESSION_SETUP.fullmatch(c):
             raise ProfileError(f"{name}: session_setup must be session-scoped only: {c!r}")
     return prof
 

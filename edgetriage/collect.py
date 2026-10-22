@@ -1,12 +1,17 @@
 """Collection engine: run a profile against a transport into a case."""
 from __future__ import annotations
 
+import re
 from typing import Any, Callable
 
 from .custody import Case
-from .profiles import Profile, ProfileError, Step
+from .profiles import Profile, ProfileError, Step, check_line, check_var
 from .transport import CommandUnavailable, Transport, TransportError
 from .util import sha256_file, utcnow
+
+
+FETCHABLE = re.compile(r"/[\w./+@-]+")
+MAX_FETCH_BYTES = 512 * 1024 * 1024
 
 
 class CollectionRefused(RuntimeError):
@@ -30,6 +35,8 @@ def collect(profile: Profile, transport: Transport, case: Case, *, case_id: str,
     if case.exists():
         raise CollectionRefused(f"case already exists: {case.root} (use a new --case-id)")
 
+    for k, v in variables.items():
+        check_var(k, v)   # raises ProfileError before anything is typed or written
     steps = plan(profile, allow_bundle, break_glass, variables)
     if break_glass and any(s.impact == "break-glass" for s, _ in steps):
         if confirm is None or not confirm(
@@ -93,14 +100,17 @@ def _run_step(step: Step, skip: str | None, transport: Transport, case: Case,
         return rec
     s = step.render(variables)
     rec["cmd"] = s.cmd
-    if s.impact == "none":
-        try:
-            for c in (s.cmd, s.list_cmd):
-                if c:
-                    profile.check_command(c)
-        except ProfileError as e:
-            rec.update(status="refused", error=str(e), ended_utc=utcnow())
-            return rec
+    try:
+        for p in s.paths:
+            check_line(p, s.id)
+        for c in (s.cmd, s.list_cmd):
+            if c:
+                check_line(c, s.id)            # every impact: one printable line
+                if s.impact == "none":
+                    profile.check_command(c)   # impact-free: allow/deny as well
+    except ProfileError as e:
+        rec.update(status="refused", error=str(e), ended_utc=utcnow())
+        return rec
 
     if s.kind == "manual":
         rec.update(status="pending-manual", error=None, ended_utc=utcnow(),
@@ -120,12 +130,22 @@ def _run_step(step: Step, skip: str | None, transport: Transport, case: Case,
                 listing = transport.run(s.list_cmd, timeout=s.timeout)
                 rel, digest, size = case.write_command(f"{s.id}.listing", listing)
                 rec.update(output=rel, sha256=digest, bytes=size, cmd=s.list_cmd)
-                remotes += [ln.strip() for ln in listing.splitlines() if ln.strip().startswith("/")]
+                # The listing is device output, so attacker-influenced: a planted file
+                # name with a newline in it can forge a line. Only plain absolute
+                # paths outside pseudo-filesystems are fetched; the rest are recorded.
+                for ln in listing.splitlines():
+                    ln = ln.strip()
+                    if not ln.startswith("/"):
+                        continue
+                    if FETCHABLE.fullmatch(ln) and not ln.startswith(("/dev/", "/proc/", "/sys/")):
+                        remotes.append(ln)
+                    else:
+                        rec["files"].append({"remote": ln, "error": "refused: not a plain path", "sha256": ""})
             got = 0
             for remote in remotes:
                 dest = case.file_dest(s.id, remote)
                 try:
-                    transport.fetch(remote, dest)
+                    transport.fetch(remote, dest, max_bytes=MAX_FETCH_BYTES)
                 except CommandUnavailable as e:
                     rec["files"].append({"remote": remote, "error": str(e), "sha256": ""})
                     continue

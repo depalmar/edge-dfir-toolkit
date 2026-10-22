@@ -20,12 +20,13 @@ cli:
   prompt: '[\w.()~-]+ ?[#$] ?$'
   pager: '--More--'
   session_setup: []
+  # Allow rules must match the whole command (the engine uses fullmatch).
   allow:
-    - '^get '
-    - '^show( |$)'
-    - '^diagnose sys (top \d+ \d+ \d+|filesystem hash|session stat)$'
-    - '^diagnose debug crashlog read$'
-    - '^fnsysctl (ls -la?|cat) /[\w./-]+$'
+    - 'get [\w -]+'
+    - 'show( [\w -]+)?'
+    - 'diagnose sys (top \d+ \d+ \d+|filesystem hash|session stat)'
+    - 'diagnose debug crashlog read'
+    - 'fnsysctl (ls -la?|cat) /[\w./-]+'
   deny:
     - '^(execute|config|set|unset|delete|purge|end|abort)( |$)'
     - '[;&|`<>]|\$\('

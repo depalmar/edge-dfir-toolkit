@@ -28,6 +28,9 @@ python tests/make_fixtures.py /tmp/fx         # regenerate fixtures to poke at b
 python -m edgetriage plan --profile <name> [--allow-bundle] [--break-glass]
 python -m edgetriage collect --profile <name> --case-id X --replay /tmp/fx/<fixture>
 python -m edgetriage analyze cases/X [--baseline b.json] [--window-start ISO]
+python artifacts/scripts/build_site.py --check   # site data contract, writes nothing
+python artifacts/scripts/build_site.py           # docs/site/index.html (CI does this; never commit it)
+python artifacts/scripts/mappings.py [--check]   # MAPPINGS.md is generated
 sigma convert -t lucene --without-pipeline 01-panos-globalprotect/*.yml   # syntax gate only
 ```
 
@@ -37,8 +40,12 @@ sigma convert -t lucene --without-pipeline 01-panos-globalprotect/*.yml   # synt
 allow-list and miss its deny-list, and the engine re-checks after `--var`
 substitution. Anything that writes to the device declares `impact:
 vendor-bundle`; anything that can crash, reload, reboot or image it declares
-`impact: break-glass`. Do not loosen an allow-list to make a step pass -
-change the step. FortiOS paging is answered by the transport, never with
+`impact: break-glass`. Allow rules are matched with `re.fullmatch`, so write
+them as complete grammars, not prefixes; `shell` on NetScaler hands the line to
+sh, which strips quotes and backslashes, so its rules must not admit free text.
+Control characters are refused in every command and `--var` value. Do not
+loosen an allow-list to make a step pass - change the step. Every guard bypass
+found so far has a regression test in `test_guard_refuses_smuggled_commands`. FortiOS paging is answered by the transport, never with
 `config system console`, because that changes configuration.
 
 **Order of volatility is enforced by `TIER_ORDER`.** The ASA memory-region
@@ -91,6 +98,15 @@ detection. No working exploit, implant or exploitation steps.
   `iter_lines` to decode text.
 - `safe_extract` refuses links but records them. The FortiOS symlink check reads
   those refusals; keep the `"<name>: link -> <target>"` format stable.
+
+## Site generation
+
+`artifacts/scripts/build_site.py` emits one self-contained vanilla-JS HTML file:
+no framework, no CDN, no build step, never hand-edited, never committed. The
+Pages workflow builds it at deploy time. Every embedded data blob goes through
+`js_data()`, which escapes `</` so a rule body cannot close the script element.
+Page changes go in the generator. `--check` fails on duplicate or non-URL-safe
+element ids, dangling `#tab/anchor` links and any external script or stylesheet.
 
 ## What is next
 

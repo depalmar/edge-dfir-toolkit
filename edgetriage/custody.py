@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import getpass
 import json
+import re
 import platform
 import shutil
 import socket
@@ -101,6 +102,8 @@ class Case:
                evidence_classes: list[str] | None = None) -> dict[str, Any]:
         """Copy a vendor bundle or exported log into the case, hash it, and
         optionally extract it. Extraction treats the archive as hostile."""
+        if not re.fullmatch(r"[A-Za-z0-9][\w.-]{0,63}", label) or ".." in label:
+            raise ValueError(f"label must be a simple name (letters, digits, . _ -): {label!r}")
         source = Path(source)
         src_hash = sha256_file(source)
         dest_dir = self.root / "bundles" / label
@@ -120,7 +123,11 @@ class Case:
         }
         if extract and _is_archive(dest):
             out = dest_dir / "extracted"
-            rec["extract_rejected"] = safe_extract(dest, out)
+            try:
+                rec["extract_rejected"] = safe_extract(dest, out)
+            except (OSError, tarfile.TarError, zipfile.BadZipFile) as e:
+                # The copy and its hash still stand; record why extraction stopped.
+                rec["extract_rejected"] = [f"extraction aborted: {type(e).__name__}: {e}"]
             rec["extracted_to"] = str(out.relative_to(self.root))
         return rec
 
@@ -131,7 +138,24 @@ def _is_archive(p: Path) -> bool:
 
 def _member_ok(name: str) -> bool:
     pp = PurePosixPath(name.replace("\\", "/"))
-    return not pp.is_absolute() and ".." not in pp.parts and name.strip() != ""
+    # Drive-qualified names (C:x) would resolve to another drive on Windows.
+    return (not pp.is_absolute() and ".." not in pp.parts and name.strip() != ""
+            and not re.match(r"^[A-Za-z]:", name) and "\x00" not in name)
+
+
+def _place(out: Path, name: str, seen: set[str], rejected: list[str]) -> Path | None:
+    """Destination for a member, or None (recorded) if it would overwrite or clash."""
+    rel = safe_relpath(name)
+    key = rel.as_posix().lower()
+    if key in seen:
+        rejected.append(f"{name}: duplicate member, first copy kept")
+        return None
+    dest = out / rel
+    if dest.exists() or any(p.is_file() for p in dest.parents if out in p.parents or p == out):
+        rejected.append(f"{name}: clashes with an extracted file or directory")
+        return None
+    seen.add(key)
+    return dest
 
 
 def safe_extract(archive: Path, out: Path) -> list[str]:
@@ -142,6 +166,7 @@ def safe_extract(archive: Path, out: Path) -> list[str]:
     than sanitized, and every refusal is recorded so the analyst can see it.
     """
     rejected: list[str] = []
+    seen: set[str] = set()
     total = 0
     out.mkdir(parents=True, exist_ok=True)
     if zipfile.is_zipfile(archive):
@@ -159,7 +184,9 @@ def safe_extract(archive: Path, out: Path) -> list[str]:
                 if total > MAX_EXTRACT_BYTES:
                     rejected.append(f"{info.filename}: size cap reached")
                     break
-                dest = out / safe_relpath(info.filename)
+                dest = _place(out, info.filename, seen, rejected)
+                if dest is None:
+                    continue
                 dest.parent.mkdir(parents=True, exist_ok=True)
                 with zf.open(info) as src, open(dest, "wb") as dst:
                     shutil.copyfileobj(src, dst)
@@ -181,7 +208,9 @@ def safe_extract(archive: Path, out: Path) -> list[str]:
             if total > MAX_EXTRACT_BYTES:
                 rejected.append(f"{m.name}: size cap reached")
                 break
-            dest = out / safe_relpath(m.name)
+            dest = _place(out, m.name, seen, rejected)
+            if dest is None:
+                continue
             dest.parent.mkdir(parents=True, exist_ok=True)
             src = tf.extractfile(m)
             if src is None:

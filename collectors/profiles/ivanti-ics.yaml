@@ -18,7 +18,7 @@ display: Ivanti Connect Secure / Policy Secure
 transports: [replay]
 
 cli:
-  allow: ['^$a']   # nothing is typed at this device
+  allow: ['(?!)']   # matches nothing: nothing is typed at this device
   deny: []
 
 expected_evidence: [memory, filesystem, integrity, auth-logs, web-logs, system-logs, config]

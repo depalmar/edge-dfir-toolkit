@@ -35,7 +35,7 @@ class Transport:
     def run(self, cmd: str, timeout: int = 120) -> str:
         raise NotImplementedError
 
-    def fetch(self, remote: str, local: Path) -> None:
+    def fetch(self, remote: str, local: Path, max_bytes: int | None = None) -> None:
         raise NotImplementedError
 
     def device_clock_note(self) -> str | None:
@@ -58,10 +58,12 @@ class ReplayTransport(Transport):
             raise CommandUnavailable(f"no recording for {cmd!r} ({p.name})")
         return p.read_text(encoding="utf-8", errors="replace")
 
-    def fetch(self, remote: str, local: Path) -> None:
+    def fetch(self, remote: str, local: Path, max_bytes: int | None = None) -> None:
         src = self.root / "files" / remote.lstrip("/")
         if not src.is_file():
             raise CommandUnavailable(f"no recording for file {remote}")
+        if max_bytes is not None and src.stat().st_size > max_bytes:
+            raise CommandUnavailable(f"{remote} exceeds the {max_bytes}-byte fetch cap")
         local.parent.mkdir(parents=True, exist_ok=True)
         local.write_bytes(src.read_bytes())
 
@@ -84,8 +86,9 @@ class SSHTransport(Transport):
                  known_hosts: str | None = None):
         self.host, self.port, self.username = host, port, username
         self.password, self.key_filename = password, key_filename
-        self.prompt = re.compile(prompt, re.M)
-        self.pager = re.compile(pager) if pager else None
+        # Matched against the stripped last line only (fullmatch), never searched.
+        self.prompt = re.compile(prompt.removesuffix("$").removesuffix(" ?") + " ?")
+        self.pager = re.compile(r"\s*(?:" + pager + r")\s*") if pager else None
         self.hostkey_sha256 = hostkey_sha256
         self.known_hosts = known_hosts
         self.client = None
@@ -129,19 +132,36 @@ class SSHTransport(Transport):
         if self.client:
             self.client.close()
 
+    QUIET = 0.4  # seconds of silence required after a prompt-shaped last line
+
     def _read_until_prompt(self, timeout: int) -> str:
+        """Read until the device is idle at its prompt.
+
+        Device output is attacker-influenced: a log line can end in text that
+        looks like a prompt or a pager marker. So only the LAST line of the
+        buffer is ever tested, a pager marker is stripped only from that line,
+        and a prompt-shaped last line must be followed by a quiet period before
+        it is believed. A crafted line can still end a capture early if it
+        arrives exactly at a pause; outputs are hashed as received, so a short
+        capture is visible rather than silent.
+        """
         buf = ""
         deadline = time.monotonic() + timeout
+        prompt_seen_at = None
         while time.monotonic() < deadline:
             if self.chan.recv_ready():
                 buf += self.chan.recv(65535).decode("utf-8", errors="replace")
-                tail = ANSI.sub("", buf[-512:])
-                if self.pager and self.pager.search(tail):
-                    buf = self.pager.sub("", buf)
+                prompt_seen_at = None
+                head, _, last = buf.rpartition("\n")
+                last_clean = ANSI.sub("", last).rstrip("\r")
+                if self.pager and self.pager.fullmatch(last_clean.strip()):
+                    buf = head + ("\n" if head else "")
                     self.chan.send(" ")
                     continue
-                if self.prompt.search(tail.rstrip("\r")):
-                    return buf
+                if self.prompt.fullmatch(last_clean.strip()):
+                    prompt_seen_at = time.monotonic()
+            elif prompt_seen_at is not None and time.monotonic() - prompt_seen_at >= self.QUIET:
+                return buf
             else:
                 time.sleep(0.05)
         raise TransportError(f"timed out after {timeout}s waiting for prompt")
@@ -154,16 +174,22 @@ class SSHTransport(Transport):
         lines = raw.split("\n")
         if lines and cmd.strip() in lines[0]:
             lines = lines[1:]           # drop echoed command
-        if lines and self.prompt.search(lines[-1]):
+        if lines and self.prompt.fullmatch(lines[-1].strip()):
             lines = lines[:-1]          # drop trailing prompt
         return "\n".join(lines).strip("\n") + "\n"
 
-    def fetch(self, remote: str, local: Path) -> None:
+    def fetch(self, remote: str, local: Path, max_bytes: int | None = None) -> None:
         try:
             sftp = self.client.open_sftp()
         except Exception as e:
             raise CommandUnavailable(f"SFTP not available on device: {e}") from e
         try:
+            import stat as _stat
+            st = sftp.stat(remote)
+            if not _stat.S_ISREG(st.st_mode or 0):
+                raise CommandUnavailable(f"{remote} is not a regular file")
+            if max_bytes is not None and (st.st_size or 0) > max_bytes:
+                raise CommandUnavailable(f"{remote} exceeds the {max_bytes}-byte fetch cap")
             local.parent.mkdir(parents=True, exist_ok=True)
             sftp.get(remote, str(local))
         except OSError as e:

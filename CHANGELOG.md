@@ -24,5 +24,19 @@ First cut.
 - Packs: EDGE-PACK-0001 to EDGE-PACK-0009 (28 detections).
 - 7 Sigma rules, 2 YARA files (5 rules).
 
+### Security hardening (independent review, same day)
+- Allow rules are full-command grammars matched with `fullmatch`; the old
+  prefix rules let a newline-separated second command through.
+- Control characters refused in every command, `session_setup` line and `--var`
+  value; `--var` values limited to path and host characters for every impact.
+- NetScaler `shell find` restricted to a fixed option grammar (quote and
+  backslash tricks admitted `-delete` and `-exec`); `show` limited to four commands.
+- Transport tests only the last line for prompt and pager, and requires a quiet
+  period after a prompt, so device output cannot end a capture or delete text.
+- Fetch refuses non-plain paths from device listings, pseudo-filesystems,
+  non-regular files and files over 512 MiB.
+- Ingest validates labels; extraction refuses duplicate and clashing members and
+  drive-qualified names, and records an aborted extraction instead of crashing.
+
 ### Not yet verified
 - No profile has been run against a real device. See `docs/ROADMAP.md`.

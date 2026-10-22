@@ -20,9 +20,10 @@ cli:
   pager: '(?:lines \d+-\d+|--more--|\(END\))'
   session_setup:
     - set cli pager off
+  # Allow rules must match the whole command (the engine uses fullmatch).
   allow:
-    - '^show '
-    - '^tail lines \d+ mp-log [\w.*-]+$'
+    - 'show [\w -]+'
+    - 'tail lines \d+ mp-log [\w.*-]+'
   deny:
     - '^(request|delete|clear|commit|configure|debug|set|test|run|scp|tftp|ftp|ssh) '
     - '[;&`]|\$\('

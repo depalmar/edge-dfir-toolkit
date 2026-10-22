@@ -24,6 +24,12 @@ So this toolkit does three things a generic collector does not:
    verdict it will give is `NO-INDICATORS-FOUND`, never "clean", and every
    report lists its evidence gaps.
 
+**Browse it at [depalmar.github.io/edge-dfir-toolkit](https://depalmar.github.io/edge-dfir-toolkit/)** -
+the platform catalog, every collection plan in order of volatility with a
+command builder, the detection packs, the rules, a coverage matrix and the
+[investigation guide](docs/edge-dfir-investigation-guide.md), rebuilt from this
+repository on every push so the page cannot drift from the content.
+
 License: Apache 2.0.
 
 ---
@@ -57,7 +63,7 @@ edge-dfir-toolkit/
 │   ├── packs/                # EDGE-PACK-NNNN per-CVE detection packs the analyzer runs
 │   ├── schema/               # JSON schemas for both
 │   └── scripts/validate.py   # the CI gate
-├── docs/                     # roadmap and design notes
+├── docs/                     # investigation guide, roadmap, verification log
 └── tests/                    # synthetic fixtures and the test suite
 ```
 
@@ -126,9 +132,12 @@ cases/IR-2026-031/
 
 ## Design rules
 
-**Read-only by default.** A profile cannot load if an impact-free step fails
-its allow-list or matches its deny-list, and operator-supplied `--var` values
-are re-checked after substitution. Vendor bundles (`--allow-bundle`) write a
+**Read-only by default.** Allow rules are full-command grammars (matched with
+`fullmatch`, never as prefixes), and a profile cannot load if an impact-free
+step fails them or matches a deny rule. Control characters are refused in every
+command, so a newline cannot carry a second command past an approved first
+one. Operator `--var` values are restricted to path-and-host characters and
+re-checked after substitution. Vendor bundles (`--allow-bundle`) write a
 temporary file on the device. Break-glass steps (`--break-glass`: core dumps,
 imaging, external integrity tools that reboot) always run last and require
 typed confirmation.
@@ -161,7 +170,8 @@ Convert with pySigma for your platform.
 
 ```bash
 python artifacts/scripts/validate.py     # catalog, packs, profiles, rules - the CI gate
-python -m pytest -q tests/               # 31 tests against synthetic fixtures
+python artifacts/scripts/build_site.py --check   # site data contract, writes nothing
+python -m pytest -q tests/               # 53 tests against synthetic fixtures
 ```
 
 All fixture data is synthetic: documentation-range addresses, placeholder
