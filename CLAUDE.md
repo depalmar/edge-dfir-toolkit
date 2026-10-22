@@ -163,7 +163,9 @@ without an entry fails `--check`. `tests/test_site.py` drives the page in
 Chromium and skips when Playwright is not installed. No framework, no CDN, no
 build step; never hand-edited, never committed. The Pages workflow builds it at deploy time. Every embedded data blob goes through
 `js_data()`, which escapes `</` so a rule body cannot close the script element.
-Tab order follows an investigation and Start is the default route. Type:
+Tab order puts knowledge first (Start, Artifacts, Platforms, Detections, Threat
+intel, Response) and toolkit operation plus reference after the divider
+(Collection plans, Rules, Coverage, Guide); Start is the default route. Type:
 one sans family, sizes only from the `--fs-*` tokens, monospace only for
 literal strings (commands, paths, file names, patterns); prose goes through
 `rich()` in the JS, which wraps the literals inline. Every platform needs a

@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.4.2 - 2026-10-22
+
+### Site
+- Tabs put the knowledge first - Start, Artifacts, Platforms, Detections,
+  Threat intel, Response - with Collection plans, Rules, Coverage and the Guide
+  after the divider. Start still links each platform's plan directly.
+- Start gains three visuals, each computed from the repository: a volatility
+  bar on every platform tile (the share of its artifacts that are live and gone
+  at reboot), a five-step triage flow linking to the right tab or guide
+  section, and the order-of-volatility band the collector enforces.
+- Tabs fit at tablet widths (counts hide below 1120px, the bar fades when it
+  scrolls).
+
 ## 0.4.1 - 2026-10-22
 
 ### Site

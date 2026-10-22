@@ -579,23 +579,64 @@ LEGEND = [
 START_VERDICTS = ("COMPROMISED", "LIKELY-COMPROMISED", "SUSPICIOUS", "NO-INDICATORS-FOUND")
 
 
+VOL_ORDER = ("live", "rotating", "stable", "off-box")
+# The collector's order of volatility, grouped the way a reader needs it.
+OOV_GROUPS = [
+    ("Volatile state", "lost at reboot - collected first", "g-live", ["V0", "V1", "V2", "V3"]),
+    ("Persistent evidence", "survives a reboot, not always an upgrade", "g-stable", ["P1", "P2", "P3", "P4", "P5", "P6", "P7"]),
+    ("Vendor bundles", "writes to the device; opt-in", "g-bundle", ["B"]),
+    ("Break-glass", "can crash, reload or image it; opt-in, always last", "g-bg", ["X"]),
+]
+FLOW = [
+    ("Preflight", "Pull the off-box copies. Record whether it rebooted or was upgraded.", "#guide/before-you-touch-the-device"),
+    ("Collect", "Read-only steps in order of volatility; anything that writes is opt-in.", "#plans"),
+    ("Ingest", "Vendor bundles, SIEM copies, image triage - hashed into the same case.", "#guide/bringing-in-exports"),
+    ("Analyze", "Each detection: hit, no hit or not evaluated. Gaps are reported, never passed.", "#detections"),
+    ("Respond", "Preserve, contain, rotate, eradicate, recover, verify - in that order.", "#response"),
+]
+
+
+def vol_bar(arts: list[dict]) -> str:
+    c = {v: sum(1 for a in arts if a["volatility"] == v) for v in VOL_ORDER}
+    n = sum(c.values()) or 1
+    segs = "".join(f'<span class="vb vb-{v}" style="flex:{c[v]}" title="{c[v]} {v}"></span>' for v in VOL_ORDER if c[v])
+    live = round(100 * c["live"] / n)
+    return (f'<div class="vbwrap" title="{c["live"]} live, {c["rotating"]} rotating, {c["stable"]} stable, {c["off-box"]} off-box">'
+            f'<div class="vbar2">{segs}</div><span class="vbl">{live}% of its artifacts are live - gone at reboot</span></div>')
+
+
 def render_start(d: dict, data: dict) -> str:
-    """The landing page for someone who has never seen the site: which device,
-    what not to do first, the workflow, and what the badges mean."""
+    """The landing page for someone who has never seen the site: which device
+    and how much of its evidence is volatile, what not to do first, how a
+    triage runs, the order the collector follows, and what the badges mean."""
     tiles = []
     for p in data["platforms"]:
         links = []
-        if p["profile"]:
-            links.append(f'<a href="#plans/{e(p["profile"])}">Collect</a>')
         links.append(f'<a href="#artifacts?platform={p["id"]}">Artifacts <span class="n">{p["n_art"]}</span></a>')
         if p["n_det"]:
             links.append(f'<a href="#detections?platform={p["id"]}">Detections <span class="n">{p["n_det"]}</span></a>')
+        if p["profile"]:
+            links.append(f'<a href="#plans/{e(p["profile"])}">Collect</a>')
         if p["response"]:
             links.append(f'<a href="#response/{e(p["response"])}">Respond</a>')
+        arts = [a for a in data["artifacts"] if a["platform"] == p["id"]]
         tiles.append(
             f'<div class="ptile"><a class="ptile-h" href="#platforms/{p["id"]}"><span class="id">{p["id"]}</span>'
             f'<b>{e(p["short"])}</b><span class="muted small">{e(p["vendor"])}</span></a>'
-            f'<div class="ptile-l">{"".join(links)}</div></div>')
+            f'{vol_bar(arts)}<div class="ptile-l">{"".join(links)}</div></div>')
+    vol_key = "".join(f'<span class="vk"><span class="vb vb-{v}"></span>{v}</span>' for v in VOL_ORDER)
+
+    flow = "".join(f'<li><a href="{href}"><span class="fn">{i}</span><b>{e(t)}</b><span>{e(txt)}</span></a></li>'
+                   for i, (t, txt, href) in enumerate(FLOW, 1))
+
+    steps_per_tier = {t: sum(1 for pr in d["profiles"] for s in pr.steps if s.tier == t) for t in TIER_ORDER}
+    groups = []
+    for title, sub, cls, tiers in OOV_GROUPS:
+        chips_ = "".join(f'<li title="{steps_per_tier[t]} steps across all profiles"><span class="tc">{t}</span>{e(TIER_LABEL[t])}</li>'
+                         for t in tiers)
+        groups.append(f'<div class="oovg {cls}" style="flex:{len(tiers) + 1}"><div class="oovh"><b>{e(title)}</b>'
+                      f'<span>{e(sub)}</span></div><ol>{chips_}</ol></div>')
+
     legend = "".join(
         f'<div class="lg"><h4>{e(title)}</h4><dl>'
         + "".join(f'<dt><span class="badge {c}">{e(t)}</span></dt><dd>{e(m)}</dd>' for c, t, m in rows)
@@ -607,38 +648,43 @@ def render_start(d: dict, data: dict) -> str:
         '<div class="start">',
         '<div class="hero"><h2>Triage a compromised edge device</h2>',
         '<p class="lede">For responders who know DFIR and need the parts that are different on a VPN concentrator, '
-        'firewall or gateway: what to collect and in what order, what each trace proves, what the detections look '
-        'for, and how to contain and recover without destroying the evidence.</p></div>',
-        '<h3 class="sect">1. Which device?</h3>',
+        'firewall or gateway: what each trace proves and how long it lasts, what to collect and in what order, what '
+        'the detections look for, and how to contain and recover without destroying the evidence.</p></div>',
+
+        '<div class="sechead"><h3 class="sect">1. Which device?</h3>',
+        f'<div class="vkey"><span class="muted small">Each bar is that platform&#39;s artifacts by how long they last:</span>{vol_key}</div></div>',
         f'<div class="ptiles">{"".join(tiles)}</div>',
-        '<div class="startcols"><div>',
+
         '<h3 class="sect">2. Before you touch it</h3>',
-        '<div class="callout"><ol>',
+        '<div class="callout"><ol class="cols2">',
         "<li><b>Do not reboot, upgrade, factory-reset or run the vendor&#39;s external integrity tool.</b> "
-        "Each destroys evidence, and several implants were built to survive or fool exactly those.</li>",
+        "Each destroys evidence - the red share of every bar above - and several implants were built to survive "
+        "or fool exactly those.</li>",
         "<li><b>Pull the off-box copies first</b> - SIEM syslog, NetFlow for the management interface, IdP and "
         "MFA logs. A gap in them is itself evidence.</li>",
         "<li><b>Record whether it has rebooted or been upgraded</b> since the suspected window. It changes what "
         "the report can claim.</li>",
         "<li><b>Use a read-only account</b> where the platform has one, and pin the host key.</li>",
-        "</ol></div></div><div>",
-        '<h3 class="sect">3. Collect, analyze, respond</h3>',
-        '<ol class="flow">',
-        "<li><b>Read the plan, then collect.</b> Steps run in order of volatility; anything that writes to the "
-        "device is opt-in.<code>python -m edgetriage collect --profile &lt;platform&gt; --host &lt;ip&gt; "
-        "--user &lt;ro-user&gt; --case-id IR-2026-001</code>"
-        '<a href="#plans">Collection plans and command builder &#8594;</a></li>',
-        "<li><b>Ingest what the vendor lets you export</b> - support bundles, SIEM copies, image triage."
-        "<code>python -m edgetriage ingest &lt;case&gt; --label tsf --bundle &lt;file&gt;</code></li>",
-        "<li><b>Analyze.</b> Every detection reports hit, no hit or <i>not evaluated</i>, and not evaluated is "
-        f"never a pass. The verdict is one of {verdicts} - there is no &quot;clean&quot;."
-        "<code>python -m edgetriage analyze &lt;case&gt;</code></li>",
-        "<li><b>Respond in the order that protects evidence</b> - preserve, contain, rotate credentials, "
-        'eradicate, recover, verify. <a href="#response">Response playbooks &#8594;</a></li>',
-        "</ol>",
-        '<p class="muted small">The full walkthrough, with notes for every platform, is the '
-        '<a href="#guide">investigation guide</a>.</p>',
-        "</div></div>",
+        "</ol></div>",
+
+        '<h3 class="sect">3. How a triage runs</h3>',
+        f'<ol class="flowd" aria-label="Triage workflow">{flow}</ol>',
+        f'<p class="muted small verdline">The verdict is one of {verdicts} - there is no &quot;clean&quot;. '
+        'The <a href="#guide/analysis">guide</a> shows which hits produce which verdict.</p>',
+        '<details class="fold"><summary>The commands</summary>',
+        '<div class="codewrap"><button class="copy" type="button">Copy</button><pre><code>'
+        'python -m edgetriage plan    --profile &lt;platform&gt;          # read it first\n'
+        'python -m edgetriage collect --profile &lt;platform&gt; --host &lt;ip&gt; --user &lt;ro-user&gt; \\\n'
+        '                             --case-id IR-2026-001 --rebooted no --patched no\n'
+        'python -m edgetriage ingest  cases/IR-2026-001 --label tsf --bundle &lt;file&gt;\n'
+        'python -m edgetriage analyze cases/IR-2026-001</code></pre></div></details>',
+
+        '<h3 class="sect">4. The order the collector follows</h3>',
+        '<p class="muted small">Every profile runs in this order and refuses to move a step that can reload the '
+        'device ahead of the memory steps. Hover a tier for how many steps use it.</p>',
+        f'<div class="oov"><div class="oovarrow" aria-hidden="true"><span>collected first</span><span>last</span></div>'
+        f'<div class="oovgs">{"".join(groups)}</div></div>',
+
         '<h3 class="sect">Reading the badges</h3>',
         f'<div class="legend-grid">{legend}</div>',
         '<h3 class="sect">What is here</h3><div class="tiles">',
@@ -1185,6 +1231,44 @@ details.fold{margin:8px 0 20px}details.fold summary{font-size:var(--fs-sm);color
 @media (max-width:640px){.ptiles{grid-template-columns:1fr 1fr;gap:8px}.ptile-h{padding:10px 11px 8px}.ptile-h .id,.ptile-h .muted{display:none}
   .ptile-h b{font-size:var(--fs-base);line-height:1.3}.ptile-l{padding:7px 11px 9px;gap:2px 9px;font-size:var(--fs-xs)}
   .covcols{grid-template-columns:minmax(0,1fr)}.vrow{grid-template-columns:110px 1fr 54px}.startcols{grid-template-columns:1fr}.tabsep{margin:8px 4px}}
+
+/* ---- start visuals ---- */
+.sechead{display:flex;justify-content:space-between;align-items:baseline;gap:6px 16px;flex-wrap:wrap}
+.vkey{display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:var(--fs-xs);color:var(--muted)}
+.vk{display:inline-flex;gap:5px;align-items:center}.vk .vb{width:12px;height:8px;border-radius:2px;flex:none}
+.vbwrap{padding:0 14px 10px;display:flex;flex-direction:column;gap:4px}
+.vbar2{display:flex;gap:2px;height:7px;border-radius:4px;overflow:hidden;background:var(--line-soft)}
+.vb-live{background:var(--crit)}.vb-rotating{background:var(--high)}.vb-stable{background:var(--med)}.vb-off-box{background:var(--conf-strong)}
+.vbl{font-size:var(--fs-xs);color:var(--muted);font-variant-numeric:tabular-nums}
+.callout ol.cols2{columns:2 340px;column-gap:32px}.callout ol.cols2 li{break-inside:avoid}
+.flowd{list-style:none;padding:0;margin:0;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:14px;counter-reset:f}
+.flowd li{position:relative}
+.flowd li:not(:last-child)::after{content:"";position:absolute;top:50%;right:-12px;width:10px;height:10px;border-top:2px solid var(--accent-border);border-right:2px solid var(--accent-border);transform:translateY(-50%) rotate(45deg)}
+.flowd a{display:flex;flex-direction:column;gap:4px;height:100%;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px;text-decoration:none;color:var(--ink)}
+.flowd a:hover{border-color:var(--accent)}
+.flowd .fn{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--accent);color:var(--on-accent);font-size:var(--fs-xs);font-weight:600}
+.flowd b{font-size:var(--fs-md)}.flowd span:last-child{font-size:var(--fs-sm);color:var(--ink-2);line-height:1.45}
+.flowd li:first-child a{border-color:var(--crit);background:var(--alert-bg)}
+.verdline{margin:12px 0 4px;line-height:2}
+.oov{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+.oovarrow{display:flex;justify-content:space-between;font-size:var(--fs-xs);color:var(--muted);margin-bottom:8px;position:relative;padding:0 2px}
+.oovarrow::before{content:"";position:absolute;left:96px;right:40px;top:50%;border-top:1px dashed var(--field)}
+.oovarrow::after{content:"";position:absolute;right:30px;top:50%;width:7px;height:7px;border-top:1px solid var(--muted);border-right:1px solid var(--muted);transform:translateY(-50%) rotate(45deg)}
+.oovgs{display:flex;gap:8px;align-items:stretch}
+.oovg{border-radius:9px;padding:8px 10px 10px;border:1px solid var(--line-soft);min-width:0}
+.oovh{display:flex;flex-direction:column;margin-bottom:6px}.oovh b{font-size:var(--fs-sm)}.oovh span{font-size:var(--fs-xs);color:var(--muted);line-height:1.35}
+.oovg ol{list-style:none;padding:0;margin:0;display:flex;flex-wrap:wrap;gap:4px}
+.oovg li{display:inline-flex;gap:5px;align-items:center;font-size:var(--fs-xs);background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:2px 7px 2px 3px;white-space:nowrap}
+.oovg .tc{font-weight:600;color:var(--on-accent);background:var(--accent);border-radius:4px;padding:0 5px;font-variant-numeric:tabular-nums}
+.g-live{background:color-mix(in srgb,var(--crit) 10%,transparent);border-color:color-mix(in srgb,var(--crit) 35%,transparent)}
+.g-stable{background:color-mix(in srgb,var(--med) 10%,transparent)}
+.g-bundle{background:color-mix(in srgb,var(--high) 10%,transparent);border-style:dashed;border-color:var(--high)}
+.g-bg{background:color-mix(in srgb,var(--crit) 14%,transparent);border-style:dashed;border-color:var(--crit)}
+@media (max-width:1240px){.tabs button{padding:9px 9px}.tabsep{margin:8px 4px}}
+@media (max-width:1120px){.tabs .n{display:none}.tabs{mask-image:linear-gradient(90deg,#000 92%,transparent);-webkit-mask-image:linear-gradient(90deg,#000 92%,transparent)}}
+@media (max-width:1100px){.flowd{grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}.flowd li::after{display:none}.oovgs{flex-wrap:wrap}.oovg{flex:1 1 260px!important}}
+@media (max-width:640px){.flowd{grid-template-columns:1fr;gap:8px}.flowd a{flex-direction:row;flex-wrap:wrap;align-items:center;column-gap:10px}.flowd span:last-child{flex:1 1 100%}
+  .oovarrow{display:none}.vbwrap{padding:0 11px 8px}.vbl{display:none}}
 """
 
 JS = r"""
@@ -1856,14 +1940,14 @@ def page(d: dict) -> tuple[str, dict]:
     data = build_data(d)
     n_det = len(data["detections"])
     unv = {n: sum(1 for i in data[n] if i.get("unv")) for n in LIBS}
-    # Ordered the way an investigation runs: which device, what to collect, what
-    # each trace proves, what fires, who, how to respond. Reference material sits
-    # after the divider.
-    tabs = [("start", "Start", None), ("platforms", "Platforms", len(data["platforms"])),
-            ("plans", "Collection plans", len(d["profiles"])), ("artifacts", "Artifacts", len(data["artifacts"])),
-            ("detections", "Detections", n_det), ("intel", "Threat intel", len(data["intel"])),
-            ("response", "Response", len(d["response"])), None,
-            ("rules", "Rules", len(d["rules"])), ("coverage", "Coverage", None), ("guide", "Guide", None)]
+    # Knowledge first - what each trace proves, per platform, what fires, who, how
+    # to respond. How to operate the toolkit (plans, rules) and the reference
+    # material sit after the divider; Start links every platform's plan directly.
+    tabs = [("start", "Start", None), ("artifacts", "Artifacts", len(data["artifacts"])),
+            ("platforms", "Platforms", len(data["platforms"])), ("detections", "Detections", n_det),
+            ("intel", "Threat intel", len(data["intel"])), ("response", "Response", len(d["response"])), None,
+            ("plans", "Collection plans", len(d["profiles"])), ("rules", "Rules", len(d["rules"])),
+            ("coverage", "Coverage", None), ("guide", "Guide", None)]
     tabbar = "".join('<span class="tabsep" aria-hidden="true"></span>' if t is None else
                      f'<button type="button" role="tab" data-tab="{t[0]}" aria-selected="false">{t[1]}'
                      + (f'<span class="n">{t[2]}</span>' if t[2] is not None else "") + "</button>" for t in tabs)
