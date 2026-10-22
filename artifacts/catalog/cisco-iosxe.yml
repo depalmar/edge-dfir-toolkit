@@ -9,8 +9,8 @@ products: [Catalyst switches, ISR and ASR routers, Catalyst 9800 wireless contro
 os_base: Linux host running the IOSd process
 filesystem: >-
   bootflash: holds images, packages.conf and anything an operator or attacker
-  leaves (packet captures were left there). harddisk:/tracelogs holds trace
-  logs, including system_shell logs that record shell access.
+  leaves (packet captures were left there). Trace logs, including the
+  system_shell logs Cisco asks for in a TAC case, sit under tracelogs.
 customer_shell: restricted
 memory_acquisition: customer
 profile: cisco-iosxe
@@ -42,7 +42,7 @@ anti_forensics:
     seen_in: 2023 web UI campaign (Talos)
   - technique: Packet captures staged on bootflash for retrieval
     seen_in: AA25-239A
-  - technique: Shell history and login records cleared inside Guest Shell
+  - technique: Cleared .bash_history, auth.log, lastlog, wtmp and btmp "where applicable" (device types not stated) and restored shell access with guestshell disable
     seen_in: Talos Salt Typhoon analysis (Feb 2025)
 artifacts:
   - locator: show platform software process memory rp active name iosd smaps
@@ -87,7 +87,7 @@ artifacts:
     evidence_type: [defense-evasion]
     confidence: high
     collected_by: platform_integrity
-    description: Signed measurements and image signature checks, compared with Cisco's published values.
+    description: Signed measurements and image signature checks, collected for the Cisco TAC service request as the guide directs.
   - locator: Cisco implant check response (curl to /webui/logoutconfirm.html)
     class: memory
     volatility: live
@@ -95,7 +95,7 @@ artifacts:
     evidence_type: [persistence]
     confidence: high
     collected_by: manual
-    description: A hexadecimal response means a known implant is present. Gone after reboot.
+    description: A hexadecimal response means a known implant is present. Works only if the web server was restarted after implanting (Talos). Gone after reboot.
     seen_in: [CVE-2023-20198]
   - locator: Web server request logs (upstream proxy or WAF)
     class: web-logs

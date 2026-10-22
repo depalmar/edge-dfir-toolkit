@@ -9,8 +9,10 @@ implants: [IOS XE web UI implant]
 summary: >-
   CVE-2023-20198 let an unauthenticated attacker create a privilege-15 account
   through the web UI; CVE-2023-20273 then injected commands as root to write an
-  implant. Activity began 18 September 2023, and Talos assessed with high
-  confidence that both clusters were the same actor, without naming one. The
+  implant. Talos saw related activity as early as 18 September 2023 and
+  assessed "with a high degree of confidence" that both clusters were the same
+  actor, without naming one. The implant became active only after the web
+  server restarted. The
   implant was not persistent - a reboot removes it - but the local accounts it
   created remain. Not to be confused with CVE-2026-20273 from the August 2026
   hardening release, which is a different flaw.

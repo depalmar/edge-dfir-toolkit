@@ -22,8 +22,8 @@ collection:
     description: Version, processes, users, configuration, commit history, logs and directory listings, without entering the shell.
     confidence: high
   - method: JMRT integrity-check
-    impact: none
-    description: Checks that veriexec (Junos) or IMA (Evolved) is working. Read-only. Bypassed by UNC3886 through process injection, so a pass is one signal.
+    impact: vendor-bundle
+    description: Checks that veriexec (Junos) or IMA (Evolved) is working. Writes and runs a test file and adds syslog entries, so it runs after log collection. Older releases (19.2 to 21.3) name it differently. Bypassed by UNC3886 through process injection, so a pass is one signal.
     confidence: medium
     references: [https://juniper.net/documentation/us/en/software/junos/security-services/topics/topic-map/using-the-juniper-malware-removal-tool.html]
   - method: request support information (printed, not saved)
@@ -35,12 +35,12 @@ collection:
     description: Deletes malicious files and kills processes by default. Run last, with the clean action set to warn.
     confidence: high
 volatility:
-  - The injected payloads lived in process memory and are lost on reboot; Mandiant recovered them from memory with novel methods
+  - The injected payloads lived in process memory; that a reboot loses them is this toolkit's inference. Mandiant says the analysis "required novel methods for artifact acquisition and analysis"
   - Log lines are edited in place on a compromised device; the syslog receiver copy is the durable record
 anti_forensics:
   - technique: Deleted every line containing "root" from interactive-commands, messages and auth logs with sed
     seen_in: UNC3886 (Mandiant, March 2025)
-  - technique: Backed up and then edited the login records (wtmp0, utx.log0 left behind)
+  - technique: Backed up and then edited the login records; wtmp0 deleted on exit, utx.log0 left behind
     seen_in: UNC3886 (Mandiant, March 2025)
   - technique: Redirected syslog to /dev/null by editing the runtime syslog.conf
     seen_in: UNC3886 (Mandiant, March 2025)
@@ -54,7 +54,10 @@ artifacts:
     evidence_type: [execution, defense-evasion]
     confidence: high
     collected_by: show_processes
-    description: Backdoors named one character off from real daemons (appid, irad, lmpad, jdosd, oemd, to).
+    description: >-
+      Mandiant names the backdoor binaries one character off from real daemons
+      (appid, irad, lmpad, jdosd, oemd, to) but gives no process listing; the
+      documented execution ran inside a hijacked cat process.
     seen_in: [UNC3886]
   - locator: file list /var/tmp detail
     class: filesystem
@@ -63,7 +66,10 @@ artifacts:
     evidence_type: [execution, persistence]
     confidence: high
     collected_by: listing_var_tmp
-    description: Staging files (ldb.b64, loader.bin, payload.bin, pfed_jdhcp6_trace.log, rts) and a FIFO named null.
+    description: >-
+      pfed_jdhcp6_trace.log and rts are the names Mandiant places here. The
+      payload files and the FIFO named null sat in a deleted working directory
+      (ldb) whose location is not given.
     seen_in: [UNC3886]
   - locator: file list /var/log detail
     class: filesystem
@@ -72,7 +78,7 @@ artifacts:
     evidence_type: [defense-evasion]
     confidence: high
     collected_by: listing_var_log
-    description: wtmp0 and utx.log0 are the actor's backups of login records it then edited.
+    description: utx.log0 is left behind by the actor's scripts; wtmp0 only after an interrupted session.
     seen_in: [UNC3886]
   - locator: show log interactive-commands
     class: auth-logs
@@ -113,7 +119,7 @@ artifacts:
     evidence_type: [persistence]
     confidence: medium
     collected_by: listing_config_dir
-    description: Files Mandiant lists as actor-written. Not confirmed to be absent on clean devices.
+    description: Tar archives of juniper.conf files the actor's scripts created and then deleted. Not confirmed to be absent on clean devices.
     seen_in: [UNC3886]
   - locator: Syslog receiver copies
     class: off-box
@@ -122,7 +128,7 @@ artifacts:
     evidence_type: [timeline, defense-evasion]
     confidence: high
     collected_by: ingest
-    description: The only record the actor's log-line deletion and /dev/null redirect did not reach. Silence from the device is itself evidence.
+    description: The only record the actor's log-line deletion and runtime /dev/null redirect did not reach. Silence from the device is itself evidence.
 confidence: high
 references:
   - title: Mandiant - China-nexus espionage targets Juniper routers (12 March 2025)

@@ -118,6 +118,74 @@ the engine and detections, so those come first.
 | Check Point `fwm_ver` | - | medium (new) | Management-side version; added to the allow-list and fixture |
 | F5 `sys_version`, `auth_users`, `mgmt_ip`, `irules` | high | medium | `tmsh ... \| cat` as a way to suppress paging is not documented by F5 |
 
+## 2026-10-22 (round 2) - Juniper Junos and Cisco IOS XE against primary sources
+
+Checked against Mandiant's UNC3886 post (English original), Juniper's JMRT
+documentation, Cisco's IOS XE forensic guide v1.7, the Cisco web UI advisory,
+Talos (both IOS XE posts), the hardening-release advisory, the IC3 copy of
+AA25-239A and the CISA KEV catalog. An independent reviewer worked partly from
+official Japanese editions because the English pages were blocked for it; every
+point where the translation differed was re-read in English before changing
+anything, and one proposed correction was rejected on that basis (below).
+
+### Corrections that changed detection or collection behaviour
+
+| Item | Was | Now | Basis |
+|---|---|---|---|
+| Junos listing patterns | Anchored on the bare file name | Tolerate the type markers `file list` appends (`loader.bin*`, `null\|`); the old patterns saw nothing | Juniper `file list` output; `test_junos_listing_type_markers_do_not_hide_files` |
+| `jmrt_integrity_check` | Impact-free, "read-only" | `vendor-bundle`, tier B, after log collection: Juniper says it writes and runs a test file and adds syslog lines | JMRT documentation; `test_junos_integrity_check_is_not_impact_free` |
+| `junos-unc3886-masquerade-proc` | likely | possible: Mandiant gives binary names, never a process listing, and the documented execution ran inside a hijacked `cat` | Mandiant |
+| New `junos-hijacked-cat-process` | - | possible | Mandiant (lmpad injected into `cat`) |
+| `junos-unc3886-staging-files` | Payload names expected in /var/tmp | Split: `junos-unc3886-tmp-files` (pfed_jdhcp6_trace.log, rts - the only names Mandiant places in /var/tmp; possible) and `junos-unc3886-payload-files` (searched in every listing, because the `ldb` working directory's location is not given and it was deleted) | Mandiant |
+| New `listing_mfs_etc` step and `junos-syslog-conf-backup` | - | `/mfs/var/etc/syslog.conf0` (low, unverified path; single source) | Mandiant pre_ssh / post_ssh scripts |
+| `show_config` purpose | "UNC3886 sent logging to /dev/null" - check the configuration | The redirect was in the runtime syslog.conf and restored on exit; the configuration will not show it | Mandiant |
+| IOS XE `image_hash` | Hashed `bootflash:packages.conf` | Hash each .pkg listed in packages.conf (new `show_packages_conf` step, `more` allowed for `.conf` only); hashing the text file proved nothing | Cisco forensic guide |
+| IOS XE `iosd_smaps` | Router form only; switches reported not-evaluated | New `iosd_smaps_switch` step; the check reads both | Cisco forensic guide; `test_iosxe_switch_form_smaps_is_read` |
+| Sigma `ios_xe_wsma_endpoint_request` | Three fixed strings | Regex accepting plain, single- and double-encoded letters in any mix (`%2577ebui_wsma`) | AA25-239A PCRE |
+
+### Corrections to facts and wording
+
+| Item | Correction | Basis |
+|---|---|---|
+| wtmp0, utx.log0 | post_ssh deletes wtmp0 (and syslog.conf0); utx.log0 is left behind. wtmp0 or syslog.conf0 means an interrupted session | Mandiant scripts |
+| usage_db | Tar archives of juniper.conf files, created and deleted by the scripts | Mandiant |
+| pfed_jdhcp6_trace.log | Deleted after each use | Mandiant |
+| UNC3886 first_seen | "2022" became "first Mandiant reporting 2022; no first-seen date given" | Mandiant |
+| UNC3886 victimology | Added "mainly in the US and Asia" | Mandiant |
+| YARA `irad_kill` | Renamed `irad_stop`: it is the passive-listener stop string | Mandiant |
+| Reboot loses Junos payloads | Marked as this toolkit's inference | Mandiant gives no statement |
+| IOS XE platform integrity | Collected for the TAC case; the guide gives no values to compare | Cisco forensic guide |
+| system_shell trace logs | The guide asks for them in a TAC case; "evidence of shell use" is this toolkit's inference | Cisco forensic guide |
+| Guest Shell abuse | Cited to AA25-239A, not the forensic guide | IC3 copy of AA25-239A |
+| `%25` probe | 200 with JavaScript redirect means "no known variant", not clean; the logon_hash check only works if the web server was restarted | Talos |
+| Log clearing | Talos lists .bash_history, auth.log, lastlog, wtmp and btmp "where applicable" without naming device types | Talos Salt Typhoon analysis |
+| Talos on initial access | CVE-2018-0171 "likely abused" in one case; no evidence for three other reported Cisco CVEs | Talos Salt Typhoon analysis |
+| `no vstack` | AA25-239A says "disable Smart Install"; `no vstack` is Cisco's command for it | IC3 copy of AA25-239A |
+| Hardening release | 17.18.4a also fixed; 17.8 and earlier must migrate | cisco-sa-hardening-iosxe-V8NMuMZJ |
+| AA25-239A actor notes | "Check before quoting" removed: attribution sentence, victimology and "since at least 2021" verified verbatim | IC3 copy |
+
+### Checked and kept
+
+- UNC3886 attribution quote: verbatim in the English post, with no "suspected"
+  (the Japanese edition adds a hedge the original does not have).
+- Mandiant's "required novel methods for artifact acquisition and analysis":
+  verbatim; the quote stays.
+- Talos on the 2023 clusters: "We assess with a high degree of confidence that
+  these clusters of activity were carried out by the same actor." A proposed
+  downgrade to "likely", based on the Japanese translation, was rejected; the
+  pack now quotes the English.
+- Backdoor pairings, ports, trigger mechanisms, YARA strings, CVE-2025-21590
+  scope and KEV date, IOS XE syslog strings, curl header and fixed releases,
+  account names, pcap names, double-encoding and Proxy-Uri-Source.
+
+### Still unverified
+
+- `file list ... detail recursive` option order (used only by the low-confidence scripts step).
+- Whether healthy IOS XE devices ever carry dirty rwxp IOSd segments.
+- Whether newer Junos prints threads as `name{thread}` in `show system processes extensive`.
+- `/mfs/var/etc` on platforms and releases other than Mandiant's victims.
+- CVE-2026-21902 in VulnCheck KEV (absence from CISA KEV is confirmed).
+
 ## Device verification
 
 | Date | Platform / release | Step | Change | Basis |

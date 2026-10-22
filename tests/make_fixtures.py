@@ -217,7 +217,8 @@ def junos(root: Path, malicious: bool) -> None:
     ]
     if malicious:
         procs += [" 3301 root        1  20    0    12M     3M select   0:00   0.00% appid",
-                  " 3302 root        1  20    0     9M     2M select   0:00   0.00% to"]
+                  " 3302 root        1  20    0     9M     2M select   0:00   0.00% to",
+                  " 3310 root        1  20    0     4M     1M piperd   0:00   0.00% cat"]
     var_log = ["/var/log/:", "-rw-r-----  1 root  wheel   88213 Oct 22 14:01 messages",
                "-rw-rw-r--  1 root  wheel   12001 Oct 22 14:01 interactive-commands",
                "-rw-r--r--  1 root  wheel    4410 Oct 22 13:58 wtmp"]
@@ -226,21 +227,25 @@ def junos(root: Path, malicious: bool) -> None:
                     "-rw-r--r--  1 root  wheel    2048 Oct 14 07:10 utx.log0"]
     var_tmp = ["/var/tmp/:", "-rw-r--r--  1 root  wheel     512 Oct 01 09:00 rtsdb.tmp"]
     if malicious:
+        # file list appends type markers (* executable, | FIFO); the patterns must tolerate them
         var_tmp += ["-rw-r--r--  1 root  wheel   81232 Oct 14 07:02 ldb.b64",
-                    "-rw-r--r--  1 root  wheel   40960 Oct 14 07:02 loader.bin",
-                    "prw-r--r--  1 root  wheel       0 Oct 14 07:03 null"]
+                    "-rwxr-xr-x  1 root  wheel   40960 Oct 14 07:02 loader.bin*",
+                    "prw-r--r--  1 root  wheel       0 Oct 14 07:03 null|"]
+    mfs = ["/mfs/var/etc/:", "-rw-r--r--  1 root  wheel    1210 Oct 14 07:01 syslog.conf"]
+    if malicious:
+        mfs += ["-rw-r--r--  1 root  wheel    1302 Oct 14 07:01 syslog.conf0"]
     out = {
         "show version | no-more": "Hostname: mx-lab-01\nModel: mx204\nJunos: 21.2R3-S2.9\n",
         "show system uptime | no-more": "Current time: 2026-10-22 14:02:11 UTC\nSystem booted: 2026-09-10 10:51:49 UTC (6w0d 03:10 ago)\n",
         "show system processes extensive | no-more": "\n".join(procs) + "\n",
         "show system users | no-more": "USER     TTY      FROM                              LOGIN@  IDLE WHAT\nir-ro    pts/0    192.0.2.50                         2:01PM     - -cli (cli)\n",
-        "request system malware-scan integrity-check": "Integrity check: PASSED\n",
         "show configuration | display set | no-more": "set system host-name mx-lab-01\nset system syslog host 192.0.2.60 any any\n",
         "show system commit | no-more": "0   2026-10-01 09:00:00 UTC by netadmin via cli\n",
         "show log messages | no-more": "Oct 22 13:58:01  mx-lab-01 mgd[2210]: UI_LOGIN_EVENT: User 'ir-ro' login, class 'j-read-only' [2210]\n",
         "show log interactive-commands | no-more": "Oct 22 13:58:05  mx-lab-01 mgd[2210]: UI_CMDLINE_READ_LINE: User 'ir-ro', command 'show version '\n",
         "file list /var/log detail | no-more": "\n".join(var_log) + "\n",
         "file list /var/tmp detail | no-more": "\n".join(var_tmp) + "\n",
+        "file list /mfs/var/etc detail | no-more": "\n".join(mfs) + "\n",
         "file list /config detail | no-more": "/config/:\n-rw-r-----  1 root  wheel  9921 Oct 01 09:00 juniper.conf.gz\n",
         "file list /var/db/config detail | no-more": "/var/db/config/:\n-rw-r-----  1 root  wheel  9810 Sep 20 09:00 juniper.conf.4.gz\n",
         "file list /var/db/scripts detail recursive | no-more": "/var/db/scripts/:\ntotal 0\n",
@@ -277,6 +282,9 @@ def iosxe(root: Path, malicious: bool) -> None:
         "show clock": "*14:02:11.123 UTC Thu Oct 22 2026\n",
         "show version": "Cisco IOS XE Software, Version 17.09.04a\nrtr-lab-01 uptime is 6 weeks, 0 days, 3 hours\nSystem image file is \"bootflash:packages.conf\"\n",
         "show platform software process memory rp active name iosd smaps": _smaps(rows),
+        "show platform software process memory switch active rp active name iosd smaps":
+            "show platform software process memory switch active rp active name iosd smaps\n                                         ^\n% Invalid input detected at '^' marker.\n",
+        "more bootflash:packages.conf": "#! /usr/binos/bin/packages_conf.sh\nsha1sum: 0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c\nboot  rp 0 0   rp_boot   isr4400-mono-universalk9.17.09.04a.SPA.pkg\n",
         "show users": "    Line       User       Host(s)              Idle       Location\n*  2 vty 0     netadmin   idle                 00:00:00 192.0.2.50\n",
         "show iox": "IOx Infrastructure Summary:\nIOx service (CAF)  : Not Running\n",
         "show app-hosting list": "No App found\n",
@@ -287,7 +295,7 @@ def iosxe(root: Path, malicious: bool) -> None:
         "show running-config | include ip http server|secure|active": "no ip http server\nno ip http secure-server\n",
         "show logging": "Syslog logging: enabled\n" + "\n".join(logs) + "\n",
         "dir /recursive all-filesystems": "\n".join(dirl) + "\n",
-        "verify /sha512 bootflash:packages.conf": "verify /sha512 (bootflash:packages.conf) = " + "ab" * 64 + "\n",
+        "verify /sha512 bootflash:isr4400-mono-universalk9.17.09.04a.SPA.pkg": "verify /sha512 (bootflash:isr4400-mono-universalk9.17.09.04a.SPA.pkg) = " + "ab" * 64 + "\n",
     }
     write_cmds(root, out)
 

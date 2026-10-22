@@ -21,10 +21,10 @@ implants: [EDGE-IMP-0010]
 tradecraft:
   - Backdoors named to resemble legitimate daemons
   - Process injection to get past veriexec
-  - Deleted log lines containing "root" and redirected syslog to /dev/null
+  - Deleted log lines containing "root" and redirected logging to /dev/null in the runtime syslog.conf
   - Backed up and edited login records
-victimology: ["defence, technology and telecommunications organisations (Mandiant)"]
-first_seen: "2022"
+victimology: ["defence, technology and telecommunications organisations, mainly in the US and Asia (Mandiant)"]
+first_seen: "2022 (first Mandiant reporting on the group's malware; no first-seen date given)"
 references:
   - title: Mandiant - China-nexus espionage targets Juniper routers (12 March 2025)
     url: https://cloud.google.com/blog/topics/threat-intelligence/china-nexus-espionage-targets-juniper-routers

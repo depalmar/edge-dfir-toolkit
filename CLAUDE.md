@@ -144,6 +144,8 @@ correction in `docs/VERIFICATION.md`.
   compressed bytes and silently passed; `test_rotated_gzip_logs_are_read` pins it.
 - Vendor diagnostic bundles must not phone home. `cpinfo` runs with `-D -d`;
   check any new bundle command for a default upload.
+- Junos `file list` appends type markers (`*`, `|`, `/`). Listing patterns end in
+  `[*/|@=]?\s*$`; an anchor on the bare name once matched nothing.
 - `safe_extract` refuses links but records them. The FortiOS symlink check reads
   those refusals; keep the `"<name>: link -> <target>"` format stable.
 

@@ -27,6 +27,7 @@ cli:
     - 'show [\w :./-]+( \| (include|exclude|begin|section) [\w :./|-]+)?'
     - 'dir( /recursive)? ([\w-]+:[\w/.-]*|all-filesystems)'
     - 'verify /(sha512|md5) [\w-]+:[\w/.-]+'
+    - 'more [\w-]+:[\w/.-]+\.conf'
   deny:
     - '^(reload|write|copy|delete|erase|format|configure|clear|debug|test|request|guestshell|monitor|no|squeeze|undebug|service) '
     - '\| *(redirect|append|tee)\b'
@@ -58,8 +59,18 @@ steps:
       Memory map of the IOSd process. Cisco's forensic guide: an executable and
       writable (rwxp) segment with Private_Dirty above zero may indicate the
       running code has been tampered with. Collected before anything that could
-      reload the device. On stacked switches the form is
-      `... switch active rp active ...`.
+      reload the device. This is the router form; iosd_smaps_switch is the
+      Catalyst switch form, and one of the two errors on any given device.
+    confidence: high
+    references:
+      - https://sec.cloudapps.cisco.com/security/center/resources/forensic_guides/iosxe_forensic_guide.html
+
+  - id: iosd_smaps_switch
+    tier: V1
+    kind: command
+    cmd: show platform software process memory switch active rp active name iosd smaps
+    timeout: 300
+    purpose: The same IOSd memory map in the form Cisco's guide gives for Catalyst switches. Expected to error on routers.
     confidence: high
     references:
       - https://sec.cloudapps.cisco.com/security/center/resources/forensic_guides/iosxe_forensic_guide.html
@@ -75,10 +86,14 @@ steps:
     tier: V2
     kind: command
     cmd: show iox
-    purpose: Whether the IOx hosting framework is running. Guest Shell runs on IOx and has been used to host attacker tooling.
+    purpose: >-
+      Whether the IOx hosting framework is running. Cisco's guide says to
+      enumerate the app hosting environment; AA25-239A reports Guest Shell, which
+      runs on IOx, being used by the actors.
     confidence: high
     references:
       - https://sec.cloudapps.cisco.com/security/center/resources/forensic_guides/iosxe_forensic_guide.html
+      - https://www.ic3.gov/CSA/2025/250827.pdf
 
   - id: show_app_hosting
     tier: V2
@@ -91,7 +106,7 @@ steps:
     tier: P1
     kind: command
     cmd: show platform integrity sign nonce 12345
-    purpose: Signed boot and image measurements for comparison against Cisco's published values for the release.
+    purpose: Signed boot and image measurements. Cisco's guide says to collect this output for the TAC service request; it does not give values to compare against.
     confidence: high
     references:
       - https://sec.cloudapps.cisco.com/security/center/resources/forensic_guides/iosxe_forensic_guide.html
@@ -115,10 +130,27 @@ steps:
     kind: command
     cmd: verify /sha512 {boot_image}
     requires_vars: [boot_image]
-    var_examples: {boot_image: 'bootflash:packages.conf'}
+    var_examples: {boot_image: 'bootflash:isr4400-mono-universalk9.17.09.04a.SPA.pkg'}
     timeout: 600
-    purpose: SHA-512 of the boot image on disk (for example bootflash:packages.conf or the .bin named in show version), for comparison with Cisco's published hash.
+    purpose: >-
+      SHA-512 of an image file on disk, for comparison with Cisco's published
+      hash. In bundle mode, the .bin named in show version. In install mode
+      (show version names packages.conf) hashing packages.conf proves nothing:
+      Cisco's guide reads packages.conf and verifies each package it lists, so
+      re-run this step once per .pkg from show_packages_conf.
     confidence: high
+
+  - id: show_packages_conf
+    tier: P1
+    kind: command
+    cmd: more bootflash:packages.conf
+    purpose: >-
+      The package list for an install-mode boot, so each .pkg can be hashed with
+      image_hash. Errors on a bundle-mode device. Some platforms keep it on
+      flash: rather than bootflash:.
+    confidence: medium
+    references:
+      - https://sec.cloudapps.cisco.com/security/center/resources/forensic_guides/iosxe_forensic_guide.html
 
   - id: show_running_config
     tier: P2
@@ -155,8 +187,9 @@ steps:
     timeout: 600
     purpose: >-
       Every filesystem. Look for packet captures left on bootflash (tac.pcap,
-      mycap.pcap, 1.pcap were named in AA25-239A) and system_shell trace logs
-      under tracelogs, which record shell access.
+      mycap.pcap, 1.pcap were named in AA25-239A) and the system_shell trace
+      logs under tracelogs, which Cisco's guide says to collect for the TAC
+      service request.
     confidence: high
     references:
       - https://sec.cloudapps.cisco.com/security/center/resources/forensic_guides/iosxe_forensic_guide.html
@@ -172,7 +205,10 @@ steps:
       Talos also published a variant-independent probe:
         curl -k "https://DEVICEIP/%25"
       A 404 "Not Found" suggests variant 1 or 2, a login page suggests variant 3,
-      and a 200 with a JavaScript redirect is the clean response.
+      and a 200 with a JavaScript redirect means no known variant - not that the
+      device is clean. Talos: "For the implant to become active, the web server
+      must be restarted", and the logon_hash check "will only work as an
+      indication of compromise if the web server was restarted".
       Save both responses and ingest them:  edge-triage ingest <case> --label implant-check --bundle <file>
     references:
       - https://sec.cloudapps.cisco.com/security/center/content/CiscoSecurityAdvisory/cisco-sa-iosxe-webui-privesc-j22SaA4z

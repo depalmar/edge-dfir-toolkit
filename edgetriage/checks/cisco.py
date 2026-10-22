@@ -41,10 +41,18 @@ def iosxe_iosd_rwx_dirty(view, det):
     Zero parsed mapping headers (an error message, a switch that needs the
     `switch active` form, a truncated capture) is 'not evaluated', never 'no hit'.
     """
-    text = view.step_text("iosd_smaps")
-    if text is None:
-        return False, []
     hits, headers = [], 0
+    for step in ("iosd_smaps", "iosd_smaps_switch"):   # router form, Catalyst switch form
+        text = view.step_text(step)
+        if text is not None:
+            headers += _scan_smaps(text, step, hits)
+    if headers == 0:
+        return False, []
+    return True, hits
+
+
+def _scan_smaps(text: str, step: str, hits: list) -> int:
+    headers = 0
     cur = None  # (line_no, header_line, perms)
     for n, raw in enumerate(text.splitlines(), 1):
         line = raw.strip()
@@ -55,14 +63,12 @@ def iosxe_iosd_rwx_dirty(view, det):
             continue
         d = _PRIV_DIRTY.match(line)
         if d and cur and cur[2] == "rwxp" and int(d.group("kb")) > 0:
-            hits.append(Hit("step:iosd_smaps",
+            hits.append(Hit(f"step:{step}",
                             f"rwxp iosd segment with Private_Dirty {d.group('kb')} kB",
                             line=cur[0], excerpt=excerpt(cur[1]),
                             extra={"private_dirty_kb": int(d.group("kb"))}))
             cur = None
-    if headers == 0:
-        return False, []
-    return True, hits
+    return headers
 
 
 @check("asa_lina_exec_regions")

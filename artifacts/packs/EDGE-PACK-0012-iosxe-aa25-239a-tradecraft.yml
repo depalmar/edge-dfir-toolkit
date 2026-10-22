@@ -12,8 +12,9 @@ summary: >-
   TACACS+ traffic left on bootflash, Guest Shell use, and requests to the web UI
   services endpoint including double-encoded forms. The advisory lists
   CVE-2023-20198, CVE-2023-20273 and CVE-2018-0171 as exploited; Talos, writing
-  about the same campaign earlier, found evidence only for CVE-2018-0171 and
-  stolen credentials. Both positions are recorded on the actor profile.
+  about the same campaign earlier, found CVE-2018-0171 "likely abused" in one
+  case, otherwise valid stolen credentials, and no evidence for three other
+  Cisco vulnerabilities reported elsewhere. Both positions are recorded on the actor profile.
 confidence: medium
 references:
   - title: CISA and partners - AA25-239A (IC3 copy, read because cisa.gov refused automated access)
@@ -58,7 +59,11 @@ detect:
       steps: [dir_all]
     pattern: 'system_shell'
     attack: [T1059]
-    notes: Cisco's forensic guide treats system_shell trace logs as evidence that the underlying shell was used. TAC sessions also produce them.
+    notes: >-
+      Cisco's guide asks for system_shell trace logs in a TAC case but does not
+      call them an indicator; the inference that the shell was used is this
+      toolkit's. TAC and administrator sessions produce them, so each needs an
+      owner.
 
   - id: iosxe-wsma-endpoint-request
     title: Request to the web UI services endpoint, including encoded forms

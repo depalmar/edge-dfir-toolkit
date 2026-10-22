@@ -8,13 +8,15 @@ cves: [CVE-2025-21590]
 actors: [UNC3886]
 implants: [appid, to, irad, lmpad, jdosd, oemd]
 summary: >-
-  Six TINYSHELL-based backdoors on Juniper MX routers, each named one character
-  off from a legitimate daemon. UNC3886 bypassed veriexec by injecting code into
-  the memory of a legitimate process (tracked as CVE-2025-21590, which needs a
-  local attacker with shell access). It staged payloads in /var/tmp, backed up
-  and then edited the login records, deleted log lines containing "root", and
-  redirected syslog to /dev/null. Mandiant noted the affected routers ran
-  end-of-life hardware and software.
+  Six TINYSHELL-based backdoors on Juniper MX routers, with binary names one
+  character off from legitimate daemons. UNC3886 got past veriexec by injecting
+  code into a hijacked legitimate process (cat) - tracked as CVE-2025-21590,
+  which needs a local attacker with shell access. Its session scripts backed up
+  and edited the login records, deleted log lines containing "root", edited the
+  runtime syslog.conf to send all logging to /dev/null, and restored most of it
+  on exit, so on-box traces are
+  thin by design. Mandiant noted the affected routers ran end-of-life hardware
+  and software.
 confidence: high
 references:
   - title: Mandiant - China-nexus espionage targets Juniper routers (12 March 2025)
@@ -26,38 +28,71 @@ references:
 
 detect:
   - id: junos-unc3886-masquerade-proc
-    title: Process named like a UNC3886 backdoor
+    title: Process with a UNC3886 backdoor binary name
     type: log_regex
-    tier: likely
+    tier: possible
     evidence_class: process
     sources:
       steps: [show_processes]
     pattern: '\s(appid|irad|lmpad|jdosd|oemd|to)\s*$'
     attack: [T1036.005, T1205]
     notes: >-
-      Exact command names only. The legitimate daemons are appidd, irsd, lmpd,
-      jddosd and oamd, and top; an exact match on the short name is the tell.
+      Mandiant names the binaries but never shows them in a process listing; the
+      documented execution ran inside a hijacked cat process. Exact names only -
+      the real daemons are appidd, irsd, lmpd, jddosd, oamd and top. Newer
+      releases may print threads as name{thread}, which this does not match.
 
-  - id: junos-unc3886-staging-files
-    title: UNC3886 staging file in /var/tmp
+  - id: junos-hijacked-cat-process
+    title: cat process in the process table
+    type: log_regex
+    tier: possible
+    evidence_class: process
+    sources:
+      steps: [show_processes]
+    pattern: '\scat\s*$'
+    attack: [T1055]
+    notes: >-
+      Mandiant's documented injection ran lmpad inside a cat process kept alive
+      on a FIFO. A cat that outlives a command is unusual on a router, but an
+      operator's own shell can produce one; read with the session list.
+
+  - id: junos-unc3886-tmp-files
+    title: UNC3886 file names in /var/tmp
+    type: log_regex
+    tier: possible
+    evidence_class: filesystem
+    sources:
+      steps: [listing_var_tmp]
+    pattern: '\s(pfed_jdhcp6_trace\.log(\.bak)?|rts)[*/|@=]?\s*$'
+    attack: [T1074.001]
+    notes: >-
+      The two names Mandiant places in /var/tmp. The actor's commands deleted
+      pfed_jdhcp6_trace.log and its .bak after each use, and the name mimics a
+      daemon trace file, so possible only - confirm with the content.
+
+  - id: junos-unc3886-payload-files
+    title: UNC3886 payload file name in any listing
     type: log_regex
     tier: likely
     evidence_class: filesystem
     sources:
-      steps: [listing_var_tmp]
-    pattern: '\s(ldb\.b64|ldb\.tar\.gz|loader\.bin|pc\.bin|payload\.bin|pfed_jdhcp6_trace\.log(\.bak)?|rts)\s*$'
+      steps: [listing_var_tmp, listing_var_log, listing_config_dir, listing_db_config, listing_mfs_etc]
+    pattern: '\s(ldb\.b64|ldb\.tar\.gz|loader\.bin|pc\.bin|payload\.bin)[*/|@=]?\s*$'
     attack: [T1105, T1055]
+    notes: >-
+      These sat in a working directory named ldb whose location Mandiant does not
+      give, and the actor deleted it. A hit is strong; no hit means little.
 
   - id: junos-unc3886-null-fifo
-    title: FIFO named null in /var/tmp
+    title: FIFO named null
     type: log_regex
     tier: likely
     evidence_class: filesystem
     sources:
-      steps: [listing_var_tmp]
-    pattern: '^\s*p[rwx-]{9}.*\snull\s*$'
+      steps: [listing_var_tmp, listing_var_log, listing_config_dir, listing_db_config, listing_mfs_etc]
+    pattern: '^\s*p[rwx-]{9}.*\snull[*/|@=]?\s*$'
     attack: [T1055]
-    notes: The process-injection technique wrote through a FIFO named null kept open by a hung cat process.
+    notes: The injection wrote through a FIFO named null held open by the hijacked cat. Same caveat as the payload files.
 
   - id: junos-login-record-backups
     title: Backup copies of the login records
@@ -66,9 +101,27 @@ detect:
     evidence_class: persistence
     sources:
       steps: [listing_var_log]
-    pattern: '\s(wtmp0|utx\.log0)\s*$'
+    pattern: '\s(wtmp0|utx\.log0)[*/|@=]?\s*$'
     attack: [T1070.002]
-    notes: UNC3886 kept wtmp0 and utx.log0 while it edited the originals. Their presence means the live records may have been altered.
+    notes: >-
+      UNC3886's scripts copied wtmp and utx.log aside before editing them. wtmp0
+      was deleted on a clean exit, so it means an interrupted session; utx.log0
+      was left behind. Either means the live records may have been altered.
+
+  - id: junos-syslog-conf-backup
+    title: Backup of the runtime syslog.conf
+    type: log_regex
+    tier: likely
+    evidence_class: persistence
+    sources:
+      steps: [listing_mfs_etc]
+    pattern: '\ssyslog\.conf0[*/|@=]?\s*$'
+    attack: [T1562.006]
+    notes: >-
+      UNC3886's pre_ssh script copied /mfs/var/etc/syslog.conf to syslog.conf0
+      and redirected all logging to /dev/null; post_ssh restored it and deleted
+      syslog.conf0. A leftover copy means an interrupted session. The path is
+      from one Mandiant report and not confirmed on other releases.
 
   - id: junos-usage-db
     title: usage_db file in a configuration directory
@@ -77,9 +130,12 @@ detect:
     evidence_class: persistence
     sources:
       steps: [listing_config_dir, listing_db_config]
-    pattern: '\susage_db\s*$'
+    pattern: '\susage_db[*/|@=]?\s*$'
     attack: [T1074.001]
-    notes: Mandiant lists /config/usage_db and /var/db/config/usage_db as actor-written. Not confirmed to be absent on clean devices, so possible only.
+    notes: >-
+      Tar archives of juniper.conf files that the actor's scripts created and
+      then deleted, so present only after an interrupted session. Not confirmed
+      to be absent on clean devices, so possible only.
 
   - id: junos-unc3886-tinyshell-yara
     title: TINYSHELL backdoor strings in a recovered file

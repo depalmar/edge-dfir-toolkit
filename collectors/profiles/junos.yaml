@@ -10,8 +10,10 @@
 # break-glass steps that run last:
 #   - JMRT `request system malware-scan quick-scan` DELETES malicious files and
 #     kills processes by default. Collect first; scan with clean-action warn.
-#   - UNC3886 deleted log lines containing "root" and redirected syslog to
-#     /dev/null, so the off-box syslog copy outranks anything on the device.
+#   - UNC3886 deleted log lines containing "root" and, during its sessions,
+#     redirected logging to /dev/null in the runtime syslog.conf (not the
+#     configuration), so the off-box
+#     syslog copy outranks anything on the device.
 
 profile: junos
 platform_id: EDGE-0008
@@ -26,10 +28,9 @@ cli:
   allow:
     - 'show [\w ./-]+( \| display set)? \| no-more'
     - 'file list /[\w./-]+( detail)?( recursive)? \| no-more'
-    - 'request system malware-scan integrity-check'
   deny:
     - '^(clear|set|delete|start|configure|commit|rollback|restart|load|edit) '
-    - '^request (?!system malware-scan integrity-check$)'
+    - '^request '
     - '^file (delete|copy|rename|archive)'
     - '\| *(save|append|tee)\b'
     - '[;&`<>]|\$\('
@@ -56,10 +57,11 @@ steps:
     kind: command
     cmd: show system processes extensive | no-more
     purpose: >-
-      Process table. The UNC3886 backdoors used names one character off from
-      real daemons (appid / appidd, irad / irsd, lmpad / lmpd, jdosd / jddosd,
-      oemd / oamd, to / top), and a hung `cat null &` process marked the
-      injection technique.
+      Process table. Mandiant names the UNC3886 backdoor binaries after real
+      daemons (appid / appidd, irad / irsd, lmpad / lmpd, jdosd / jddosd,
+      oemd / oamd, to / top) but gives no process listing. The one execution it
+      documents is lmpad injected into a hijacked `cat` process, which a
+      process table shows as `cat`, not as the backdoor name.
     confidence: high
     references:
       - https://cloud.google.com/blog/topics/threat-intelligence/china-nexus-espionage-targets-juniper-routers
@@ -72,14 +74,19 @@ steps:
     confidence: medium
 
   - id: jmrt_integrity_check
-    tier: P1
+    tier: B
     kind: command
+    impact: vendor-bundle
     cmd: request system malware-scan integrity-check
     purpose: >-
       JMRT check that the integrity mechanisms (veriexec on Junos, IMA on Evolved)
-      are working. Read-only, unlike quick-scan. Named veriexec-check on Junos
-      19.2 to 21.3. UNC3886 bypassed veriexec by injecting into a running
-      process, so a pass here does not clear the device.
+      are working. Not read-only: Juniper says to expect log lines such as
+      "MAC/veriexec: no fingerprint (file=/tmp/veriexec_test", so it writes and
+      runs a test file and adds syslog entries - collect the logs first. Junos
+      19.2 to 21.3 use a differently named JMRT command (veriexec-check), which
+      the guard refuses; run it by hand from Juniper's documentation. UNC3886
+      bypassed veriexec by injecting into a running process, so a pass here
+      does not clear the device.
     confidence: medium
     references:
       - https://juniper.net/documentation/us/en/software/junos/security-services/topics/topic-map/using-the-juniper-malware-removal-tool.html
@@ -89,7 +96,11 @@ steps:
     kind: command
     cmd: show configuration | display set | no-more
     timeout: 600
-    purpose: Configuration as set commands, for diffing against the last known-good. Check system syslog (UNC3886 sent logging to /dev/null), login users and classes, scripts and services.
+    purpose: >-
+      Configuration as set commands, for diffing against the last known-good:
+      login users and classes, scripts, services and syslog hosts. UNC3886's
+      syslog tampering edited the runtime /mfs/var/etc/syslog.conf and was
+      restored afterwards, so it does not appear here; see listing_mfs_etc.
     confidence: medium
 
   - id: show_commits
@@ -124,9 +135,10 @@ steps:
     kind: command
     cmd: file list /var/log detail | no-more
     purpose: >-
-      Log directory listing. UNC3886 left backup copies of the login records
-      (wtmp0, utx.log0) while it edited the originals. Their presence is a
-      high-signal anti-forensics indicator.
+      Log directory listing. UNC3886's session scripts copied wtmp to wtmp0 and
+      utx.log to utx.log0, edited the originals, then restored wtmp and deleted
+      wtmp0. utx.log0 was not deleted (Mandiant notes the script overwrote it
+      again), so it can survive; wtmp0 survives only an interrupted session.
     confidence: high
     references:
       - https://cloud.google.com/blog/topics/threat-intelligence/china-nexus-espionage-targets-juniper-routers
@@ -136,16 +148,21 @@ steps:
     kind: command
     cmd: file list /var/tmp detail | no-more
     purpose: >-
-      Staging directory. UNC3886 staged ldb.b64, ldb.tar.gz, loader.bin, pc.bin,
-      payload.bin and a FIFO named null here, plus pfed_jdhcp6_trace.log and
-      rts. Core files also land here.
+      Temporary directory. Mandiant places pfed_jdhcp6_trace.log (and .bak,
+      both deleted after use) and rts in /var/tmp. The payload files (ldb.b64, ldb.tar.gz, loader.bin,
+      pc.bin, payload.bin) and the FIFO named null sat in a working directory
+      called ldb whose location is not given, and the actor deleted it, so
+      their absence means little. Core files also land here.
     confidence: high
 
   - id: listing_config_dir
     tier: P7
     kind: command
     cmd: file list /config detail | no-more
-    purpose: Live configuration directory. UNC3886 wrote a usage_db file here and under /var/db/config.
+    purpose: >-
+      Live configuration directory. UNC3886's scripts wrote usage_db here and
+      under /var/db/config - tar archives of juniper.conf files - and then
+      deleted them, so they survive only an interrupted session.
     confidence: medium
 
   - id: listing_db_config
@@ -154,6 +171,21 @@ steps:
     cmd: file list /var/db/config detail | no-more
     purpose: Rolled-back configurations (juniper.conf.4.gz and later) and the second usage_db location.
     confidence: medium
+
+  - id: listing_mfs_etc
+    tier: P7
+    kind: command
+    cmd: file list /mfs/var/etc detail | no-more
+    purpose: >-
+      Runtime configuration directory. UNC3886 backed up the runtime syslog.conf
+      to syslog.conf0 before redirecting logging to /dev/null, then restored it
+      and deleted the copy, so syslog.conf0 survives only an interrupted
+      session. The path comes from one Mandiant report and
+      has not been confirmed on other platforms or releases.
+    confidence: low
+    unverified: true
+    references:
+      - https://cloud.google.com/blog/topics/threat-intelligence/china-nexus-espionage-targets-juniper-routers
 
   - id: listing_scripts
     tier: P7
@@ -201,8 +233,9 @@ steps:
     impact: break-glass
     purpose: Process memory and the backdoor binaries themselves.
     instructions: |
-      There is no documented customer path to Junos memory. Mandiant needed
-      "novel methods" and recovered payloads from router memory. Engage Juniper
+      There is no documented customer path to Junos memory. Mandiant says the
+      investigation "required novel methods for artifact acquisition and
+      analysis". Engage Juniper
       (JTAC) for memory and file acquisition. If you obtain binaries, scan them
       with 09-juniper-junos/junos_unc3886_tinyshell.yar and ingest the result.
     references:

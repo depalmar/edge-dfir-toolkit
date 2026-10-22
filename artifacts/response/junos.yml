@@ -45,7 +45,7 @@ recover:
   - step: Restore remote syslog and confirm it reaches the collector
 
 verify:
-  - step: Run JMRT integrity-check and quick-scan (warn) after the upgrade; expect clean
+  - step: Run JMRT integrity-check and quick-scan (warn) after the upgrade; expect no findings
   - step: Re-run the junos profile; expect no masquerading processes, no staging files and no login-record backups
   - step: Hunt from the device into the network for the dwell period
 

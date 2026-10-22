@@ -4,8 +4,9 @@ status: experimental
 description: |
   Requests to /webui_wsma_http or /webui_wsma_https, the endpoint abused for
   CVE-2023-20198. AA25-239A notes attackers double-encoded it (for example
-  /%2577eb%2575i_%2577sma_Http), so the rule includes the single- and
-  double-encoded forms. A Proxy-Uri-Source header in the request means the
+  /%2577eb%2575i_%2577sma_Http), so the rule accepts plain, single- and
+  double-encoded letters in any mix (the advisory's own PCRE covers the
+  partially encoded %2577ebui_wsma form). A Proxy-Uri-Source header in the request means the
   device was patched, not exploited.
 references:
   - https://www.cisa.gov/news-events/cybersecurity-advisories/aa25-239a
@@ -20,10 +21,9 @@ logsource:
   category: webserver
 detection:
   selection:
-    cs-uri-stem|contains:
-      - '/webui_wsma_http'
-      - '/%77eb%75i_%77sma_http'
-      - '/%2577eb%2575i_%2577sma_http'
+    # Each letter may be plain, single- or double-encoded independently, so
+    # mixed forms such as /%2577ebui_wsma_http are covered too.
+    cs-uri-stem|re: '(?i)/(w|%77|%2577)eb(u|%75|%2575)i_(w|%77|%2577)sma_https?'
   condition: selection
 falsepositives:
   - Legitimate management tools that use the web services management agent. Baseline the sources.

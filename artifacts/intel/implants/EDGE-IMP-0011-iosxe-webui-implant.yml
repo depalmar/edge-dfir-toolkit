@@ -18,9 +18,9 @@ summary: >-
 artifacts:
   - nginx service configuration at /usr/binos/conf/nginx-conf/cisco_service.conf
   - Response to Cisco's curl check against /webui/logoutconfirm.html?logon_hash=1
-  - Privilege-15 local accounts such as cisco_tac_admin, cisco_support, cisco_sys_manager
+  - Privilege-15 local accounts such as cisco_tac_admin and cisco_support (Talos also lists cisco_sys_manager, seen only in the actor's removal commands)
 anti_forensics:
-  - Later variants added header checks so earlier scans returned clean
+  - Later variants added header checks so the earlier check returned negative
   - Logs cleared and created accounts removed in some intrusions
 detections: [iosxe-implant-check-positive, iosxe-webui-install-add, iosxe-talos-named-users, iosxe-iosd-rwx-dirty]
 confidence: high

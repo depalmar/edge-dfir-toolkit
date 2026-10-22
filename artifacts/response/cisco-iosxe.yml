@@ -34,12 +34,12 @@ credential_exposure:
 
 eradicate:
   - step: Upgrade to a fixed release
-    detail: For the 2023 flaws, 17.9.4a, 17.6.6a, 17.3.8a or 16.12.10a and later. For the August 2026 hardening release, 17.9.10, 17.12.8, 17.15.6, 17.18.4 or 26.1.2.
+    detail: For the 2023 flaws, 17.9.4a, 17.6.6a, 17.3.8a or 16.12.10a and later. For the August 2026 hardening release, 17.9.10, 17.12.8, 17.15.6, 17.18.4 (or 17.18.4a) or 26.1.2; 17.8 and earlier have no fix and must migrate.
     when: COMPROMISED, LIKELY-COMPROMISED, SUSPICIOUS
   - step: Rebuild the configuration from a central, trusted copy
     detail: Talos - "Do NOT allow devices to be the trusted source of truth for their configurations."
   - step: Remove Guest Shell and IOx if not required
-    detail: guestshell disable and no iox (AA25-239A). Disable Smart Install with no vstack.
+    detail: guestshell disable and no iox (AA25-239A). AA25-239A also says to disable Smart Install; on IOS XE that is Cisco's no vstack command.
 
 recover:
   - step: Return the device to service on the fixed release with the trusted configuration

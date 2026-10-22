@@ -13,8 +13,9 @@ summary: >-
   because the advisory itself names them as partial overlaps; the toolkit does
   not merge these clusters on its own. Sources disagree on initial access:
   AA25-239A lists CVE-2023-20198, CVE-2023-20273 and CVE-2018-0171 as exploited,
-  while Talos found evidence for CVE-2018-0171 in one case and otherwise stolen
-  credentials, and had not confirmed the IOS XE web UI claims. The JumbledPath
+  while Talos found CVE-2018-0171 likely abused in one case and otherwise
+  stolen credentials, and "we have not identified any evidence to confirm"
+  reports of three other Cisco vulnerabilities. The JumbledPath
   tool Talos describes ran in Guest Shell on Nexus (NX-OS) devices, not IOS XE.
 platforms: [EDGE-0009]
 packs: [EDGE-PACK-0012]
@@ -22,7 +23,7 @@ implants: []
 tradecraft:
   - Packet captures of TACACS+ (TCP/49) staged on bootflash for retrieval
   - Requests to the web UI services endpoint, including double-encoded forms
-  - Guest Shell used to host tooling, with shell history and login records cleared
+  - Guest Shell used to host tooling; .bash_history, auth.log, lastlog, wtmp and btmp cleared "where applicable" (Talos, device types not stated)
   - Configuration changes for persistence (ACLs, tunnels, AAA servers)
 victimology: ["telecommunications, government, transportation, lodging and military infrastructure (AA25-239A)"]
 first_seen: "2021"
@@ -37,5 +38,5 @@ references:
     url: https://blog.talosintelligence.com/salt-typhoon-analysis/
     accessed: "2026-10-22"
 notes: >-
-  Victimology and first-seen year are taken from the advisory's framing and
-  should be checked against the full text before being quoted elsewhere.
+  The attribution sentence, victimology and "since at least 2021" were checked
+  verbatim against the IC3 copy of the advisory on 2026-10-22.

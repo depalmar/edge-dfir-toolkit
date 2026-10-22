@@ -40,6 +40,13 @@
 - F5 audit detection matched `cmd=` instead of the real `cmd_data=` field.
 - Check Point `cpinfo` now runs with `-D -d` so it never uploads to the vendor
   or self-updates; the vpnd detection uses the real blocked-traversal message.
+- Junos: listing patterns tolerate `file list` type markers (they matched
+  nothing before); JMRT integrity-check is opt-in because it writes a test file;
+  process-name detection lowered to possible; new hijacked-cat, payload-file and
+  syslog.conf0 detections; /mfs/var/etc listing.
+- IOS XE: image hashing follows packages.conf to each .pkg; the Catalyst switch
+  form of the IOSd memory map is collected and read; the Sigma web services rule
+  accepts mixed encodings.
 - Every correction is in `docs/VERIFICATION.md`.
 
 ## 0.2.0 - 2026-10-22
