@@ -137,6 +137,22 @@ detect:
       then deleted, so present only after an interrupted session. Not confirmed
       to be absent on clean devices, so possible only.
 
+  - id: junos-cli-start-shell
+    title: CLI user started a shell
+    type: log_regex
+    sigma: [09-juniper-junos/junos_shell_started_from_cli.yml]
+    tier: possible
+    evidence_class: auth-logs
+    sources:
+      steps: [log_interactive]
+    pattern: "UI_CMDLINE_READ_LINE: .*command 'start shell"
+    attack: [T1059.004]
+    notes: >-
+      CVE-2025-21590, the veriexec bypass UNC3886 used, needs shell access, and
+      Juniper's mitigation is to restrict shell to trusted users. Administrators
+      and JTAC use the shell too, so every hit needs an owner. UNC3886 deleted
+      log lines containing "root", so absence here is weak evidence.
+
   - id: junos-unc3886-tinyshell-yara
     title: TINYSHELL backdoor strings in a recovered file
     type: yara

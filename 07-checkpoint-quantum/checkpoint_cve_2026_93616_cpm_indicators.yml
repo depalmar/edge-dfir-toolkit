@@ -1,0 +1,35 @@
+title: Check Point CPM Upload and Version-Path Traversal Indicators (CVE-2026-93616)
+id: 31c3f771-9b28-4803-b275-ae9203ff91e5
+status: experimental
+description: 'Check Point''s published indicators 2a, 2b and 2c for the management server flaw, as regular
+
+  expressions over cpm.elg, case-sensitive as published. Indicator 2a can also match ordinary CPM
+
+  lines, so read hits with the other two. Regex rule: `Message` is the full raw log line as received from
+  the appliance. Map it to the raw-message field in your Sigma pipeline.
+
+  '
+references:
+- https://support.checkpoint.com/results/sk/sk1000171
+- https://support.checkpoint.com/results/sk/sk185169
+- https://blog.checkpoint.com/security/security-advisory-action-required-active-exploitation-of-cve-2026-85102-and-a-management-pre-authentication-vulnerability-cve-2026-93616/
+author: Raymond DePalma (edge-dfir-toolkit)
+date: '2026-10-23'
+tags:
+- attack.initial_access
+- attack.t1190
+- cve.2026-93616
+logsource:
+  product: checkpoint
+  service: cpm
+detection:
+  selection_2a:
+    Message|re: 'Invoking method .* in version: .*(\.|/|%2f|%2e|\\|%5c|CPupgrade-tools-\.\.)'
+  selection_2b:
+    Message|re: Uploading file .*((\.\./)+|%2e%2e%2f|%2f).*(CPupgrade-tools-|scripts/check_upgrade_tools\.s(h)?)
+  selection_2c:
+    Message|re: 'The path to the jars: .*CPupgrade-tools-.*(\.\./|/\./|//|/temp/|/opt/CPsuite-)'
+  condition: 1 of selection_*
+falsepositives:
+- Indicator 2a on ordinary version strings.
+level: high

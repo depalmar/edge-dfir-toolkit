@@ -40,6 +40,7 @@ detect:
   - id: cp-85102-attacker-cert-subject
     title: Mobile Access login with a certificate subject seen in exploitation
     type: log_regex
+    sigma: [07-checkpoint-quantum/checkpoint_cve_2026_85102_cert_subject.yml]
     tier: likely
     evidence_class: auth-logs
     sources:
@@ -52,6 +53,7 @@ detect:
   - id: cp-50751-ikev1-quick-mode
     title: IKEv1 Quick Mode key install
     type: log_regex
+    sigma: [07-checkpoint-quantum/checkpoint_cve_2026_50751_ikev1_quick_mode.yml]
     tier: possible
     evidence_class: auth-logs
     sources:

@@ -1,0 +1,32 @@
+title: F5 BIG-IP iControl REST Call to /mgmt/tm/util/bash
+id: 82103941-ef1f-451c-9888-5fa3d9ba5a2f
+status: experimental
+description: 'restjavad-audit records POSTs to the util/bash endpoint, the shell-execution step after
+  CVE-2022-1388
+
+  and CVE-2023-46747 authentication bypasses. Legitimate automation uses the endpoint too.
+
+  '
+references:
+- https://my.f5.com/manage/s/article/K23605346
+- https://my.f5.com/manage/s/article/K000137353
+- https://my.f5.com/manage/s/article/K000137365
+author: Raymond DePalma (edge-dfir-toolkit)
+date: '2026-10-23'
+tags:
+- attack.execution
+- attack.t1059.004
+- cve.2022-1388
+- cve.2023-46747
+logsource:
+  product: f5
+  service: restjavad_audit
+detection:
+  keywords_method:
+  - '"method":"POST"'
+  keywords_uri:
+  - /mgmt/tm/util/bash
+  condition: keywords_method and keywords_uri
+falsepositives:
+- Automation that legitimately runs bash through iControl REST. Check user, source and change control.
+level: medium

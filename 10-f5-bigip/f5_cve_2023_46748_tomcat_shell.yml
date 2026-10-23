@@ -1,0 +1,32 @@
+title: F5 BIG-IP Tomcat Log Shows a Shell Banner (CVE-2023-46748)
+id: b7cde428-139e-4d54-964c-21e7e9396e89
+status: experimental
+description: 'F5''s indicator for the Configuration utility SQL injection: "sh: no job control in this
+  shell" in
+
+  catalina.out, following "java.sql.SQLException: Column not found: 0.". A shell banner in the
+
+  Tomcat log has no ordinary cause.
+
+  '
+references:
+- https://my.f5.com/manage/s/article/K23605346
+- https://my.f5.com/manage/s/article/K000137353
+- https://my.f5.com/manage/s/article/K000137365
+author: Raymond DePalma (edge-dfir-toolkit)
+date: '2026-10-23'
+tags:
+- attack.initial_access
+- attack.t1190
+- attack.execution
+- cve.2023-46748
+logsource:
+  product: f5
+  service: tomcat
+detection:
+  keywords:
+  - 'sh: no job control in this shell'
+  condition: keywords
+falsepositives:
+- None expected.
+level: high

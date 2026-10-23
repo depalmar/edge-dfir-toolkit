@@ -27,6 +27,7 @@ detect:
   - id: f5-94127-userinfo-burst
     title: Ten or more invalid-token UserInfo failures in one log
     type: check
+    sigma: [10-f5-bigip/f5_apm_oauth_userinfo_invalid_token.yml]
     check: f5_apm_oauth_userinfo_burst
     tier: possible
     evidence_class: auth-logs
@@ -39,6 +40,7 @@ detect:
   - id: f5-tmm-sigabrt
     title: TMM aborted
     type: log_regex
+    sigma: [10-f5-bigip/f5_tmm_sigabrt.yml]
     tier: possible
     evidence_class: system-logs
     sources:

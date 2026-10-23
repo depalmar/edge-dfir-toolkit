@@ -8,6 +8,7 @@ Detection packs: `EDGE-PACK-0007` (see `artifacts/packs/`).
 | File | Format | Detects |
 |---|---|---|
 | `ivanti_cve_2023_46805_totp_traversal.yml` | Sigma | the 2024 authentication-bypass traversal |
+| `ivanti_cve_2024_21887_traversal_to_injection.yml` | Sigma | the traversal reaching the license/keys-status injection endpoint (the full 2024 chain) |
 
 ## Notes
 

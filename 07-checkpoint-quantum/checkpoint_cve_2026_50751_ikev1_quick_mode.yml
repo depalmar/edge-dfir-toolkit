@@ -1,0 +1,34 @@
+title: Check Point IKEv1 Quick Mode Key Install (CVE-2026-50751 Hunting Query)
+id: f8d98627-fd41-48e2-bb78-87acac9f91bc
+status: experimental
+description: 'Check Point''s hunting query for the IKEv1 Remote Access authentication bypass. Legitimate
+  IKEv1 clients
+
+  produce it too: only events dated before the fix or mitigation, from sources that are not known
+
+  clients, are suspicious. A hunting pre-filter, not an alert.
+
+  '
+references:
+- https://support.checkpoint.com/results/sk/sk1000117
+- https://support.checkpoint.com/results/sk/sk185033
+- https://blog.checkpoint.com/security/check-point-releases-important-hotfix-for-vulnerabilities-in-deprecated-ikev1-vpn-protocol/
+- https://labs.watchtowr.com/marking-your-own-homework-check-point-remote-access-vpn-ikev1-authentication-bypass-cve-2026-50751/
+author: Raymond DePalma (edge-dfir-toolkit)
+date: '2026-10-23'
+tags:
+- attack.initial_access
+- attack.t1190
+- cve.2026-50751
+logsource:
+  product: checkpoint
+  service: vpn
+detection:
+  keywords_install:
+  - Key Install
+  keywords_qm:
+  - Quick Mode completion
+  condition: keywords_install and keywords_qm
+falsepositives:
+- Every legitimate IKEv1 Remote Access client.
+level: low

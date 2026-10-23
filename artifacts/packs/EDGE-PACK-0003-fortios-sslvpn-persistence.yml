@@ -39,6 +39,7 @@ detect:
   - id: fortios-sslvpnd-crash
     title: sslvpnd crash with signal 11
     type: log_regex
+    sigma: [02-fortinet-fortios/fortios_sslvpnd_crash_signal11.yml]
     tier: possible
     evidence_class: system-logs
     sources:

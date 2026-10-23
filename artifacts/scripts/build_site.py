@@ -63,8 +63,7 @@ RULE_DIR_PLATFORM = {
 FACET_KEYS = {
     "artifacts": ["platform", "class", "volatility", "value", "evidence", "kind", "confidence", "seen"],
     "platforms": ["vendor", "shell", "memory", "profile"],
-    "detections": ["platform", "pack", "tier", "evidence", "type", "attack", "cve", "actor"],
-    "rules": ["format", "level", "platform", "cve", "attack"],
+    "detections": ["platform", "runs", "pack", "tier", "evidence", "type", "attack", "cve", "actor"],
     "intel": ["kind", "platform", "motivation", "type", "resides", "reboot", "coverage", "reporter"],
     "hardening": ["platform", "category", "priority", "confidence"],
 }
@@ -173,6 +172,8 @@ def build_data(d: dict) -> dict:
                 "implant_links": intel_links(p.get("implants")), "notes": (x.get("notes") or "").strip(),
                 "pattern": x.get("pattern", ""), "exclude": x.get("exclude", []), "flags": x.get("flags", []),
                 "steps": st, "files": src.get("files", []), "unv": bool(p.get("unverified")),
+                "sigma": [slug(r) for r in x.get("sigma", [])],
+                "runs": ["analyzer"] + (["siem"] if x.get("sigma") else []) + (["yara"] if x.get("type") == "yara" else []),
             })
     det_cves = {c for x in dets for c in x["cves"]}
 
@@ -458,8 +459,10 @@ LIB_COPY = {
                   "Search locators, descriptions, implants, CVEs..."),
     "platforms": ("Platforms", "What a responder can reach on each platform, how, and what disappears if you wait.",
                   "Search platforms, vendors, products..."),
-    "detections": ("Detections", "Each detection reports hit, no hit or not evaluated. Not evaluated is never a pass: "
-                   "it becomes an evidence gap in the report.", "Search detections, patterns, CVEs, ATT&CK..."),
+    "detections": ("Detections", "Every detection runs in the analyzer against evidence collected from the device, and "
+                   "reports hit, no hit or not evaluated - never a pass. Where the same indicator can be watched in your SIEM, "
+                   "the detection carries its Sigma rule; YARA rules scan recovered files. Sigma rules convert with "
+                   "sigma convert -t <backend>; no vendor query dialect is shipped.", "Search detections, patterns, rules, CVEs, ATT&CK..."),
     "rules": ("Rules", "Vendor-neutral Sigma and YARA. Convert Sigma for your SIEM with sigma convert -t <backend>; "
               "no vendor query dialect is shipped.", "Search rules, files, tags..."),
     "hardening": ("Hardening", "Controls that would have prevented or blunted the exploitation waves these platforms "
@@ -729,7 +732,7 @@ def render_start(d: dict, data: dict) -> str:
         f'<a class="tile" href="#detections"><b>{n["detections"]}</b><span>detections in {len(d["packs"])} packs, each able to say &quot;not evaluated&quot;</span></a>',
         f'<a class="tile" href="#intel"><b>{n["intel"]}</b><span>actors and implants, attribution quoted from the reporter</span></a>',
         f'<a class="tile" href="#hardening"><b>{len(data["hardening"])}</b><span>hardening controls, each with its vendor or government source</span></a>',
-        f'<a class="tile" href="#rules"><b>{n["rules"]}</b><span>Sigma and YARA rule files; no vendor query dialect</span></a>',
+        f'<a class="tile" href="#detections?runs=siem"><b>{n["rules"]}</b><span>Sigma and YARA rule files, attached to the detections they express</span></a>',
         f'<a class="tile" href="#coverage"><b>{n_prof}/{len(data["platforms"])}</b><span>platforms with a collection profile - coverage lists the gaps</span></a>',
         "</div></div>",
     ])
@@ -1321,6 +1324,9 @@ details.fold{margin:8px 0 20px}details.fold summary{font-size:var(--fs-sm);color
 .lc.base{box-shadow:inset 3px 0 0 var(--low),0 1px 2px var(--shadow)}
 .srcs{padding-left:18px}.srcs li{margin:6px 0}
 .srcs blockquote{margin:6px 0 0;padding:6px 10px;border-left:3px solid var(--line);color:var(--ink-2);font-size:var(--fs-sm);font-style:italic;background:var(--panel-2);border-radius:0 6px 6px 0}
+
+.stepbox.rule{margin:8px 0}.stepbox.rule b{font-size:var(--fs-sm)}
+.sumline{margin:8px 0 0}
 """
 
 JS = r"""
@@ -1358,6 +1364,16 @@ var SHELL = {yes:'shell: yes', restricted:'shell: restricted', no:'shell: none'}
 var PN = {}, PLAT = {}; D.platforms.forEach(function(p){ PN[p.id] = p.short; PLAT[p.id] = p; });
 var PACK = {}; D.packs.forEach(function(p){ PACK[p.id] = p; });
 var INTEL = {}; D.intel.forEach(function(i){ INTEL[i.id] = i; });
+var RULE = {}; D.rules.forEach(function(r){ RULE[r.id] = r; });
+var RUNS = {analyzer:'Analyzer, on collected evidence', siem:'Your SIEM (Sigma rule)', yara:'File scan (YARA rule)'};
+function ruleBlock(r){
+  return '<div class="stepbox rule"><div class="links" style="margin:0">' + b(r.format, 'fmt fmt-' + r.format.toLowerCase()) + (r.level !== '-' ? b(r.level, 'lvl lvl-' + r.level) : '') +
+    '<b>' + esc(r.title) + '</b></div><p class="muted small">' + rich(r.description) + '</p>' +
+    '<div class="links"><span class="chip code">' + esc(r.file) + '</span>' + att(r.attack) + '</div>' +
+    (r.format === 'Sigma' ? '<p class="muted small">Convert with <code>sigma convert -t &lt;backend&gt; ' + esc(r.file) + '</code>.</p>' : '') +
+    '<details><summary>Rule source</summary>' + codeblk(r.body) + '</details>' +
+    '<div class="links"><a class="chip link" href="' + esc(r.url) + '" rel="noopener" target="_blank">View in the repository</a></div></div>';
+}
 function platLinks(ids){ return (ids || []).map(function(x){ return lnk('#platforms/' + x, PN[x] || x); }).join(''); }
 
 /* ---------------------------------------------------------------- theme */
@@ -1469,6 +1485,7 @@ detections: {
   noun:'detections', items:D.detections, view:'cards',
   facets:[
     F('platform', 'Platform', function(x){ return x.platforms; }, function(v){ return PN[v] || v; }),
+    F('runs', 'Runs in', function(x){ return x.runs; }, function(v){ return RUNS[v] || v; }, ['analyzer','siem','yara']),
     F('tier', 'Tier', function(x){ return [x.tier]; }, null, ORD.tier),
     F('evidence', 'Evidence class', function(x){ return [x.evidence]; }),
     F('type', 'Type', function(x){ return [x.type]; }, function(v){ return {log_regex:'log pattern', check:'coded check', yara:'YARA'}[v] || v; }),
@@ -1477,11 +1494,13 @@ detections: {
     F('actor', 'Actor', function(x){ return x.actors; }),
     F('attack', 'ATT&CK', function(x){ return x.attack; })
   ],
-  text:function(x){ return [x.id, x.title, x.pack, x.pack_name, x.notes, x.pattern, x.check, x.rule, x.evidence, x.cves.join(' '), x.attack.join(' '), x.actors.join(' ')].join(' '); },
+  text:function(x){ return [x.id, x.title, x.pack, x.pack_name, x.notes, x.pattern, x.check, x.rule, x.evidence, x.cves.join(' '), x.attack.join(' '), x.actors.join(' '),
+    x.sigma.map(function(r){ return RULE[r] ? RULE[r].file + ' ' + RULE[r].title : r; }).join(' ')].join(' '); },
   card:function(x){
     return hd(x.id, x.title, esc(x.pack + ' · ' + x.pack_name), b(x.tier, 'tier t-' + x.tier)) +
       (x.notes ? '<p class="clamp">' + rich(x.notes) + '</p>' : '') +
-      '<div class="lc-f">' + '<span class="chip">' + esc(x.evidence) + '</span><span class="chip mono">' + esc(x.type === 'check' ? 'check:' + x.check : x.type) + '</span>' + chips(x.attack.slice(0, 3), 'mono') + '</div>';
+      '<div class="lc-f">' + '<span class="chip">' + esc(x.evidence) + '</span><span class="chip mono">' + esc(x.type === 'check' ? 'check:' + x.check : x.type) + '</span>' +
+      (x.sigma.length ? b('Sigma', 'fmt fmt-sigma') : '') + (x.type === 'yara' ? b('YARA', 'fmt fmt-yara') : '') + chips(x.attack.slice(0, 2), 'mono') + '</div>';
   },
   title:function(x){ return x.title; },
   drawer:function(x){
@@ -1492,9 +1511,12 @@ detections: {
       if (x.exclude.length) h += sec('Excluded when the line also matches', x.exclude.map(function(p){ return codeblk(p, true); }).join(''));
     } else if (x.type === 'check'){
       h += sec('Coded check: ' + x.check, x.check_doc ? '<pre class="wrap">' + esc(x.check_doc) + '</pre>' : '');
-    } else if (x.type === 'yara'){
-      h += sec('YARA rule', '<div class="links">' + lnk('#rules/' + x.rule_id, x.rule, 'code') + '</div>');
+    } else if (x.type === 'yara' && RULE[x.rule_id]){
+      h += sec('YARA rule - scans recovered files', ruleBlock(RULE[x.rule_id]));
     }
+    if (x.sigma.length) h += sec(x.sigma.length > 1 ? 'Sigma rules for your SIEM' : 'Sigma rule for your SIEM', x.sigma.map(function(r){ return RULE[r] ? ruleBlock(RULE[r]) : ''; }).join(''));
+    else if (x.evidence === 'web-logs' || x.evidence === 'auth-logs' || x.evidence === 'system-logs')
+      h += sec('SIEM rule', '<p class="muted small">None yet. The pattern above can be watched in forwarded logs; a Sigma rule is welcome.</p>');
     if (x.steps.length) h += sec('Reads these collection steps', '<ul class="plain">' + x.steps.map(function(s){
       return '<li><div class="row2"><b class="mono">' + esc(s.id) + '</b>' + (s.tier ? '<span class="tchip">' + esc(s.tier) + '</span>' : '') + (s.profile ? lnk('#plans/' + s.profile, s.profile) : '') + '</div>' + (s.cmd ? '<code class="loc">' + esc(s.cmd) + '</code>' : '') + '</li>'; }).join('') + '</ul>');
     if (x.files.length) h += sec('Reads these files', '<div class="links">' + chips(x.files, 'code') + '</div>');
@@ -1505,35 +1527,13 @@ detections: {
     return h + refs(p.references);
   },
   exp:function(x){ return {id:x.id, title:x.title, pack:x.pack, platforms:x.platforms.map(function(p){ return PN[p]; }), tier:x.tier, evidence_class:x.evidence,
-    type:x.type, check:x.check, rule:x.rule, pattern:x.pattern, cves:x.cves, attack:x.attack, notes:x.notes}; },
-  summary:function(shown){ return dist('detections', 'tier', ORD.tier, 'Tiers of the detections shown', shown); }
-},
-
-rules: {
-  noun:'rule files', items:D.rules, view:'cards',
-  facets:[
-    F('format', 'Format', function(r){ return [r.format]; }),
-    F('level', 'Sigma level', function(r){ return [r.level]; }, function(v){ return v === '-' ? 'none (YARA)' : v; }, ORD.level),
-    F('platform', 'Platform', function(r){ return [r.platform]; }, function(v){ return PN[v] || v; }),
-    F('cve', 'CVE', function(r){ return r.cves; }),
-    F('attack', 'ATT&CK', function(r){ return r.attack; })
-  ],
-  text:function(r){ return [r.file, r.title, r.description, r.tags.join(' '), r.cves.join(' ')].join(' '); },
-  label:function(r){ return r.file; },
-  card:function(r){
-    return hd(r.file.split('/').pop(), r.title, '', b(r.format, 'fmt fmt-' + r.format.toLowerCase()) + (r.level !== '-' ? b(r.level, 'lvl lvl-' + r.level) : '')) +
-      '<p class="clamp">' + esc(r.description) + '</p><div class="lc-f">' + (r.platform ? '<span class="chip">' + esc(PN[r.platform]) + '</span>' : '') + chips(r.cves, 'cve') + chips(r.attack.slice(0, 3), 'mono') + '</div>';
-  },
-  title:function(r){ return r.title; },
-  drawer:function(r){
-    var h = '<div class="links" style="margin-top:14px">' + b(r.format, 'fmt fmt-' + r.format.toLowerCase()) + (r.level !== '-' ? b(r.level, 'lvl lvl-' + r.level) : '') + (r.platform ? lnk('#platforms/' + r.platform, PN[r.platform]) : '') + '</div>';
-    h += para(r.description);
-    if (r.used_by.length) h += sec('Used by detections', '<div class="links">' + r.used_by.map(function(id){ return lnk('#detections/' + id, id, 'mono'); }).join('') + '</div>');
-    if (r.cves.length || r.attack.length) h += sec('CVEs and ATT&CK', '<div class="links">' + chips(r.cves, 'cve') + att(r.attack) + '</div>');
-    if (r.format === 'Sigma') h += '<p class="muted small">Convert for your SIEM with <code>sigma convert -t &lt;backend&gt; ' + esc(r.file) + '</code>.</p>';
-    return h + sec('Rule', codeblk(r.body)) + '<div class="links"><a class="chip link" href="' + esc(r.url) + '" rel="noopener" target="_blank">View in the repository</a></div>';
-  },
-  exp:function(r){ return {file:r.file, format:r.format, title:r.title, level:r.level, platform:PN[r.platform] || '', cves:r.cves, attack:r.attack, description:r.description}; }
+    type:x.type, check:x.check, rule:x.rule, pattern:x.pattern, sigma_rules:x.sigma.map(function(r){ return RULE[r] ? RULE[r].file : r; }), cves:x.cves, attack:x.attack, notes:x.notes}; },
+  summary:function(shown){
+    var n = shown.filter(function(x){ return x.sigma.length; }).length, st = S.detections.sel.runs || [];
+    return dist('detections', 'tier', ORD.tier, 'Tiers of the detections shown', shown) +
+      '<p class="muted small sumline">' + n + ' of ' + shown.length + ' shown have a Sigma rule for your SIEM. ' +
+      '<button type="button" class="lnkbtn" data-f="runs" data-v="siem">' + (st.indexOf('siem') >= 0 ? 'Show all' : 'Show only those') + '</button></p>';
+  }
 },
 
 intel: {
@@ -1821,6 +1821,11 @@ function route(){
   if (qi >= 0){ query = h.slice(qi + 1); h = h.slice(0, qi); }
   var parts = h.split('/'), tab = parts[0] || 'start', anchor = decodeURIComponent(parts.slice(1).join('/'));
   if (tab === 'packs'){ tab = 'detections'; if (anchor){ query = 'pack=' + encodeURIComponent(anchor); anchor = ''; } }
+  if (tab === 'rules'){  // the Rules tab was merged into Detections
+    tab = 'detections';
+    var owner = anchor && D.detections.filter(function(x){ return x.sigma.indexOf(anchor) >= 0 || x.rule_id === anchor; })[0];
+    if (owner) anchor = owner.id; else { anchor = ''; if (query === null) query = 'runs=siem'; }
+  }
   if (!TABS[tab]){ var el = document.getElementById(h); tab = 'start'; anchor = '';
     if (el && el.closest('#tab-guide')){ tab = 'guide'; anchor = h.replace(/^g-/, ''); }
     else if (el){ el.scrollIntoView(); return; } }
@@ -2047,8 +2052,7 @@ def page(d: dict) -> tuple[str, dict]:
             ("platforms", "Platforms", len(data["platforms"])), ("detections", "Detections", n_det),
             ("intel", "Threat intel", len(data["intel"])), ("response", "Response", len(d["response"])),
             ("hardening", "Hardening", len(data["hardening"])), None,
-            ("plans", "Collection plans", len(d["profiles"])), ("rules", "Rules", len(d["rules"])),
-            ("coverage", "Coverage", None), ("guide", "Guide", None)]
+            ("plans", "Collection plans", len(d["profiles"])), ("coverage", "Coverage", None), ("guide", "Guide", None)]
     tabbar = "".join('<span class="tabsep" aria-hidden="true"></span>' if t is None else
                      f'<button type="button" role="tab" data-tab="{t[0]}" aria-selected="false">{t[1]}'
                      + (f'<span class="n">{t[2]}</span>' if t[2] is not None else "") + "</button>" for t in tabs)
@@ -2152,7 +2156,7 @@ def check(d: dict, doc: str, data: dict) -> list[str]:
         tab, anchor, query = m.groups()
         if not anchor and not query and f'id="{tab}"' in doc:
             return  # an in-page anchor such as the skip link
-        if tab not in LIBS + ["start", "plans", "response", "coverage", "guide", "packs"]:  # hardening is in LIBS
+        if tab not in LIBS + ["start", "plans", "response", "coverage", "guide", "packs", "rules"]:  # rules -> detections
             problems.append(f"{where}: link to unknown tab #{tab}")
             return
         if anchor:

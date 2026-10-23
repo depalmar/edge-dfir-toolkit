@@ -68,6 +68,7 @@ detect:
   - id: iosxe-wsma-endpoint-request
     title: Request to the web UI services endpoint, including encoded forms
     type: log_regex
+    sigma: [08-cisco-ios-xe/ios_xe_wsma_endpoint_request.yml]
     tier: possible
     evidence_class: web-logs
     sources:

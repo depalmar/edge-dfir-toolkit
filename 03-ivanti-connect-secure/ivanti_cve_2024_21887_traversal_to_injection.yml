@@ -1,0 +1,41 @@
+title: Ivanti Connect Secure Traversal Into the License Keys-Status Endpoint (CVE-2023-46805 Chained With
+  CVE-2024-21887)
+id: a7592194-2bff-46c3-a8f1-edb7b314628f
+status: experimental
+description: 'The documented exploitation chain: the TOTP backup-code path traversal (CVE-2023-46805)
+  reaching the
+
+  license/keys-status endpoint that carries the command injection (CVE-2024-21887). Stronger than the
+
+  traversal alone. Needs web logs that keep the full request path, usually from an upstream proxy.
+
+  '
+references:
+- https://www.cisa.gov/news-events/cybersecurity-advisories/aa24-060b
+- https://www.volexity.com/blog/2024/01/18/ivanti-connect-secure-vpn-exploitation-new-observations/
+- https://www.assetnote.io/resources/research/high-signal-detection-and-exploitation-of-ivantis-pulse-connect-secure-auth-bypass-rce
+author: Raymond DePalma (edge-dfir-toolkit)
+date: '2026-10-23'
+tags:
+- attack.initial_access
+- attack.t1190
+- attack.execution
+- attack.t1059
+- cve.2023-46805
+- cve.2024-21887
+logsource:
+  category: webserver
+detection:
+  selection_endpoint:
+    cs-uri-stem|contains: /api/v1/totp/user-backup-code/
+  selection_traversal:
+    cs-uri-stem|contains:
+    - /../
+    - '%2e%2e'
+    - '%2E%2E'
+  selection_sink:
+    cs-uri-stem|contains: license/keys-status
+  condition: all of selection_*
+falsepositives:
+- None expected.
+level: high

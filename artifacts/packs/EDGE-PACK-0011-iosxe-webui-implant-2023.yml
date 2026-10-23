@@ -32,6 +32,7 @@ detect:
   - id: iosxe-webui-config-programmatic
     title: Configuration changed by the web UI process
     type: log_regex
+    sigma: [08-cisco-ios-xe/ios_xe_cve_2023_20198_webui_implant.yml]
     tier: possible
     evidence_class: system-logs
     sources:

@@ -217,6 +217,19 @@ def main() -> int:
         if r and r not in response_stems:
             err(f"catalog {pid}: response playbook '{r}' does not exist")
 
+    # ---- Sigma <-> detection links. A rule nobody links must say why it stands alone.
+    sigma_files = {p.relative_to(ROOT).as_posix() for p in ROOT.glob("[0-9][0-9]-*/*.yml")}
+    linked: set[str] = set()
+    for p in sorted((ROOT / "artifacts" / "packs").glob("*.yml")):
+        for x in yaml.safe_load(p.read_text()).get("detect", []):
+            for rp in x.get("sigma", []):
+                linked.add(rp)
+                if rp not in sigma_files:
+                    err(f"{p.name}: {x.get('id')} links Sigma rule {rp} that does not exist")
+    for rp in sorted(sigma_files - linked):
+        if "edge-dfir.standalone" not in (yaml.safe_load((ROOT / rp).read_text()).get("tags") or []):
+            err(f"{rp}: no detection links this rule; link it from a pack or tag it edge-dfir.standalone")
+
     # ---- hardening: every control cites a primary source; low confidence is flagged
     hv = schema("hardening.schema.json")
     hardening_stems: set[str] = set()

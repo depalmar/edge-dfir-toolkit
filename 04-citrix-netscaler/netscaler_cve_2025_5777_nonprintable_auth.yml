@@ -1,0 +1,32 @@
+title: NetScaler Authentication Failure Carrying Non-Printable Bytes (CVE-2025-5777 Memory Leak)
+id: f0023b72-04a2-450d-9aae-8e60bfa46c86
+status: experimental
+description: 'CVE-2025-5777 leaks heap memory, and the leaked bytes surface in ns.log authentication-failure
+
+  records. A burst of these is exploitation being attempted; success has to be shown through session
+
+  reuse from other addresses. Whether the bytes survive depends on how your collector encodes
+
+  non-printable characters - test with a known sample first. Regex rule: `Message` is the full raw log
+  line as received from the appliance. Map it to the raw-message field in your Sigma pipeline.
+
+  '
+references:
+- https://www.huntress.com/blog/citrixbleed-2-dragonforce-ransomware
+- https://reliaquest.com/blog/threat-spotlight-citrix-bleed-2-vulnerability-in-netscaler-adc-gateway-devices/
+author: Raymond DePalma (edge-dfir-toolkit)
+date: '2026-10-23'
+tags:
+- attack.initial_access
+- attack.t1190
+- cve.2025-5777
+logsource:
+  product: citrix
+  service: netscaler
+detection:
+  selection:
+    Message|re: (LOGIN_FAILED|Authentication is rejected).*[\x00-\x08\x0e-\x1f\x7f-\xff]
+  condition: selection
+falsepositives:
+- Collectors that re-encode bytes may hide or create them. Baseline first.
+level: medium

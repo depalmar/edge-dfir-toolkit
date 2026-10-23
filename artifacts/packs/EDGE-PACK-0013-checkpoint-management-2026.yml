@@ -33,6 +33,7 @@ detect:
   - id: cp-93616-oversized-username
     title: CPM login with a username over 1000 characters
     type: log_regex
+    sigma: [07-checkpoint-quantum/checkpoint_cve_2026_93616_cpm_username.yml]
     tier: likely
     evidence_class: web-logs
     sources:
@@ -44,6 +45,7 @@ detect:
   - id: cp-93616-version-path
     title: Traversal characters in a CPM method version
     type: log_regex
+    sigma: [07-checkpoint-quantum/checkpoint_cve_2026_93616_cpm_indicators.yml]
     tier: possible
     evidence_class: web-logs
     sources:
@@ -59,6 +61,7 @@ detect:
   - id: cp-93616-upload-traversal
     title: Traversal in a CPM file upload toward the upgrade tools
     type: log_regex
+    sigma: [07-checkpoint-quantum/checkpoint_cve_2026_93616_cpm_indicators.yml]
     tier: possible
     evidence_class: web-logs
     sources:
@@ -70,6 +73,7 @@ detect:
   - id: cp-93616-jar-breakout
     title: CPM JAR path breaking out of the upgrade tools directory
     type: log_regex
+    sigma: [07-checkpoint-quantum/checkpoint_cve_2026_93616_cpm_indicators.yml]
     tier: possible
     evidence_class: web-logs
     sources:
@@ -92,6 +96,7 @@ detect:
   - id: cp-16232-application-token
     title: Audit log authentication by application token
     type: log_regex
+    sigma: [07-checkpoint-quantum/checkpoint_cve_2026_16232_application_token.yml]
     tier: possible
     evidence_class: auth-logs
     sources:

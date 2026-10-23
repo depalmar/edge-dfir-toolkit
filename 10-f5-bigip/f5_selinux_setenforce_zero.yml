@@ -1,0 +1,26 @@
+title: F5 BIG-IP SELinux Switched to Permissive (c05d5254)
+id: 0ab11484-e53f-461a-8200-96df863fd483
+status: experimental
+description: 'F5 lists SELinux being set permissive as a c05d5254 indicator. The kernel audit record of
+  setenforce 0.
+
+  '
+references:
+- https://my.f5.com/manage/s/article/K000156741
+- https://my.f5.com/manage/s/article/K000160486
+author: Raymond DePalma (edge-dfir-toolkit)
+date: '2026-10-23'
+tags:
+- attack.defense_evasion
+- attack.t1562.001
+- cve.2025-53521
+logsource:
+  product: f5
+  service: auditd
+detection:
+  keywords:
+  - received setenforce notice (enforcing=0)
+  condition: keywords
+falsepositives:
+- F5 support sessions that set SELinux permissive deliberately. Confirm against the case.
+level: high

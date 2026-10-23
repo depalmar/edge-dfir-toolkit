@@ -1,0 +1,30 @@
+title: F5 BIG-IP TMM Aborted (CVE-2026-94127 Sequence)
+id: b338f1c1-f3ad-4eb6-ac88-0e247e40d0ca
+status: experimental
+description: 'The last step in F5''s described CVE-2026-94127 sequence: OAuth UserInfo failures, suspicious
+  audit
+
+  commands, then a TMM SIGABRT. TMM also aborts for unrelated faults - read it with the other two.
+
+  '
+references:
+- https://my.f5.com/manage/s/article/K000162605
+- https://labs.watchtowr.com/is-this-a-joke-in-the-auth-header-f5-big-ip-unauth-heap-overflow-to-rce-cve-2026-94127/
+author: Raymond DePalma (edge-dfir-toolkit)
+date: '2026-10-23'
+tags:
+- attack.initial_access
+- attack.t1190
+- cve.2026-94127
+logsource:
+  product: f5
+  service: ltm
+detection:
+  keywords_tmm:
+  - tmm
+  keywords_abrt:
+  - SIGABRT
+  condition: keywords_tmm and keywords_abrt
+falsepositives:
+- TMM crashes from unrelated defects.
+level: low

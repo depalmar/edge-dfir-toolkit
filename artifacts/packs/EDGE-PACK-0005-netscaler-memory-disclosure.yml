@@ -25,6 +25,7 @@ detect:
   - id: netscaler-auth-nonprintable
     title: Authentication failure carrying leaked memory bytes
     type: check
+    sigma: [04-citrix-netscaler/netscaler_cve_2025_5777_nonprintable_auth.yml]
     check: netscaler_auth_nonprintable
     tier: possible
     evidence_class: auth-logs

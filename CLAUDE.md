@@ -88,6 +88,11 @@ that feed them an error message.
 New entries take the next free id. Pack files are named `<id>-<slug>.yml` and
 the validator enforces it.
 
+**Every Sigma rule is attached to the detection it expresses.** A pack
+detection lists its SIEM rules in `sigma:`; the validator fails on a link to a
+missing file and on a rule nothing links, unless the rule is tagged
+`edge-dfir.standalone`. Regex rules match `Message`, the raw log line.
+
 **Detections are Sigma and YARA only.** No SPL, KQL, XQL, ES|QL or any vendor
 dialect. Converting inside CI to prove a rule parses is fine; committing the
 output is not. Do not name the maintainer's employer anywhere in the

@@ -64,7 +64,7 @@ def test_site_runs_without_errors(browser, tmp_path):
     shown, total = _counts(page, "artifacts")
     assert shown == total > 0
 
-    for lib in ("artifacts", "platforms", "detections", "rules", "intel", "hardening"):
+    for lib in ("artifacts", "platforms", "detections", "intel", "hardening"):
         page.goto(f"{url}#{lib}")
         page.locator(f"#tab-{lib}").wait_for(state="visible")
         items = page.locator(f"#tab-{lib} .item")
@@ -130,3 +130,18 @@ def test_prose_never_switches_to_monospace(browser, tmp_path):
     li = page.locator("#dBody li", has_text="Payload files").first
     assert "monospace" not in li.evaluate("e => getComputedStyle(e).fontFamily").lower()
     assert li.locator("code", has_text="loader.bin").count() == 1
+
+
+def test_rules_live_inside_detections(browser, tmp_path):
+    """The Rules tab was merged into Detections: old links still land, and a
+    detection shows the Sigma rule that expresses it for a SIEM."""
+    url = _build(tmp_path)
+    page = browser.new_page(viewport={"width": 1440, "height": 900})
+    page.goto(f"{url}#rules")
+    page.wait_for_url("**#detections?runs=siem")
+    shown, total = _counts(page, "detections")
+    assert 0 < shown < total
+    page.goto(f"{url}#rules/10-f5-bigip-f5-cve-2023-46748-tomcat-shell-yml")
+    page.wait_for_url("**#detections/f5-46748-tomcat-shell*")
+    page.locator("#drawer").wait_for(state="visible")
+    assert "f5_cve_2023_46748_tomcat_shell.yml" in page.locator("#dBody").inner_text()

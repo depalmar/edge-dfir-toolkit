@@ -67,6 +67,7 @@ detect:
   - id: f5-setenforce-zero
     title: SELinux switched to permissive in the audit log
     type: log_regex
+    sigma: [10-f5-bigip/f5_selinux_setenforce_zero.yml]
     tier: likely
     evidence_class: system-logs
     sources:
@@ -77,6 +78,7 @@ detect:
   - id: f5-hubble-util-bash-rest
     title: REST call to util/bash as f5hubblelcdadmin
     type: log_regex
+    sigma: [10-f5-bigip/f5_rest_util_bash_hubble.yml]
     tier: likely
     evidence_class: web-logs
     sources:
@@ -87,6 +89,7 @@ detect:
   - id: f5-hubble-util-bash-audit
     title: tmsh run util bash as f5hubblelcdadmin
     type: log_regex
+    sigma: [10-f5-bigip/f5_tmsh_run_util_bash.yml]
     tier: likely
     evidence_class: system-logs
     sources:

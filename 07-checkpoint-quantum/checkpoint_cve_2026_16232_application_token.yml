@@ -1,0 +1,29 @@
+title: Check Point Management Login With an Application Token (CVE-2026-16232 Hunting Query)
+id: b79b7e26-c6ee-49a6-be4c-37b4223ae1db
+status: experimental
+description: 'Check Point''s hunting query for the application-token administrator access flaw. Compare
+  the source
+
+  addresses with the ones Check Point lists in its advisory. A hunting pre-filter.
+
+  '
+references:
+- https://support.checkpoint.com/results/sk/sk1000171
+- https://support.checkpoint.com/results/sk/sk185169
+- https://blog.checkpoint.com/security/security-advisory-action-required-active-exploitation-of-cve-2026-85102-and-a-management-pre-authentication-vulnerability-cve-2026-93616/
+author: Raymond DePalma (edge-dfir-toolkit)
+date: '2026-10-23'
+tags:
+- attack.initial_access
+- attack.t1078
+- cve.2026-16232
+logsource:
+  product: checkpoint
+  service: audit
+detection:
+  keywords:
+  - application token
+  condition: keywords
+falsepositives:
+- Integrations that legitimately authenticate with application tokens.
+level: low

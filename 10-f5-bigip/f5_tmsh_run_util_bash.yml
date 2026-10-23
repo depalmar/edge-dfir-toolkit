@@ -1,0 +1,35 @@
+title: F5 BIG-IP Audit Log Records a Shell Command Run Through tmsh (run util bash -c)
+id: 8bb64e67-6279-42b0-8fd2-79ec220ec117
+status: experimental
+description: 'The tmsh audit log records `run util bash -c` with the command that was run. The follow-on
+  of
+
+  CVE-2022-1388 and CVE-2023-46747 exploitation, and the c05d5254 activity when run by the
+
+  f5hubblelcdadmin account. Legitimate automation uses it too; the user and the command decide.
+
+  '
+references:
+- https://my.f5.com/manage/s/article/K23605346
+- https://my.f5.com/manage/s/article/K000137353
+- https://my.f5.com/manage/s/article/K000137365
+- https://my.f5.com/manage/s/article/K000156741
+- https://my.f5.com/manage/s/article/K000160486
+author: Raymond DePalma (edge-dfir-toolkit)
+date: '2026-10-23'
+tags:
+- attack.execution
+- attack.t1059.004
+- cve.2022-1388
+- cve.2023-46747
+- cve.2025-53521
+logsource:
+  product: f5
+  service: audit
+detection:
+  keywords:
+  - cmd_data=run util bash -c
+  condition: keywords
+falsepositives:
+- Administrators and automation that drive bash through tmsh.
+level: medium
