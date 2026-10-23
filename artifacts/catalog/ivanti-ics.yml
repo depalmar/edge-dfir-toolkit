@@ -52,15 +52,15 @@ artifacts:
     evidence_type: [execution, persistence, defense-evasion]
     confidence: medium
     collected_by: manual
-    description: The only customer-controlled path to memory. The 2026 intrusion patched a library in memory (the on-disk copy was never modified) and restored the in-memory patch afterwards; on-disk tooling still appeared in /tmp and /data/.icscap/.
+    description: The only customer-controlled path to memory. The 2026 intrusion patched a library in memory (the on-disk copy was never modified) and restored the in-memory patch afterwards; on-disk tooling still appeared in /tmp and /data/.icscap/ (a renamed tcpdump, dsstatmond, and the h.py credential parser).
     seen_in: [UTA0576 2026, SPAWN]
     provides: >-
       The appliance's memory, the only customer path to it.
     normal: >-
       Loaded libraries match their on-disk copies.
     suspicious: >-
-      A library patched in memory but not on disk, and tooling under /tmp or
-      /data/.icscap/.
+      A library patched in memory but not on disk; dsstatmond, h.py or rotating
+      cap* captures under /data/.icscap/.
     basis: researcher
   - locator: Internal ICT history (admin UI)
     class: integrity
@@ -170,4 +170,4 @@ references:
   - title: Volexity - chained exploitation of Ivanti Connect Secure zero-days (October 2026)
     url: https://www.volexity.com/blog/2026/10/13/a-series-of-unauthenticated-events-chained-exploitation-of-ivanti-connect-secure-zero-days/
     accessed: "2026-10-22"
-last_modified: "2026-10-22"
+last_modified: "2026-10-23"

@@ -1,7 +1,7 @@
 # 03-ivanti-connect-secure/ - Ivanti Connect Secure / Policy Secure
 
 Platform: `EDGE-0003` (see `artifacts/catalog/`).  
-Detection packs: `EDGE-PACK-0007` (see `artifacts/packs/`).
+Detection packs: `EDGE-PACK-0007`, `EDGE-PACK-0026` (see `artifacts/packs/`).
 
 ## Rules
 
@@ -13,3 +13,7 @@ Detection packs: `EDGE-PACK-0007` (see `artifacts/packs/`).
 ## Notes
 
 Do not treat a clean Integrity Checker Tool result as a clean device. Off-box logs and a hypervisor snapshot with memory carry the weight here.
+
+The 2026 chain (`EDGE-PACK-0026`) patched a library in memory only; Volexity
+reports the ICT does not see it. Its on-disk traces are under /data/.icscap and
+are reachable only through a VM snapshot.

@@ -196,6 +196,24 @@ artifacts:
     suspicious: >-
       Silence from the device during the window.
     basis: researcher
+  - locator: file list /var/jail detail recursive
+    class: filesystem
+    volatility: stable
+    forensic_value: medium
+    evidence_type: [initial-access, persistence]
+    confidence: low
+    unverified: true
+    collected_by: listing_var_jail
+    description: The chroot J-Web's PHP runs in. Which on-host directory a J-Web upload lands in is not confirmed, so the whole jail is listed.
+    provides: >-
+      Every file under the J-Web jail, with sizes and times.
+    normal: >-
+      Session files and the release's own content.
+    suspicious: >-
+      A file named by a 64-character hex digest with .php, .ini or .so - the shape
+      watchTowr's CVE-2023-36846 reproduction gave uploads; a php.ini with
+      auto_prepend_file turns an upload into code execution.
+    basis: researcher
 confidence: high
 references:
   - title: Mandiant - China-nexus espionage targets Juniper routers (12 March 2025)
@@ -213,4 +231,4 @@ notes: >-
   not in CISA KEV as of the 21 October 2026 catalog. Its exploit details come
   from secondary sources only, so there is no pack for it yet. The 2023 J-Web
   chain (CVE-2023-36844 to 36847 and 36851) is in CISA KEV; no pack yet.
-last_modified: "2026-10-22"
+last_modified: "2026-10-23"

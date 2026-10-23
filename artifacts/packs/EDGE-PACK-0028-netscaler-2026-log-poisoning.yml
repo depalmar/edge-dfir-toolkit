@@ -1,0 +1,86 @@
+# Detection pack EDGE-PACK-0028
+
+id: EDGE-PACK-0028
+name: NetScaler 2026 log-poisoning chain (CVE-2026-88771, CVE-2026-88772, CVE-2026-88779)
+platforms: [EDGE-0004]
+cves: [CVE-2026-88771, CVE-2026-88772, CVE-2026-88779]
+summary: >-
+  Citrix has observed exploits of CVE-2026-88771 and CVE-2026-88772 on
+  unmitigated deployments. Unit 42 describes a staged chain: text injected into
+  a failed login is logged to ns.log as a pitboss line, and the crash-handling
+  Perl script later executes it. Rapid7 found two organisations compromised,
+  with CVE-2026-88779 supplying the crash, and does not attribute the activity.
+  Both report PHP web shells hidden in the Gateway customisation directory
+  behind CSS-looking Apache aliases, php_flag engine switched on, and /bin/sh
+  set to mode 6555.
+confidence: medium
+references:
+  - title: Unit 42 - NetScaler zero-days exploited
+    url: https://unit42.paloaltonetworks.com/netscaler-zero-days-exploited/
+    accessed: "2026-10-23"
+  - title: Rapid7 - NetScaler intrusions chaining CVE-2026-88771 and CVE-2026-88779
+    url: https://www.rapid7.com/blog/post/ra-netscaler-intrusions-chaining-cve-2026-88771-and-cve-2026-88779/
+    accessed: "2026-10-23"
+
+detect:
+  - id: netscaler-pitboss-log-poisoning
+    title: pitboss line in ns.log carrying appended text
+    type: log_regex
+    tier: likely
+    evidence_class: system-logs
+    sigma: [04-citrix-netscaler/netscaler_cve_2026_88771_pitboss_log_poisoning.yml]
+    sources:
+      steps: [fetch_logs]
+      files: ["**/ns.log*"]
+    pattern: 'pitboss PPE (unexpectedly died|missed too many heartbeats\s?)NSPPE(-00)?;.+'
+    attack: [T1190, T1059.004]
+    notes: >-
+      Unit 42 logs the injection as "pitboss PPE missed too many
+      heartbeatsNSPPE;<additional text>" and hunts the unexpectedly-died form too.
+      A genuine pitboss line does not continue after a semicolon. A hit is the
+      payload reaching the log; whether it ran depends on the crash handler.
+
+  - id: netscaler-logonpoint-hidden-receiver
+    title: Hidden receiver file in the LogonPoint customisation directory
+    type: log_regex
+    tier: likely
+    evidence_class: filesystem
+    sources:
+      steps: [logonpoint_custom]
+    pattern: '\s(\.ctxs\.receiver|\.slap\.receiver|receiver\.deb)\s*$'
+    attack: [T1505.003]
+    notes: Web shell names from Unit 42 and Rapid7. The *.php search misses them by design.
+
+  - id: netscaler-php-engine-on
+    title: php_flag engine on in httpd.conf
+    type: log_regex
+    tier: likely
+    evidence_class: config
+    sources:
+      steps: [httpd_conf]
+      files: ["**/httpd.conf"]
+    pattern: '^\s*php_flag\s+engine\s+on\b'
+    attack: [T1505.003, T1562.001]
+    notes: Unit 42 - the appliance ships php_flag engine off; the actor switched it on so the web shell would run.
+
+  - id: netscaler-bin-sh-setuid
+    title: /bin/sh carries the setuid bit
+    type: log_regex
+    tier: likely
+    evidence_class: persistence
+    sources:
+      steps: [bin_sh_mode]
+    pattern: '^-[r-][w-][sS].*\s/bin/sh\s*$'
+    attack: [T1548.001]
+    notes: Unit 42 and Rapid7 both report chmod 6555 /bin/sh, letting the unprivileged web process become root.
+
+  - id: netscaler-slap-framework-dir
+    title: .slap directory in /nsconfig
+    type: log_regex
+    tier: likely
+    evidence_class: persistence
+    sources:
+      steps: [nsconfig_listing]
+    pattern: '\s\.slap\s*$'
+    attack: [T1037]
+    notes: Rapid7 - the implant framework lived under /nsconfig/.slap (agent, bridge, boot and reverse-agent scripts).

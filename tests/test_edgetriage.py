@@ -697,3 +697,32 @@ def test_iosxe_zero_disco_names_match_exactly(fx, tmp_path):
     pat = re.compile(next(d["pattern"] for d in pack["detect"] if d["id"] == "iosxe-zerodisco-config-names"))
     assert pat.search("username dg5y8fpk privilege 15") and pat.search("ip access-list extended EnaQWklg2")
     assert not pat.search("event manager applet CiscoEMX-9") and not pat.search("username dg9y8zpk")
+
+
+def test_netscaler_2026_chain_and_ncsc_checks(fx, tmp_path):
+    f = analyze(run(fx, tmp_path, "netscaler", "netscaler-compromised"))
+    for d in ("netscaler-pitboss-log-poisoning", "netscaler-logonpoint-hidden-receiver", "netscaler-php-engine-on",
+              "netscaler-bin-sh-setuid", "netscaler-slap-framework-dir", "netscaler-rc-netscaler-python",
+              "netscaler-httpd-protection-commented"):
+        assert det(f, d)["status"] == "hit", d
+    g = analyze(run(fx, tmp_path, "netscaler", "netscaler-benign", case_id="IR-TEST-B"))
+    for d in ("netscaler-pitboss-log-poisoning", "netscaler-php-engine-on", "netscaler-bin-sh-setuid",
+              "netscaler-httpd-protection-commented", "netscaler-rc-netscaler-python"):
+        assert det(g, d)["status"] == "no-hit", d
+
+
+def test_fortios_jsconsole_patterns_match_fortinet_lines():
+    import re
+    import yaml
+    pack = yaml.safe_load((ROOT / "artifacts/packs/EDGE-PACK-0023-fortios-jsconsole-auth-bypass.yml").read_text())
+    pat = {d["id"]: re.compile(d["pattern"]) for d in pack["detect"]}
+    # Lines as Fortinet publishes them in FG-IR-24-535.
+    login = ('type="event" subtype="system" level="information" vd="root" logdesc="Admin login successful" sn="1733486785" '
+             'user="admin" ui="jsconsole" method="jsconsole" srcip=1.1.1.1 dstip=1.1.1.1 action="login" status="success" '
+             'reason="none" profile="super_admin" msg="Administrator admin logged in successfully from jsconsole"')
+    add = ('type="event" subtype="system" level="information" vd="root" logdesc="Object attribute configured" user="admin" '
+           'ui="jsconsole(127.0.0.1)" action="Add" cfgtid=1411317760 cfgpath="system.admin" cfgobj="vOcep" '
+           'cfgattr="password[*]accprofile[super_admin]vdom[root]" msg="Add system.admin vOcep"')
+    assert pat["fortios-jsconsole-admin-login"].search(login)
+    assert pat["fortios-jsconsole-admin-add"].search(add)
+    assert not pat["fortios-jsconsole-admin-login"].search(login.replace('ui="jsconsole"', 'ui="https(192.0.2.10)"'))

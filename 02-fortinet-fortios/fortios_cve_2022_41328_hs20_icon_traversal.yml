@@ -1,0 +1,27 @@
+title: FortiOS hs20-icon Upload With a Traversal Path (CVE-2022-41328)
+id: ba78e1e3-06e0-4ce5-8d40-bdfcb06b49d5
+status: experimental
+description: |
+  Fortinet lists "execute wireless-controller hs20-icon upload-icon" as a System/Logs
+  indicator for CVE-2022-41328; Mandiant's logged attempts upload to
+  ../../../../../../bin/lspci over FTP or TFTP. The traversal separates
+  exploitation from administration.
+references:
+  - https://www.fortinet.com/blog/psirt-blogs/fg-ir-22-369-psirt-analysis
+  - https://cloud.google.com/blog/topics/threat-intelligence/fortinet-malware-ecosystem
+author: Raymond DePalma (edge-dfir-toolkit)
+date: 2026-10-23
+tags:
+  - attack.initial_access
+  - attack.t1190
+  - cve.2022-41328
+logsource:
+  product: fortinet
+  service: fortigate
+detection:
+  selection:
+    Message|re: 'execute wireless-controller hs20-icon upload-icon\s+(ftp|tftp)\s+(\.\./)+'
+  condition: selection
+falsepositives:
+  - None expected.
+level: high

@@ -1,0 +1,27 @@
+title: FortiOS Administrator Login From jsconsole (CVE-2024-55591)
+id: 6d8c6040-fddd-477e-b618-c6e77435f129
+status: experimental
+description: |
+  Fortinet's published indicator for CVE-2024-55591: an "Admin login successful"
+  event whose ui is jsconsole. The srcip and dstip fields carry attacker-chosen
+  values and must not be used for blocking.
+references:
+  - https://fortiguard.fortinet.com/psirt/FG-IR-24-535
+author: Raymond DePalma (edge-dfir-toolkit)
+date: 2026-10-23
+tags:
+  - attack.initial_access
+  - attack.t1190
+  - attack.t1078
+  - cve.2024-55591
+  - cve.2025-24472
+logsource:
+  product: fortinet
+  service: fortigate
+detection:
+  selection:
+    Message|re: 'logdesc="Admin login successful".*\bui="jsconsole'
+  condition: selection
+falsepositives:
+  - None expected; administrators do not normally log in through jsconsole.
+level: high

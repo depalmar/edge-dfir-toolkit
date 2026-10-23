@@ -1,0 +1,34 @@
+title: PAN-OS GlobalProtect Session With Proof-of-Concept Default Host Identifiers (CVE-2026-0257)
+id: 101c7570-5f12-4c40-9340-22c97f25a9d3
+status: experimental
+description: |
+  Unit 42's hunt for CVE-2026-0257: successful GlobalProtect gateway-connected
+  events from host IDs or device names hard-coded in the public proof of concept -
+  aa:bb:cc:dd:ee:ff, 00:11:22:33:44:55, WINDOWS-LAPTOP-001, DESKTOP-GP01, GP-CLIENT.
+  Unit 42 says "including but not limited to", so treat any default-looking host
+  identity on a connected session the same way.
+references:
+  - https://unit42.paloaltonetworks.com/active-exploitation-of-pan-os-cve-2026-0257/
+author: Raymond DePalma (edge-dfir-toolkit)
+date: 2026-10-23
+tags:
+  - attack.initial_access
+  - attack.t1133
+  - cve.2026-0257
+logsource:
+  product: paloalto
+  service: globalprotect
+detection:
+  selection_event:
+    Message|contains: 'gateway-connected'
+  selection_host:
+    Message|contains:
+      - 'aa:bb:cc:dd:ee:ff'
+      - '00:11:22:33:44:55'
+      - 'WINDOWS-LAPTOP-001'
+      - 'DESKTOP-GP01'
+      - 'GP-CLIENT'
+  condition: selection_event and selection_host
+falsepositives:
+  - A lab client deliberately configured with these values.
+level: high

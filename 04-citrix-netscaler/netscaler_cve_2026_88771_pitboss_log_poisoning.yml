@@ -1,0 +1,30 @@
+title: NetScaler pitboss Log Line Carrying Injected Text (CVE-2026-88771)
+id: 0f77da55-7344-4f48-81d9-ba11baa0629f
+status: experimental
+description: |
+  Unit 42: in the CVE-2026-88771 chain, text injected into a failed login is
+  written to ns.log as "pitboss PPE missed too many heartbeatsNSPPE;<additional text>"
+  and later executed by the crash-handling Perl script. Rapid7 shows the
+  unexpectedly-died form carrying a fetch-and-run command. A genuine pitboss line
+  does not continue after the semicolon.
+references:
+  - https://unit42.paloaltonetworks.com/netscaler-zero-days-exploited/
+  - https://www.rapid7.com/blog/post/ra-netscaler-intrusions-chaining-cve-2026-88771-and-cve-2026-88779/
+author: Raymond DePalma (edge-dfir-toolkit)
+date: 2026-10-23
+tags:
+  - attack.initial_access
+  - attack.t1190
+  - attack.execution
+  - attack.t1059.004
+  - cve.2026-88771
+logsource:
+  product: citrix
+  service: netscaler
+detection:
+  selection:
+    Message|re: 'pitboss PPE (unexpectedly died|missed too many heartbeats\s?)NSPPE(-00)?;.+'
+  condition: selection
+falsepositives:
+  - None expected.
+level: critical

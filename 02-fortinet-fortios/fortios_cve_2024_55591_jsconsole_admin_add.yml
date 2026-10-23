@@ -1,0 +1,24 @@
+title: FortiOS Administrator Created From jsconsole (CVE-2024-55591)
+id: 7a4744a2-0599-4ea7-b996-42044ab8eef4
+status: experimental
+description: |
+  Fortinet's published indicator for CVE-2024-55591: an Add on system.admin made
+  from jsconsole, typically with a randomly generated account name.
+references:
+  - https://fortiguard.fortinet.com/psirt/FG-IR-24-535
+author: Raymond DePalma (edge-dfir-toolkit)
+date: 2026-10-23
+tags:
+  - attack.persistence
+  - attack.t1136.001
+  - cve.2024-55591
+logsource:
+  product: fortinet
+  service: fortigate
+detection:
+  selection:
+    Message|re: '\bui="jsconsole[^"]*".*action="Add".*cfgpath="system\.admin"'
+  condition: selection
+falsepositives:
+  - None expected.
+level: high

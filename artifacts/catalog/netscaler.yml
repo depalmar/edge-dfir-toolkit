@@ -165,6 +165,74 @@ artifacts:
       Any file the clean image does not have, and anything on md0 that should not
       exist - it is gone at reboot.
     basis: toolkit
+  - locator: /etc/httpd.conf
+    class: config
+    volatility: stable
+    forensic_value: high
+    evidence_type: [persistence, defense-evasion]
+    confidence: medium
+    collected_by: httpd_conf
+    description: Apache configuration for the gateway and management UI. The 2026 intrusions enabled PHP and aliased CSS-looking paths to web shells.
+    seen_in: [NetScaler 2026 log poisoning]
+    provides: >-
+      Which directories may run PHP, and every alias the web server maps.
+    normal: >-
+      php_flag engine off and Require all denied active where the release puts
+      them; aliases you can account for.
+    suspicious: >-
+      php_flag engine on, either directive commented out, or an alias from a .css
+      path to a file under LogonPoint/custom.
+    basis: researcher
+  - locator: /flash/nsconfig/rc.netscaler
+    class: persistence
+    volatility: stable
+    forensic_value: high
+    evidence_type: [persistence]
+    confidence: medium
+    collected_by: rc_netscaler
+    description: Start-up script on persistent flash; survives reboot and upgrade.
+    provides: >-
+      Commands the appliance runs at every boot.
+    normal: >-
+      Entries you or Citrix support added and can explain.
+    suspicious: >-
+      python, or anything launching from a hidden directory - NCSC-NL checks for
+      python; Rapid7 saw the 2026 framework persist here.
+    basis: government
+  - locator: /var/netscaler/logon/LogonPoint/custom (listing)
+    class: filesystem
+    volatility: stable
+    forensic_value: high
+    evidence_type: [persistence]
+    confidence: medium
+    collected_by: logonpoint_custom
+    description: The Gateway UI customisation directory, web-reachable by design and rarely watched.
+    seen_in: [NetScaler 2026 log poisoning]
+    provides: >-
+      Every file in the customisation directory, including hidden ones.
+    normal: >-
+      Your own branding files.
+    suspicious: >-
+      .ctxs.receiver, .slap.receiver, receiver.deb or any hidden file - PHP web
+      shells that the *.php search does not see.
+    basis: researcher
+  - locator: ls -la /bin/sh
+    class: persistence
+    volatility: stable
+    forensic_value: high
+    evidence_type: [persistence, defense-evasion]
+    confidence: medium
+    collected_by: bin_sh_mode
+    description: The shell's permission bits.
+    seen_in: [NetScaler 2026 log poisoning]
+    provides: >-
+      Whether /bin/sh is setuid.
+    normal: >-
+      -r-xr-xr-x, no setuid or setgid bit.
+    suspicious: >-
+      Mode 6555 (-r-sr-sr-x) - both Unit 42 and Rapid7 report the actor set it so
+      the web process could become root.
+    basis: researcher
 confidence: high
 references:
   - title: Fox-IT / NCC Group - approximately 2000 NetScalers backdoored
@@ -173,4 +241,4 @@ references:
   - title: NCSC-NL citrix-2025
     url: https://github.com/NCSC-NL/citrix-2025
     accessed: "2026-10-22"
-last_modified: "2026-10-22"
+last_modified: "2026-10-23"

@@ -127,11 +127,27 @@ def netscaler(root: Path, malicious: bool) -> None:
         "shell ls -la /tmp /var/tmp": "total 0\n",
         "shell find /var/log -maxdepth 1 -type f -name 'ns.log*'": "/var/log/ns.log\n",
         "shell find /var/log -maxdepth 1 -type f -name 'http*.log*'": "/var/log/httpaccess.log\n",
+        # 2026 log-poisoning chain (Unit 42, Rapid7) and NCSC-NL's CVE-2025-6543 checks.
+        "shell cat /etc/httpd.conf": "<Directory /var/netscaler/logon>\n" + (
+            "    php_flag engine on\n#    Require all denied\n" if malicious else
+            "    php_flag engine off\n    Require all denied\n") + "</Directory>\n",
+        "shell cat /flash/nsconfig/rc.netscaler": "nsapimgr -ys skip_systemaccess_policyeval=0\n" + (
+            "/var/python/bin/python3 /flash/nsconfig/.slap/agent.py &\n" if malicious else ""),
+        "shell ls -la /var/netscaler/logon/LogonPoint/custom": "total 8\n"
+            "drwxr-xr-x  2 nobody  wheel  512 Jun 11  2026 .\n"
+            "-rw-r--r--  1 nobody  wheel  2210 Jun 11  2026 strings.en.json\n"
+            + ("-rw-r--r--  1 nobody  wheel  301 Oct 14 07:20 .ctxs.receiver\n" if malicious else ""),
+        "shell ls -la /flash/nsconfig": "total 64\n-rw-r--r--  1 root  wheel  48211 Oct 01 09:00 ns.conf\n"
+            + ("drwxr-xr-x  2 root  wheel  512 Oct 14 07:21 .slap\n" if malicious else ""),
+        "shell ls -la /bin/sh": ("-r-sr-sr-x  1 root  wheel  168104 Jun 11  2026 /bin/sh\n" if malicious else
+                                 "-r-xr-xr-x  1 root  wheel  168104 Jun 11  2026 /bin/sh\n"),
     }
     write_cmds(root, out)
     nslog = [b'Oct 14 06:00:00 <local0.info> 192.0.2.20 10/14/2026:06:00:00 GMT ns-gw 0-PPE-0 : default AAA LOGIN_FAILED 101 0 :  User jdoe-lab - Client_ip 198.51.100.20 - Failure_reason "Invalid credentials"']
     if malicious:
         nslog.append(b'Oct 14 06:05:01 <local0.info> 192.0.2.20 10/14/2026:06:05:01 GMT ns-gw 0-PPE-0 : default AAA LOGIN_FAILED 102 0 :  User \x00\x07\xc3\x1fX\x02 - Client_ip 198.51.100.66 - Failure_reason ""')
+        # Shape only; the appended text is inert.
+        nslog.append(b'Oct 14 07:18:40 <local0.err> 192.0.2.20 10/14/2026:07:18:40 GMT ns-gw 0-PPE-0 : default EVENT PITBOSS 103 0 : pitboss PPE missed too many heartbeatsNSPPE;echo fixture-only')
     files = dict(php)
     files["/var/log/ns.log"] = b"\n".join(nslog) + b"\n"
     files["/var/log/httpaccess.log"] = b'198.51.100.20 - - [14/Oct/2026:06:00:00 +0000] "GET /vpn/index.html HTTP/1.1" 200 512\n'

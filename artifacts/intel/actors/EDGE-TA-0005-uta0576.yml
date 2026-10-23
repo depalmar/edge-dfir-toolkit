@@ -3,7 +3,7 @@ name: UTA0576
 aliases: []
 reported_by: [Volexity]
 link_confidence: medium
-stated_confidence: "Volexity assesses with low confidence that UTA0576 is a criminal actor"
+stated_confidence: "Volexity assesses with low confidence that UTA0576 has criminal, rather than espionage, motivations based on the target of this activity."
 motivation: financial
 summary: >-
   Exploited Ivanti Connect Secure in 2026 (CVE-2026-104935, an authentication
@@ -12,10 +12,11 @@ summary: >-
   every command, a shared library was patched in memory only (the on-disk copy
   was never modified) and the patch was restored afterwards, and the actor's own
   lines were removed from debuglog and audit.log. On-disk tooling still appeared
-  in /tmp and /data/.icscap/, including a renamed packet-capture binary. Directory, LAPS and
+  in /tmp and /data/.icscap/: a renamed tcpdump (dsstatmond) writing rotating
+  captures, and h.py parsing them for credentials. Directory, LAPS and
   BitLocker material was targeted downstream.
 platforms: [EDGE-0003]
-packs: []
+packs: [EDGE-PACK-0026]
 implants: []
 tradecraft:
   - Re-exploitation per command with no persistent implant

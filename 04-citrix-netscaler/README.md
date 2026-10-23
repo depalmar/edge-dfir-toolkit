@@ -1,7 +1,7 @@
 # 04-citrix-netscaler/ - Citrix NetScaler ADC / Gateway
 
 Platform: `EDGE-0004` (see `artifacts/catalog/`).  
-Detection packs: `EDGE-PACK-0004`, `EDGE-PACK-0005` (see `artifacts/packs/`).
+Detection packs: `EDGE-PACK-0004`, `EDGE-PACK-0005`, `EDGE-PACK-0027`, `EDGE-PACK-0028` (see `artifacts/packs/`).
 
 ## Rules
 
@@ -9,6 +9,7 @@ Detection packs: `EDGE-PACK-0004`, `EDGE-PACK-0005` (see `artifacts/packs/`).
 |---|---|---|
 | `php_webshell_generic.yar` | YARA | small PHP web shells under appliance web roots (also used by EDGE-PACK-0002) |
 | `netscaler_cve_2025_5777_nonprintable_auth.yml` | Sigma | authentication failures carrying leaked non-printable bytes (CVE-2025-5777); regex on `Message` |
+| `netscaler_cve_2026_88771_pitboss_log_poisoning.yml` | Sigma | pitboss lines in ns.log carrying injected text (CVE-2026-88771); regex on `Message` |
 
 ## Notes
 

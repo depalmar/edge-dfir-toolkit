@@ -1,0 +1,59 @@
+# Detection pack EDGE-PACK-0026
+
+id: EDGE-PACK-0026
+name: Ivanti Connect Secure 2026 chained zero-days (CVE-2026-104935, UTA0576)
+platforms: [EDGE-0003]
+cves: [CVE-2026-104935]
+actors: [UTA0576]
+summary: >-
+  An authentication bypass chained with an unpatched privilege escalation.
+  Volexity: requests to the public welcome.cgi carried an X-DSCGI-PATH header
+  naming a non-public script, the library patch lived only in memory, and the
+  Integrity Checker Tool "does not detect any modifications". The actor removed
+  recent entries from debuglog and audit.log, captured traffic with a renamed
+  tcpdump into /data/.icscap and parsed it for credentials, and
+  its root payload deleted itself. Volexity assesses with low confidence that the
+  motivation is criminal rather than espionage.
+confidence: medium
+references:
+  - title: Volexity - Chained exploitation of Ivanti Connect Secure zero-days (13 October 2026)
+    url: https://www.volexity.com/blog/2026/10/13/a-series-of-unauthenticated-events-chained-exploitation-of-ivanti-connect-secure-zero-days/
+    accessed: "2026-10-23"
+
+detect:
+  - id: ivanti-icscap-tooling
+    title: Renamed tcpdump or parser script in /data/.icscap
+    type: path_exists
+    tier: likely
+    evidence_class: filesystem
+    scope: ["**/data/.icscap/**"]
+    paths: ["**/data/.icscap/dsstatmond", "**/data/.icscap/*.py"]
+    attack: [T1040, T1036.005, T1552]
+    notes: >-
+      Volexity: a renamed tcpdump at /data/.icscap/dsstatmond wrote eight rotating
+      capture files (cap*), and h.py parsed them for LDAP, HTTP Basic and NTLM
+      credentials. Evaluated against a VM snapshot or image, the only way to
+      reach the disk.
+
+  - id: ivanti-icscap-captures
+    title: Packet-capture files in /data/.icscap
+    type: path_exists
+    tier: possible
+    evidence_class: filesystem
+    scope: ["**/data/.icscap/**"]
+    paths: ["**/data/.icscap/cap*"]
+    attack: [T1040]
+    notes: >-
+      The captures the 2026 actor's renamed tcpdump produced and rotated. Volexity
+      does not say whether this directory exists on a clean appliance, so the
+      captures alone are held at possible.
+
+  - id: ivanti-root-inband-payload
+    title: Leftover root-stage payload or result file
+    type: path_exists
+    tier: likely
+    evidence_class: filesystem
+    scope: ["**/home/runtime/tmp/**"]
+    paths: ["**/home/runtime/tmp/ics-root-run-inband-*", "**/home/runtime/tmp/ics-root-result-inband-*"]
+    attack: [T1068, T1070.004]
+    notes: The payload deletes these itself; one left behind means an interrupted run. Absence means nothing.

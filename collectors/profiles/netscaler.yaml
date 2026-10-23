@@ -25,7 +25,7 @@ cli:
   # -exec through in disguise. Quotes appear only around a -name glob.
   allow:
     - 'show (ns version|ns runningConfig|system session|aaa session)'
-    - 'shell (date -u|uptime|ps auxww|netstat -an|sockstat -46|crontab -l|cat /etc/crontab)'
+    - 'shell (date -u|uptime|ps auxww|netstat -an|sockstat -46|crontab -l|cat /etc/crontab|cat /etc/httpd.conf|cat /flash/nsconfig/rc.netscaler)'
     - 'shell ls -la( /[\w./-]+)+'
     - "shell find( /[\\w./-]+)+( -xdev| -maxdepth \\d+| -type [fd]| -perm [-+]?[0-7]{3,4}| -name '[\\w*.?-]+')*( -ls)?"
   deny:
@@ -147,6 +147,62 @@ steps:
     list_cmd: shell find /var/netscaler/logon /var/vpn /netscaler/ns_gui /var/netscaler/ns_gui -type f -name '*.php'
     purpose: Copy every PHP file under the web roots for YARA and content review.
     confidence: medium
+
+  - id: httpd_conf
+    tier: P2
+    kind: command
+    cmd: shell cat /etc/httpd.conf
+    purpose: >-
+      Apache configuration. The appliance ships with php_flag engine off; the 2026
+      log-poisoning intrusions switched it on and added CSS-looking aliases to web
+      shells, and NCSC-NL's CVE-2025-6543 check looks for Require all denied and
+      php_flag engine off commented out.
+    confidence: medium
+    references:
+      - https://unit42.paloaltonetworks.com/netscaler-zero-days-exploited/
+      - https://raw.githubusercontent.com/NCSC-NL/citrix-2025/main/live-host-bash-check/TLPCLEAR_check_script_cve-2025-6543-v1.8.sh
+
+  - id: rc_netscaler
+    tier: P2
+    kind: command
+    cmd: shell cat /flash/nsconfig/rc.netscaler
+    purpose: Start-up script on persistent flash. NCSC-NL checks it for python; Rapid7 saw the 2026 framework persist through it.
+    confidence: medium
+    references:
+      - https://raw.githubusercontent.com/NCSC-NL/citrix-2025/main/live-host-bash-check/TLPCLEAR_check_script_cve-2025-6543-v1.8.sh
+      - https://www.rapid7.com/blog/post/ra-netscaler-intrusions-chaining-cve-2026-88771-and-cve-2026-88779/
+
+  - id: logonpoint_custom
+    tier: P6
+    kind: command
+    cmd: shell ls -la /var/netscaler/logon/LogonPoint/custom
+    purpose: >-
+      The Gateway UI customisation directory, web-reachable by design. The 2026
+      intrusions hid PHP web shells here as .ctxs.receiver and .slap.receiver,
+      which the *.php search misses.
+    confidence: medium
+    references:
+      - https://unit42.paloaltonetworks.com/netscaler-zero-days-exploited/
+      - https://www.rapid7.com/blog/post/ra-netscaler-intrusions-chaining-cve-2026-88771-and-cve-2026-88779/
+
+  - id: nsconfig_listing
+    tier: P7
+    kind: command
+    cmd: shell ls -la /flash/nsconfig
+    purpose: Persistent configuration directory (/nsconfig points here). Rapid7 found the 2026 framework under /nsconfig/.slap.
+    confidence: medium
+    references:
+      - https://www.rapid7.com/blog/post/ra-netscaler-intrusions-chaining-cve-2026-88771-and-cve-2026-88779/
+
+  - id: bin_sh_mode
+    tier: P7
+    kind: command
+    cmd: shell ls -la /bin/sh
+    purpose: Mode of /bin/sh. Both Unit 42 and Rapid7 report the actor ran chmod 6555 /bin/sh so the unprivileged web process could become root; the suid search above does not cover /bin.
+    confidence: medium
+    references:
+      - https://unit42.paloaltonetworks.com/netscaler-zero-days-exploited/
+      - https://www.rapid7.com/blog/post/ra-netscaler-intrusions-chaining-cve-2026-88771-and-cve-2026-88779/
 
   - id: fetch_logs
     tier: P3

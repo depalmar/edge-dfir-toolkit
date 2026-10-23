@@ -1,0 +1,52 @@
+# Detection pack EDGE-PACK-0023
+
+id: EDGE-PACK-0023
+name: FortiOS authentication bypass to super_admin (CVE-2024-55591, CVE-2025-24472)
+platforms: [EDGE-0002]
+cves: [CVE-2024-55591, CVE-2025-24472]
+summary: >-
+  An authentication bypass through the Node.js websocket module (and, for
+  CVE-2025-24472, crafted CSF proxy requests) gives super_admin. Fortinet says
+  reports show exploitation in the wild and names no actor. Its published log
+  entries are an administrator login from jsconsole, and administrator or local
+  accounts with random names created from jsconsole. The srcip and dstip in
+  those lines are attacker-chosen parameters, not addresses to block. Fortinet
+  publishes no separate indicator for the CSF path.
+confidence: high
+references:
+  - title: Fortinet FG-IR-24-535 (CVE-2024-55591, CVE-2025-24472)
+    url: https://fortiguard.fortinet.com/psirt/FG-IR-24-535
+    accessed: "2026-10-23"
+
+detect:
+  - id: fortios-jsconsole-admin-login
+    title: Administrator login from jsconsole
+    type: log_regex
+    tier: likely
+    evidence_class: auth-logs
+    sigma: [02-fortinet-fortios/fortios_cve_2024_55591_jsconsole_admin_login.yml]
+    sources:
+      steps: [log_export]
+      files: ["**/*event*.log*", "**/*.log"]
+    pattern: 'logdesc="Admin login successful".*\bui="jsconsole'
+    attack: [T1190, T1078]
+    notes: >-
+      Fortinet's first published entry. Successful login, so a hit is the bypass
+      working, not an attempt. Ignore srcip and dstip; Fortinet says they are
+      arbitrary parameters such as 1.1.1.1 and 127.0.0.1.
+
+  - id: fortios-jsconsole-admin-add
+    title: Administrator account created from jsconsole
+    type: log_regex
+    tier: likely
+    evidence_class: persistence
+    sigma: [02-fortinet-fortios/fortios_cve_2024_55591_jsconsole_admin_add.yml]
+    sources:
+      steps: [log_export]
+      files: ["**/*event*.log*", "**/*.log"]
+    pattern: '\bui="jsconsole[^"]*".*action="Add".*cfgpath="system\.admin"'
+    attack: [T1136.001]
+    notes: >-
+      Fortinet's second entry: Add system.admin from jsconsole(127.0.0.1) with a
+      random name. Review every administrator and local user anyway; Fortinet
+      also saw local users added to SSL-VPN groups and policy changes.

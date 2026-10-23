@@ -1,0 +1,61 @@
+# Detection pack EDGE-PACK-0025
+
+id: EDGE-PACK-0025
+name: PAN-OS 2026 - Captive Portal overflow and GlobalProtect bypass (CVE-2026-0300, CVE-2026-0257)
+platforms: [EDGE-0001]
+cves: [CVE-2026-0300, CVE-2026-0257]
+summary: >-
+  CVE-2026-0300 is a buffer overflow in the User-ID Authentication Portal giving
+  unauthenticated root; Unit 42 tracks the exploitation as CL-STA-1132, "a
+  cluster of likely state-sponsored threat activity". After shellcode injection
+  into an nginx worker the actor cleared crash kernel messages, nginx crash
+  records and core dumps, then staged tunnelling tools. CVE-2026-0257 lets an
+  attacker establish a GlobalProtect VPN session without authenticating; Unit 42
+  reports attempted exploitation by ransomware operators it names Spikey Scorpius
+  (Qilin) and Tarnished Scorpius (Inc). Its hunt is a successful
+  gateway-connected event carrying the public proof of concept's default host
+  identifiers. A missing crash record proves nothing; what Unit 42 names as
+  cleaned is a reason to pull the off-box copy.
+confidence: medium
+references:
+  - title: Unit 42 - Captive Portal zero-day (CVE-2026-0300)
+    url: https://unit42.paloaltonetworks.com/captive-portal-zero-day/
+    accessed: "2026-10-23"
+  - title: Unit 42 - Active exploitation of PAN-OS CVE-2026-0257
+    url: https://unit42.paloaltonetworks.com/active-exploitation-of-pan-os-cve-2026-0257/
+    accessed: "2026-10-23"
+  - title: Palo Alto Networks - CVE-2026-0300 advisory
+    url: https://security.paloaltonetworks.com/CVE-2026-0300
+    accessed: "2026-10-23"
+
+detect:
+  - id: panos-0300-tunnel-tools
+    title: Tunnelling tools named in the CVE-2026-0300 intrusions
+    type: path_exists
+    tier: likely
+    evidence_class: filesystem
+    scope: ["**/tmp/**", "**/var/**"]
+    paths: ["**/var/tmp/linuxap", "**/var/tmp/linuxda", "**/var/tmp/linuxupdate", "**/tmp/R5", "**/var/R5", "**/tmp/.c"]
+    attack: [T1572, T1090]
+    notes: >-
+      Unit 42's file indicators (EarthWorm-based tunnellers, ReverseSocks5, an
+      unidentified Python script). PAN-OS gives no customer shell, so this is
+      evaluated only against files recovered by TAC or from an image.
+
+  - id: panos-0257-poc-host-id
+    title: GlobalProtect gateway-connected with the proof of concept's default host ID or name
+    type: log_regex
+    tier: likely
+    evidence_class: auth-logs
+    sigma: [01-panos-globalprotect/panos_cve_2026_0257_poc_host_id.yml]
+    sources:
+      files: ["**/*globalprotect*", "**/*gp*.log*", "**/*.csv"]
+    pattern: '^(?=.*gateway-connected)(?=.*(aa:bb:cc:dd:ee:ff|00:11:22:33:44:55|WINDOWS-LAPTOP-001|DESKTOP-GP01|GP-CLIENT))'
+    flags: [ignorecase]
+    attack: [T1133, T1078]
+    notes: >-
+      Unit 42's hunt: successful gateway-connected events from suspicious host IDs
+      or device names, "including but not limited to" these. A successful event
+      means a VPN session existed. Read from GlobalProtect logs exported from
+      Panorama, Strata Logging Service or the SIEM; the profile has no CLI step
+      for them.

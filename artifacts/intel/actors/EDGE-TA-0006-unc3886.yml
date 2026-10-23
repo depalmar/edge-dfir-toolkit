@@ -16,7 +16,7 @@ summary: >-
   states it found no technical overlap with activity reported as Volt Typhoon
   or Salt Typhoon. The group's earlier reporting covers FortiOS and VMware ESXi.
 platforms: [EDGE-0008, EDGE-0002]
-packs: [EDGE-PACK-0010]
+packs: [EDGE-PACK-0010, EDGE-PACK-0024]
 implants: [EDGE-IMP-0010]
 tradecraft:
   - Backdoors named to resemble legitimate daemons
