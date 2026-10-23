@@ -107,3 +107,49 @@ def asa_lina_exec_regions(view, det):
     detail += " (NCSC notes 2 or occasionally 5 can be normal; review the list)"
     return True, [Hit(src, detail, line=n, excerpt=excerpt(line),
                       extra={"length": hex(length)}) for n, line, length in execs]
+
+
+# `show checkheaps` as printed in Cisco's detection guide for the 2025 ArcaneDoor
+# activity:
+#
+#   Time elapsed since last run      : 28 secs
+#   ...
+#   Total number of runs             : 6352
+_CH_RUNS = re.compile(r"^\s*Total number of runs\s*:\s*(\d+)\s*$", re.I | re.M)
+_CH_ELAPSED = re.compile(r"^\s*Time elapsed since last run\s*:\s*(\d+)\s*secs?\s*$", re.I | re.M)
+
+
+@check("asa_checkheaps_stalled")
+def asa_checkheaps_stalled(view, det):
+    """Checkheaps counter that did not move between two snapshots.
+
+    Cisco: checkheaps runs every 60 seconds by default, the actor disabled it,
+    and a Total number of runs that does not rise is "evidence of a potential
+    compromise". Cisco's procedure is five readings a minute apart; the profile
+    takes two, at the start and the end of collection.
+
+    The comparison is this toolkit's, not Cisco's: an unchanged counter is a hit
+    only when the second reading says a minute or more has passed since the last
+    run, or its elapsed time did not advance. An unchanged counter after less than
+    a minute is not evaluated - too little time has passed to tell.
+    """
+    first, last = view.step_text("show_checkheaps"), view.step_text("show_checkheaps_late")
+    if first is None or last is None:
+        return False, []
+    r1, r2 = _CH_RUNS.search(first), _CH_RUNS.search(last)
+    if not r1 or not r2:
+        return False, []
+    runs1, runs2 = int(r1.group(1)), int(r2.group(1))
+    if runs2 > runs1:
+        return True, []
+    e1, e2 = _CH_ELAPSED.search(first), _CH_ELAPSED.search(last)
+    if not e2:
+        return False, []
+    el1, el2 = (int(e1.group(1)) if e1 else None), int(e2.group(1))
+    if el2 < 60 and (el1 is None or el2 > el1):
+        return False, []
+    detail = (f"checkheaps Total number of runs stayed at {runs2}; "
+              f"{el2} s since the last run in the second reading. Repeat once a minute "
+              f"for five minutes as Cisco describes before relying on it.")
+    return True, [Hit("step:show_checkheaps_late", detail, excerpt=excerpt(r2.group(0).strip()),
+                      extra={"runs_first": runs1, "runs_last": runs2, "elapsed_last": el2})]

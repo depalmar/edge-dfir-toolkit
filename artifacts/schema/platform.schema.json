@@ -248,6 +248,27 @@
             "items": {
               "type": "string"
             }
+          },
+          "provides": {
+            "type": "string",
+            "description": "what the artifact gives you"
+          },
+          "normal": {
+            "type": "string",
+            "description": "what it looks like on a healthy device"
+          },
+          "suspicious": {
+            "type": "string",
+            "description": "what would make it a lead"
+          },
+          "basis": {
+            "enum": [
+              "vendor",
+              "researcher",
+              "government",
+              "toolkit"
+            ],
+            "description": "where the suspicious criterion comes from; toolkit means this project's inference"
           }
         }
       }

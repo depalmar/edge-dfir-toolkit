@@ -155,6 +155,20 @@ steps:
       their absence means little. Core files also land here.
     confidence: high
 
+  - id: listing_var_jail
+    tier: P6
+    kind: command
+    cmd: file list /var/jail detail recursive | no-more
+    purpose: >-
+      The chroot J-Web's PHP runs in. watchTowr's CVE-2023-36846 reproduction
+      wrote uploads as 64-hex-character names with the original extension and
+      logged to /var/jail/sess/php.log; which on-host directory an upload lands in
+      is not confirmed, so the whole jail is listed rather than a guessed path.
+    confidence: low
+    unverified: true
+    references:
+      - https://labs.watchtowr.com/cve-2023-36844-and-friends-rce-in-juniper-firewalls/
+
   - id: listing_config_dir
     tier: P7
     kind: command

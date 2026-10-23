@@ -1,0 +1,29 @@
+title: SonicWall SMA 100 File Read Through a .css Suffix (CVE-2024-38475)
+id: db39a094-a96a-4d7c-8d2c-e274a236ef7d
+status: experimental
+description: |
+  watchTowr's reproduction of CVE-2024-38475 on SMA 100 appended
+  %3f.1.1.1.1a-1.css to a file path to read it unauthenticated - for example
+  /tmp/temp.db, the SQLite file holding active session identifiers. CVE-2024-38475
+  is in CISA's KEV catalog; this request shape comes from one researcher.
+references:
+  - https://labs.watchtowr.com/sonicboom-from-stolen-tokens-to-remote-shells-sonicwall-sma100-cve-2023-44221-cve-2024-38475/
+author: Raymond DePalma (edge-dfir-toolkit)
+date: 2026-10-23
+tags:
+  - attack.initial_access
+  - attack.t1190
+  - attack.credential_access
+  - attack.t1539
+  - cve.2024-38475
+logsource:
+  category: webserver
+detection:
+  selection:
+    cs-uri-query|contains: '1.1.1.1a-1.css'
+  selection_stem:
+    cs-uri-stem|contains: '%3f.1.1.1.1a-1.css'
+  condition: selection or selection_stem
+falsepositives:
+  - Unlikely; no legitimate SMA path ends this way.
+level: high

@@ -36,6 +36,9 @@ detect:
     notes: >-
       The vendor's LINE DANCER check. A region of exactly 0x1000 bytes is called
       out as especially suspicious. Collect before any reload; a reboot erases it.
+      Specific to LINE DANCER: NCSC reports LINE VIPER (2025) fixed the
+      split-lina effect, so a clean region map says nothing about the 2025
+      activity (EDGE-PACK-0018).
 
   - id: asa-line-runner-zip
     title: LINE RUNNER bundle on disk0

@@ -68,8 +68,28 @@ steps:
     tier: V1
     kind: command
     cmd: show checkheaps
-    purpose: Heap checker state. A checker that stopped running is worth explaining.
-    confidence: medium
+    purpose: >-
+      Heap checker state, first snapshot. Checkheaps runs every 60 seconds by
+      default; Cisco reports the 2025 ArcaneDoor actor disabled it, and says a
+      Total number of runs that does not rise over five minutes is evidence of a
+      potential compromise. Compared with show_checkheaps_late.
+    confidence: high
+    references:
+      - https://sec.cloudapps.cisco.com/security/center/resources/detection_guide_for_continued_attacks
+
+  - id: show_kernel_lina_cs
+    tier: V2
+    kind: command
+    cmd: show kernel process | include lina_cs
+    purpose: >-
+      Cisco's check for the 2026 FXOS persistent implant on Firepower 1000, 2100,
+      4100, 9300 and Secure Firewall 1200, 3100, 4200: any output means the device
+      is considered compromised. The legitimate lina_cs can get stuck; Cisco's
+      false-positive check is verify disk0:/asdm.bin, then this command again. A
+      cold restart removes the implant, so collect before anyone pulls power.
+    confidence: high
+    references:
+      - https://sec.cloudapps.cisco.com/security/center/content/CiscoSecurityAdvisory/cisco-sa-asaftd-persist-CISAED25-03
 
   - id: show_processes
     tier: V2
@@ -136,6 +156,19 @@ steps:
     confidence: high
     references:
       - https://blog.talosintelligence.com/arcanedoor-new-espionage-focused-campaign-found-targeting-perimeter-network-devices/
+
+  - id: show_checkheaps_late
+    tier: P7
+    kind: command
+    cmd: show checkheaps | begin Checkheaps
+    purpose: >-
+      Second checkheaps snapshot, taken last so that minutes have passed since the
+      first. The pipe only makes the command distinct for replay; the output is the
+      same. Two snapshots are weaker than Cisco's five over five minutes; repeat by
+      hand if the counter has not moved.
+    confidence: medium
+    references:
+      - https://sec.cloudapps.cisco.com/security/center/resources/detection_guide_for_continued_attacks
 
   - id: core_dump
     tier: X

@@ -8,6 +8,8 @@ confidence: medium
 preserve_first:
   - step: Collect memory-region state before anything that could reload the device
     detail: Run the cisco-asa profile. LINE DANCER was memory-only and hooked the dump routine, so the memory-region check runs first and the core dump is a deliberate, later break-glass step.
+  - step: On Firepower and Secure Firewall hardware, run show kernel process | include lina_cs before anyone pulls power
+    detail: Cisco says a cold restart removes the 2026 FXOS implant while shutdown, reboot and reload do not, so a power cycle taken to "clean" the device also destroys the only on-box indicator. The profile collects it at V2.
   - step: Capture the syslog receiver's record, not just the device
     detail: ArcaneDoor disabled syslog; the gap at the collector dates the intrusion.
 
@@ -35,6 +37,9 @@ eradicate:
     detail: But only after evidence is captured, the entry vector is fixed, and you have ruled out disk and boot persistence. A reload with LINE RUNNER present on disk0 re-establishes it.
   - step: For LINE RUNNER, remove the disk0 bundle and rebuild
     detail: Follow Cisco's guidance for the exact models and releases.
+  - step: For the FXOS lina_cs implant, reimage and upgrade
+    detail: Cisco strongly recommends reimaging and upgrading to the fixed releases in its advisory to remove the persistence fully; a cold restart removes it but leaves the entry point.
+    when: COMPROMISED, LIKELY-COMPROMISED
   - step: For RayInitiator / bootkit, follow CISA ED 25-03
     detail: The directive's guidance covers core-dump collection and, for affected hardware, replacement where the bootkit cannot be assured removed.
     when: COMPROMISED
@@ -45,7 +50,9 @@ recover:
   - step: Confirm logging and syslog forwarding are back and flowing to the collector
 
 verify:
-  - step: Re-run the profile; the memory-region check should show a single executable lina region and syslog enabled
+  - step: Re-run the profile; lina_cs absent, the checkheaps counter rising, and syslog enabled
+    detail: A single executable lina region is expected but proves little - NCSC reports LINE VIPER no longer splits it.
+  - step: Confirm syslog IDs 302013, 302014, 609002 and 710005 arrive at the collector at their usual volume
   - step: Confirm no unexpected files on disk0 and the expected boot image
   - step: Hunt into the network for the dwell period
 
@@ -54,6 +61,10 @@ do_not:
     because: LINE DANCER hooked the dump routine to reboot the device, destroying the in-memory implant.
   - action: Reload a device with LINE RUNNER on disk0 and call it clean
     because: The boot-time feature re-establishes it.
+  - action: Treat an unsplit lina region map as clean
+    because: That was LINE DANCER's tell; NCSC reports LINE VIPER fixed it.
+  - action: Power-cycle a Firepower or Secure Firewall device before collecting
+    because: A cold restart removes the FXOS lina_cs implant and its only on-box indicator.
   - action: Assume a factory reset clears a bootkit
     because: RayInitiator persists below the OS; CISA directed replacement for affected hardware.
 
@@ -61,6 +72,12 @@ vendor_guidance:
   - title: CISA ED 25-03 implementation guidance update
     url: https://www.cisa.gov/news-events/alerts/2025/11/12/update-implementation-guidance-emergency-directive-cisco-asa-and-firepower-device-vulnerabilities
     accessed: "2026-10-22"
+  - title: Cisco - Continued evolution of persistence mechanism (cisco-sa-asaftd-persist-CISAED25-03)
+    url: https://sec.cloudapps.cisco.com/security/center/content/CiscoSecurityAdvisory/cisco-sa-asaftd-persist-CISAED25-03
+    accessed: "2026-10-23"
+  - title: Cisco - Detection guide for continued attacks against Cisco firewalls
+    url: https://sec.cloudapps.cisco.com/security/center/resources/detection_guide_for_continued_attacks
+    accessed: "2026-10-23"
 
 references:
   - title: Cisco Talos - ArcaneDoor

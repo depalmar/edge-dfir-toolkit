@@ -155,19 +155,38 @@ def asa(root: Path, malicious: bool) -> None:
     disk0 = ["Directory of disk0:/", "  11  -rwx  112640512  10:00:00 Jan 05 2026  asa9-20-3-smp-k8.bin"]
     if malicious:
         disk0.append("  57  -rwx  20480  07:30:12 Oct 14 2026  client_bundle_install.zip")
+        disk0.append("  58  -rwx  1203  06:11:40 Oct 15 2026  firmware_update.log")
+    # Checkheaps layout from Cisco's detection guide. Benign: the counter moves
+    # between the two readings. Compromised: it stays put while time passes.
+    def checkheaps(elapsed: int, runs: int) -> str:
+        return ("Checkheaps stats from buffer validation runs\n"
+                "--------------------------------------------\n"
+                f"Time elapsed since last run      : {elapsed} secs\n"
+                "Duration of last run             : 0 millisecs\n"
+                "Number of buffers created        : 106\n"
+                f"Total number of runs             : {runs}\n")
+    ch_first, ch_late = (checkheaps(28, 6352), checkheaps(212, 6352)) if malicious else (checkheaps(28, 6352), checkheaps(9, 6356))
+    # Process row copied from Cisco's lina_cs advisory example.
+    lina_cs = "68081 29428  20   0      249856      100        1    S     3     0    0 lina_cs\n" if malicious else ""
     out = {
         "show clock": "14:02:11.123 UTC Thu Oct 22 2026\n",
         "show version": "Cisco Adaptive Security Appliance Software Version 9.20(3)\nfw-asa-lab up 12 days 4 hours\n",
         "show memory region | include lina": lina,
         "show memory region": "\n".join(regions) + "\n",
-        "show checkheaps": "Checkheaps stats from buffer validation runs\n",
+        "show checkheaps": ch_first,
+        "show checkheaps | begin Checkheaps": ch_late,
+        "show kernel process | include lina_cs": lina_cs,
         "show processes": "PC SP STATE Runtime SBASE Stack Process\n",
         "show conn count": "42 in use, 1200 most used\n",
         "show ssh sessions": "SID Client IP Version Mode Encryption\n",
         "show vpn-sessiondb summary": "Total Active : 3\n",
         "show vpn-sessiondb anyconnect": "Username : jdoe-lab  Assigned IP : 10.20.0.15  Public IP : 198.51.100.20\n",
         "show running-config": "hostname fw-asa-lab\nlogging enable\n",
-        "show logging": ("Syslog logging: disabled\n" if malicious else "Syslog logging: enabled\n") + "    Facility: 20\n",
+        "show logging": ("Syslog logging: disabled\n" if malicious else "Syslog logging: enabled\n") + "    Facility: 20\n" + (
+            # Layout from Cisco's CVE-2023-20269 advisory, documentation address.
+            "Oct 14 2026 07:29:58: %ASA-7-734003: DAP: User admin, Addr 203.0.113.44: Session Attribute aaa.cisco.tunnelgroup = DefaultADMINGroup\n"
+            if malicious else
+            "Oct 14 2026 07:29:58: %ASA-6-113015: AAA user authentication Rejected : reason = User was not found : local database : user = jdoe-lab : user IP = 198.51.100.20\n"),
         "show crashinfo": "No crash information available\n",
         "dir /recursive disk0:": "\n".join(disk0) + "\n",
     }
@@ -246,6 +265,9 @@ def junos(root: Path, malicious: bool) -> None:
         "file list /var/log detail | no-more": "\n".join(var_log) + "\n",
         "file list /var/tmp detail | no-more": "\n".join(var_tmp) + "\n",
         "file list /mfs/var/etc detail | no-more": "\n".join(mfs) + "\n",
+        "file list /var/jail detail recursive | no-more": "/var/jail/tmp/:\n" + (
+            "-rw-r--r--  1 nobody  wheel  18 Oct 03 11:20 " + "7a" * 32 + ".php\n" if malicious else
+            "-rw-r--r--  1 nobody  wheel  41 Oct 03 11:20 sess_lab01\n"),
         "file list /config detail | no-more": "/config/:\n-rw-r-----  1 root  wheel  9921 Oct 01 09:00 juniper.conf.gz\n",
         "file list /var/db/config detail | no-more": "/var/db/config/:\n-rw-r-----  1 root  wheel  9810 Sep 20 09:00 juniper.conf.4.gz\n",
         "file list /var/db/scripts detail recursive | no-more": "/var/db/scripts/:\ntotal 0\n",
@@ -291,7 +313,8 @@ def iosxe(root: Path, malicious: bool) -> None:
         "show platform integrity sign nonce 12345": "Platform: C8300\nBoot 0 Version: F01001R06.0123\nSignature version: 1\n",
         "show software authenticity running": "SYSTEM IMAGE\n------------\nImage type    : Production\n  Common Name : CiscoSystems\n",
         "show platform hardware authentication status": "SUDI Authentication: pass\n",
-        "show running-config": "hostname rtr-lab-01\n" + users + "no ip http server\n",
+        "show running-config": "hostname rtr-lab-01\n" + users + "no ip http server\n" + (
+            "event manager applet CiscoEMX-3\n" if malicious else "event manager applet backup-nightly\n"),
         "show running-config | include ip http server|secure|active": "no ip http server\nno ip http secure-server\n",
         "show logging": "Syslog logging: enabled\n" + "\n".join(logs) + "\n",
         "dir /recursive all-filesystems": "\n".join(dirl) + "\n",

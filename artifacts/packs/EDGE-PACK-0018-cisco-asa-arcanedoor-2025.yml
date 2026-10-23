@@ -1,0 +1,85 @@
+# Detection pack EDGE-PACK-0018
+
+id: EDGE-PACK-0018
+name: Cisco ASA / FTD ArcaneDoor 2025-2026 (CVE-2025-20333, CVE-2025-20362)
+platforms: [EDGE-0005]
+cves: [CVE-2025-20333, CVE-2025-20362]
+actors: [UAT4356]
+implants: [RayInitiator, FXOS lina_cs implant]
+summary: >-
+  The 2025 follow-on to ArcaneDoor chained a VPN web server authorisation bypass
+  with remote code execution. Cisco assesses with high confidence it is the same
+  actor. On ASA 5500-X models without Secure Boot it persisted below the
+  operating system; in April 2026 Cisco added an FXOS-level implant on Firepower
+  and Secure Firewall hardware that survives upgrades and reloads. The in-memory
+  payload (LINE VIPER, per NCSC) suppresses syslog IDs and disables checkheaps,
+  and - unlike LINE DANCER - leaves no split lina region, so an unsplit region
+  map does not clear a device. Absence of the suppressed syslog IDs is an
+  off-box hunt, not an on-box check.
+confidence: high
+references:
+  - title: Cisco - Detection guide for continued attacks against Cisco firewalls (v1.2, 24 April 2026)
+    url: https://sec.cloudapps.cisco.com/security/center/resources/detection_guide_for_continued_attacks
+    accessed: "2026-10-23"
+  - title: Cisco Event Response - Continued attacks against Cisco firewalls
+    url: https://sec.cloudapps.cisco.com/security/center/resources/asa_ftd_continued_attacks
+    accessed: "2026-10-23"
+  - title: Cisco - Continued evolution of persistence mechanism (cisco-sa-asaftd-persist-CISAED25-03, v1.3)
+    url: https://sec.cloudapps.cisco.com/security/center/content/CiscoSecurityAdvisory/cisco-sa-asaftd-persist-CISAED25-03
+    accessed: "2026-10-23"
+  - title: NCSC - RayInitiator and LINE VIPER malware analysis report (v1.1)
+    url: https://www.ncsc.gov.uk/static-assets/documents/malware-analysis-reports/RayInitiator-LINE-VIPER/ncsc-mar-rayinitiator-line-viper.pdf
+    accessed: "2026-10-23"
+
+detect:
+  - id: asa-fxos-lina-cs-process
+    title: lina_cs process present (FXOS persistent implant)
+    type: log_regex
+    tier: likely
+    evidence_class: process
+    sources:
+      steps: [show_kernel_lina_cs]
+    # A process row starts with numeric PID columns; the echoed command does not.
+    pattern: '^\s*\d+\s+\d+\s.*\slina_cs\s*$'
+    attack: [T1543, T1542]
+    notes: >-
+      Cisco: any output from show kernel process | include lina_cs means the
+      device "is considered compromised". Held at likely, not confirmed, because
+      Cisco also documents the legitimate lina_cs getting stuck: run verify
+      disk0:/asdm.bin and the command again before concluding. The name can
+      change between implant builds, so no output is not a clean result. A cold
+      restart removes the implant; shutdown, reboot and reload do not.
+
+  - id: asa-firmware-update-log
+    title: firmware_update.log on disk0
+    type: log_regex
+    tier: likely
+    evidence_class: persistence
+    sources:
+      steps: [dir_disk0]
+    pattern: '\bfirmware_update\.log\s*$'
+    attack: [T1542.001]
+    notes: >-
+      On ASA 5512-X, 5515-X, 5525-X, 5545-X and 5555-X, booting 9.12.4.72 or
+      9.14.4.28 checks ROMMON, removes the persistence mechanism if found, and
+      writes this file. Cisco: its existence "could indicate that the device was
+      compromised prior to the upgrade"; open a TAC case with show tech-support
+      and the file. Cisco does not name the mechanism; NCSC names a GRUB bootkit
+      on the same models RayInitiator. The toolkit does not equate the two.
+      CISA's pages spell the name firmwareupdate.log and firmware-update.log;
+      Cisco's spelling is used here.
+
+  - id: asa-checkheaps-stalled
+    title: Checkheaps counter did not advance
+    type: check
+    check: asa_checkheaps_stalled
+    tier: possible
+    evidence_class: memory
+    sources:
+      steps: [show_checkheaps, show_checkheaps_late]
+    attack: [T1562.001]
+    notes: >-
+      Cisco reports the actor disabled checkheaps and gives a five-minute,
+      once-a-minute procedure. The profile takes two readings; the comparison
+      rule is the toolkit's. A hit is a reason to repeat Cisco's procedure by
+      hand, not a verdict.

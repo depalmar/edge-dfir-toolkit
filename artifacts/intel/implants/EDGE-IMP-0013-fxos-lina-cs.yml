@@ -1,0 +1,28 @@
+id: EDGE-IMP-0013
+name: FXOS lina_cs implant
+aliases: [FIRESTARTER (Talos name; Talos page read only through a summariser - verify)]
+platforms: [EDGE-0005]
+actors: [EDGE-TA-0003]
+cves: [CVE-2025-20333, CVE-2025-20362]
+type: persistence-mechanism
+resides: disk
+survives_reboot: "yes"
+survives_upgrade: "yes"
+survives_factory_reset: unknown
+summary: >-
+  A persistence mechanism in the FXOS base operating system under ASA and FTD on
+  Firepower 1000, 2100, 4100, 9300 and Secure Firewall 1200, 3100 and 4200,
+  disclosed by Cisco in April 2026 after a CISA ED 25-03 update. It is preserved
+  across upgrading to the September 2025 fixed releases and starts a process
+  named lina_cs. Cisco: shutdown, reboot and reload do not clear it; a cold
+  restart does. ASA 5500-X, ASAv and FTDv are not affected.
+artifacts:
+  - show kernel process | include lina_cs
+anti_forensics:
+  - Survives warm reloads and software upgrades
+detections: [asa-fxos-lina-cs-process]
+confidence: high
+references:
+  - title: Cisco - Continued evolution of persistence mechanism (cisco-sa-asaftd-persist-CISAED25-03, v1.3)
+    url: https://sec.cloudapps.cisco.com/security/center/content/CiscoSecurityAdvisory/cisco-sa-asaftd-persist-CISAED25-03
+    accessed: "2026-10-23"

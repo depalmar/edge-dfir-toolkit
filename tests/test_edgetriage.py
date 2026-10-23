@@ -227,6 +227,10 @@ def test_asa_line_dancer_regions(fx, tmp_path):
     assert r["status"] == "hit" and "0x1000" in r["hits"][0]["detail"]
     assert det(f, "asa-line-runner-zip")["status"] == "hit"
     assert det(f, "asa-zip-on-disk0")["status"] == "no-hit"   # the named bundle is excluded
+    assert det(f, "asa-fxos-lina-cs-process")["status"] == "hit"
+    assert det(f, "asa-firmware-update-log")["status"] == "hit"
+    assert det(f, "asa-checkheaps-stalled")["status"] == "hit"
+    assert det(f, "asa-20269-default-group-session")["status"] == "hit"
     assert f["verdict"]["level"] == "COMPROMISED"            # memory + persistence corroborate
 
 
@@ -241,7 +245,24 @@ def test_asa_benign(fx, tmp_path):
     root = run(fx, tmp_path, "cisco-asa", "asa-benign")
     f = analyze(root)
     assert det(f, "asa-lina-multiple-exec-regions")["status"] == "no-hit"
+    assert det(f, "asa-fxos-lina-cs-process")["status"] == "no-hit"
+    assert det(f, "asa-checkheaps-stalled")["status"] == "no-hit"
+    assert det(f, "asa-20269-default-group-session")["status"] == "no-hit"
     assert f["verdict"]["level"] == "NO-INDICATORS-FOUND"
+
+
+def test_asa_checkheaps_needs_time_and_a_counter():
+    from edgetriage.checks.cisco import asa_checkheaps_stalled
+
+    class V:
+        def __init__(self, a, b): self.t = {"show_checkheaps": a, "show_checkheaps_late": b}
+        def step_text(self, s): return self.t.get(s)
+    ch = lambda e, r: f"Time elapsed since last run      : {e} secs\nTotal number of runs             : {r}\n"
+    assert asa_checkheaps_stalled(V(ch(10, 5), ch(40, 5)), {}) == (False, [])   # under a minute: not evaluated
+    assert asa_checkheaps_stalled(V("% Invalid input", ch(90, 5)), {}) == (False, [])  # no counter parsed
+    assert asa_checkheaps_stalled(V(ch(10, 5), ch(3, 6)), {}) == (True, [])     # moved: evaluated, clean
+    ok, hits = asa_checkheaps_stalled(V(ch(10, 5), ch(75, 5)), {})
+    assert ok and hits and hits[0].extra["runs_last"] == 5
 
 
 def test_fortios_baseline_is_required_and_used(fx, tmp_path):
@@ -499,6 +520,8 @@ def test_junos_listing_type_markers_do_not_hide_files(fx, tmp_path):
     assert det(f, "junos-unc3886-null-fifo")["hit_count"] == 1          # null|
     assert det(f, "junos-syslog-conf-backup")["hit_count"] == 1
     assert det(f, "junos-hijacked-cat-process")["hit_count"] == 1
+    assert det(f, "junos-jweb-hex-named-upload")["hit_count"] == 1     # J-Web upload shape in the jail
+    assert det(f, "junos-jweb-php-log-anonymous")["status"] == "not-evaluated"  # php.log not ingested
 
 
 def test_junos_integrity_check_is_not_impact_free():
@@ -663,3 +686,14 @@ def test_f5_audit_patterns_use_the_real_format():
     pack = yaml.safe_load((ROOT / "artifacts/packs/EDGE-PACK-0017-f5-control-plane-historic.yml").read_text())
     pat = next(d["pattern"] for d in pack["detect"] if d["id"] == "f5-audit-util-bash-c")
     assert re.search(pat, line)
+
+
+def test_iosxe_zero_disco_names_match_exactly(fx, tmp_path):
+    f = analyze(run(fx, tmp_path, "cisco-iosxe", "iosxe-compromised", variables={"boot_image": IOSXE_PKG}))
+    assert det(f, "iosxe-zerodisco-config-names")["hit_count"] == 1
+    import re
+    import yaml
+    pack = yaml.safe_load((ROOT / "artifacts/packs/EDGE-PACK-0021-iosxe-snmp-zero-disco.yml").read_text())
+    pat = re.compile(next(d["pattern"] for d in pack["detect"] if d["id"] == "iosxe-zerodisco-config-names"))
+    assert pat.search("username dg5y8fpk privilege 15") and pat.search("ip access-list extended EnaQWklg2")
+    assert not pat.search("event manager applet CiscoEMX-9") and not pat.search("username dg9y8zpk")

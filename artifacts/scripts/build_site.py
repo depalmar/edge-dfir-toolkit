@@ -61,7 +61,7 @@ RULE_DIR_PLATFORM = {
 # an error if its keys differ from these, and --check validates every static
 # "#lib?key=value" link against them.
 FACET_KEYS = {
-    "artifacts": ["platform", "class", "volatility", "value", "evidence", "kind", "confidence", "seen"],
+    "artifacts": ["platform", "class", "volatility", "value", "evidence", "kind", "confidence", "basis", "seen"],
     "platforms": ["vendor", "shell", "memory", "profile"],
     "detections": ["platform", "runs", "pack", "tier", "evidence", "type", "attack", "cve", "actor"],
     "intel": ["kind", "platform", "motivation", "type", "resides", "reboot", "coverage", "reporter"],
@@ -199,6 +199,8 @@ def build_data(d: dict) -> dict:
                 "collected_by": cb, "kind": kind, "step": steps[pname][cb] if kind == "step" else None,
                 "description": a["description"].strip(), "seen": seen_links(a.get("seen_in")),
                 "seen_in": a.get("seen_in", []),
+                "provides": (a.get("provides") or "").strip(), "normal": (a.get("normal") or "").strip(),
+                "suspicious": (a.get("suspicious") or "").strip(), "basis": a.get("basis", ""),
                 "detections": [x["id"] for x in dets if c["id"] in x["platforms"] and cb in [s["id"] for s in x["steps"]]],
             })
 
@@ -998,7 +1000,14 @@ button.tile:hover{border-color:var(--accent)}
 code.loc{display:inline-block;max-width:100%;background:var(--code-bg);border:1px solid var(--line-soft);border-radius:5px;padding:1px 6px;font-size:var(--fs-sm);word-break:break-word}
 .c-main .desc{display:block;color:var(--ink-2);font-size:var(--fs-base);margin-top:6px;line-height:1.5;max-width:75ch}
 .c-main .seen{display:flex;gap:4px;flex-wrap:wrap;margin-top:6px}
-.rows.compact .desc,.rows.compact .seen{display:none}
+.rows.compact .desc,.rows.compact .seen,.rows.compact .lead{display:none}
+.c-main .lead{display:block;color:var(--ink-2);font-size:var(--fs-sm);margin-top:4px;line-height:1.45;max-width:75ch}
+.c-main .lead b{color:var(--high);font-weight:600}
+.nvs{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px}
+.nvs>div{border:1px solid var(--line-soft);border-radius:8px;padding:10px 12px;border-left-width:4px}
+.nvs-n{border-left-color:var(--low)!important}.nvs-s{border-left-color:var(--high)!important}
+.nvs b{display:block;font-size:var(--fs-sm);margin-bottom:4px}.nvs p{margin:0}
+@media (max-width:640px){.nvs{grid-template-columns:minmax(0,1fr)}}
 .rows.compact .row{padding-top:8px;padding-bottom:8px}
 .pick,.pickall{width:15px;height:15px;margin:2px 0 0;accent-color:var(--accent);cursor:pointer}
 
@@ -1390,6 +1399,7 @@ function F(k, label, get, name, order){ return {k:k, label:label, get:get, name:
 var ORD = {vol:['live','rotating','stable','off-box'], hml:['high','medium','low'], tier:['confirmed','likely','possible'],
            level:['critical','high','medium','low','informational','-'], yn:['yes','partial','no','unknown']};
 var KIND = {step:'Collection step', ingest:'Off-box export (ingest)', manual:'Manual'};
+var BASIS = {vendor:'Vendor', researcher:'Researcher', government:'Government agency', toolkit:'Toolkit inference (no published contrast)'};
 var HCAT = {exposure:'Internet exposure', access:'Management access', identity:'Accounts and MFA', services:'Unused services', logging:'Logging off-box', patching:'Patching and end of life', integrity:'Integrity and boot', recovery:'Backups and recovery'};
 
 var LIB = {
@@ -1404,13 +1414,15 @@ artifacts: {
     F('evidence', 'Evidence type', function(a){ return a.evidence; }),
     F('kind', 'Collected by', function(a){ return [a.kind]; }, function(v){ return KIND[v] || v; }),
     F('confidence', 'Confidence', function(a){ return [a.confidence]; }, null, ORD.hml),
+    F('basis', 'Suspicious criterion from', function(a){ return a.basis ? [a.basis] : []; }, function(v){ return BASIS[v] || v; }),
     F('seen', 'Seen in', function(a){ return a.seen_in; })
   ],
-  text:function(a){ return [a.id, PN[a.platform], a.locator, a.description, a['class'], a.volatility, a.collected_by, a.retention, a.seen_in.join(' '), a.evidence.join(' ')].join(' '); },
+  text:function(a){ return [a.id, PN[a.platform], a.locator, a.description, a['class'], a.volatility, a.collected_by, a.retention, a.seen_in.join(' '), a.evidence.join(' '), a.provides, a.normal, a.suspicious].join(' '); },
   row:function(a){
     return '<span class="c-pick"><input type="checkbox" class="pick" aria-label="Pick ' + esc(a.id) + '"' + (S.artifacts.picks[a.id] ? ' checked' : '') + '></span>' +
       '<span class="c-plat">' + esc(PN[a.platform]) + '<span class="id">' + esc(a.id) + '</span></span>' +
       '<span class="c-main"><code class="loc">' + esc(a.locator) + '</code><span class="desc">' + rich(a.description) + '</span>' +
+      (a.suspicious ? '<span class="lead"><b>Lead:</b> ' + rich(a.suspicious) + '</span>' : '') +
       (a.seen_in.length ? '<span class="seen">' + chips(a.seen_in, 'implant') + '</span>' : '') + '</span>' +
       '<span class="c-cls">' + b(a['class'], 'cls') + '</span><span class="c-vol">' + b(a.volatility, 'vol vol-' + a.volatility) + '</span>' +
       '<span class="c-val">' + b(a.value, 'fv fv-' + a.value) + '</span><span class="c-conf">' + conf(a.confidence, a.unv) + '</span>';
@@ -1419,7 +1431,11 @@ artifacts: {
   drawer:function(a){
     var p = PLAT[a.platform], h = '<div class="links" style="margin-top:14px">' + b(a['class'], 'cls') + b(a.volatility, 'vol vol-' + a.volatility) + b('value: ' + a.value, 'fv fv-' + a.value) + conf(a.confidence, a.unv) + '</div>';
     h += '<div class="dloc"><code>' + esc(a.locator) + '</code><button class="copy" type="button" data-copy="' + esc(a.locator) + '">Copy</button></div>';
+    if (a.provides) h += sec('What it gives you', para(a.provides));
     h += sec('What it proves', para(a.description));
+    if (a.suspicious) h += sec('Normal or suspicious', '<div class="nvs"><div class="nvs-n"><b>Normal</b>' + para(a.normal) + '</div>' +
+      '<div class="nvs-s"><b>Suspicious</b>' + para(a.suspicious) + '</div></div>' +
+      '<p class="muted small">Criterion from: ' + esc(BASIS[a.basis] || a.basis) + '. A lead is a reason to look harder, not a verdict; the analyzer\'s detections decide tiers.</p>');
     if (a.retention) h += sec('Retention', para(a.retention));
     h += sec('Evidence type', '<div class="links">' + chips(a.evidence, 'mono') + '</div>');
     if (a.seen.length) h += sec('Seen in', '<div class="links">' + lnks(a.seen, 'implant') + '</div>');
@@ -1440,7 +1456,8 @@ artifacts: {
   },
   exp:function(a){ return {id:a.id, platform:PN[a.platform], locator:a.locator, 'class':a['class'], volatility:a.volatility, retention:a.retention,
     value:a.value, evidence:a.evidence, confidence:a.confidence, unverified:a.unv, collected_by:a.collected_by,
-    command:a.step ? a.step.cmd : '', seen_in:a.seen_in, description:a.description}; },
+    command:a.step ? a.step.cmd : '', seen_in:a.seen_in, description:a.description,
+    provides:a.provides, normal:a.normal, suspicious:a.suspicious, basis:a.basis}; },
   summary:function(shown){ return dist('artifacts', 'volatility', ORD.vol, 'Volatility of the artifacts shown', shown); }
 },
 

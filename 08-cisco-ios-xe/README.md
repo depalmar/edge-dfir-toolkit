@@ -1,7 +1,7 @@
 # 08-cisco-ios-xe/ - Cisco IOS XE
 
 Platform: `EDGE-0009` (see `artifacts/catalog/`).  
-Detection packs: `EDGE-PACK-0011`, `EDGE-PACK-0012` (see `artifacts/packs/`).
+Detection packs: `EDGE-PACK-0011`, `EDGE-PACK-0012`, `EDGE-PACK-0021` (see `artifacts/packs/`).
 
 ## Rules
 
@@ -15,3 +15,7 @@ Detection packs: `EDGE-PACK-0011`, `EDGE-PACK-0012` (see `artifacts/packs/`).
 Do not reboot before collecting: the 2023 implant lived in memory, but the
 privilege-15 accounts it created survive. CVE-2026-20273 (August 2026
 hardening release) is a different flaw from CVE-2023-20273.
+
+Zero Disco (`EDGE-PACK-0021`, CVE-2025-20352) can hide its accounts, EEM
+scripts and ACLs from the running configuration; compare against a backup taken
+off the device.

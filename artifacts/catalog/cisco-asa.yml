@@ -30,6 +30,12 @@ anti_forensics:
     seen_in: LINE DANCER (ArcaneDoor, 2024)
   - technique: Boot-level persistence below the OS on models without Secure Boot
     seen_in: RayInitiator (2025)
+  - technique: Suppressed syslog IDs 302013, 302014, 609002 and 710005 in memory, invisible in the running config
+    seen_in: ArcaneDoor 2025 (Cisco detection guide)
+  - technique: Disabled checkheaps
+    seen_in: ArcaneDoor 2025 (Cisco detection guide)
+  - technique: Persistent implant in FXOS that survives upgrade, reboot and reload; removed only by a cold restart
+    seen_in: FXOS lina_cs implant (2026)
 response: cisco-asa
 hardening: cisco-asa
 artifacts:
@@ -42,6 +48,16 @@ artifacts:
     collected_by: mem_region_lina
     description: The vendor's LINE DANCER check - more than one executable region for lina. Gone on reload. Runs before anything else.
     seen_in: [LINE DANCER]
+    provides: >-
+      The memory regions mapped to the lina process.
+    normal: >-
+      NCSC notes that two, or occasionally five, executable lina regions can be
+      normal. A normal map does not clear the device: NCSC reports LINE VIPER
+      (2025) fixed the split-lina effect.
+    suspicious: >-
+      More executable regions than that, one exactly 0x1000 bytes - Cisco's LINE
+      DANCER indicator; a lead, not proof.
+    basis: vendor
   - locator: "dir /recursive disk0:"
     class: persistence
     volatility: stable
@@ -51,6 +67,14 @@ artifacts:
     collected_by: dir_disk0
     description: LINE RUNNER arrived as client_bundle_install.zip, processed at boot by a legacy capability. Every zip here needs an owner.
     seen_in: [LINE RUNNER]
+    provides: >-
+      Files on the boot disk.
+    normal: >-
+      Images and files with a known owner.
+    suspicious: >-
+      client_bundle_install.zip or any zip nobody put there - how LINE RUNNER
+      arrived.
+    basis: vendor
   - locator: Core dump (vendor / CISA procedure)
     class: memory
     volatility: live
@@ -60,6 +84,13 @@ artifacts:
     collected_by: manual
     description: Scanned with RayDetect (confident only for ASA 5500-X on 9.12 and 9.14; not Firepower or ASAv) for the 2025 bootkit activity. Break-glass - LINE DANCER turned a dump request into a reload.
     seen_in: [RayInitiator, LINE VIPER]
+    provides: >-
+      A full memory image for RayDetect and Cisco.
+    normal: >-
+      RayDetect finds nothing - meaningful only on ASA 5500-X running 9.12 or 9.14.
+    suspicious: >-
+      A RayDetect detection.
+    basis: government
   - locator: show logging
     class: system-logs
     volatility: live
@@ -69,6 +100,14 @@ artifacts:
     collected_by: show_logging
     description: Logging state and buffer. ArcaneDoor disabled syslog; a buffer that ends abruptly is a finding.
     seen_in: [LINE DANCER]
+    provides: >-
+      Logging state and the local buffer.
+    normal: >-
+      Logging enabled; a buffer that runs continuously up to now.
+    suspicious: >-
+      Logging disabled, or a buffer that stops abruptly - ArcaneDoor disabled
+      syslog.
+    basis: vendor
   - locator: show version (uptime)
     class: identity
     volatility: live
@@ -77,6 +116,13 @@ artifacts:
     confidence: high
     collected_by: show_version
     description: A low uptime (unexpected reboot) after the window is itself evidence; a reload also erased anything memory-only. ASA prints uptime here, not a reload reason.
+    provides: >-
+      Release and time since the last reload.
+    normal: >-
+      Uptime that matches the last planned maintenance.
+    suspicious: >-
+      A reload nobody planned after the window; it also erased anything memory-only.
+    basis: toolkit
   - locator: show running-config (logging, aaa, capture sections)
     class: config
     volatility: stable
@@ -86,6 +132,14 @@ artifacts:
     collected_by: show_running_config
     description: ArcaneDoor altered AAA and set up packet captures. Diff these sections first.
     seen_in: [LINE DANCER]
+    provides: >-
+      Logging, AAA and capture configuration.
+    normal: >-
+      Matches the backup and change records.
+    suspicious: >-
+      AAA changes or packet captures nobody owns - ArcaneDoor altered AAA and set up
+      captures.
+    basis: vendor
   - locator: show vpn-sessiondb anyconnect / show ssh sessions
     class: sessions
     volatility: live
@@ -94,6 +148,13 @@ artifacts:
     confidence: high
     collected_by: show_vpn_anyconnect
     description: Remote-access and management sessions now active.
+    provides: >-
+      Remote-access and management sessions now active.
+    normal: >-
+      Expected users; management SSH from management addresses.
+    suspicious: >-
+      Management sessions from the internet, users nobody recognises.
+    basis: toolkit
   - locator: Syslog receiver copies
     class: off-box
     volatility: off-box
@@ -102,6 +163,49 @@ artifacts:
     confidence: high
     collected_by: ingest
     description: The device stopped sending during LINE DANCER activity; the silence is the indicator.
+    provides: >-
+      The record the device could not suppress.
+    normal: >-
+      A continuous stream.
+    suspicious: >-
+      The device going quiet during the window - LINE DANCER disabled syslog -
+      or IDs 302013, 302014, 609002 and 710005 dropping out or falling in volume
+      while other messages continue (2025 activity).
+    basis: vendor
+  - locator: show kernel process | include lina_cs
+    class: process
+    volatility: live
+    forensic_value: high
+    evidence_type: [persistence, execution]
+    confidence: high
+    collected_by: show_kernel_lina_cs
+    description: Cisco's check for the 2026 FXOS persistent implant on Firepower and Secure Firewall hardware. Survives reload; a cold restart removes it, so collect before power is pulled.
+    seen_in: [FXOS lina_cs implant]
+    provides: >-
+      Whether a process named lina_cs is running in the base operating system.
+    normal: >-
+      No output. Cisco documents the legitimate lina_cs occasionally getting
+      stuck; verify disk0:/asdm.bin and run the command again.
+    suspicious: >-
+      Any output that survives that false-positive check - Cisco considers the
+      device compromised. The name can change, so no output is not proof.
+    basis: vendor
+  - locator: show checkheaps (twice)
+    class: memory
+    volatility: live
+    forensic_value: medium
+    evidence_type: [defense-evasion]
+    confidence: high
+    collected_by: show_checkheaps
+    description: The heap checker's run counter. Checkheaps runs every 60 seconds by default; the 2025 actor disabled it.
+    provides: >-
+      Seconds since the heap checker last ran and how many times it has run.
+    normal: >-
+      Total number of runs rising about once a minute.
+    suspicious: >-
+      A counter that does not rise across readings taken once a minute for five
+      minutes - Cisco calls this evidence of a potential compromise.
+    basis: vendor
 confidence: high
 references:
   - title: Cisco Talos - ArcaneDoor
@@ -113,4 +217,4 @@ references:
   - title: CISA ED 25-03 implementation guidance update
     url: https://www.cisa.gov/news-events/alerts/2025/11/12/update-implementation-guidance-emergency-directive-cisco-asa-and-firepower-device-vulnerabilities
     accessed: "2026-10-22"
-last_modified: "2026-10-22"
+last_modified: "2026-10-23"

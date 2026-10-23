@@ -60,6 +60,14 @@ artifacts:
       (appid, irad, lmpad, jdosd, oemd, to) but gives no process listing; the
       documented execution ran inside a hijacked cat process.
     seen_in: [UNC3886]
+    provides: >-
+      Running processes and their names.
+    normal: >-
+      The Junos daemons - appidd, irsd, lmpd, jddosd, oamd, top.
+    suspicious: >-
+      Exact names appid, irad, lmpad, jdosd, oemd or to, or a long-lived cat
+      process.
+    basis: researcher
   - locator: file list /var/tmp detail
     class: filesystem
     volatility: stable
@@ -72,6 +80,13 @@ artifacts:
       payload files and the FIFO named null sat in a deleted working directory
       (ldb) whose location is not given.
     seen_in: [UNC3886]
+    provides: >-
+      The temporary directory listing.
+    normal: >-
+      Traces and cores you can account for.
+    suspicious: >-
+      pfed_jdhcp6_trace.log, rts, the payload names, or a FIFO named null.
+    basis: researcher
   - locator: file list /var/log detail
     class: filesystem
     volatility: stable
@@ -81,6 +96,13 @@ artifacts:
     collected_by: listing_var_log
     description: utx.log0 is left behind by the actor's scripts; wtmp0 only after an interrupted session.
     seen_in: [UNC3886]
+    provides: >-
+      The log directory listing.
+    normal: >-
+      wtmp and utx.log.
+    suspicious: >-
+      utx.log0, or wtmp0 - left by the actor's scripts.
+    basis: researcher
   - locator: show log interactive-commands
     class: auth-logs
     volatility: rotating
@@ -89,6 +111,14 @@ artifacts:
     confidence: medium
     collected_by: log_interactive
     description: UI_CMDLINE_READ_LINE records of every CLI command. Edited by the actor; compare with the off-box copy.
+    provides: >-
+      Every CLI command with user and time.
+    normal: >-
+      Commands by known administrators.
+    suspicious: >-
+      start shell by anyone who should not have it, and gaps compared with the
+      off-box copy.
+    basis: vendor
   - locator: show log messages
     class: system-logs
     volatility: rotating
@@ -97,6 +127,13 @@ artifacts:
     confidence: high
     collected_by: log_messages
     description: UI_LOGIN_EVENT, UI_AUTH_EVENT and sshd records. Gaps around root activity are the finding.
+    provides: >-
+      Logins, authentication and SSH events.
+    normal: >-
+      Continuous records for known users.
+    suspicious: >-
+      Gaps around root activity - UNC3886 deleted every line containing "root".
+    basis: researcher
   - locator: show system commit
     class: config
     volatility: stable
@@ -105,6 +142,13 @@ artifacts:
     confidence: high
     collected_by: show_commits
     description: Who committed what and how (cli, other, autoinstall).
+    provides: >-
+      Commit history with user, time and method.
+    normal: >-
+      Commits that match change records.
+    suspicious: >-
+      Commits nobody owns, or made "via other".
+    basis: toolkit
   - locator: show configuration | display set
     class: config
     volatility: stable
@@ -113,6 +157,13 @@ artifacts:
     confidence: medium
     collected_by: show_config
     description: Diff for logins, classes, scripts and syslog destinations.
+    provides: >-
+      The configuration as set commands.
+    normal: >-
+      Matches the backup.
+    suspicious: >-
+      New logins or classes, scripts, or a syslog host removed.
+    basis: toolkit
   - locator: /config/usage_db and /var/db/config/usage_db
     class: persistence
     volatility: stable
@@ -122,6 +173,14 @@ artifacts:
     collected_by: listing_config_dir
     description: Tar archives of juniper.conf files the actor's scripts created and then deleted. Not confirmed to be absent on clean devices.
     seen_in: [UNC3886]
+    provides: >-
+      Archives of configuration files.
+    normal: >-
+      Not confirmed absent on clean devices.
+    suspicious: >-
+      Present - the actor's scripts created and deleted them, so one left behind
+      marks an interrupted session.
+    basis: researcher
   - locator: Syslog receiver copies
     class: off-box
     volatility: off-box
@@ -130,6 +189,13 @@ artifacts:
     confidence: high
     collected_by: ingest
     description: The only record the actor's log-line deletion and runtime /dev/null redirect did not reach. Silence from the device is itself evidence.
+    provides: >-
+      The record the actor's log deletion did not reach.
+    normal: >-
+      A continuous stream.
+    suspicious: >-
+      Silence from the device during the window.
+    basis: researcher
 confidence: high
 references:
   - title: Mandiant - China-nexus espionage targets Juniper routers (12 March 2025)

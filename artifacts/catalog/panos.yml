@@ -45,6 +45,16 @@ artifacts:
     collected_by: mp_gpsvc
     description: GlobalProtect service log. CVE-2024-3400 attempts leave "failed to unmarshal session(...)" entries whose session id is a path or command instead of a GUID.
     seen_in: [CVE-2024-3400]
+    provides: >-
+      GlobalProtect session-handling errors with the time, client address and the
+      session id each request presented.
+    normal: >-
+      Occasional "failed to unmarshal session" errors from broken clients, where the
+      session id is a GUID.
+    suspicious: >-
+      A path, ../, backticks, $( ), curl, wget or base64 where the GUID should be -
+      an exploitation attempt; success needs other evidence.
+    basis: vendor
   - locator: tail lines N mp-log sslvpn_ngx_error.log
     class: web-logs
     volatility: rotating
@@ -54,6 +64,14 @@ artifacts:
     collected_by: mp_sslvpn_ngx_error
     description: Portal nginx error log. UPSTYLE read its commands from requests logged here and deleted its own lines afterwards; a gap is as meaningful as a hit.
     seen_in: [UPSTYLE]
+    provides: >-
+      Portal web-server errors with client address and request line.
+    normal: >-
+      A steady stream of ordinary client errors with no gaps.
+    suspicious: >-
+      Requests carrying encoded commands, or a span of missing lines - UPSTYLE
+      deleted the lines it read its commands from.
+    basis: researcher
   - locator: /etc/cron.d/* and /var/spool/cron/*
     class: persistence
     volatility: stable
@@ -63,6 +81,14 @@ artifacts:
     collected_by: manual
     description: Cron persistence (wget piped to bash) installed after CVE-2024-3400 exploitation. Not reachable through the CLI; request through the vendor.
     seen_in: [CVE-2024-3400]
+    provides: >-
+      Scheduled jobs on the management plane.
+    normal: >-
+      Only the entries shipped with the release; customers have no shell to add
+      their own.
+    suspicious: >-
+      Any job that downloads content and pipes it to a shell.
+    basis: researcher
   - locator: /usr/lib/python3.6/site-packages/system.pth
     class: persistence
     volatility: stable
@@ -72,6 +98,14 @@ artifacts:
     collected_by: manual
     description: UPSTYLE loader. Python executes .pth files at interpreter start, so any .pth in site-packages that is not from a package needs explaining.
     seen_in: [UPSTYLE]
+    provides: >-
+      Python start-up hooks, which run on every interpreter start.
+    normal: >-
+      .pth files that belong to installed packages.
+    suspicious: >-
+      A system.pth, or any .pth not owned by a package, especially one that decodes
+      or executes code.
+    basis: researcher
   - locator: /var/appweb/sslvpndocs/global-protect/portal/css/bootstrap.min.css
     class: filesystem
     volatility: stable
@@ -81,6 +115,14 @@ artifacts:
     collected_by: ingest
     description: UPSTYLE wrote command output into this served CSS file and restored its timestamp afterwards. Compare against a clean copy of the same release.
     seen_in: [UPSTYLE]
+    provides: >-
+      A file the portal serves to anyone.
+    normal: >-
+      Byte-identical to the same file in a clean install of the same release.
+    suspicious: >-
+      A different hash or appended text, whatever the timestamp says - UPSTYLE
+      restored it.
+    basis: researcher
   - locator: /var/appweb/sslvpndocs/global-protect/portal/js/* and /var/appweb/htdocs/unauth/*
     class: filesystem
     volatility: stable
@@ -90,6 +132,14 @@ artifacts:
     collected_by: ingest
     description: Unauthenticated web roots. Copies of running_config.xml and web shells were staged here for retrieval without credentials.
     seen_in: [CVE-2024-3400, CVE-2024-0012]
+    provides: >-
+      Everything reachable on the portal without logging in.
+    normal: >-
+      The release's own scripts, styles and images.
+    suspicious: >-
+      Copies of running_config.xml, PHP or JSP files, or anything newer than the
+      install.
+    basis: researcher
   - locator: mp-monitor.log (inside the TSF)
     class: process
     volatility: rotating
@@ -98,6 +148,14 @@ artifacts:
     confidence: medium
     collected_by: ingest
     description: Periodic netstat and top snapshots. The nearest thing PAN-OS has to historical process and socket state.
+    provides: >-
+      Periodic process and socket snapshots from before you arrived.
+    normal: >-
+      The release's daemons and the management connections you expect.
+    suspicious: >-
+      Shells or interpreters holding sockets, unknown processes, outbound
+      connections from the management plane.
+    basis: toolkit
   - locator: show jobs all
     class: config
     volatility: live
@@ -106,6 +164,14 @@ artifacts:
     confidence: high
     collected_by: show_jobs
     description: Commits, content installs and exports with the admin who ran them. A config export job is the record of config theft through supported channels.
+    provides: >-
+      Commits, content installs and exports with the administrator and time.
+    normal: >-
+      Jobs that match change records.
+    suspicious: >-
+      Configuration exports or commits by unexpected administrators or at unexpected
+      times.
+    basis: toolkit
   - locator: show log system / config / auth
     class: system-logs
     volatility: rotating
@@ -115,6 +181,15 @@ artifacts:
     confidence: high
     collected_by: show_log_system
     description: System, configuration-audit and authentication logs. crond lines in the system log are where the cron persistence first shows.
+    provides: >-
+      System, configuration-audit and authentication events.
+    normal: >-
+      Logins by known administrators from management addresses; changes that match
+      change control.
+    suspicious: >-
+      crond lines running downloads, logins from new sources, configuration changes
+      nobody owns.
+    basis: toolkit
   - locator: Panorama / syslog receiver copies of the above
     class: off-box
     volatility: off-box
@@ -123,6 +198,14 @@ artifacts:
     confidence: high
     collected_by: ingest
     description: The copies the attacker is least likely to have touched. A gap in forwarding during the window is itself a finding.
+    provides: >-
+      The copies of the device's logs it cannot reach to edit.
+    normal: >-
+      Continuous forwarding that matches the device's own logs.
+    suspicious: >-
+      A forwarding gap during the window, or events off-box that are missing on the
+      device.
+    basis: toolkit
 confidence: high
 references:
   - title: Vendor advisory CVE-2024-3400

@@ -45,6 +45,14 @@ artifacts:
     collected_by: fetch_logs
     description: AAA events. Memory-disclosure attempts (Citrix Bleed class) surface as LOGIN_FAILED lines carrying non-printable leaked bytes; session reuse across addresses shows hijack.
     seen_in: [CVE-2023-4966, CVE-2025-5777]
+    provides: >-
+      AAA events - logins, failures and session handling.
+    normal: >-
+      Login failures with readable usernames.
+    suspicious: >-
+      Login failures carrying non-printable bytes (leaked memory), or one session
+      used from several addresses (hijack).
+    basis: researcher
   - locator: /var/log/httpaccess.log* and httperror.log*
     class: web-logs
     volatility: rotating
@@ -53,6 +61,15 @@ artifacts:
     confidence: medium
     collected_by: fetch_httpaccess
     description: Management and gateway web requests, including exploitation attempts against the SAML and gateway endpoints.
+    provides: >-
+      Web requests to the gateway and the management interface.
+    normal: >-
+      Gateway use from expected client addresses; management from management
+      addresses.
+    suspicious: >-
+      Management requests from the internet, oversized requests to authentication
+      endpoints, requests for PHP files that should not exist.
+    basis: toolkit
   - locator: /var/netscaler/logon/**/*.php, /var/vpn/**, /netscaler/ns_gui/**
     class: persistence
     volatility: stable
@@ -62,6 +79,14 @@ artifacts:
     collected_by: fetch_php
     description: Web roots where the 2023 mass-exploitation web shells lived. Shipped PHP is read-only; a writable or recently modified PHP file is a lead.
     seen_in: [CVE-2023-3519]
+    provides: >-
+      The PHP the gateway serves.
+    normal: >-
+      The release's files, read-only.
+    suspicious: >-
+      A writable or recently modified PHP file, or one containing eval, base64
+      decoding or request-parameter execution.
+    basis: vendor
   - locator: crontab -l, /etc/crontab
     class: persistence
     volatility: stable
@@ -70,6 +95,13 @@ artifacts:
     confidence: high
     collected_by: crontab_root
     description: Cron persistence.
+    provides: >-
+      Scheduled jobs.
+    normal: >-
+      The entries shipped with the release.
+    suspicious: >-
+      Entries that download content or run from /tmp.
+    basis: toolkit
   - locator: find /var /tmp /flash -perm -4000
     class: persistence
     volatility: stable
@@ -78,6 +110,13 @@ artifacts:
     confidence: medium
     collected_by: suid_files
     description: SUID binaries outside the shipped set.
+    provides: >-
+      Set-user-ID files.
+    normal: >-
+      The shipped set.
+    suspicious: >-
+      Set-user-ID files under /tmp, /var or /flash that the release does not ship.
+    basis: toolkit
   - locator: sockstat -46 / netstat -an / ps auxww
     class: process
     volatility: live
@@ -86,6 +125,14 @@ artifacts:
     confidence: high
     collected_by: shell_sockstat
     description: "A shell or interpreter owning a socket is a reverse shell. Trust is limited: a userland hook can hide processes from these binaries."
+    provides: >-
+      Listening and connected sockets with the owning process.
+    normal: >-
+      Known daemons listening on their usual ports.
+    suspicious: >-
+      sh, python or perl owning a socket - a reverse shell. A userland hook can hide
+      it, so absence is weak.
+    basis: toolkit
   - locator: show aaa session / show system session
     class: sessions
     volatility: live
@@ -94,6 +141,14 @@ artifacts:
     confidence: medium
     collected_by: show_aaa_session
     description: Gateway and management sessions now active.
+    provides: >-
+      Gateway and management sessions now active.
+    normal: >-
+      Known users from expected addresses.
+    suspicious: >-
+      Sessions from unexpected addresses, or the same session from several
+      addresses.
+    basis: toolkit
   - locator: Disk images of md0 (memory-disk root) and the persistent disk (da0/ad0/ada0 by model)
     class: filesystem
     volatility: live
@@ -102,6 +157,14 @@ artifacts:
     confidence: high
     collected_by: manual
     description: Offline triage that does not depend on the device's own binaries. Anything on md0 is lost at reboot.
+    provides: >-
+      The filesystems viewed without trusting the device's binaries.
+    normal: >-
+      Matches a clean image of the same release.
+    suspicious: >-
+      Any file the clean image does not have, and anything on md0 that should not
+      exist - it is gone at reboot.
+    basis: toolkit
 confidence: high
 references:
   - title: Fox-IT / NCC Group - approximately 2000 NetScalers backdoored

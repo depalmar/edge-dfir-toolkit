@@ -1,0 +1,29 @@
+title: Cisco ASA Clientless SSL VPN Session Through a Default Connection Profile (CVE-2023-20269)
+id: b1ddba4d-a565-434b-bb01-f73adedc6302
+status: experimental
+description: |
+  Cisco's indicator for CVE-2023-20269: a session establishment attempt
+  (%ASA-7-734003) or termination (%ASA-4-113019) that names DefaultADMINGroup or
+  DefaultL2LGroup "can indicate successful or attempted establishment of an
+  unauthorized clientless SSL VPN session". A termination carrying byte counts
+  means a session existed.
+references:
+  - https://sec.cloudapps.cisco.com/security/center/content/CiscoSecurityAdvisory/cisco-sa-asaftd-ravpn-auth-8LyfCkeC
+  - https://www.rapid7.com/blog/post/2023/08/29/under-siege-rapid7-observed-exploitation-of-cisco-asa-ssl-vpns/
+author: Raymond DePalma (edge-dfir-toolkit)
+date: 2026-10-23
+tags:
+  - attack.initial_access
+  - attack.t1133
+  - attack.t1078
+  - cve.2023-20269
+logsource:
+  product: cisco
+  service: asa
+detection:
+  selection:
+    Message|re: '%ASA-(7-734003|4-113019):.*\b(DefaultADMINGroup|DefaultL2LGroup)\b'
+  condition: selection
+falsepositives:
+  - Sites that deliberately use the default connection profiles for remote access.
+level: high

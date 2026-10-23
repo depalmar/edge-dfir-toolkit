@@ -54,6 +54,14 @@ artifacts:
     collected_by: manual
     description: The only customer-controlled path to memory. The 2026 intrusion patched a library in memory (the on-disk copy was never modified) and restored the in-memory patch afterwards; on-disk tooling still appeared in /tmp and /data/.icscap/.
     seen_in: [UTA0576 2026, SPAWN]
+    provides: >-
+      The appliance's memory, the only customer path to it.
+    normal: >-
+      Loaded libraries match their on-disk copies.
+    suspicious: >-
+      A library patched in memory but not on disk, and tooling under /tmp or
+      /data/.icscap/.
+    basis: researcher
   - locator: Internal ICT history (admin UI)
     class: integrity
     volatility: stable
@@ -63,6 +71,14 @@ artifacts:
     collected_by: manual
     description: One signal. Both the internal tool and an earlier external tool failed to detect compromise, and SPAWNANT re-signed the manifest.
     seen_in: [CVE-2023-46805, SPAWNANT]
+    provides: >-
+      The integrity checker's past results.
+    normal: >-
+      Clean results - which prove little, because SPAWNANT re-signed the manifest
+      and both checkers missed compromise.
+    suspicious: >-
+      New or mismatched files reported; treat any finding as real.
+    basis: researcher
   - locator: Events / User Access / Admin Access logs (admin UI export)
     class: auth-logs
     volatility: rotating
@@ -72,6 +88,14 @@ artifacts:
     collected_by: manual
     description: Local logs, subject to tampering; SPAWNSLOTH suppressed logging while the SSH backdoor ran and the operator removed entries by hand. Prefer the syslog copy.
     seen_in: [SPAWNSLOTH]
+    provides: >-
+      Authentication, user-access and administrator events.
+    normal: >-
+      Continuous entries; administrators from management addresses.
+    suspicious: >-
+      Gaps, especially while sessions were active, and administrator actions nobody
+      owns.
+    basis: researcher
   - locator: Syslog receiver copies of the above
     class: off-box
     volatility: off-box
@@ -81,6 +105,14 @@ artifacts:
     collected_by: ingest
     description: In 2025 the operator added iptables DROP rules on the syslog ports and SPAWNSLOTH suppressed logging in-process; a gap in the off-box stream dates the intrusion.
     seen_in: [SPAWN]
+    provides: >-
+      The copies of the logs the actor could not edit.
+    normal: >-
+      A continuous stream.
+    suspicious: >-
+      A gap - in 2025 the operator dropped syslog with iptables and SPAWNSLOTH
+      suppressed logging in-process.
+    basis: researcher
   - locator: system.cfg / user.cfg / XML export
     class: config
     volatility: stable
@@ -89,6 +121,13 @@ artifacts:
     confidence: high
     collected_by: manual
     description: Diff for new admin accounts, auth servers and resource policies.
+    provides: >-
+      The configuration, users and resource policies.
+    normal: >-
+      Matches the last export and the change records.
+    suspicious: >-
+      New administrator accounts, authentication servers or resource policies.
+    basis: toolkit
   - locator: Web-server request logs (where retained) for /api/v1/totp/user-backup-code/
     class: web-logs
     volatility: rotating
@@ -98,6 +137,14 @@ artifacts:
     collected_by: ingest
     description: The 2024 traversal chain is visible as a raw URI where the appliance or an upstream proxy logs it.
     seen_in: [CVE-2023-46805, CVE-2024-21887]
+    provides: >-
+      The raw request paths for the TOTP backup-code API.
+    normal: >-
+      No traversal sequences after /api/v1/totp/user-backup-code/.
+    suspicious: >-
+      ../ or %2e%2e after that path, and above all reaching license/keys-status -
+      the documented injection chain.
+    basis: researcher
   - locator: /home/runtime/dlogs/debuglog and /var/log/audit/audit.log (vendor-assisted)
     class: system-logs
     volatility: rotating
@@ -107,6 +154,14 @@ artifacts:
     collected_by: manual
     description: The 2026 actor removed its own lines from both. Compare against the syslog copy for gaps.
     seen_in: [UTA0576 2026]
+    provides: >-
+      Debug and audit records from inside the appliance.
+    normal: >-
+      Lines that line up with the syslog copy.
+    suspicious: >-
+      Lines present in the syslog copy but missing here - the 2026 actor removed its
+      own.
+    basis: researcher
 confidence: high
 references:
   - title: CISA AA24-060B

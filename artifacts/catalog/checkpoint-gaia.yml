@@ -49,6 +49,15 @@ artifacts:
     collected_by: fetch_cpm
     description: Management web service log. Check Point's CVE-2026-93616 indicators - oversized login usernames, traversal in version and upload paths, JAR path breakout.
     seen_in: [CVE-2026-93616]
+    provides: >-
+      Management web-service requests, logins and uploads.
+    normal: >-
+      Login usernames of ordinary length; version and upload paths without
+      traversal.
+    suspicious: >-
+      A username over 1,000 characters, traversal in version or upload paths, or a
+      JAR path that breaks out - Check Point's indicators.
+    basis: vendor
   - locator: /var/log/dump/usermode/
     class: system-logs
     volatility: stable
@@ -58,6 +67,13 @@ artifacts:
     collected_by: usermode_dumps
     description: fwm or mds core dumps alongside a CVE-2026-93616 indicator-1 hit.
     seen_in: [CVE-2026-93616]
+    provides: >-
+      User-mode core dumps.
+    normal: >-
+      None from fwm or mds.
+    suspicious: >-
+      An fwm or mds core dump at a time that lines up with a CPM indicator.
+    basis: vendor
   - locator: $FWDIR/log/vpnd.elg*
     class: web-logs
     volatility: rotating
@@ -67,6 +83,14 @@ artifacts:
     collected_by: fetch_vpnd
     description: A patched gateway logs "Suspected path traversal attack from" when it blocks a CVE-2024-24919 attempt.
     seen_in: [CVE-2024-24919]
+    provides: >-
+      Gateway VPN daemon events.
+    normal: >-
+      No traversal messages.
+    suspicious: >-
+      "Suspected path traversal attack from" - an attempt against a patched gateway,
+      naming the source to hunt.
+    basis: researcher
   - locator: SmartConsole - Mobile Access certificate logins
     class: auth-logs
     volatility: off-box
@@ -76,6 +100,13 @@ artifacts:
     collected_by: smartconsole_exports
     description: Subjects CN=vpn, CN=vpn-user or CN=vpnuser with OU=users,O=global were seen in CVE-2026-85102 exploitation.
     seen_in: [CVE-2026-85102]
+    provides: >-
+      Certificate-based Mobile Access logins with the subject presented.
+    normal: >-
+      Subjects issued by your own CA.
+    suspicious: >-
+      CN=vpn, CN=vpn-user or CN=vpnuser with OU=users,O=global.
+    basis: vendor
   - locator: SmartConsole - IKEv1 Key Install / Quick Mode completion
     class: auth-logs
     volatility: off-box
@@ -85,6 +116,13 @@ artifacts:
     collected_by: smartconsole_exports
     description: Any hit before the CVE-2026-50751 fix or mitigation is suspicious.
     seen_in: [CVE-2026-50751]
+    provides: >-
+      IKEv1 Remote Access key exchanges.
+    normal: >-
+      Known IKEv1 clients, after the fix or mitigation.
+    suspicious: >-
+      Events dated before the fix from sources that are not your clients.
+    basis: vendor
   - locator: SmartConsole Audit Logs - authentication method application token
     class: auth-logs
     volatility: off-box
@@ -94,6 +132,14 @@ artifacts:
     collected_by: smartconsole_exports
     description: Check Point's hunting query for the CVE-2026-16232 SmartConsole bypass.
     seen_in: [CVE-2026-16232]
+    provides: >-
+      Management logins that used an application token.
+    normal: >-
+      The integrations you configured, from their known addresses.
+    suspicious: >-
+      Application-token administrator logins from addresses you do not recognise or
+      that Check Point lists.
+    basis: vendor
   - locator: Mobile Access / VPN portal web logs (POST /clients/MyCRL)
     class: web-logs
     volatility: rotating
@@ -103,6 +149,13 @@ artifacts:
     collected_by: ingest
     description: The CVE-2024-24919 file read leaves only the request. Baseline sources first; the endpoint is also used legitimately.
     seen_in: [CVE-2024-24919]
+    provides: >-
+      Requests to the certificate-revocation endpoint.
+    normal: >-
+      CRL retrieval by your own clients.
+    suspicious: >-
+      POSTs carrying ../ or aCSHELL, or from arbitrary internet addresses.
+    basis: researcher
   - locator: listusers / cplp list / cpinfo -y all
     class: sessions
     volatility: live
@@ -111,6 +164,14 @@ artifacts:
     confidence: high
     collected_by: ma_users
     description: Mobile Access users connected now with source addresses; LivePatch and hotfix state decide which 2026 flaws were ever exploitable.
+    provides: >-
+      Mobile Access users now, and the hotfix and LivePatch state.
+    normal: >-
+      Users you expect; hotfix levels at or above each fix.
+    suspicious: >-
+      Users nobody recognises; a hotfix level below the fix during the window means
+      the flaw was exploitable.
+    basis: vendor
 confidence: high
 references:
   - title: Check Point sk1000171 - CVE-2026-93616

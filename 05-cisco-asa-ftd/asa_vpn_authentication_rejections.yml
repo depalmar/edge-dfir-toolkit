@@ -1,0 +1,33 @@
+title: Cisco ASA Remote Access VPN Authentication Rejections (Spray or Flood)
+id: 8374834c-b36e-40ca-9be4-857c60e049da
+status: experimental
+description: |
+  The rejection messages Cisco lists for password spraying and the CVE-2024-20481
+  authentication flood: %ASA-6-113005, %ASA-6-113015 and %ASA-6-716039. Cisco:
+  the indicator is these messages occurring "frequently and in large quantities",
+  and which one appears depends on configuration. One rejection means nothing;
+  feed this selection to a per-source and per-device rate threshold in the SIEM.
+  Also the first signal of CVE-2023-20269 brute forcing.
+references:
+  - https://sec.cloudapps.cisco.com/security/center/content/CiscoSecurityAdvisory/cisco-sa-asaftd-bf-dos-vDZhLqrW
+  - https://sec.cloudapps.cisco.com/security/center/content/CiscoSecurityAdvisory/cisco-sa-asaftd-ravpn-auth-8LyfCkeC
+author: Raymond DePalma (edge-dfir-toolkit)
+date: 2026-10-23
+tags:
+  - attack.credential_access
+  - attack.t1110.003
+  - attack.impact
+  - attack.t1499
+  - cve.2024-20481
+  - cve.2023-20269
+  - edge-dfir.standalone
+logsource:
+  product: cisco
+  service: asa
+detection:
+  selection:
+    Message|re: '%ASA-6-(113005|113015|716039):'
+  condition: selection
+falsepositives:
+  - Every failed login. Meaningful only as a rate against the device's own baseline.
+level: low

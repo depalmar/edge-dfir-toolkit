@@ -1,0 +1,44 @@
+# Detection pack EDGE-PACK-0019
+
+id: EDGE-PACK-0019
+name: Cisco ASA / FTD remote access VPN abuse (CVE-2023-20269, CVE-2024-20481)
+platforms: [EDGE-0005]
+cves: [CVE-2023-20269, CVE-2024-20481]
+summary: >-
+  Two exploited flaws in remote access VPN authentication. CVE-2023-20269 lets
+  an attacker brute-force credentials or open a clientless SSL VPN session
+  through the default DefaultADMINGroup or DefaultL2LGroup connection profiles;
+  Cisco credits Rapid7 for reporting attempted exploitation, and Rapid7 tied
+  incidents to Akira and LockBit ransomware. CVE-2024-20481 is a denial of
+  service by authentication flood; Cisco is aware of malicious use. Both leave
+  their trace in syslog, so the local buffer is read here and the forwarded
+  copy is where volume can be judged.
+confidence: high
+references:
+  - title: Cisco - CVE-2023-20269 advisory (cisco-sa-asaftd-ravpn-auth-8LyfCkeC)
+    url: https://sec.cloudapps.cisco.com/security/center/content/CiscoSecurityAdvisory/cisco-sa-asaftd-ravpn-auth-8LyfCkeC
+    accessed: "2026-10-23"
+  - title: Cisco - CVE-2024-20481 advisory (cisco-sa-asaftd-bf-dos-vDZhLqrW)
+    url: https://sec.cloudapps.cisco.com/security/center/content/CiscoSecurityAdvisory/cisco-sa-asaftd-bf-dos-vDZhLqrW
+    accessed: "2026-10-23"
+  - title: Rapid7 - Under siege, observed exploitation of Cisco ASA SSL VPNs
+    url: https://www.rapid7.com/blog/post/2023/08/29/under-siege-rapid7-observed-exploitation-of-cisco-asa-ssl-vpns/
+    accessed: "2026-10-23"
+
+detect:
+  - id: asa-20269-default-group-session
+    title: Clientless SSL VPN session through DefaultADMINGroup or DefaultL2LGroup
+    type: log_regex
+    tier: possible
+    evidence_class: auth-logs
+    sigma: [05-cisco-asa-ftd/asa_cve_2023_20269_default_group_session.yml]
+    sources:
+      steps: [show_logging]
+      files: ["**/*asa*.log*", "**/*syslog*"]
+    pattern: '%ASA-(7-734003|4-113019):.*\b(DefaultADMINGroup|DefaultL2LGroup)\b'
+    attack: [T1133, T1078]
+    notes: >-
+      Cisco: these messages naming an unexpected default profile "can indicate
+      successful or attempted establishment of an unauthorized clientless SSL VPN
+      session". A 113019 termination with byte counts means a session existed.
+      Possible, not likely, because a site may use these profiles on purpose.

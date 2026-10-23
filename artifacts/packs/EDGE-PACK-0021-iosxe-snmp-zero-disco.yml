@@ -1,0 +1,57 @@
+# Detection pack EDGE-PACK-0021
+
+id: EDGE-PACK-0021
+name: Cisco IOS XE SNMP stack overflow - Operation Zero Disco (CVE-2025-20352)
+platforms: [EDGE-0009]
+cves: [CVE-2025-20352]
+summary: >-
+  An SNMP stack overflow giving denial of service with a read-only community,
+  and root code execution on IOS XE when the attacker also has privilege-15
+  credentials. Cisco confirmed exploitation after local administrator
+  credentials were compromised and publishes no indicators. Trend Micro's
+  Operation Zero Disco names no actor and reports fileless IOSd hooks on 9300
+  and 9400 switches (and legacy 3750G) that can hide accounts, EEM scripts and
+  ACLs from the running configuration and reset the last-write timestamp. The
+  names Trend observed are matched here; with hiding enabled they will not show,
+  so no hit is weak evidence. Trend: no automated tool reliably determines
+  compromise; it recommends a Cisco TAC low-level investigation.
+confidence: low
+unverified: true
+references:
+  - title: Cisco - SNMP denial of service and remote code execution (cisco-sa-snmp-x4LPhte)
+    url: https://sec.cloudapps.cisco.com/security/center/content/CiscoSecurityAdvisory/cisco-sa-snmp-x4LPhte
+    accessed: "2026-10-23"
+  - title: Trend Micro - Operation Zero Disco
+    url: https://www.trendmicro.com/en/research/25/j/operation-zero-disco-cisco-snmp-vulnerability-exploit.html
+    accessed: "2026-10-23"
+
+detect:
+  - id: iosxe-zerodisco-config-names
+    title: Account, EEM or ACL name reported by Zero Disco
+    type: log_regex
+    tier: likely
+    evidence_class: config
+    sources:
+      steps: [show_running_config]
+      files: ["**/*startup*config*", "**/*running*config*"]
+    pattern: '\b(dg[3-7]y8[d-h]pk|CiscoEMX-[1-5]|EnaQWklg[0-2])\b'
+    attack: [T1136.001, T1562.001]
+    notes: >-
+      Trend lists accounts dg3y8dpk to dg7y8hpk, EEM scripts CiscoEMX-1 to
+      CiscoEMX-5 and ACLs EnaQWklg0 to EnaQWklg2. The rootkit can hide exactly
+      these from the running configuration, so also run this against a startup
+      configuration or a backup taken off the device.
+
+  - id: iosxe-zerodisco-tool-files
+    title: File named in Trend's Zero Disco indicators
+    type: log_regex
+    tier: likely
+    evidence_class: filesystem
+    sources:
+      steps: [dir_all]
+    pattern: '\b(UDPcontrol\.tar|C93K_Toolkit_GD_V1\.tar|TracelogRStop_RV2_[12]\.tar|transport_force_all_[12]\.tar|tsfz-trans\.zip|tnsz\.zip)\s*$'
+    flags: [ignorecase]
+    attack: [T1105]
+    notes: >-
+      File names from Trend's indicator list. Trend's arp-spoofing tool a2p is
+      too short a name to match safely and is left to the hash list.

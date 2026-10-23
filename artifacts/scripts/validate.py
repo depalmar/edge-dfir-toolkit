@@ -147,6 +147,11 @@ def main() -> int:
                 err(f"catalog {pid}: artifact collected_by '{cb}' is not a step, 'ingest' or 'manual'")
             if a.get("confidence") == "low" and not a.get("unverified"):
                 err(f"catalog {pid}: a low-confidence artifact needs unverified: true")
+            # Reading guidance travels together: a suspicious criterion always says
+            # where it comes from, and is never stated without the normal baseline.
+            g = [k for k in ("normal", "suspicious", "basis") if a.get(k)]
+            if g and len(g) != 3:
+                err(f"catalog {pid}: artifact '{a.get('locator')}' has {g} - normal, suspicious and basis go together")
 
     # ---- threat intel: implants and actors
     iv = schema("implant.schema.json")

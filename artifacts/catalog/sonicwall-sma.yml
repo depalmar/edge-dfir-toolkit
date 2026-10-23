@@ -34,6 +34,14 @@ artifacts:
     collected_by: ingest
     description: OVERSTEP loaded through the dynamic linker's preload file. Visible only on an offline image because the hook hides it from on-box tools.
     seen_in: [OVERSTEP]
+    provides: >-
+      Libraries the dynamic linker loads into every process.
+    normal: >-
+      Typically absent or empty on an appliance; compare with a clean image.
+    suspicious: >-
+      Any entry, and above all the OVERSTEP library - visible only offline because
+      the hook hides it.
+    basis: researcher
   - locator: /usr/lib/libsamba-errors.so.6 (offline image)
     class: persistence
     volatility: stable
@@ -43,6 +51,13 @@ artifacts:
     collected_by: ingest
     description: The OVERSTEP library.
     seen_in: [OVERSTEP]
+    provides: >-
+      The library file itself.
+    normal: >-
+      Matches the clean firmware image.
+    suspicious: >-
+      Present or different from the clean image - the OVERSTEP library.
+    basis: researcher
   - locator: /etc/rc.d/rc.fwboot and the INITRD (offline image)
     class: persistence
     volatility: stable
@@ -52,6 +67,13 @@ artifacts:
     collected_by: ingest
     description: Boot script and initrd modified to re-establish the rootkit on boot.
     seen_in: [OVERSTEP]
+    provides: >-
+      The boot script and initial ramdisk.
+    normal: >-
+      Match the clean firmware image.
+    suspicious: >-
+      Modified - OVERSTEP re-established itself on boot this way.
+    basis: researcher
   - locator: Tech support report and exported logs
     class: system-logs
     volatility: rotating
@@ -61,6 +83,13 @@ artifacts:
     collected_by: ingest
     description: OVERSTEP removed its own log lines, so these establish the baseline of what is missing rather than what happened.
     seen_in: [OVERSTEP]
+    provides: >-
+      Exported logs and the support report.
+    normal: >-
+      Lines that line up with the syslog copy.
+    suspicious: >-
+      Lines missing compared with the syslog copy - OVERSTEP deleted its own.
+    basis: researcher
 confidence: medium
 references:
   - title: Google Threat Intelligence Group - SonicWall SMA exploitation and the OVERSTEP backdoor (16 July 2025)

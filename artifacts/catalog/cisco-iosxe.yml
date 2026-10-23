@@ -54,6 +54,13 @@ artifacts:
     confidence: high
     collected_by: iosd_smaps
     description: An rwxp iosd segment with Private_Dirty above zero may indicate tampered running code (Cisco's forensic guide).
+    provides: >-
+      The memory map of the IOSd process.
+    normal: >-
+      Executable segments are read-only (r-xp), clean copies of the image.
+    suspicious: >-
+      A writable executable segment (rwxp) with Private_Dirty above zero.
+    basis: vendor
   - locator: show running-config
     class: config
     volatility: stable
@@ -63,6 +70,14 @@ artifacts:
     collected_by: show_running_config
     description: Privilege-15 local users, ip http server, monitor capture, tunnels, ACL and TACACS+ changes, EEM applets.
     seen_in: [CVE-2023-20198, AA25-239A]
+    provides: >-
+      The running configuration.
+    normal: >-
+      Matches the backup and change records.
+    suspicious: >-
+      Unknown privilege-15 users (cisco_tac_admin, cisco_support), the HTTP server
+      on, packet captures, new tunnels, ACLs or TACACS+ servers.
+    basis: vendor
   - locator: show logging
     class: system-logs
     volatility: rotating
@@ -72,6 +87,14 @@ artifacts:
     collected_by: show_logging
     description: "%SYS-5-CONFIG_P from SEP_webui_wsma_http and %WEBUI-6-INSTALL_OPERATION_INFO ADD were the 2023 hunting strings."
     seen_in: [CVE-2023-20198]
+    provides: >-
+      The local log buffer.
+    normal: >-
+      Configuration changes by known users from the CLI.
+    suspicious: >-
+      "%SYS-5-CONFIG_P" by SEP_webui_wsma_http, or "%WEBUI-6-INSTALL_OPERATION_INFO"
+      with ADD.
+    basis: vendor
   - locator: dir /recursive all-filesystems
     class: filesystem
     volatility: stable
@@ -81,6 +104,13 @@ artifacts:
     collected_by: dir_all
     description: Packet captures on bootflash (tac.pcap, mycap.pcap, 1.pcap) and system_shell trace logs.
     seen_in: [AA25-239A]
+    provides: >-
+      Every file on every filesystem.
+    normal: >-
+      Images and files with an owner.
+    suspicious: >-
+      tac.pcap, mycap.pcap or 1.pcap, or any capture file nobody owns.
+    basis: government
   - locator: show platform integrity sign nonce / show software authenticity running
     class: integrity
     volatility: live
@@ -89,6 +119,13 @@ artifacts:
     confidence: high
     collected_by: platform_integrity
     description: Signed measurements and image signature checks, collected for the Cisco TAC service request as the guide directs.
+    provides: >-
+      Signed boot and image measurements for Cisco to assess.
+    normal: >-
+      What Cisco TAC confirms for the release.
+    suspicious: >-
+      Whatever TAC reports as mismatched.
+    basis: vendor
   - locator: Cisco implant check response (curl to /webui/logoutconfirm.html)
     class: memory
     volatility: live
@@ -98,6 +135,15 @@ artifacts:
     collected_by: manual
     description: A hexadecimal response means a known implant is present. Works only if the web server was restarted after implanting (Talos). Gone after reboot.
     seen_in: [CVE-2023-20198]
+    provides: >-
+      Cisco's HTTP implant check result.
+    normal: >-
+      No hexadecimal string; the %25 probe returns 200 with a JavaScript redirect
+      (no known variant).
+    suspicious: >-
+      A hexadecimal string, or a 404 or login page from the %25 probe (known
+      variants).
+    basis: vendor
   - locator: Web server request logs (upstream proxy or WAF)
     class: web-logs
     volatility: rotating
@@ -107,6 +153,14 @@ artifacts:
     collected_by: ingest
     description: Requests to /webui_wsma_http, including double-encoded forms.
     seen_in: [AA25-239A]
+    provides: >-
+      Requests reaching the web UI's services endpoint.
+    normal: >-
+      None, unless you manage the device through that interface.
+    suspicious: >-
+      Requests to /webui_wsma_http(s), including single- and double-encoded forms. A
+      Proxy-Uri-Source header means a patched device.
+    basis: government
   - locator: Syslog receiver copies
     class: off-box
     volatility: off-box
@@ -115,6 +169,13 @@ artifacts:
     confidence: high
     collected_by: ingest
     description: Survives the log clearing seen in 2023.
+    provides: >-
+      The record that survived log clearing.
+    normal: >-
+      A continuous stream.
+    suspicious: >-
+      Gaps matching a clear logging on the device.
+    basis: researcher
 confidence: high
 references:
   - title: Cisco IOS XE forensic investigation guide (v1.7, April 2026)

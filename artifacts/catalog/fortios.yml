@@ -43,6 +43,14 @@ artifacts:
     confidence: high
     collected_by: fs_hash
     description: SHA-256 of system files (FortiOS 7.0.13+, 7.2.6+, 7.4.0+). Only meaningful against a baseline from the same build; the toolkit refuses to score it without one.
+    provides: >-
+      A SHA-256 for every system file.
+    normal: >-
+      Identical to a baseline from a known-good device on the same build.
+    suspicious: >-
+      Files that differ from, or are missing in, that baseline. Without a baseline
+      the output proves nothing.
+    basis: vendor
   - locator: diagnose debug crashlog read
     class: system-logs
     volatility: stable
@@ -52,6 +60,13 @@ artifacts:
     collected_by: crashlog
     description: Crash log; persists across reboots. sslvpnd signal 11 crashes were the vendor's published indicator for CVE-2022-42475 attempts.
     seen_in: [CVE-2022-42475]
+    provides: >-
+      Daemon crashes with process and signal, kept across reboots.
+    normal: >-
+      Rare crashes that match a known bug in the release notes.
+    suspicious: >-
+      sslvpnd crashing with signal 11, especially repeatedly around the window.
+    basis: vendor
   - locator: SSL-VPN language-file directory (operator-supplied path)
     class: persistence
     volatility: stable
@@ -62,6 +77,14 @@ artifacts:
     collected_by: listing_sslvpn_lang
     description: Where the 2025 symlink persistence lived, giving read-only root filesystem access that survived patching. The exact path is not confirmed by this project; supply it with --var.
     seen_in: [symlink persistence 2025]
+    provides: >-
+      The files SSL-VPN serves as language resources.
+    normal: >-
+      Regular files from the release.
+    suspicious: >-
+      A symbolic link - the 2025 persistence linked this directory to the root
+      filesystem.
+    basis: vendor
   - locator: diagnose sys top
     class: process
     volatility: live
@@ -70,6 +93,14 @@ artifacts:
     confidence: medium
     collected_by: diag_sys_top
     description: Process snapshot. Implanted daemons and renamed binaries show here first.
+    provides: >-
+      Running processes with CPU and memory.
+    normal: >-
+      The release's daemons.
+    suspicious: >-
+      Unknown process names, renamed binaries, or a daemon you do not use consuming
+      CPU.
+    basis: toolkit
   - locator: get system admin list / get vpn ssl monitor
     class: sessions
     volatility: live
@@ -78,6 +109,15 @@ artifacts:
     confidence: high
     collected_by: get_admin_list
     description: Administrators and SSL-VPN users logged in now, with source address.
+    provides: >-
+      Administrators and SSL-VPN users logged in now, with source addresses.
+    normal: >-
+      Known administrators from management addresses; VPN users from places they
+      work.
+    suspicious: >-
+      Administrator sessions from internet addresses, accounts nobody recognises,
+      sessions for disabled users.
+    basis: toolkit
   - locator: show (full configuration)
     class: config
     volatility: stable
@@ -86,6 +126,14 @@ artifacts:
     confidence: high
     collected_by: show_config
     description: Diff against backup for new admins, local users, SSL-VPN portals, automation stitches and scripts.
+    provides: >-
+      The full configuration.
+    normal: >-
+      Matches the last backup and the change records.
+    suspicious: >-
+      New administrators, local users, SSL-VPN portals, automation stitches or
+      scripts that nobody owns.
+    basis: toolkit
   - locator: FortiAnalyzer / FortiCloud / syslog event, VPN and admin logs
     class: off-box
     volatility: off-box
@@ -94,6 +142,14 @@ artifacts:
     confidence: high
     collected_by: ingest
     description: Off-box copies for the full retention window; on-box logs are short and attacker-reachable.
+    provides: >-
+      Event, VPN and administrator logs for the full retention window.
+    normal: >-
+      Continuous logs; administrator logins from management addresses.
+    suspicious: >-
+      Administrator logins from unknown addresses, new accounts, or gaps in the
+      stream.
+    basis: toolkit
 confidence: high
 references:
   - title: Fortinet PSIRT - analysis of threat actor activity

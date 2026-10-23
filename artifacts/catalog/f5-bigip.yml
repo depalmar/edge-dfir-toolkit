@@ -57,6 +57,13 @@ artifacts:
     collected_by: ioc_files
     description: Runtime files F5 names as c05d5254 indicators.
     seen_in: [c05d5254]
+    provides: >-
+      Runtime files under /run.
+    normal: >-
+      Neither file present.
+    suspicious: >-
+      Either file present - F5 lists both as c05d5254 indicators.
+    basis: vendor
   - locator: getenforce / semanage permissive -l
     class: integrity
     volatility: live
@@ -66,6 +73,13 @@ artifacts:
     collected_by: getenforce
     description: Anything but Enforcing, or httpd_t, mount_t or apd_t permissive, is an F5-listed indicator.
     seen_in: [c05d5254]
+    provides: >-
+      SELinux mode and permissive domains.
+    normal: >-
+      Enforcing, with no permissive domains.
+    suspicious: >-
+      Permissive, or httpd_t, mount_t or apd_t permissive.
+    basis: vendor
   - locator: /var/log/restjavad-audit.*.log
     class: web-logs
     volatility: rotating
@@ -75,6 +89,13 @@ artifacts:
     collected_by: fetch_restjavad_audit
     description: POSTs to /mgmt/tm/util/bash, the shared follow-on of CVE-2022-1388 and c05d5254.
     seen_in: [CVE-2022-1388, c05d5254]
+    provides: >-
+      iControl REST requests with user, method and URI.
+    normal: >-
+      Calls by known automation accounts.
+    suspicious: >-
+      POSTs to /mgmt/tm/util/bash, above all by f5hubblelcdadmin.
+    basis: vendor
   - locator: /var/log/audit
     class: system-logs
     volatility: rotating
@@ -83,6 +104,13 @@ artifacts:
     confidence: high
     collected_by: fetch_audit
     description: tmsh command audit, including run util bash entries.
+    provides: >-
+      tmsh commands with user and command data.
+    normal: >-
+      Commands by known administrators that match change records.
+    suspicious: >-
+      run util bash -c with download or decode commands, or by f5hubblelcdadmin.
+    basis: vendor
   - locator: /var/log/apm
     class: auth-logs
     volatility: rotating
@@ -92,6 +120,14 @@ artifacts:
     collected_by: fetch_apm
     description: CVE-2026-94127 attempts as bursts of 01990004 invalid_token UserInfo failures.
     seen_in: [CVE-2026-94127]
+    provides: >-
+      APM OAuth and access events.
+    normal: >-
+      Occasional invalid_token failures from expired tokens.
+    suspicious: >-
+      Ten or more UserInfo invalid_token failures in one log, especially from one
+      address.
+    basis: vendor
   - locator: /var/log/tomcat/catalina.out
     class: web-logs
     volatility: rotating
@@ -103,6 +139,13 @@ artifacts:
       "java.sql.SQLException: Column not found: 0." followed by "sh: no job
       control in this shell" marked CVE-2023-46748.
     seen_in: [CVE-2023-46748]
+    provides: >-
+      The Configuration utility's Tomcat log.
+    normal: >-
+      Java errors without shell output.
+    suspicious: >-
+      "Column not found: 0." followed by "sh: no job control in this shell".
+    basis: vendor
   - locator: /config/startup, /etc/rc.d/rc.local, cron, /usr/local/www hidden files
     class: persistence
     volatility: stable
@@ -111,6 +154,13 @@ artifacts:
     confidence: high
     collected_by: startup_script
     description: Persistence locations from F5's compromise-checking articles.
+    provides: >-
+      Start-up scripts, scheduled jobs and web content.
+    normal: >-
+      Shipped content and customisations you documented.
+    suspicious: >-
+      Added commands, or hidden files under /usr/local/www.
+    basis: vendor
   - locator: tmsh list ltm rule
     class: config
     volatility: stable
@@ -119,6 +169,13 @@ artifacts:
     confidence: high
     collected_by: irules
     description: iRules can capture or redirect traffic on the data plane; diff against change control.
+    provides: >-
+      The iRules attached to traffic.
+    normal: >-
+      iRules in change control.
+    suspicious: >-
+      iRules nobody approved that log credentials, forward traffic or redirect it.
+    basis: toolkit
   - locator: Syslog receiver and SIEM copies
     class: off-box
     volatility: off-box
@@ -127,6 +184,13 @@ artifacts:
     confidence: high
     collected_by: ingest
     description: F5 asks customers to stream events to a SIEM (K13080, K13426); those copies outlast on-box rotation.
+    provides: >-
+      The copies of the logs that outlast on-box rotation.
+    normal: >-
+      A continuous stream.
+    suspicious: >-
+      Gaps during the window, or events off-box that are missing on the device.
+    basis: toolkit
 confidence: high
 references:
   - title: F5 K11438344 - checking a BIG-IP system for compromise
