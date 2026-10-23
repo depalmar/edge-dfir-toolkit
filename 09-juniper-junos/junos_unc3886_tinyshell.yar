@@ -1,7 +1,10 @@
 /*
    UNC3886 TINYSHELL-based backdoors on Juniper Junos (Mandiant, 12 March 2025).
    Strings are the magic values, passive-listener stop string and RC4 keys Mandiant published for
-   the irad, lmpad and jdosd variants. For files recovered from a device through
+   the irad, lmpad and jdosd variants. Mandiant gives them as protocol constants and does not say
+   how they are stored in the binaries; matching them as ASCII is this toolkit's assumption, so
+   no hit is weak evidence. Mandiant's own file rules are in junos_tinyshell_mandiant_hunting.yar.
+   The backdoors are not CVE-2025-21590; that CVE is the injection technique used to run lmpad. For files recovered from a device through
    JTAC or an image - the Junos CLI cannot read the binaries.
 
    Reference: https://cloud.google.com/blog/topics/threat-intelligence/china-nexus-espionage-targets-juniper-routers
@@ -14,7 +17,6 @@ rule Junos_UNC3886_TINYSHELL_Published_Strings
         author = "Raymond DePalma (edge-dfir-toolkit)"
         date = "2026-10-22"
         reference = "https://cloud.google.com/blog/topics/threat-intelligence/china-nexus-espionage-targets-juniper-routers"
-        cve = "CVE-2025-21590"
         severity = "critical"
     strings:
         $irad_magic = "uSarguuS62bKRA0J" ascii

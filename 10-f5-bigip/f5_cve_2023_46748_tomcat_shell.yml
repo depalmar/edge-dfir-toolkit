@@ -4,7 +4,7 @@ status: experimental
 description: 'F5''s indicator for the Configuration utility SQL injection: "sh: no job control in this
   shell" in
 
-  catalina.out, following "java.sql.SQLException: Column not found: 0.". A shell banner in the
+  catalina.out, following "java.sql.SQLException: Column not found: 0." (F5: the 0 "can be replaced with a different number"). A shell banner in the
 
   Tomcat log has no ordinary cause.
 

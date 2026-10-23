@@ -31,27 +31,31 @@ _PRIV_DIRTY = re.compile(r"^Private_Dirty:\s+(?P<kb>\d+)\s*kB", re.I)
 
 @check("iosxe_iosd_rwx_dirty")
 def iosxe_iosd_rwx_dirty(view, det):
-    """Executable and writable IOSd memory with dirty pages.
+    """Executable IOSd memory with dirty pages.
 
-    Cisco's IOS XE forensic guide: in the smaps of the iosd process, an rwxp
-    segment whose Private_Dirty is above zero "may indicate" the running code
-    has been tampered with. Unmodified code pages are clean copies of the image,
-    so a dirty executable-and-writable page means something wrote to code.
+    Cisco's IOS XE forensic guide checks the iosd smaps "for non-zero values in
+    the Private Dirty entry for each segment with the executable flag set (i.e.,
+    r-xp or rwxp)". Its worked example of possible tampering is an rwxp segment
+    with Private_Dirty above zero, so that is the default; a detection can pass
+    `args: {perms: [r-xp]}` to report dirty r-xp segments separately, at a lower
+    tier, since Cisco gives no example of what a dirty r-xp segment means.
 
-    Zero parsed mapping headers (an error message, a switch that needs the
-    `switch active` form, a truncated capture) is 'not evaluated', never 'no hit'.
+    Zero parsed mapping headers (an error message, a switch that needs another
+    form of the command, a truncated capture) is 'not evaluated', never 'no hit'.
     """
+    perms = tuple(p.lower() for p in (det.get("args") or {}).get("perms", ["rwxp"]))
     hits, headers = [], 0
-    for step in ("iosd_smaps", "iosd_smaps_switch"):   # router form, Catalyst switch form
+    # Router form, Catalyst switch form, and the switch form with r0 for rp.
+    for step in ("iosd_smaps", "iosd_smaps_switch", "iosd_smaps_switch_r0"):
         text = view.step_text(step)
         if text is not None:
-            headers += _scan_smaps(text, step, hits)
+            headers += _scan_smaps(text, step, hits, perms)
     if headers == 0:
         return False, []
     return True, hits
 
 
-def _scan_smaps(text: str, step: str, hits: list) -> int:
+def _scan_smaps(text: str, step: str, hits: list, perms: tuple[str, ...] = ("rwxp",)) -> int:
     headers = 0
     cur = None  # (line_no, header_line, perms)
     for n, raw in enumerate(text.splitlines(), 1):
@@ -62,9 +66,9 @@ def _scan_smaps(text: str, step: str, hits: list) -> int:
             cur = (n, line, h.group("perms").lower())
             continue
         d = _PRIV_DIRTY.match(line)
-        if d and cur and cur[2] == "rwxp" and int(d.group("kb")) > 0:
+        if d and cur and cur[2] in perms and int(d.group("kb")) > 0:
             hits.append(Hit(f"step:{step}",
-                            f"rwxp iosd segment with Private_Dirty {d.group('kb')} kB",
+                            f"{cur[2]} iosd segment with Private_Dirty {d.group('kb')} kB",
                             line=cur[0], excerpt=excerpt(cur[1]),
                             extra={"private_dirty_kb": int(d.group("kb"))}))
             cur = None
@@ -76,10 +80,12 @@ def asa_lina_exec_regions(view, det):
     """LINE DANCER indicator from the vendor's ArcaneDoor guidance.
 
     The indicator is more than one executable (r-x) memory region mapped to
-    lina, one often exactly 0x1000 bytes. This is a lead, not proof: NCSC's
-    analysis notes that some healthy devices legitimately show two (and in one
-    case five) executable lina regions, so the hit tier is 'likely' and the
-    region list is handed to the analyst to judge, never auto-confirmed.
+    lina, especially one of exactly 0x1000 bytes (Talos). NCSC's 2 or 5 is the
+    number of lina regions of all permissions, which varies by release and "in
+    itself is not an indicator of compromise"; a split text section giving
+    "multiple executable memory regions for lina" is what NCSC calls suspicious,
+    and one of size 0x1000 "a strong indicator of compromise". The hit tier is
+    'likely' and the region list is handed to the analyst, never auto-confirmed.
     """
     text = view.step_text("mem_region_lina") or view.step_text("mem_region_full")
     src = "step:mem_region_lina" if view.step_text("mem_region_lina") else "step:mem_region_full"
@@ -104,7 +110,8 @@ def asa_lina_exec_regions(view, det):
     detail = f"{len(execs)} executable lina regions"
     if page:
         detail += f"; {len(page)} of exactly 0x1000 bytes"
-    detail += " (NCSC notes 2 or occasionally 5 can be normal; review the list)"
+    detail += (" (Talos and NCSC treat more than one r-xp lina region as the indicator; NCSC's"
+               " 2 or 5 counts lina regions of all permissions and is not a normal range for r-xp)")
     return True, [Hit(src, detail, line=n, excerpt=excerpt(line),
                       extra={"length": hex(length)}) for n, line, length in execs]
 
@@ -123,15 +130,18 @@ _CH_ELAPSED = re.compile(r"^\s*Time elapsed since last run\s*:\s*(\d+)\s*secs?\s
 def asa_checkheaps_stalled(view, det):
     """Checkheaps counter that did not move between two snapshots.
 
-    Cisco: checkheaps runs every 60 seconds by default, the actor disabled it,
-    and a Total number of runs that does not rise is "evidence of a potential
-    compromise". Cisco's procedure is five readings a minute apart; the profile
-    takes two, at the start and the end of collection.
+    Cisco: checkheaps runs every 60 seconds by default and the actor disabled it.
+    CISA's ED 25-03 procedure takes two readings: "Wait at least five minutes,
+    then run "show checkheaps" again", and "If there is no positive change in
+    "Total number of runs," this is evidence of a potential compromise." The
+    profile takes its two readings at the start and the end of collection; it
+    does not wait, so the gap between them can be shorter than CISA's five
+    minutes, and the hit detail says so.
 
-    The comparison is this toolkit's, not Cisco's: an unchanged counter is a hit
-    only when the second reading says a minute or more has passed since the last
-    run, or its elapsed time did not advance. An unchanged counter after less than
-    a minute is not evaluated - too little time has passed to tell.
+    The rule for short gaps is this toolkit's: an unchanged counter is a hit only
+    when the second reading says a minute or more has passed since the last run,
+    or its elapsed time did not advance. An unchanged counter after less than a
+    minute is not evaluated - too little time has passed to tell.
     """
     first, last = view.step_text("show_checkheaps"), view.step_text("show_checkheaps_late")
     if first is None or last is None:
@@ -148,8 +158,30 @@ def asa_checkheaps_stalled(view, det):
     el1, el2 = (int(e1.group(1)) if e1 else None), int(e2.group(1))
     if el2 < 60 and (el1 is None or el2 > el1):
         return False, []
+    gap = _reading_gap(view)
     detail = (f"checkheaps Total number of runs stayed at {runs2}; "
-              f"{el2} s since the last run in the second reading. Repeat once a minute "
-              f"for five minutes as Cisco describes before relying on it.")
+              f"{el2} s since the last run in the second reading")
+    if gap is not None and gap >= 300:
+        detail += f"; readings {gap} s apart, meeting CISA's five-minute wait."
+    else:
+        detail += ((f"; readings only {gap} s apart" if gap is not None else "; gap between readings unknown")
+                   + ". CISA's procedure waits at least five minutes between readings: repeat by hand before relying on it.")
     return True, [Hit("step:show_checkheaps_late", detail, excerpt=excerpt(r2.group(0).strip()),
-                      extra={"runs_first": runs1, "runs_last": runs2, "elapsed_last": el2})]
+                      extra={"runs_first": runs1, "runs_last": runs2, "elapsed_last": el2,
+                             "reading_gap_s": gap})]
+
+
+def _reading_gap(view) -> int | None:
+    """Seconds between the two checkheaps readings, from the manifest's step
+    start times. None when the view has no step records (or no times)."""
+    from datetime import datetime
+    step = getattr(view, "step", None)
+    if step is None:
+        return None
+    a, b = step("show_checkheaps"), step("show_checkheaps_late")
+    try:
+        t1 = datetime.fromisoformat(a["started_utc"].replace("Z", "+00:00"))
+        t2 = datetime.fromisoformat(b["started_utc"].replace("Z", "+00:00"))
+    except (TypeError, KeyError, ValueError, AttributeError):
+        return None
+    return int((t2 - t1).total_seconds())

@@ -29,6 +29,11 @@ method:
 - >-
   Join to a device-originated FTP or TFTP flow within hours (see the device-originated transfer
   hunt).
+inferred: >-
+  Talos says LINE DANCER, "a memory-resident shellcode interpreter", was used to "Create and
+  exfiltrate packet captures"; it does not say those captures reached AAA command accounting or
+  syslog. ArcaneDoor captures may leave no capture command in either, so the absence of capture
+  commands is not evidence of absence.
 normal: A TAC-led capture with a ticket.
 suspicious: A capture of AAA ports, or a capture followed by an export.
 attack:

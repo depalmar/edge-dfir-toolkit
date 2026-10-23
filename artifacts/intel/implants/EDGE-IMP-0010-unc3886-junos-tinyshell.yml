@@ -22,18 +22,26 @@ summary: >-
   says that loader does not support running the others.
 artifacts:
   - Binary names appid, to, irad, lmpad, jdosd, oemd (no process listing published; the injected payload ran inside cat)
-  - Payload files ldb.b64, ldb.tar.gz, loader.bin, pc.bin, payload.bin and a FIFO named null in a working directory ldb (location not given; deleted by the actor)
+  - Payload files ldb.b64 and ldb.tar.gz (location not given), and loader.bin, pc.bin, payload.bin and a FIFO named null in a directory the actor removed afterwards (location not given)
   - /var/tmp/pfed_jdhcp6_trace.log(.bak) (deleted after use) and /var/tmp/rts
-  - utx.log0 in /var/log (left behind); wtmp0 and /mfs/var/etc/syslog.conf0 only after an interrupted session
+  - utx.log0 in /var/log (left behind by lmpad's script); wtmp0 and /mfs/var/etc/syslog.conf0 only if its post_ssh never ran
+  - /config/usage_db, /var/db/config/usage_db, /var/rundb+ and /usr/lib/libjucomm.so.1 between lmpad's backup and restore commands
   - Mandiant-published SHA-256 hashes, magic values and command-server addresses (see the reference)
 anti_forensics:
-  - Deleted log lines containing "root" from interactive-commands, messages and auth
-  - Redirected logging to /dev/null in the runtime syslog.conf, restored on exit
+  - Deleted log lines containing "root" from interactive-commands, messages and auth (lmpad command 2)
+  - Redirected logging to /dev/null in the runtime syslog.conf, restored on exit (lmpad's embedded script)
+  - Copied the commit database aside and restored it, rewinding commit history (lmpad's embedded script)
   - Wrote to snmpd process memory with dd
   - Injected into legitimate processes to evade veriexec
-detections: [junos-unc3886-masquerade-proc, junos-hijacked-cat-process, junos-unc3886-tmp-files, junos-unc3886-payload-files, junos-unc3886-null-fifo, junos-login-record-backups, junos-syslog-conf-backup, junos-usage-db, junos-unc3886-tinyshell-yara]
+detections: [junos-unc3886-masquerade-proc, junos-hijacked-cat-process, junos-unc3886-tmp-files, junos-unc3886-payload-files, junos-unc3886-null-fifo, junos-login-record-backups, junos-syslog-conf-backup, junos-usage-db, junos-unc3886-tinyshell-yara, junos-tinyshell-mandiant-hunting]
 confidence: high
 references:
-  - title: Mandiant - China-nexus espionage targets Juniper routers (12 March 2025)
+  - title: Mandiant - China-nexus espionage targets Juniper routers (March 2025)
     url: https://cloud.google.com/blog/topics/threat-intelligence/china-nexus-espionage-targets-juniper-routers
-    accessed: "2026-10-22"
+    accessed: "2026-10-23"
+  - title: Juniper JSA93446 - CVE-2025-21590
+    url: https://supportportal.juniper.net/JSA93446
+    accessed: "2026-10-23"
+  - title: Juniper JSA95385 - 2025-03 Reference Advisory - The RedPenguin Malware Incident
+    url: https://supportportal.juniper.net/s/article/2025-03-Reference-Advisory-The-RedPenguin-Malware-Incident
+    accessed: "2026-10-23"

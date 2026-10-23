@@ -6,11 +6,15 @@
 # by the transport with a space rather than by `config system console`, which
 # would change the device configuration.
 #
-# The highest-value step is `diagnose sys filesystem hash` (FortiOS 7.0.13+,
-# 7.2.6+ and 7.4.0+),
+# The highest-value step is `diagnose sys filesystem hash` (documented for
+# FortiOS 7.2.6 and 7.4.0; earlier builds not confirmed),
 # which prints SHA-256 values for system files. On its own it proves nothing;
 # compared with a baseline from the same build it is the integrity signal that
 # symlink persistence and implanted binaries do not survive.
+#
+# Fortinet: "The ' fnsysctl' command will only work when logged in as a
+# super_admin (administrator accounts with super_admin permission profile)."
+# Collect with a super_admin account or every listing step fails.
 
 profile: fortios
 platform_id: EDGE-0002
@@ -25,9 +29,11 @@ cli:
   allow:
     - 'get [\w -]+'
     - 'show( [\w -]+)?'
-    - 'diagnose sys (top \d+ \d+ \d+|filesystem hash|session stat)'
+    - 'diagnose sys (top \d+ \d+ \d+|filesystem hash|session stat|tcpsock)'
+    - 'diagnose sys process dump \d+'
     - 'diagnose debug crashlog read'
     - 'fnsysctl (ls -la?|cat) /[\w./-]+'
+    - 'fnsysctl ls -la? /'
   deny:
     - '^(execute|config|set|unset|delete|purge|end|abort)( |$)'
     - '[;&|`<>]|\$\('
@@ -62,6 +68,31 @@ steps:
     cmd: diagnose sys session stat
     purpose: Session table summary.
     confidence: high
+
+  - id: tcpsock
+    tier: V3
+    kind: command
+    cmd: diagnose sys tcpsock
+    purpose: >-
+      Active TCP sockets with the owning process. MIVD/AIVD: an outgoing
+      connection to an external address from a process called httpsd is a strong
+      indicator of COATHANGER (the name may vary; an implant that has not reached
+      its C2 shows no socket).
+    confidence: medium
+    references:
+      - https://github.com/JSCU-NL/COATHANGER
+
+  - id: proc_dump_init
+    tier: V1
+    kind: command
+    cmd: diagnose sys process dump 1
+    purpose: >-
+      Process information and memory map of PID 1. MIVD/AIVD: deleted entries
+      linked to /lib/preload.so in this map are a strong indicator of COATHANGER,
+      which injects into PID 1 for persistence.
+    confidence: medium
+    references:
+      - https://github.com/JSCU-NL/COATHANGER
 
   - id: get_admin_list
     tier: V3
@@ -99,31 +130,108 @@ steps:
     tier: P5
     kind: command
     cmd: diagnose debug crashlog read
-    purpose: Crash log. SSL-VPN exploitation (CVE-2022-42475 class) crashed sslvpnd with signal 11; the vendor published that pattern as an IOC.
+    purpose: >-
+      Crash log. SSL-VPN exploitation (CVE-2022-42475 class) crashed sslvpnd with
+      signal 11; the vendor published that pattern as an IOC. The output puts
+      "application sslvpnd" and "*** signal 11 (Segmentation fault) received ***"
+      on separate rows, so it is scored by a coded check, not a line regex.
     confidence: high
     references:
       - https://www.fortiguard.com/psirt/FG-IR-22-398
+      - https://community.fortinet.com/fortigate-3/technical-tip-critical-vulnerability-protect-against-heap-based-buffer-overflow-in-sslvpnd-125663
 
   - id: listing_sslvpn_lang
     tier: P7
     kind: command
     cmd: fnsysctl ls -la {sslvpn_lang_dir}
     requires_vars: [sslvpn_lang_dir]
+    var_examples: {sslvpn_lang_dir: /migadmin/lang}
     purpose: >-
       Listing of the directory that serves SSL-VPN language files, where the 2025
-      symlink persistence lived. The vendor described the location but this
-      project has not confirmed its path on a device, so the operator supplies it.
+      symlink persistence lived. Fortinet does not publish the path. The
+      researcher Fortinet credits in FG-IR-25-934 shows /migadmin/lang holding
+      one link, custom -> /data2/custom_lang, which the attackers repointed at
+      the root filesystem. That is a single source and this project has not seen
+      it on a device, so the operator supplies the path.
     confidence: low
     unverified: true
     references:
       - https://www.fortinet.com/blog/psirt-blogs/analysis-of-threat-actor-activity
+      - https://pgj11.com/posts/FortiGate-Symlink-Attack/
+      - https://fortiguard.fortinet.com/psirt/FG-IR-25-934
 
   - id: listing_data
     tier: P6
     kind: command
     cmd: fnsysctl ls -la /data
-    purpose: Top of the persistent user filesystem. Unexpected files and links here survive reboot. Listed in the vendor's IOC tech tip.
+    purpose: >-
+      Top of the persistent user filesystem. Unexpected files and links here
+      survive reboot. This directory is the toolkit's choice; the vendor's IOC
+      tech tip lists /data/lib, /data/etc, /var and / (the steps below).
     confidence: medium
+
+  - id: listing_data_lib
+    tier: P6
+    kind: command
+    cmd: fnsysctl ls -l /data/lib
+    purpose: >-
+      Fortinet's CVE-2022-42475 IOC listing. libips.bak, libgif.so, libiptcp.so,
+      libipudp.so and libjepg.so here are published indicators.
+    confidence: medium
+    references:
+      - https://community.fortinet.com/fortigate-3/technical-tip-critical-vulnerability-protect-against-heap-based-buffer-overflow-in-sslvpnd-125663
+      - https://www.fortiguard.com/psirt/FG-IR-22-398
+
+  - id: listing_var
+    tier: P6
+    kind: command
+    cmd: fnsysctl ls -la /var
+    purpose: Fortinet's CVE-2022-42475 IOC listing. /var/.sslvpnconfigbk is a published indicator.
+    confidence: medium
+    references:
+      - https://community.fortinet.com/fortigate-3/technical-tip-critical-vulnerability-protect-against-heap-based-buffer-overflow-in-sslvpnd-125663
+
+  - id: listing_data_etc
+    tier: P6
+    kind: command
+    cmd: fnsysctl ls -l /data/etc
+    purpose: Fortinet's CVE-2022-42475 IOC listing. /data/etc/wxd.conf is a published indicator.
+    confidence: medium
+    references:
+      - https://community.fortinet.com/fortigate-3/technical-tip-critical-vulnerability-protect-against-heap-based-buffer-overflow-in-sslvpnd-125663
+
+  - id: listing_root
+    tier: P6
+    kind: command
+    cmd: fnsysctl ls -l /
+    purpose: Fortinet's CVE-2022-42475 IOC listing. /flash is a published indicator.
+    confidence: medium
+    references:
+      - https://community.fortinet.com/fortigate-3/technical-tip-critical-vulnerability-protect-against-heap-based-buffer-overflow-in-sslvpnd-125663
+
+  - id: listing_bin
+    tier: P6
+    kind: command
+    cmd: fnsysctl ls -la /bin
+    purpose: >-
+      System binaries. Mandiant published this command's output for
+      CVE-2022-41328 (lspci must be a standalone binary; /bin/fgfm was the
+      CASTLETAP backdoor), and the MIVD/AIVD COATHANGER advisory uses it to find
+      a smartctl that is not a symlink. On a clean device most entries are links
+      to /bin/init.
+    confidence: medium
+    references:
+      - https://cloud.google.com/blog/topics/threat-intelligence/fortinet-malware-ecosystem
+      - https://github.com/JSCU-NL/COATHANGER
+
+  - id: listing_data_bin
+    tier: P6
+    kind: command
+    cmd: fnsysctl ls -la /data/bin
+    purpose: The MIVD/AIVD COATHANGER advisory checks for /data/bin/smartctl here.
+    confidence: medium
+    references:
+      - https://github.com/JSCU-NL/COATHANGER
 
   - id: log_export
     tier: P3

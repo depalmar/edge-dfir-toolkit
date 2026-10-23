@@ -14,10 +14,13 @@ summary: >-
   the user never had, and activity on the hosts behind the gateway.
 confidence: high
 references:
+  - title: NetScaler - evaluating NetScaler logs for indicators of attempted exploitation of CVE-2025-5777
+    url: https://www.netscaler.com/blog/news/evaluating-netscaler-logs-for-indicators-of-attempted-exploitation-of-cve-2025-5777/
+    accessed: "2026-10-23"
   - title: Huntress - CitrixBleed 2 exploitation leading to ransomware
     url: https://www.huntress.com/blog/citrixbleed-2-dragonforce-ransomware
     accessed: "2026-10-22"
-  - title: ReliaQuest - Citrix Bleed 2 threat spotlight
+  - title: ReliaQuest - Citrix Bleed 2 threat spotlight (session reuse only)
     url: https://reliaquest.com/blog/threat-spotlight-citrix-bleed-2-vulnerability-in-netscaler-adc-gateway-devices/
     accessed: "2026-10-22"
 
@@ -31,5 +34,10 @@ detect:
     evidence_class: auth-logs
     attack: [T1190]
     notes: >-
-      ns.log rotates quickly on a busy gateway; a negative result over a short
-      window says little. Pull the syslog copy from your SIEM.
+      Two published forms. NetScaler: log lines containing "Authentication is
+      rejected for" and "AAA Message" with "bytes containing non-ASCII characters
+      (range 128-255)" - "these bytes may be escaped when viewed through a log
+      viewer". Huntress: AAA LOGIN_FAILED events with "a bizarre, unprintable
+      User value". Only the text after the marker is scored. ns.log rotates
+      quickly; the vendor says logs "may only be available for a few days prior".
+      Pull the syslog copy from your SIEM.

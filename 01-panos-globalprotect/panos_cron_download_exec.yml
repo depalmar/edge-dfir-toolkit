@@ -4,10 +4,13 @@ status: experimental
 description: |
   After CVE-2024-3400 exploitation, actors installed a cron entry that fetched
   a remote policy with wget and piped it to bash, giving them a re-entry point
-  that survives the exploit being patched. crond logs each execution to the
-  system log forwarded off-box.
+  that survives the exploit being patched. crond logs each execution to
+  /var/log/syslog-system.log, which the tech support file carries (Volexity).
+  No source shows that file being forwarded off-box; this rule applies where
+  it is.
 references:
   - https://www.volexity.com/blog/2024/04/12/zero-day-exploitation-of-unauthenticated-remote-code-execution-vulnerability-in-globalprotect-cve-2024-3400/
+  - https://www.volexity.com/blog/2024/05/15/detecting-compromise-of-cve-2024-3400-on-palo-alto-networks-globalprotect-devices/
 author: Raymond DePalma (edge-dfir-toolkit)
 date: 2026-10-22
 tags:

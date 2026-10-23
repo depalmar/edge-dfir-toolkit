@@ -6,21 +6,35 @@ cves: [CVE-2022-42475, CVE-2023-27997, CVE-2024-21762]
 type: persistence-mechanism
 resides: disk
 survives_reboot: "yes"
-survives_upgrade: "yes"
+survives_upgrade: partial
 summary: >-
   Disclosed by the vendor in April 2025: after earlier SSL-VPN exploitation an
   actor left a symbolic link in the directory that serves SSL-VPN language
   files, exposing the root filesystem read-only to anyone who could reach the
   portal. It lived in the user filesystem, so patching the original flaw did
-  not remove it.
+  not remove it. Fortinet's April 2025 releases (7.6.2, 7.4.7, 7.2.11, 7.0.17,
+  6.4.16) remove the link, but FG-IR-25-934 (CVE-2025-68686) is a bypass of that
+  fix: 7.2, 7.0 and 6.4 have no fixed release ("Migrate to a fixed release"),
+  so only 7.4.7+ and 7.6.2+ are fixed. The researcher Fortinet credits shows the
+  clean directory (/migadmin/lang) holding one link, custom ->
+  /data2/custom_lang, which the attackers repointed at the root.
 artifacts:
-  - Symbolic link in the SSL-VPN language-file directory pointing at the root filesystem
+  - The custom link in the SSL-VPN language-file directory pointing at the root filesystem instead of /data2/custom_lang
 anti_forensics:
-  - Survives patching; no process, no log event
+  - "Survives patching of the entry CVE; Fortinet: 'This modification took place in the user filesystem and avoided detection.'"
 detections: [fortios-symlink-root]
-gap: The directory path is operator-supplied until confirmed on a device.
+gap: >-
+  The directory path is operator-supplied until confirmed on a device; the
+  /migadmin/lang path and the normal custom -> /data2/custom_lang link come
+  from a single researcher.
 confidence: medium
 references:
   - title: Fortinet PSIRT - analysis of threat actor activity
     url: https://www.fortinet.com/blog/psirt-blogs/analysis-of-threat-actor-activity
-    accessed: "2026-10-22"
+    accessed: "2026-10-23"
+  - title: Fortinet PSIRT FG-IR-25-934 - SSL-VPN symlink persistence patch bypass (CVE-2025-68686)
+    url: https://fortiguard.fortinet.com/psirt/FG-IR-25-934
+    accessed: "2026-10-23"
+  - title: Peter Gabaldon - FortiGate symlink persistence method
+    url: https://pgj11.com/posts/FortiGate-Symlink-Attack/
+    accessed: "2026-10-23"

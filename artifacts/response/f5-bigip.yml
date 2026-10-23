@@ -11,7 +11,7 @@ preserve_first:
   - step: For CVE-2026-94127, apply the mitigation iRule, then triage, then patch
     detail: CISA's order in the KEV entry. The iRule comes from F5 Support; it stops new attempts without destroying the evidence a patch-and-reboot would.
   - step: Do not run sys-icheck as your integrity check
-    detail: c05d5254 tampered with sys-icheck and sys-eicheck.py. Use F5 System Scanner from known-good media.
+    detail: c05d5254 tampered with sys-icheck and sys-eicheck.py. Use F5 System Scanner, downloaded from MyF5, manifest checked with sha512sum, and run on the device from /var/tmp/scanner (F5 K000160515); it still runs on the suspect host.
 
 contain:
   - step: Take the management interface off untrusted networks
@@ -63,7 +63,7 @@ do_not:
     because: CISA's order is mitigation iRule, forensic triage, then patch.
 
 vendor_guidance:
-  - title: F5 K11438344 - checking a BIG-IP system for compromise
+  - title: F5 K11438344 - Considerations and guidance when you suspect a security compromise on a BIG-IP system
     url: https://my.f5.com/manage/s/article/K11438344
     accessed: "2026-10-22"
   - title: F5 K000160515 - F5 System Scanner

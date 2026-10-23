@@ -39,7 +39,7 @@ sources:
   read: direct
 - title: CISA - ED 25-03 supplemental direction, core dump and hunt instructions
   url: >-
-    https://cisa.gov/news-events/directives/supplemental-direction-ed-25-03-core-dump-and-hunt-instructions
+    https://www.cisa.gov/news-events/directives/supplemental-direction-ed-25-03-core-dump-and-hunt-instructions
   accessed: '2026-10-23'
-  quote: all logins through the compromised device should be heavily scrutinized
-  read: summariser
+  quote: scrutinize all logins traversing the compromised device.
+  read: direct

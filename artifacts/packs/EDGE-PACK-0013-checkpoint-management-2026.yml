@@ -14,9 +14,11 @@ summary: >-
   those roles. Check Point reports a handful of pinpointed attacks on 23 July
   2026; CISA added it to KEV on 22 September 2026. Gateways, Spark and Smart-1
   Cloud are not affected. CVE-2026-16232 is a SmartConsole authentication bypass
-  through an application login token, exploited against a very small number of
-  customers and added to KEV on 22 July 2026. Patching does not reveal whether a
-  server was already attacked, so hunt separately.
+  through an application login token; Check Point - "exploited in the wild,
+  affecting a handful of customers with a very specific configuration"
+  (internet-reachable management and unrestricted Trusted Clients), added to KEV
+  on 22 July 2026. Installing a fix does not tell you whether a server was
+  already attacked (the toolkit's guidance), so hunt separately.
 confidence: high
 references:
   - title: Check Point sk1000171 - CVE-2026-93616 hotfix and indicators
@@ -34,13 +36,18 @@ detect:
     title: CPM login with a username over 1000 characters
     type: log_regex
     sigma: [07-checkpoint-quantum/checkpoint_cve_2026_93616_cpm_username.yml]
-    tier: likely
+    tier: possible
     evidence_class: web-logs
     sources:
       files: ["**/cpm.elg*"]
     pattern: 'login\(loginRequest=LoginRequest\{authenticationInfo=AuthenticationInfoBase\{username=''[^'']{1001,}'''
     attack: [T1190]
-    notes: Check Point's indicator 1, suggesting the authentication bypass. Look for a matching fwm or mds core dump.
+    notes: >-
+      Check Point's indicator 1, suggesting the authentication bypass. sk1000171 -
+      each indicator "may indicate an attempt to exploit this vulnerability" and
+      "A match does not necessarily confirm successful compromise", so it is held at
+      possible. Look for a matching fwm or mds core dump and the other indicators;
+      together they corroborate.
 
   - id: cp-93616-version-path
     title: Traversal characters in a CPM method version
@@ -104,4 +111,9 @@ detect:
     pattern: 'application token'
     flags: [ignorecase]
     attack: [T1550.001]
-    notes: Check Point's hunting query for CVE-2026-16232. Compare source addresses with sk185169.
+    notes: >-
+      Check Point's hunting queries for CVE-2026-16232 ("application token" and
+      "Password based application token"; the pattern matches both). sk185169 -
+      "Any found events should be treated as suspicious and inspected for an
+      unrecognized administrator name or IP address." Compare source addresses
+      with sk185169's list, relevant for events before 2026-07-23.

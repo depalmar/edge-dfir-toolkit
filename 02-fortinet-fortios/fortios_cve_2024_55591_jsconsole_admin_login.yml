@@ -14,7 +14,6 @@ tags:
   - attack.t1190
   - attack.t1078
   - cve.2024-55591
-  - cve.2025-24472
 logsource:
   product: fortinet
   service: fortigate

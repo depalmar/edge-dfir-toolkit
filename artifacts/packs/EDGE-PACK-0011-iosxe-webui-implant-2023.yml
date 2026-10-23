@@ -5,7 +5,7 @@ name: Cisco IOS XE web UI privilege escalation and implant (2023)
 platforms: [EDGE-0009]
 cves: [CVE-2023-20198, CVE-2023-20273]
 actors: []
-implants: [IOS XE web UI implant]
+implants: [IOS XE web UI implant (BadCandy)]
 summary: >-
   CVE-2023-20198 let an unauthenticated attacker create a privilege-15 account
   through the web UI; CVE-2023-20273 then injected commands as root to write an
@@ -40,7 +40,25 @@ detect:
       files: ["**/*.log*", "**/*syslog*"]
     pattern: '%SYS-5-CONFIG_P: Configured programmatically by process SEP_webui_wsma_http'
     attack: [T1190, T1136.001]
-    notes: Cisco's hunting string. Legitimate web UI configuration produces it too; correlate with new local users.
+    notes: >-
+      Cisco's hunting string. Cisco - "The %SYS-5-CONFIG_P message will be present
+      for each instance that a user has accessed the web UI. The indicator to look
+      for is new or unknown usernames present in the message."
+
+  - id: iosxe-weblogin-talos-user
+    title: Web UI login by an account name used in the 2023 campaign
+    type: log_regex
+    tier: likely
+    evidence_class: auth-logs
+    sources:
+      steps: [show_logging]
+      files: ["**/*.log*", "**/*syslog*"]
+    pattern: '%SEC_LOGIN-5-WEBLOGIN_SUCCESS: Login Success \[user: (cisco_tac_admin|cisco_support|cisco_sys_manager)\]'
+    attack: [T1078.001]
+    notes: >-
+      Message format from Cisco's advisory ("%SEC_LOGIN-5-WEBLOGIN_SUCCESS: Login
+      Success [user: user] [Source: source_IP_address]"); account names from
+      Talos. A web login by any user nobody recognises deserves the same review.
 
   - id: iosxe-webui-install-add
     title: File added through a web UI install operation
@@ -71,7 +89,25 @@ detect:
     tier: likely
     evidence_class: memory
     attack: [T1055, T1601.001]
-    notes: Cisco's forensic-guide indicator of tampered running code. Collect before any reload.
+    notes: >-
+      Cisco's forensic-guide example of possible tampering: an rwxp segment with
+      Private_Dirty above zero "may indicate the software has been tampered
+      with". Collect before any reload. Reads the router form and both switch
+      forms (rp and r0) of the smaps command.
+
+  - id: iosxe-iosd-rx-dirty
+    title: Executable (r-xp) IOSd memory with dirty pages
+    type: check
+    check: iosxe_iosd_rwx_dirty
+    args: {perms: [r-xp]}
+    tier: possible
+    evidence_class: memory
+    attack: [T1055, T1601.001]
+    notes: >-
+      Cisco's procedure checks "each segment with the executable flag set (i.e.,
+      r-xp or rwxp)" for non-zero Private Dirty, but its worked example covers
+      only rwxp. Reported separately at possible so a dirty r-xp segment is
+      reviewed, not dismissed; what it means is not published.
 
   - id: iosxe-implant-check-positive
     title: Cisco's implant check returned the implant's hexadecimal response

@@ -17,4 +17,5 @@ so the off-box syslog copy is the record to trust. JMRT quick-scan deletes what
 it finds by default; collect first.
 
 The J-Web pack (`EDGE-PACK-0020`) rests on one researcher's reproduction and is
-low confidence; Juniper's own advisory needs a support login.
+low confidence; Juniper's own advisory (JSA72300) is public but publishes no
+on-box indicators.

@@ -10,24 +10,33 @@ actors: [EDGE-TA-0001]
 cves: [CVE-2024-3400]
 type: backdoor
 resides: disk
-survives_reboot: "yes"
+survives_reboot: unknown
 survives_upgrade: unknown
 summary: >-
-  Python backdoor installed after CVE-2024-3400 exploitation. A .pth file in
-  site-packages runs when the interpreter starts. The payload watched the SSL
-  VPN nginx error log for requests carrying an encoded command, ran it, wrote
-  the output into a portal CSS file, then removed its log lines and restored
-  timestamps.
+  Python backdoor UTA0218 attempted to deploy after CVE-2024-3400
+  exploitation. Volexity and Unit 42 both report the attempts failed ("the
+  threat actors were unsuccessful at installing UPSTYLE after three different
+  exploit attempts", Unit 42), and the actor used a cron download-and-execute
+  backdoor instead. As written, a .pth file in site-packages runs when the
+  interpreter starts; the payload watches the SSL VPN nginx error log for
+  requests carrying an encoded command, runs it, appends the output to a
+  portal CSS file, then removes its log line and restores the files and
+  timestamps. A system.pth on disk is still confirmation; its absence is the
+  expected state even on a device the actor reached. No source states whether
+  it survives a reboot.
 artifacts:
   - /usr/lib/python3.6/site-packages/system.pth
   - /var/appweb/sslvpndocs/global-protect/portal/css/bootstrap.min.css
   - sslvpn_ngx_error.log (command channel; lines deleted afterwards)
 anti_forensics:
   - Deletes its own entries from sslvpn_ngx_error.log
-  - Restores timestamps on the modified CSS file
+  - Restores the original CSS content about 15 seconds after execution, and the access and modified timestamps of both the CSS file and sslvpn_ngx_error.log
 detections: [panos-3400-upstyle-pth, panos-3400-upstyle-yara]
 confidence: high
 references:
   - title: Volexity - zero-day exploitation of CVE-2024-3400
     url: https://www.volexity.com/blog/2024/04/12/zero-day-exploitation-of-unauthenticated-remote-code-execution-vulnerability-in-globalprotect-cve-2024-3400/
-    accessed: "2026-10-22"
+    accessed: "2026-10-23"
+  - title: Unit 42 - Threat Brief - Operation MidnightEclipse (CVE-2024-3400)
+    url: https://unit42.paloaltonetworks.com/cve-2024-3400/
+    accessed: "2026-10-23"

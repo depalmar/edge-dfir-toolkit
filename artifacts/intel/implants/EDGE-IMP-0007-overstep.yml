@@ -12,17 +12,26 @@ summary: >-
   re-established at boot by a modified rc.fwboot that injects it into the
   initrd. Hooks open, open64, readdir, readdir64 and write to hide its files and
   intercept commands, and uses sed to delete its own entries from httpd.log,
-  http_request.log and inotify.log. Activity since at least October 2024.
+  http_request.log and inotify.log. UNC6148 activity since at least October
+  2024; OVERSTEP deployment observed in June 2025. Survival across upgrade is not
+  reported: SonicWall says 10.2.2.2-92sv adds "additional file checking,
+  providing the capability to remove known rootkit malware", and its notice says
+  full removal needs a clean rebuild of the system.
 artifacts:
-  - /etc/ld.so.preload
-  - /usr/lib/libsamba-errors.so.6
-  - /etc/rc.d/rc.fwboot
+  - /etc/ld.so.preload (more than 2 bytes, per GTIG)
+  - /usr/lib/libsamba-errors.so.6 (also inside the INITRD)
+  - /cf/xxx.elf
+  - /cf/libsamba-errors.so.6
+  - /etc/rc.d/rc.fwboot (only GTIG's hash marks the modified file; the path exists on every SMA)
 anti_forensics:
   - Hides files from on-box tools through API hooking
   - Deletes its own log lines
-detections: [sma-ld-so-preload, sma-overstep-library]
+detections: [sma-ld-so-preload, sma-overstep-library, sma-overstep-cf-files, sma-overstep-published-hash]
 confidence: medium
 references:
   - title: Google Threat Intelligence Group - SonicWall SMA exploitation and the OVERSTEP backdoor (16 July 2025)
     url: https://cloud.google.com/blog/topics/threat-intelligence/sonicwall-secure-mobile-access-exploitation-overstep-backdoor
-    accessed: "2026-10-22"
+    accessed: "2026-10-23"
+  - title: SonicWall - SNWLID-2025-0015 (22 September 2025)
+    url: https://psirt.global.sonicwall.com/vuln-detail/SNWLID-2025-0015
+    accessed: "2026-10-23"

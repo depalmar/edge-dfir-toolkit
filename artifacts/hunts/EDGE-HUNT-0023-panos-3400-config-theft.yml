@@ -8,7 +8,8 @@ platforms:
 actors:
 - EDGE-TA-0001
 seen_in:
-- CVE-2024-3400 (Unit 42)
+- CVE-2024-3400, UTA0218 (Volexity)
+- CVE-2024-3400 exploit attempts Unit 42 did not attribute
 cves:
 - CVE-2024-3400
 hypothesis: >-
@@ -22,6 +23,11 @@ method:
 - Look for threat IDs 95187, 95189 and 95191 by source and target.
 - >-
   Flag GET requests for a random-named .css under /global-protect/ from the same sources.
+inferred: >-
+  The random-named .css comes from exploit attempts Unit 42 explicitly separates from Operation
+  MidnightEclipse ("We have not seen any relationships between these indicators and those
+  associated with Operation MidnightEclipse"); Volexity's UTA0218 copy used a redacted .css name.
+  Linking the fetch to EDGE-TA-0001 rests on Volexity's cp command, not on Unit 42.
 normal: No signature hits.
 suspicious: A signature hit followed by a successful fetch of an unusual .css.
 attack:
@@ -30,8 +36,24 @@ attack:
 confidence: low
 unverified: true
 sources:
-- title: Unit 42 - Threat brief, CVE-2024-3400
+- title: Volexity - zero-day exploitation of CVE-2024-3400
+  url: >-
+    https://www.volexity.com/blog/2024/04/12/zero-day-exploitation-of-unauthenticated-remote-code-execution-vulnerability-in-globalprotect-cve-2024-3400/
+  accessed: '2026-10-23'
+  quote: >-
+    cp /opt/pancfg/mgmt/saved-configs/running-config.xml /var/appweb/sslvpndocs/global-protect/
+  read: direct
+- title: Unit 42 - Threat brief, Operation MidnightEclipse (CVE-2024-3400)
   url: https://unit42.paloaltonetworks.com/cve-2024-3400/
   accessed: '2026-10-23'
-  quote: copying the running configuration to the web application folder for access.
+  quote: >-
+    The commands included copying configuration files to the web application folder and
+    exfiltrating them via HTTP requests to those files.
+  read: direct
+- title: Unit 42 - Threat brief, CVE-2024-3400 (unattributed exploit attempts)
+  url: https://unit42.paloaltonetworks.com/cve-2024-3400/
+  accessed: '2026-10-23'
+  quote: >-
+    The third command shows a bit more malicious behavior, which involves copying the running
+    configuration to the web application folder for access.
   read: direct

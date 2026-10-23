@@ -59,5 +59,6 @@ detect:
     pattern: 'sh: no job control in this shell'
     attack: [T1190, T1059.004]
     notes: >-
-      F5's indicator follows "java.sql.SQLException: Column not found: 0." A
+      F5's indicator follows "java.sql.SQLException: Column not found: 0." (F5: the
+      0 "can be replaced with a different number"). A
       shell banner in the Tomcat log has no ordinary cause.

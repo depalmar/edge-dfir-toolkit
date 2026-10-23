@@ -40,5 +40,7 @@ detect:
     notes: >-
       Cisco: these messages naming an unexpected default profile "can indicate
       successful or attempted establishment of an unauthorized clientless SSL VPN
-      session". A 113019 termination with byte counts means a session existed.
+      session". Clientless sessions are possible only on "Cisco ASA Software
+      Release 9.16 or earlier". Reading a 113019 termination with byte counts as
+      a session that existed is the toolkit's inference, not Cisco's.
       Possible, not likely, because a site may use these profiles on purpose.

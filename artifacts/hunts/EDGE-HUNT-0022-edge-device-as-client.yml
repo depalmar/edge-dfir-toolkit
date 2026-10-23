@@ -11,7 +11,7 @@ actors:
 - EDGE-TA-0006
 seen_in:
 - UNC6148 OVERSTEP (GTIG)
-- CVE-2024-3400 (Unit 42)
+- CVE-2024-3400, UTA0218 (Volexity)
 - UNC3886 (Mandiant)
 hypothesis: An implant beacons out, fetches payloads, or moves laterally from the appliance.
 data:
@@ -41,15 +41,24 @@ sources:
   accessed: '2026-10-23'
   quote: Outbound HTTP network traffic from the appliance to external IP addresses.
   read: direct
-- title: Unit 42 - Threat brief, CVE-2024-3400
-  url: https://unit42.paloaltonetworks.com/cve-2024-3400/
-  accessed: '2026-10-23'
-  quote: probing attempts that use either wget or curl to access remote servers
-  read: direct
-- title: ASD ACSC - Mitigation strategies for edge devices, practitioner guidance
+- title: Volexity - detecting compromise of CVE-2024-3400 on GlobalProtect devices
   url: >-
-    https://www.cyber.gov.au/business-government/protecting-devices-systems/hardening-systems-applications/network-hardening/securing-edge-devices/mitigation-strategies-for-edge-devices-practitioner-guidance
+    https://www.volexity.com/blog/2024/05/15/detecting-compromise-of-cve-2024-3400-on-palo-alto-networks-globalprotect-devices/
   accessed: '2026-10-23'
   quote: >-
-    network traffic directed at hosts that the edge device doesn't normally communicate with
-  read: summariser
+    Volexity focused on crond executions the threat actor triggered due to use of a cron.d script
+    for persistence and downloading of additional payloads via wget.
+  read: direct
+- title: Mandiant - China-nexus espionage targets Juniper routers
+  url: >-
+    https://cloud.google.com/blog/topics/threat-intelligence/china-nexus-espionage-targets-juniper-routers
+  accessed: '2026-10-23'
+  quote: >-
+    active backdoor that communicates to the following hardcoded command and control (C2) servers
+  read: direct
+- title: ASD ACSC - Mitigation strategies for edge devices, practitioner guidance
+  url: https://www.cyber.gov.au/publication/mitigation-strategies-for-edge-devices-practitioner-guidance
+  accessed: '2026-10-23'
+  quote: >-
+    network traffic directed at hosts that the edge device doesn’t normally communicate with.
+  read: direct

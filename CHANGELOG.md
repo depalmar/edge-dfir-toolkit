@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.7.0 - 2026-10-23
+
+### Source verification, round 3
+Every cited URL (155) and quote (111) and roughly 870 unquoted claims were
+re-read against the primary source, with Firecrawl for pages earlier passes could
+not render. 196 issues found and corrected (23 high-severity); each correction is
+in `docs/VERIFICATION.md` with the verbatim passage it rests on. Highlights:
+- Three earlier corrections were themselves wrong and are reversed: lina region
+  count (NCSC: the count is not an indicator; the split text section is), the
+  SonicWall fixed firmware (10.2.2.2-92sv, not 10.2.1.15-81sv), and UNC6148's
+  confidence wording.
+- Detections fixed: the NetScaler pitboss pattern now matches Rapid7's published
+  form too; the FortiOS sslvpnd crash is a coded check that pairs crash-log rows
+  instead of a one-line regex that could never fire; the FortiOS symlink check no
+  longer flags the stock `custom -> /data2/custom_lang` link; SonicWall
+  `ld.so.preload` fires only with more than 2 bytes (GTIG), via YARA; Check Point
+  CVE-2026-93616 username indicator is an attempt (possible), per Check Point.
+- New detections from primary sources, among them CISA's on-box LINE VIPER check
+  (opt-in break-glass), the published OVERSTEP hashes, COATHANGER CLI checks from
+  the MIVD/AIVD advisory, CVE-2022-42475 file indicators, IOS XE web-login and
+  dirty r-xp checks, and Mandiant's TINYSHELL hunting rules.
+- Attribution: UPSTYLE was attempted, not installed (Volexity, Unit 42); UTA0178
+  is no longer an alias of UNC5221 (neither reporter equates them); UTA0218 adds
+  Volexity's "moderate confidence" China-based assessment; hunts tagged to an
+  actor cite a source that names it.
+- Hardening: the F5 httpd control now follows F5's actual CVE-2022-1388 mitigation;
+  FortiOS fixed releases updated for the CVE-2025-68686 bypass.
+
 ## 0.6.1 - 2026-10-23
 
 ### Response

@@ -139,8 +139,15 @@ never merge two clusters unless the reporters themselves equate them.
 Volexity's own assessment was "low confidence" criminal. Read the source.
 
 **Attribute the action to the right actor.** The 2025 Ivanti syslog block was
-the operator's iptables command, not SPAWN malware. Malware behaviour and
-hands-on-keyboard behaviour are different claims.
+the exploit's script running iptables (GTIG: "the exploit and script"), not
+SPAWN malware; SPAWNSLOTH's log suppression is a separate claim. Malware
+behaviour, exploit-script behaviour and hands-on-keyboard behaviour are
+different claims - name the one the reporter names.
+
+**Re-read, do not remember.** Round 3 of `docs/VERIFICATION.md` found three
+earlier "corrections" that were themselves wrong. Before changing a claim, read
+the passage on the live primary page (Firecrawl renders the vendor knowledge
+bases); never correct from memory or from a summary.
 
 **An implant with no detection states its gap.** `detections: []` without a
 `gap` fails the validator, so a coverage hole is always visible.

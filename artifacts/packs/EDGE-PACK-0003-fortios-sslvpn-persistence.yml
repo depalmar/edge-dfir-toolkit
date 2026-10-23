@@ -20,6 +20,18 @@ references:
   - title: Fortinet PSIRT FG-IR-22-398 (CVE-2022-42475)
     url: https://www.fortiguard.com/psirt/FG-IR-22-398
     accessed: "2026-10-22"
+  - title: Fortinet tech tip - heap-based buffer overflow in sslvpnd (crash log and file IOCs)
+    url: https://community.fortinet.com/fortigate-3/technical-tip-critical-vulnerability-protect-against-heap-based-buffer-overflow-in-sslvpnd-125663
+    accessed: "2026-10-23"
+  - title: Fortinet PSIRT FG-IR-25-934 - SSL-VPN symlink persistence patch bypass (CVE-2025-68686)
+    url: https://fortiguard.fortinet.com/psirt/FG-IR-25-934
+    accessed: "2026-10-23"
+  - title: Peter Gabaldon - FortiGate symlink persistence method (normal custom -> /data2/custom_lang link)
+    url: https://pgj11.com/posts/FortiGate-Symlink-Attack/
+    accessed: "2026-10-23"
+  - title: MIVD / AIVD - COATHANGER advisory, via the publisher's repository
+    url: https://github.com/JSCU-NL/COATHANGER
+    accessed: "2026-10-23"
   - title: FortiOS 7.2.6 - command to compute file hashes
     url: https://docs.fortinet.com/document/fortigate/7.2.0/new-features/860150/command-to-compute-file-hashes-7-2-6
     accessed: "2026-10-22"
@@ -33,8 +45,13 @@ detect:
     evidence_class: persistence
     attack: [T1505]
     notes: >-
-      Only evaluated when a listing_* step or an ingested archive was collected.
-      The language-directory path must be supplied with --var sslvpn_lang_dir.
+      Only evaluated when the language-directory or /data listing, or an
+      ingested archive, was collected. The path must be supplied with --var
+      sslvpn_lang_dir (researcher: /migadmin/lang). In that directory the one
+      link a clean device carries is custom -> /data2/custom_lang (single
+      researcher source); any other link, or custom pointing elsewhere, is
+      scored. Binary directories are not scored: on a clean device they are
+      full of links to /bin/init.
 
   - id: fortios-sslvpnd-crash
     title: sslvpnd crash with signal 11
@@ -43,12 +60,95 @@ detect:
     tier: possible
     evidence_class: system-logs
     sources:
-      steps: [crashlog]
-      files: ["**/*crash*", "**/*event*.log*", "**/*.log"]
+      steps: [log_export]
+      files: ["**/*event*.log*", "**/*.log"]
     pattern: '(sslvpnd[^\n]{0,200}signal 11|signal 11[^\n]{0,200}sslvpnd)'
     flags: [ignorecase]
     attack: [T1190]
-    notes: The vendor published this crash pattern as an indicator for CVE-2022-42475. A crash alone is an attempt, not a compromise.
+    notes: >-
+      Event-log form of Fortinet's CVE-2022-42475 indicator: Logdesc="Application
+      crashed" and msg="[...] application: sslvpnd,[...], Signal 11 received,
+      Backtrace: [...]". The crash log prints the application and the signal on
+      separate rows and is scored by fortios-crashlog-sslvpnd-segv instead. A
+      crash alone is an attempt, not a compromise.
+
+  - id: fortios-crashlog-sslvpnd-segv
+    title: sslvpnd signal 11 in the crash log
+    type: check
+    check: fortios_crashlog_sslvpnd_segv
+    tier: possible
+    evidence_class: system-logs
+    attack: [T1190]
+    notes: >-
+      Pairs "application sslvpnd" with "*** signal 11 (Segmentation fault)
+      received ***" rows that share a process token, the form Fortinet's tech tip
+      tells you to search for in diagnose debug crashlog read. Fortinet asks for
+      "multiple examples". Not evaluated when the crash log was not collected or
+      no crash rows were parsed.
+
+  - id: fortios-42475-ioc-files
+    title: Fortinet's CVE-2022-42475 file indicators present
+    type: log_regex
+    tier: likely
+    evidence_class: filesystem
+    sources:
+      steps: [listing_data_lib, listing_var, listing_data_etc, listing_root]
+    pattern: '\s(libips\.bak|libgif\.so|libiptcp\.so|libipudp\.so|libjepg\.so|\.sslvpnconfigbk|wxd\.conf|flash)(\s+->\s+\S+)?\s*$'
+    attack: [T1505, T1554]
+    notes: >-
+      FG-IR-22-398 lists "Presence of the following artifacts in the filesystem":
+      /data/lib/libips.bak, /data/lib/libgif.so, /data/lib/libiptcp.so,
+      /data/lib/libipudp.so, /data/lib/libjepg.so, /var/.sslvpnconfigbk,
+      /data/etc/wxd.conf and /flash. The tech tip lists them with fnsysctl ls -l
+      /data/lib, ls -la /var, ls -l /data/etc and ls -l /. Check that a hit sits
+      in the listing of its own directory.
+
+  - id: fortios-coathanger-smartctl
+    title: smartctl in /bin or /data/bin is a regular file, not a symlink
+    type: log_regex
+    tier: likely
+    evidence_class: persistence
+    sources:
+      steps: [listing_bin, listing_data_bin]
+    pattern: '^-[rwxsStT-]{9}\s.*\ssmartctl\s*$'
+    attack: [T1554]
+    notes: >-
+      MIVD/AIVD: "If smartctl was modified later than the majority of other
+      files or is not a symlink, it is likely that the smartctl binary was
+      tampered with. This serves as a first indication that the device may be
+      infected by COATHANGER." The timestamp comparison is left to the analyst.
+
+  - id: fortios-coathanger-httpsd-socket
+    title: Established TCP socket owned by a process named httpsd
+    type: log_regex
+    tier: possible
+    evidence_class: sessions
+    sources:
+      steps: [tcpsock]
+    pattern: 'state=established\b.*\sprocess=[^/\s]+/httpsd\b'
+    attack: [T1071]
+    notes: >-
+      MIVD/AIVD: "any suspicious outgoing connections to external IP addresses
+      from a process called httpsd is a strong indicator of the presence of
+      COATHANGER". The genuine FortiOS web daemon has the same name, so check
+      the remote address and direction of each hit. The name may vary between
+      samples, and an implant that has not reached its C2 shows no socket.
+
+  - id: fortios-coathanger-preload-map
+    title: Deleted preload.so or httpsd entries in a process memory map
+    type: log_regex
+    tier: likely
+    evidence_class: memory
+    sources:
+      steps: [proc_dump_init]
+    pattern: '/lib/preload\.so \(deleted\)|/data2/httpsd \(deleted\)|/data2/\.bd\.key/preload\.so'
+    attack: [T1574.006]
+    notes: >-
+      MIVD/AIVD: "If the memory map contains deleted entries linked to
+      /lib/preload.so, this is a strong indicator of the presence of
+      COATHANGER" (PID 1). The same advisory treats deleted /data2/httpsd or any
+      /data2/.bd.key/preload.so entry in an httpsd process map as infection;
+      dump those PIDs by hand (diagnose sys process pidof httpsd).
 
   - id: fortios-fs-hash-baseline
     title: System file hash differs from the known-good baseline

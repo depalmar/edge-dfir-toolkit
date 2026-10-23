@@ -14,4 +14,6 @@ Detection packs: `EDGE-PACK-0003`, `EDGE-PACK-0023`, `EDGE-PACK-0024` (see `arti
 
 ## Notes
 
-The symlink persistence disclosed in 2025 produces no log event. It is found by listing the filesystem (`fortios_symlink_to_root` check) and by comparing `diagnose sys filesystem hash` with a baseline of the same build (`hash_baseline` check).
+Fortinet says the symlink persistence disclosed in 2025 "took place in the user filesystem and avoided detection"; no published log event records it. It is found by listing the filesystem (`fortios_symlink_to_root` check) and by comparing `diagnose sys filesystem hash` with a baseline of the same build (`hash_baseline` check).
+
+The crash log (`diagnose debug crashlog read`) prints `application sslvpnd` and `*** signal 11 (Segmentation fault) received ***` on separate rows, so the crash-log form is scored by the `fortios_crashlog_sslvpnd_segv` check; the Sigma rule covers the event-log form.

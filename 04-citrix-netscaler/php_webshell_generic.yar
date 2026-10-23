@@ -6,6 +6,13 @@
 
    These rules are for appliance web roots. On a general web server they will
    match plenty of legitimate admin tooling.
+
+   Both rules are this toolkit's own generic heuristics. The references are
+   context (where such shells were reported), not the source of the strings:
+   the NCC Group / Fox-IT post publishes no YARA or PHP strings, and Fox-IT's
+   iocitrix.py uses a different list (SUSPICIOUS_PHP_CONTENTS). The 2026
+   shells hidden as .receiver and .deb files are not *.php and are not
+   reached by the file globs that feed these rules.
 */
 
 rule PHP_Webshell_Eval_Decoder
@@ -15,6 +22,7 @@ rule PHP_Webshell_Eval_Decoder
         author = "Raymond DePalma (edge-dfir-toolkit)"
         date = "2026-10-22"
         reference = "https://www.nccgroup.com/research/approximately-2000-citrix-netscalers-backdoored-in-mass-exploitation-campaign/"
+        source = "toolkit heuristic; reference is context only"
         severity = "high"
     strings:
         $php = "<?" ascii
@@ -31,6 +39,7 @@ rule PHP_Webshell_Request_To_Exec
         author = "Raymond DePalma (edge-dfir-toolkit)"
         date = "2026-10-22"
         reference = "https://github.com/fox-it/citrix-netscaler-triage"
+        source = "toolkit heuristic; reference is context only"
         severity = "high"
     strings:
         $php = "<?" ascii

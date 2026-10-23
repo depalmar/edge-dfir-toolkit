@@ -12,17 +12,29 @@ summary: >-
   Web shells and a credential harvester written into legitimate CGI, Perl,
   Python and JavaScript components of Ivanti Connect Secure in the January 2024
   campaign.
-  Found by comparing files against known-good copies; the internal ICT had been
-  modified to report clean.
+  Volexity found them through memory and disk forensics combined with
+  Integrity Checker Tool results; UTA0178 later modified scanner.py so the
+  internal ICT reported zero new or mismatched files (Volexity, 18 January
+  2024). Mandiant: "THINSPOOL attempts to evade Ivanti's Integrity Checker but
+  Mandiant observed this attempt failed."
 artifacts:
   - Modified files under the web root and CGI directories (vendor-assisted)
   - External ICT mismatches, when the tool itself was intact
 anti_forensics:
-  - Internal ICT modified to report clean
+  - Internal ICT (scanner.py) modified to report zero new or mismatched files (UTA0178, Volexity)
 detections: [ivanti-totp-traversal, ivanti-traversal-to-injectable-endpoint]
-gap: Only the exploitation request is visible in customer-reachable logs; the shells need the vendor-decrypted snapshot.
+gap: >-
+  The appliance's own logs do not record the exploit requests (Volexity), so
+  the detections need an upstream proxy or WAF log of the raw URI; the shells
+  themselves need a disk image or the external ICT's snapshot.
 confidence: medium
 references:
+  - title: Volexity - active exploitation of two Ivanti Connect Secure zero-days (10 January 2024)
+    url: https://www.volexity.com/blog/2024/01/10/active-exploitation-of-two-zero-day-vulnerabilities-in-ivanti-connect-secure-vpn/
+    accessed: "2026-10-23"
+  - title: Mandiant - suspected APT targets Ivanti Connect Secure zero-day (LIGHTWIRE, WIREFIRE, WARPWIRE, THINSPOOL, ZIPLINE)
+    url: https://cloud.google.com/blog/topics/threat-intelligence/suspected-apt-targets-ivanti-zero-day
+    accessed: "2026-10-23"
   - title: Volexity - Ivanti Connect Secure exploitation, new observations
     url: https://www.volexity.com/blog/2024/01/18/ivanti-connect-secure-vpn-exploitation-new-observations/
     accessed: "2026-10-22"

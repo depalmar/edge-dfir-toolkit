@@ -15,15 +15,19 @@ collection:
     impact: none
     description: Status, process snapshot, admin and SSL-VPN sessions, configuration, crash log.
     confidence: high
-  - method: diagnose sys filesystem hash (7.0.13+, 7.2.6+, 7.4.0+)
+  - method: diagnose sys filesystem hash (documented for 7.2.6 and 7.4.0)
     impact: none
     description: SHA-256 of system files. Meaningful only against a baseline of the same build.
     confidence: high
     references: [https://docs.fortinet.com/document/fortigate/7.2.0/new-features/860150/command-to-compute-file-hashes-7-2-6]
   - method: fnsysctl ls / cat
     impact: none
-    description: Limited read access to the filesystem, used for directory listings.
+    description: >-
+      Limited read access to the filesystem, used for directory listings.
+      Fortinet: "The ' fnsysctl' command will only work when logged in as a
+      super_admin (administrator accounts with super_admin permission profile)."
     confidence: medium
+    references: [https://community.fortinet.com/fortigate-3/technical-tip-critical-vulnerability-protect-against-heap-based-buffer-overflow-in-sslvpnd-125663]
 volatility:
   - The crash log is expected to survive a reboot and /tmp not to, but no vendor statement confirms either; collect both before any reboot
 anti_forensics:
@@ -42,7 +46,7 @@ artifacts:
     evidence_type: [persistence, defense-evasion]
     confidence: high
     collected_by: fs_hash
-    description: SHA-256 of system files (FortiOS 7.0.13+, 7.2.6+, 7.4.0+). Only meaningful against a baseline from the same build; the toolkit refuses to score it without one.
+    description: SHA-256 of system files (documented for FortiOS 7.2.6 and 7.4.0; earlier builds not confirmed). Only meaningful against a baseline from the same build; the toolkit refuses to score it without one.
     provides: >-
       A SHA-256 for every system file.
     normal: >-
@@ -58,14 +62,21 @@ artifacts:
     evidence_type: [initial-access, timeline]
     confidence: high
     collected_by: crashlog
-    description: Crash log; persists across reboots. sslvpnd signal 11 crashes were the vendor's published indicator for CVE-2022-42475 attempts.
+    description: >-
+      Crash log. sslvpnd signal 11 crashes were the vendor's published indicator
+      for CVE-2022-42475 attempts. The application and the signal are printed on
+      separate rows. Fortinet's primary instruction is the event log
+      (Logdesc="Application crashed" ... application: sslvpnd ... Signal 11
+      received); the crash log is its alternative. No vendor statement says how
+      long either is kept.
     seen_in: [CVE-2022-42475]
     provides: >-
-      Daemon crashes with process and signal, kept across reboots.
+      Daemon crashes with process token and signal.
     normal: >-
       Rare crashes that match a known bug in the release notes.
     suspicious: >-
-      sslvpnd crashing with signal 11, especially repeatedly around the window.
+      Fortinet: "Search for multiple examples" of an "application sslvpnd" row
+      followed by "*** signal 11 (Segmentation fault) received ***".
     basis: vendor
   - locator: SSL-VPN language-file directory (operator-supplied path)
     class: persistence
@@ -75,16 +86,75 @@ artifacts:
     confidence: low
     unverified: true
     collected_by: listing_sslvpn_lang
-    description: Where the 2025 symlink persistence lived, giving read-only root filesystem access that survived patching. The exact path is not confirmed by this project; supply it with --var.
+    description: >-
+      Where the 2025 symlink persistence lived, giving read-only root filesystem
+      access that survived patching. Fortinet does not publish the path; the
+      researcher Fortinet credits in FG-IR-25-934 gives /migadmin/lang. This
+      project has not confirmed it on a device; supply it with --var.
     seen_in: [symlink persistence 2025]
     provides: >-
       The files SSL-VPN serves as language resources.
     normal: >-
-      Regular files from the release.
+      Compressed language files and one link, custom -> /data2/custom_lang
+      (researcher: "there is always custom pointing to /data2/custom_lang").
     suspicious: >-
-      A symbolic link - the 2025 persistence linked this directory to the root
-      filesystem.
+      custom, or any other entry, linking to / or another root path - the
+      attackers repointed /migadmin/lang/custom at the root of the FortiGate.
+    basis: researcher
+  - locator: fnsysctl ls -l /data/lib, ls -la /var, ls -l /data/etc, ls -l /
+    class: filesystem
+    volatility: stable
+    forensic_value: high
+    evidence_type: [persistence]
+    confidence: medium
+    collected_by: listing_data_lib
+    description: The four listings Fortinet's CVE-2022-42475 tech tip names for its file indicators (steps listing_data_lib, listing_var, listing_data_etc, listing_root).
+    seen_in: [CVE-2022-42475]
+    provides: >-
+      Directory listings of /data/lib, /var, /data/etc and /.
+    normal: >-
+      None of the published indicator files present.
+    suspicious: >-
+      /data/lib/libips.bak, libgif.so, libiptcp.so, libipudp.so, libjepg.so,
+      /var/.sslvpnconfigbk, /data/etc/wxd.conf or /flash (FG-IR-22-398).
     basis: vendor
+  - locator: fnsysctl ls -la /bin and /data/bin
+    class: filesystem
+    volatility: stable
+    forensic_value: high
+    evidence_type: [persistence, defense-evasion]
+    confidence: medium
+    collected_by: listing_bin
+    description: System binaries. Mandiant published this listing for CVE-2022-41328; MIVD/AIVD use it for COATHANGER's smartctl.
+    seen_in: [CVE-2022-41328, COATHANGER]
+    provides: >-
+      Names, types, sizes and timestamps of system binaries.
+    normal: >-
+      Mandiant: "/bin/lspci should always be a standalone binary"; most other
+      entries are links to /bin/init.
+    suspicious: >-
+      lspci as a link (to /bin/sysctl in Mandiant's case); a file named fgfm
+      (CASTLETAP); smartctl that "is not a symlink" or was modified later than
+      most other files (MIVD/AIVD).
+    basis: researcher
+  - locator: diagnose sys tcpsock / diagnose sys process dump 1
+    class: process
+    volatility: live
+    forensic_value: high
+    evidence_type: [persistence, execution]
+    confidence: medium
+    collected_by: tcpsock
+    description: Active TCP sockets with owning process, and the memory map of PID 1 (step proc_dump_init). Both are MIVD/AIVD's COATHANGER CLI checks.
+    seen_in: [COATHANGER]
+    provides: >-
+      Sockets with process=<PID>/<name>; process status and memory map.
+    normal: >-
+      Not published; httpsd is also the name of the genuine web daemon.
+    suspicious: >-
+      An outgoing connection to an external address from a process called
+      httpsd; deleted entries linked to /lib/preload.so in PID 1's map
+      (MIVD/AIVD). The advisory warns the names vary between samples.
+    basis: government
   - locator: diagnose sys top
     class: process
     volatility: live
@@ -155,4 +225,22 @@ references:
   - title: Fortinet PSIRT - analysis of threat actor activity
     url: https://www.fortinet.com/blog/psirt-blogs/analysis-of-threat-actor-activity
     accessed: "2026-10-22"
-last_modified: "2026-10-22"
+  - title: Fortinet tech tip - heap-based buffer overflow in sslvpnd (crash log, fnsysctl listings, file IOCs)
+    url: https://community.fortinet.com/fortigate-3/technical-tip-critical-vulnerability-protect-against-heap-based-buffer-overflow-in-sslvpnd-125663
+    accessed: "2026-10-23"
+  - title: Fortinet PSIRT FG-IR-22-398 (CVE-2022-42475)
+    url: https://www.fortiguard.com/psirt/FG-IR-22-398
+    accessed: "2026-10-23"
+  - title: Fortinet PSIRT FG-IR-25-934 - SSL-VPN symlink persistence patch bypass
+    url: https://fortiguard.fortinet.com/psirt/FG-IR-25-934
+    accessed: "2026-10-23"
+  - title: Peter Gabaldon - FortiGate symlink persistence method
+    url: https://pgj11.com/posts/FortiGate-Symlink-Attack/
+    accessed: "2026-10-23"
+  - title: Mandiant - Fortinet malware ecosystem (CVE-2022-41328)
+    url: https://cloud.google.com/blog/topics/threat-intelligence/fortinet-malware-ecosystem
+    accessed: "2026-10-23"
+  - title: MIVD / AIVD - COATHANGER advisory, via the publisher's repository
+    url: https://github.com/JSCU-NL/COATHANGER
+    accessed: "2026-10-23"
+last_modified: "2026-10-23"

@@ -26,5 +26,5 @@ staleness: >-
 indicators:
 - type: ipv4
   value: 108.165.147.64
-  role: actor-controlled
+  role: unknown
   context: UTA0576 exploitation IP

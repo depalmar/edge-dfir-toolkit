@@ -19,7 +19,7 @@ hardening: cisco-iosxe
 collection:
   - method: Exec CLI show, dir and verify commands
     impact: none
-    description: Memory map of iosd, integrity and authenticity checks, configuration, logs and filesystem listings, following Cisco's forensic guide.
+    description: Memory map of iosd, integrity and authenticity checks, configuration, logs and filesystem listings, following Cisco's forensic guide. dir /recursive all-filesystems is the toolkit's addition; the guide lists dir harddisk:/tracelogs.
     confidence: high
     references: [https://sec.cloudapps.cisco.com/security/center/resources/forensic_guides/iosxe_forensic_guide.html]
   - method: Cisco's HTTP implant check, from a workstation
@@ -53,7 +53,7 @@ artifacts:
     evidence_type: [execution, defense-evasion]
     confidence: high
     collected_by: iosd_smaps
-    description: An rwxp iosd segment with Private_Dirty above zero may indicate tampered running code (Cisco's forensic guide).
+    description: Cisco's forensic guide checks every executable segment (r-xp or rwxp) for Private_Dirty above zero; its example of possibly tampered running code is a dirty rwxp segment.
     provides: >-
       The memory map of the IOSd process.
     normal: >-
@@ -85,22 +85,23 @@ artifacts:
     evidence_type: [initial-access, timeline]
     confidence: high
     collected_by: show_logging
-    description: "%SYS-5-CONFIG_P from SEP_webui_wsma_http and %WEBUI-6-INSTALL_OPERATION_INFO ADD were the 2023 hunting strings."
+    description: "%SYS-5-CONFIG_P from SEP_webui_wsma_http and %WEBUI-6-INSTALL_OPERATION_INFO ADD were the 2023 hunting strings. Cisco: the CONFIG_P message appears for every web UI access, and 'The indicator to look for is new or unknown usernames present in the message.'"
     seen_in: [CVE-2023-20198]
     provides: >-
       The local log buffer.
     normal: >-
       Configuration changes by known users from the CLI.
     suspicious: >-
-      "%SYS-5-CONFIG_P" by SEP_webui_wsma_http, or "%WEBUI-6-INSTALL_OPERATION_INFO"
-      with ADD.
+      "%SYS-5-CONFIG_P" by SEP_webui_wsma_http naming a new or unknown user,
+      "%SEC_LOGIN-5-WEBLOGIN_SUCCESS" for an unknown user, or
+      "%WEBUI-6-INSTALL_OPERATION_INFO" with ADD.
     basis: vendor
   - locator: dir /recursive all-filesystems
     class: filesystem
     volatility: stable
     forensic_value: high
     evidence_type: [exfiltration, execution]
-    confidence: high
+    confidence: medium
     collected_by: dir_all
     description: Packet captures on bootflash (tac.pcap, mycap.pcap, 1.pcap) and system_shell trace logs.
     seen_in: [AA25-239A]
@@ -192,5 +193,5 @@ notes: >-
   were found internally and Cisco reports no exploitation; none is in CISA KEV.
   CVE-2026-20273 is unrelated to CVE-2023-20273. CVE-2025-20352 (SNMP) is in KEV
   and was exploited after local administrator credentials were compromised;
-  there is no pack for it yet.
+  see EDGE-PACK-0021.
 last_modified: "2026-10-22"

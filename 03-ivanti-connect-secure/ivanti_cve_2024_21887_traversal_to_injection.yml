@@ -7,13 +7,14 @@ description: 'The documented exploitation chain: the TOTP backup-code path trave
 
   license/keys-status endpoint that carries the command injection (CVE-2024-21887). Stronger than the
 
-  traversal alone. Needs web logs that keep the full request path, usually from an upstream proxy.
+  traversal alone. The appliance''s own logs do not record these requests (Volexity, 10 January 2024);
+
+  it needs an upstream reverse proxy, WAF or load balancer that logs the full request path.
 
   '
 references:
-- https://www.cisa.gov/news-events/cybersecurity-advisories/aa24-060b
-- https://www.volexity.com/blog/2024/01/18/ivanti-connect-secure-vpn-exploitation-new-observations/
-- https://www.assetnote.io/resources/research/high-signal-detection-and-exploitation-of-ivantis-pulse-connect-secure-auth-bypass-rce
+- https://www.slcyber.io/research/high-signal-detection-and-exploitation-of-ivantis-pulse-connect-secure-auth-bypass-rce
+- https://www.volexity.com/blog/2024/01/10/active-exploitation-of-two-zero-day-vulnerabilities-in-ivanti-connect-secure-vpn/
 author: Raymond DePalma (edge-dfir-toolkit)
 date: '2026-10-23'
 tags:
@@ -33,9 +34,11 @@ detection:
     - /../
     - '%2e%2e'
     - '%2E%2E'
+    - '.%2e'
+    - '%2e.'
   selection_sink:
     cs-uri-stem|contains: license/keys-status
   condition: all of selection_*
 falsepositives:
-- None expected.
+- Vulnerability scanners and public proof-of-concept use (attempts, not success).
 level: high

@@ -24,7 +24,11 @@ collection:
     confidence: high
   - method: JMRT integrity-check
     impact: vendor-bundle
-    description: Checks that veriexec (Junos) or IMA (Evolved) is working. Writes and runs a test file and adds syslog entries, so it runs after log collection. Older releases (19.2 to 21.3) name it differently. Bypassed by UNC3886 through process injection, so a pass is one signal.
+    description: >-
+      Checks that veriexec (Junos) or IMA (Evolved) is working. Juniper says it
+      produces log messages such as "MAC/veriexec: no fingerprint
+      (file=/tmp/veriexec_test"; that it writes a test file is this toolkit's
+      inference. It runs after log collection. Older releases (19.2 to 21.3) name it differently. Bypassed by UNC3886 through process injection, so a pass is one signal.
     confidence: medium
     references: [https://juniper.net/documentation/us/en/software/junos/security-services/topics/topic-map/using-the-juniper-malware-removal-tool.html]
   - method: request support information (printed, not saved)
@@ -39,12 +43,14 @@ volatility:
   - The injected payloads lived in process memory; that a reboot loses them is this toolkit's inference. Mandiant says the analysis "required novel methods for artifact acquisition and analysis"
   - Log lines are edited in place on a compromised device; the syslog receiver copy is the durable record
 anti_forensics:
-  - technique: Deleted every line containing "root" from interactive-commands, messages and auth logs with sed
-    seen_in: UNC3886 (Mandiant, March 2025)
-  - technique: Backed up and then edited the login records; wtmp0 deleted on exit, utx.log0 left behind
-    seen_in: UNC3886 (Mandiant, March 2025)
+  - technique: Deleted every line containing "root" from interactive-commands, messages and auth logs, and lines containing vi, set, gdb and mgd from /root/.history, with sed before each remote shell (command 2)
+    seen_in: lmpad backdoor (UNC3886, Mandiant, March 2025)
+  - technique: Copied the login records aside and later copied wtmp0 back over wtmp; wtmp0 deleted on exit, utx.log0 left behind
+    seen_in: lmpad backdoor's embedded script (UNC3886, Mandiant, March 2025)
   - technique: Redirected syslog to /dev/null by editing the runtime syslog.conf
-    seen_in: UNC3886 (Mandiant, March 2025)
+    seen_in: lmpad backdoor's embedded script (UNC3886, Mandiant, March 2025)
+  - technique: Copied /var/db/commits and /var/rundb aside and restored them afterwards, rewinding commit history
+    seen_in: lmpad backdoor's embedded script (UNC3886, Mandiant, March 2025)
   - technique: Injected code into legitimate processes to get past veriexec
     seen_in: UNC3886 (tracked as CVE-2025-21590)
 artifacts:
@@ -76,9 +82,10 @@ artifacts:
     confidence: high
     collected_by: listing_var_tmp
     description: >-
-      pfed_jdhcp6_trace.log and rts are the names Mandiant places here. The
-      payload files and the FIFO named null sat in a deleted working directory
-      (ldb) whose location is not given.
+      pfed_jdhcp6_trace.log and rts are the names Mandiant places here.
+      loader.bin, pc.bin, payload.bin and the FIFO named null were in a
+      directory the actor removed (rm -rf ldb); Mandiant gives no location for it
+      or for ldb.b64 and ldb.tar.gz.
     seen_in: [UNC3886]
     provides: >-
       The temporary directory listing.
@@ -94,14 +101,14 @@ artifacts:
     evidence_type: [defense-evasion]
     confidence: high
     collected_by: listing_var_log
-    description: utx.log0 is left behind by the actor's scripts; wtmp0 only after an interrupted session.
+    description: utx.log0 is left behind by lmpad's embedded script (its post_ssh re-copies utx.log to utx.log0 rather than restoring it); wtmp0 only if post_ssh never ran.
     seen_in: [UNC3886]
     provides: >-
       The log directory listing.
     normal: >-
       wtmp and utx.log.
     suspicious: >-
-      utx.log0, or wtmp0 - left by the actor's scripts.
+      utx.log0, or wtmp0 - left by lmpad's embedded script.
     basis: researcher
   - locator: show log interactive-commands
     class: auth-logs
@@ -141,7 +148,11 @@ artifacts:
     evidence_type: [configuration, timeline]
     confidence: high
     collected_by: show_commits
-    description: Who committed what and how (cli, other, autoinstall).
+    description: >-
+      Who committed what and how (cli, other, autoinstall). Not a reliable
+      history on a device lmpad ran on: its backup command copied
+      /var/db/commits to /usr/lib/libjucomm.so.1 and its restore command copied
+      it back, so the commit history can be rewound to its pre-session state.
     provides: >-
       Commit history with user, time and method.
     normal: >-
@@ -149,6 +160,26 @@ artifacts:
     suspicious: >-
       Commits nobody owns, or made "via other".
     basis: toolkit
+  - locator: /var/rundb+ and /usr/lib/libjucomm.so.1
+    class: persistence
+    volatility: stable
+    forensic_value: medium
+    evidence_type: [defense-evasion]
+    confidence: medium
+    collected_by: manual
+    description: >-
+      lmpad's backup command copies /var/rundb to /var/rundb+ and
+      /var/db/commits to /usr/lib/libjucomm.so.1; its restore command copies
+      them back and removes both. Present between the two commands, or if
+      restore never ran. The profile does not list these paths.
+    seen_in: [UNC3886]
+    provides: >-
+      Copies of the runtime database and commit history taken before a session.
+    normal: >-
+      Neither exists.
+    suspicious: >-
+      Either present - lmpad's backup ran and its restore has not.
+    basis: researcher
   - locator: show configuration | display set
     class: config
     volatility: stable
@@ -171,15 +202,16 @@ artifacts:
     evidence_type: [persistence]
     confidence: medium
     collected_by: listing_config_dir
-    description: Tar archives of juniper.conf files the actor's scripts created and then deleted. Not confirmed to be absent on clean devices.
+    description: Tar archives of juniper.conf files that lmpad's backup command (6) creates and its restore command (7) deletes. Not confirmed to be absent on clean devices.
     seen_in: [UNC3886]
     provides: >-
       Archives of configuration files.
     normal: >-
       Not confirmed absent on clean devices.
     suspicious: >-
-      Present - the actor's scripts created and deleted them, so one left behind
-      marks an interrupted session.
+      Present - lmpad's backup created it and its restore deletes it, so one
+      left behind means restore has not run (Mandiant gives no timing between
+      the two).
     basis: researcher
   - locator: Syslog receiver copies
     class: off-box
@@ -204,21 +236,25 @@ artifacts:
     confidence: low
     unverified: true
     collected_by: listing_var_jail
-    description: The chroot J-Web's PHP runs in. Which on-host directory a J-Web upload lands in is not confirmed, so the whole jail is listed.
+    description: The chroot J-Web's PHP runs in. watchTowr's reproduction (single source, SRX on EC2) found its upload under /var/jail/tmp; the whole jail is listed rather than that one path.
     provides: >-
       Every file under the J-Web jail, with sizes and times.
     normal: >-
       Session files and the release's own content.
     suspicious: >-
       A file named by a 64-character hex digest with .php, .ini or .so - the shape
-      watchTowr's CVE-2023-36846 reproduction gave uploads; a php.ini with
+      watchTowr's J-Web upload reproduction gave uploads (webauth_operation.php,
+      which Juniper's JSA72300 tracks as CVE-2023-36851); a php.ini with
       auto_prepend_file turns an upload into code execution.
     basis: researcher
 confidence: high
 references:
-  - title: Mandiant - China-nexus espionage targets Juniper routers (12 March 2025)
+  - title: Mandiant - China-nexus espionage targets Juniper routers (March 2025)
     url: https://cloud.google.com/blog/topics/threat-intelligence/china-nexus-espionage-targets-juniper-routers
-    accessed: "2026-10-22"
+    accessed: "2026-10-23"
+  - title: Juniper JSA72300 - J-Web vulnerabilities (CVE-2023-36844 to 36847, 36851)
+    url: https://supportportal.juniper.net/JSA72300
+    accessed: "2026-10-23"
   - title: Juniper - using the Juniper Malware Removal Tool
     url: https://juniper.net/documentation/us/en/software/junos/security-services/topics/topic-map/using-the-juniper-malware-removal-tool.html
     accessed: "2026-10-22"
@@ -230,5 +266,6 @@ notes: >-
   On-Box Anomaly detection framework, Feb 2026) is listed in VulnCheck KEV but
   not in CISA KEV as of the 21 October 2026 catalog. Its exploit details come
   from secondary sources only, so there is no pack for it yet. The 2023 J-Web
-  chain (CVE-2023-36844 to 36847 and 36851) is in CISA KEV; no pack yet.
+  chain (CVE-2023-36844 to 36847 and 36851) is in CISA KEV (added 2023-11-13);
+  EDGE-PACK-0020 covers it at low confidence.
 last_modified: "2026-10-23"

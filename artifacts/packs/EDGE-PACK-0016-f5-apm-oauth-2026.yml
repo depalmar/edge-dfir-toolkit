@@ -11,9 +11,15 @@ summary: >-
   configured as an OAuth Authorization Server. F5 states it has been exploited
   and gives no first-seen date; CISA added it to KEV on 22 September 2026.
   watchTowr showed the trigger as an oversized Bearer token on the UserInfo
-  endpoint. F5's described sequence is OAuth failures, then suspicious commands
-  in /var/log/audit, then a TMM SIGABRT. CISA's order of operations is the
-  mitigation iRule, then forensic triage, then the patch.
+  endpoint. F5's described indicators are OAuth failures, suspicious commands
+  in /var/log/audit, and TMM core files: "We have observed TMM enters a loop,
+  which causes the SOD daemon to send a SIGABRT. Presence of a TMM core file
+  alone is not an indicator, but core files should be investigated." watchTowr's
+  RCE path appended to /etc/bigstart/scripts/tmm.finish, the script run each
+  time TMM crashes - a researcher technique, not an F5-observed indicator, and
+  not collected by the profile: compare that file with a known-good copy by
+  hand. CISA's order of operations is the mitigation iRule, then forensic
+  triage, then the patch.
 confidence: high
 references:
   - title: F5 K000162605 - CVE-2026-94127
@@ -48,4 +54,9 @@ detect:
     pattern: 'tmm\d*.*SIGABRT|SIGABRT.*tmm'
     flags: [ignorecase]
     attack: [T1190]
-    notes: The last step in F5's described sequence. TMM also aborts for unrelated faults; read with the burst and the audit log.
+    notes: >-
+      F5 publishes no log line for this step - its indicator is a TMM core file
+      after SOD sends SIGABRT - so this pattern is the toolkit's inference, not
+      F5's wording, and is unverified against a device. TMM also aborts for
+      unrelated faults; read with the burst and the audit log, and look for TMM
+      core files from the same time.

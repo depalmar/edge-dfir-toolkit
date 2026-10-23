@@ -11,20 +11,27 @@ summary: >-
   Six TINYSHELL-based backdoors on Juniper MX routers, with binary names one
   character off from legitimate daemons. UNC3886 got past veriexec by injecting
   code into a hijacked legitimate process (cat) - tracked as CVE-2025-21590,
-  which needs a local attacker with shell access. Its session scripts backed up
-  and edited the login records, deleted log lines containing "root", edited the
-  runtime syslog.conf to send all logging to /dev/null, and restored most of it
-  on exit, so on-box traces are
-  thin by design. Mandiant noted the affected routers ran end-of-life hardware
-  and software.
+  which needs a local attacker with shell access (the operator's hands-on
+  injection used ldb.b64, loader.bin, pc.bin, payload.bin and a FIFO named
+  null). The lmpad backdoor's embedded script (commands 0/1 and 6/7) redirected
+  the runtime syslog.conf to /dev/null, copied the login records aside and later
+  copied wtmp back, and backed up and restored the commit database and
+  configuration; before each remote shell its command 2 ran sed to delete lines
+  containing "root" from interactive-commands, messages and auth. Mandiant -
+  "The main purpose of this malware is to disable all possible logging before
+  the operator connects", so on-box traces are thin by design. Mandiant noted
+  the affected routers ran end-of-life hardware and software.
 confidence: high
 references:
-  - title: Mandiant - China-nexus espionage targets Juniper routers (12 March 2025)
+  - title: Mandiant - China-nexus espionage targets Juniper routers (March 2025)
     url: https://cloud.google.com/blog/topics/threat-intelligence/china-nexus-espionage-targets-juniper-routers
-    accessed: "2026-10-22"
-  - title: NVD - CVE-2025-21590
-    url: https://nvd.nist.gov/vuln/detail/CVE-2025-21590
-    accessed: "2026-10-22"
+    accessed: "2026-10-23"
+  - title: Juniper JSA93446 - CVE-2025-21590
+    url: https://supportportal.juniper.net/JSA93446
+    accessed: "2026-10-23"
+  - title: Juniper JSA95385 - 2025-03 Reference Advisory - The RedPenguin Malware Incident
+    url: https://supportportal.juniper.net/s/article/2025-03-Reference-Advisory-The-RedPenguin-Malware-Incident
+    accessed: "2026-10-23"
 
 detect:
   - id: junos-unc3886-masquerade-proc
@@ -66,9 +73,10 @@ detect:
     pattern: '\s(pfed_jdhcp6_trace\.log(\.bak)?|rts)[*/|@=]?\s*$'
     attack: [T1074.001]
     notes: >-
-      The two names Mandiant places in /var/tmp. The actor's commands deleted
-      pfed_jdhcp6_trace.log and its .bak after each use, and the name mimics a
-      daemon trace file, so possible only - confirm with the content.
+      The two names Mandiant places in /var/tmp. lmpad's command 0 writes its
+      embedded script archive to pfed_jdhcp6_trace.log and removes it and the .bak
+      after running it, and the name mimics a daemon trace file, so possible only
+      - confirm with the content.
 
   - id: junos-unc3886-payload-files
     title: UNC3886 payload file name in any listing
@@ -80,8 +88,10 @@ detect:
     pattern: '\s(ldb\.b64|ldb\.tar\.gz|loader\.bin|pc\.bin|payload\.bin)[*/|@=]?\s*$'
     attack: [T1105, T1055]
     notes: >-
-      These sat in a working directory named ldb whose location Mandiant does not
-      give, and the actor deleted it. A hit is strong; no hit means little.
+      loader.bin, pc.bin, payload.bin and the null FIFO were in a directory the
+      actor removed afterwards ("cd .. rm -rf ldb"); Mandiant gives no location
+      for that directory or for ldb.b64 and ldb.tar.gz. A hit is strong; no hit
+      means little.
 
   - id: junos-unc3886-null-fifo
     title: FIFO named null
@@ -104,9 +114,12 @@ detect:
     pattern: '\s(wtmp0|utx\.log0)[*/|@=]?\s*$'
     attack: [T1070.002]
     notes: >-
-      UNC3886's scripts copied wtmp and utx.log aside before editing them. wtmp0
-      was deleted on a clean exit, so it means an interrupted session; utx.log0
-      was left behind. Either means the live records may have been altered.
+      lmpad's embedded script (pre_ssh) copied utx.log and wtmp to utx.log0 and
+      wtmp0. Per the script's code, post_ssh copied wtmp0 back over wtmp (erasing
+      the session's records) and deleted wtmp0, but re-copied utx.log to
+      utx.log0 instead of restoring it - Mandiant's prose says both were
+      restored. A leftover wtmp0 means post_ssh never ran; utx.log0 is left behind
+      by design. Either means the live records may have been altered.
 
   - id: junos-syslog-conf-backup
     title: Backup of the runtime syslog.conf
@@ -118,9 +131,9 @@ detect:
     pattern: '\ssyslog\.conf0[*/|@=]?\s*$'
     attack: [T1562.006]
     notes: >-
-      UNC3886's pre_ssh script copied /mfs/var/etc/syslog.conf to syslog.conf0
-      and redirected all logging to /dev/null; post_ssh restored it and deleted
-      syslog.conf0. A leftover copy means an interrupted session. The path is
+      lmpad's embedded pre_ssh script copied /mfs/var/etc/syslog.conf to
+      syslog.conf0 and redirected all logging to /dev/null; post_ssh restored it
+      and deleted syslog.conf0. A leftover copy means an interrupted session. The path is
       from one Mandiant report and not confirmed on other releases.
 
   - id: junos-usage-db
@@ -133,9 +146,10 @@ detect:
     pattern: '\susage_db[*/|@=]?\s*$'
     attack: [T1074.001]
     notes: >-
-      Tar archives of juniper.conf files that the actor's scripts created and
-      then deleted, so present only after an interrupted session. Not confirmed
-      to be absent on clean devices, so possible only.
+      Tar archives of juniper.conf files that lmpad's backup command (6) creates
+      and its restore command (7) deletes, so present between the two or if
+      restore never ran; Mandiant gives no timing between them. Not confirmed to
+      be absent on clean devices, so possible only.
 
   - id: junos-cli-start-shell
     title: CLI user started a shell
@@ -150,8 +164,9 @@ detect:
     notes: >-
       CVE-2025-21590, the veriexec bypass UNC3886 used, needs shell access, and
       Juniper's mitigation is to restrict shell to trusted users. Administrators
-      and JTAC use the shell too, so every hit needs an owner. UNC3886 deleted
-      log lines containing "root", so absence here is weak evidence.
+      and JTAC use the shell too, so every hit needs an owner. lmpad's command 2
+      deleted lines containing "root" from interactive-commands, so absence here
+      is weak evidence.
 
   - id: junos-unc3886-tinyshell-yara
     title: TINYSHELL backdoor strings in a recovered file
@@ -163,3 +178,18 @@ detect:
       files: ["**"]
     attack: [T1205, T1573]
     notes: Evaluated against files recovered through JTAC or ingested images; the CLI cannot read the binaries.
+
+  - id: junos-tinyshell-mandiant-hunting
+    title: Mandiant's TINYSHELL hunting rules match a recovered file
+    type: yara
+    tier: likely
+    evidence_class: persistence
+    rule: 09-juniper-junos/junos_tinyshell_mandiant_hunting.yar
+    sources:
+      files: ["**"]
+    attack: [T1205, T1573]
+    notes: >-
+      Mandiant's published rules M_Hunting_TINYSHELL_5 and
+      M_Hunting_PacketEncryptionLayer_1. They find TINYSHELL code generally, not
+      only the UNC3886 variants, so likely rather than confirmed. Evaluated
+      against files recovered through JTAC or ingested images.

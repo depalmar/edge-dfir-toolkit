@@ -8,7 +8,8 @@
 #
 # The tech support file (TSF) is the single most valuable artifact and it must be
 # taken BEFORE an upgrade: the vendor's own CVE-2024-3400 advisory notes that
-# logs from the previous install become inaccessible after upgrading.
+# "some logs from the prior system installation will become inaccessible on the
+# device" after an upgrade (support may still help investigate the prior install).
 
 profile: panos
 platform_id: EDGE-0001
@@ -122,6 +123,8 @@ steps:
     purpose: GlobalProtect service log. CVE-2024-3400 exploitation leaves "failed to unmarshal session(...)" entries carrying a path instead of a session GUID. The vendor's own on-box check is `grep pattern "failed to unmarshal session(.\+.\/" mp-log gpsvc.log*`.
     confidence: medium
     references:
+      - https://security.paloaltonetworks.com/CVE-2024-3400
+      - https://unit42.paloaltonetworks.com/cve-2024-3400/
       - https://www.volexity.com/blog/2024/05/15/detecting-compromise-of-cve-2024-3400-on-palo-alto-networks-globalprotect-devices/
 
   - id: mp_sslvpn_ngx_error
@@ -158,11 +161,13 @@ steps:
     instructions: |
       PAN-OS customers cannot collect memory or read the root filesystem themselves.
       Open a support case and request, through vendor-assisted access:
-        - /etc/cron.d/ and /var/spool/cron/ (cron persistence; Unit 42 classes it
-          as a "Level 3 - interactive access" indicator)
-        - Python site-packages *.pth files (UPSTYLE used system.pth)
+        - /etc/cron.d/ and /var/spool/cron/ (cron persistence; Unit 42's
+          "Level 3: Interactive Access" covers "shell-based backdoors,
+          introduction of code, downloading files or running commands")
+        - Python site-packages *.pth files (UPSTYLE, where installed, uses system.pth)
         - /var/appweb/ document roots (copied running-config, web shells)
         - a memory capture, if the vendor will take one
       Ingest each returned archive with:  edge-triage ingest <case> --label tac --bundle <file>
     references:
       - https://security.paloaltonetworks.com/CVE-2024-3400
+      - https://unit42.paloaltonetworks.com/cve-2024-3400/

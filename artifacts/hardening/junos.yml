@@ -16,12 +16,17 @@ controls:
     priority: critical
     why: The CVE-2023-36844 chain (with 36845 to 36847 and 36851) was exploitable through J-Web.
     how: >-
-      Juniper's workaround text gives no commands, and the configuration was not
-      read from Juniper's documentation for this entry; use the J-Web section of
-      the Junos user guide for your release rather than a guessed command.
+      JSA72300 names what exposes J-Web - "[system services web-management http]
+      or [system services web-management https]" - but gives no removal command;
+      use the J-Web section of the Junos user guide for your release rather than
+      a guessed command.
     blunts: [CVE-2023-36844, CVE-2023-36845, CVE-2023-36846, CVE-2023-36847, CVE-2023-36851]
     confidence: high
     sources:
+      - title: Juniper JSA72300 - J-Web vulnerabilities (CVE-2023-36844 to 36847, 36851)
+        url: https://supportportal.juniper.net/JSA72300
+        accessed: "2026-10-23"
+        quote: "Disable J-Web, or limit access to only trusted hosts."
       - title: CVE-2023-36844 as published by Juniper (CNA record)
         url: https://cveawg.mitre.org/api/cve/CVE-2023-36844
         accessed: "2026-10-22"
@@ -36,8 +41,8 @@ controls:
       Juniper publishes a worked example for limiting management access.
     how: >-
       Juniper's example builds a prefix list of management addresses and a filter
-      applied as an lo0 input filter (`set interfaces lo0.0 family inet filter
-      input <filter>`). The filter must allow every management and routing protocol
+      applied as an lo0 input filter (`set interfaces lo0 unit 0 family inet filter
+      input <filter>`, Juniper's syntax). The filter must allow every management and routing protocol
       the router uses, so copy the full example from Juniper's page and use `commit
       confirmed`.
     confidence: high
@@ -45,10 +50,7 @@ controls:
       - title: Juniper - example, control management access on Juniper networking devices
         url: https://www.juniper.net/documentation/us/en/software/junos/user-access/topics/example/permitted-ip-configuring.html
         accessed: "2026-10-22"
-        quote: "This example shows how to limit management access to Juniper Networking devices."
-      - title: Juniper Day One - Securing the Routing Engine
-        url: https://www.juniper.net/documentation/en_US/day-one-books/Securing_RouteEngine_v2.pdf
-        accessed: "2026-10-22"
+        quote: "This example shows how to limit management access to Juniper Networking devices based on a specific set of allowed IP addresses."
 
   - id: junos-restrict-shell
     control: Restrict shell access to trusted users only
@@ -95,7 +97,7 @@ controls:
       - title: Mandiant - China-nexus espionage targets Juniper routers
         url: https://cloud.google.com/blog/topics/threat-intelligence/china-nexus-espionage-targets-juniper-routers
         accessed: "2026-10-22"
-        quote: "Implement a centralized Identity and Access Management (IAM) system with robust multi-factor authentication (MFA) and granular role-based access control (RBAC)."
+        quote: "Implement a centralized Identity and Access Management (IAM) system with robust multi-factor authentication (MFA) and granular role-based access control (RBAC) for managing network devices."
 
   - id: junos-eol-replacement
     control: Plan replacement of end-of-life routers before support ends

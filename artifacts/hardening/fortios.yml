@@ -122,17 +122,23 @@ controls:
     priority: high
     why: >-
       The April 2025 symlink persistence affected only devices that had SSL-VPN
-      enabled. From FortiOS 7.6.3 SSL VPN tunnel mode is removed and Fortinet
-      advises migrating to IPsec.
+      enabled.
     how: >-
-      Turn SSL-VPN off where unused. The upgrades that remove the symlink
-      persistence are 7.6.2, 7.4.7, 7.2.11, 7.0.17 and 6.4.16.
+      Turn SSL-VPN off where unused. Fortinet's April 2025 releases (7.6.2,
+      7.4.7, 7.2.11, 7.0.17, 6.4.16) remove the symlink, but FG-IR-25-934
+      (CVE-2025-68686) bypasses that fix and lists 7.2, 7.0 and 6.4 "all
+      versions" as affected with "Migrate to a fixed release": run 7.4.7 or
+      later, or 7.6.2 or later.
     blunts: [FortiOS symlink persistence]
     confidence: high
     sources:
       - title: Fortinet PSIRT blog - analysis of threat actor activity (10 April 2025)
         url: https://www.fortinet.com/blog/psirt-blogs/analysis-of-threat-actor-activity
         accessed: "2026-10-22"
+      - title: Fortinet PSIRT FG-IR-25-934 - SSL-VPN symlink persistence patch bypass (CVE-2025-68686)
+        url: https://fortiguard.fortinet.com/psirt/FG-IR-25-934
+        accessed: "2026-10-23"
+        quote: "may allow a remote unauthenticated attacker to bypass the patch developed for the symbolic link persistency mechanism observed in some post-exploit cases"
       - title: ASD's ACSC - mitigation strategies for edge devices, practitioner guidance
         url: https://www.cyber.gov.au/business-government/protecting-devices-systems/hardening-systems-applications/network-hardening/securing-edge-devices/mitigation-strategies-for-edge-devices-practitioner-guidance
         accessed: "2026-10-22"

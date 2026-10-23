@@ -33,7 +33,11 @@ eradicate:
   - step: Do not clean the symlink and declare victory
     detail: The language-directory symlink is one artefact; a confirmed-compromised device is untrusted. Look for secondary persistence (automation stitches, scripts, modified binaries by hash).
   - step: Rebuild on a fixed build and remove post-patch persistence per vendor guidance
-    detail: Fortinet published specific guidance and later a fix for a bypass of the symlink remediation (CVE-2025-68686); apply the current one.
+    detail: >-
+      Fortinet's April 2025 releases remove the symlink; FG-IR-25-934
+      (CVE-2025-68686) bypasses that fix and has no fixed release for 7.2, 7.0 or
+      6.4 ("Migrate to a fixed release"). Rebuild on 7.4.7 or later, or 7.6.2 or
+      later.
   - step: Re-import a reviewed configuration
     detail: Diff against known-good; do not blind-restore a post-compromise backup.
 
@@ -49,7 +53,7 @@ verify:
 
 do_not:
   - action: Rely on patching alone after suspected compromise
-    because: The symlink persistence survived patching, and a bypass of the fix was later disclosed.
+    because: The symlink persistence survived patching, and FG-IR-25-934 bypasses the fix on every 7.2, 7.0 and 6.4 release.
   - action: Trust `diagnose sys filesystem hash` without a baseline
     because: A list of hashes with nothing to compare against proves nothing.
 
@@ -57,6 +61,9 @@ vendor_guidance:
   - title: Fortinet PSIRT - analysis of threat actor activity
     url: https://www.fortinet.com/blog/psirt-blogs/analysis-of-threat-actor-activity
     accessed: "2026-10-22"
+  - title: Fortinet PSIRT FG-IR-25-934 - SSL-VPN symlink persistence patch bypass (CVE-2025-68686)
+    url: https://fortiguard.fortinet.com/psirt/FG-IR-25-934
+    accessed: "2026-10-23"
 
 references:
   - title: Fortinet PSIRT FG-IR-22-398 (CVE-2022-42475)

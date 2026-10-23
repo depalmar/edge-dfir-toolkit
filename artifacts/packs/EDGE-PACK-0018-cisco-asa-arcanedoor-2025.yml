@@ -5,17 +5,20 @@ name: Cisco ASA / FTD ArcaneDoor 2025-2026 (CVE-2025-20333, CVE-2025-20362)
 platforms: [EDGE-0005]
 cves: [CVE-2025-20333, CVE-2025-20362]
 actors: [UAT4356]
-implants: [RayInitiator, FXOS lina_cs implant]
+implants: [RayInitiator, LINE VIPER, FIRESTARTER]
 summary: >-
   The 2025 follow-on to ArcaneDoor chained a VPN web server authorisation bypass
   with remote code execution. Cisco assesses with high confidence it is the same
   actor. On ASA 5500-X models without Secure Boot it persisted below the
-  operating system; in April 2026 Cisco added an FXOS-level implant on Firepower
-  and Secure Firewall hardware that survives upgrades and reloads. The in-memory
-  payload (LINE VIPER, per NCSC) suppresses syslog IDs and disables checkheaps,
-  and - unlike LINE DANCER - leaves no split lina region, so an unsplit region
-  map does not clear a device. Absence of the suppressed syslog IDs is an
-  off-box hunt, not an on-box check.
+  operating system; in April 2026 Cisco disclosed an FXOS-level persistence
+  mechanism (Talos names the backdoor FIRESTARTER) on Firepower and Secure
+  Firewall hardware that survives upgrades and reloads. The in-memory payload
+  LINE VIPER (NCSC) suppresses syslog IDs 302013, 302014, 609002 and 710005 and -
+  unlike LINE DANCER - leaves no split lina region, so an unsplit region map does
+  not clear a device; Cisco separately reports the actor disabled checkheaps.
+  CISA's ED 25-03 grep of the lina text section is the on-box implant check;
+  RayInitiator itself still needs a core dump. Absence of the suppressed syslog
+  IDs is an off-box hunt, not an on-box check.
 confidence: high
 references:
   - title: Cisco - Detection guide for continued attacks against Cisco firewalls (v1.2, 24 April 2026)
@@ -27,11 +30,37 @@ references:
   - title: Cisco - Continued evolution of persistence mechanism (cisco-sa-asaftd-persist-CISAED25-03, v1.3)
     url: https://sec.cloudapps.cisco.com/security/center/content/CiscoSecurityAdvisory/cisco-sa-asaftd-persist-CISAED25-03
     accessed: "2026-10-23"
+  - title: CISA - Supplemental Direction ED 25-03 - Core Dump and Hunt Instructions (updated 24 April 2026)
+    url: https://www.cisa.gov/news-events/directives/supplemental-direction-ed-25-03-core-dump-and-hunt-instructions
+    accessed: "2026-10-23"
+  - title: Cisco Talos - UAT-4356 FIRESTARTER
+    url: https://blog.talosintelligence.com/uat-4356-firestarter/
+    accessed: "2026-10-23"
   - title: NCSC - RayInitiator and LINE VIPER malware analysis report (v1.1)
     url: https://www.ncsc.gov.uk/static-assets/documents/malware-analysis-reports/RayInitiator-LINE-VIPER/ncsc-mar-rayinitiator-line-viper.pdf
     accessed: "2026-10-23"
 
 detect:
+  - id: asa-lina-text-implant-grep
+    title: CISA's implant byte sequence found in the lina text section
+    type: log_regex
+    tier: likely
+    evidence_class: memory
+    sources:
+      steps: [lina_text_implant_grep]
+    # The echoed command carries the same hex groups; it is the only line with "grep".
+    pattern: '55534154 41554156 41575756 488bb3a0'
+    exclude: ['\bgrep\b']
+    flags: [ignorecase]
+    attack: [T1601.001, T1620]
+    notes: >-
+      CISA ED 25-03 Supplemental Direction: "Any output from this command is an
+      indicator of compromise." CISA's RayDetect README says Part One, Section One
+      of the instructions determines "if there is evidence of LineViper presence
+      on the device". Held at likely rather than confirmed because CISA does not
+      publish the command's output and the toolkit has not seen it; any matching
+      line is to be reported to CISA. No output does not clear the device.
+
   - id: asa-fxos-lina-cs-process
     title: lina_cs process present (FXOS persistent implant)
     type: log_regex
@@ -66,8 +95,8 @@ detect:
       compromised prior to the upgrade"; open a TAC case with show tech-support
       and the file. Cisco does not name the mechanism; NCSC names a GRUB bootkit
       on the same models RayInitiator. The toolkit does not equate the two.
-      CISA's pages spell the name firmwareupdate.log and firmware-update.log;
-      Cisco's spelling is used here.
+      CISA's Supplemental Direction uses the same name, firmware_update.log, and
+      adds the 5585-X to the model list.
 
   - id: asa-checkheaps-stalled
     title: Checkheaps counter did not advance
@@ -79,7 +108,10 @@ detect:
       steps: [show_checkheaps, show_checkheaps_late]
     attack: [T1562.001]
     notes: >-
-      Cisco reports the actor disabled checkheaps and gives a five-minute,
-      once-a-minute procedure. The profile takes two readings; the comparison
-      rule is the toolkit's. A hit is a reason to repeat Cisco's procedure by
-      hand, not a verdict.
+      Cisco reports the actor disabled checkheaps. Two readings at least five
+      minutes apart is CISA's published procedure ("Wait at least five minutes,
+      then run "show checkheaps" again"); no positive change in Total number of
+      runs is "evidence of a potential compromise". The profile does not wait,
+      so the hit reports the gap between its readings; the rule for gaps under
+      five minutes is the toolkit's. A hit is a reason to repeat the procedure
+      by hand, not a verdict.

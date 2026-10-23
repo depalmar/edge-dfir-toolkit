@@ -156,12 +156,14 @@ def test_hunts_and_artifact_reading_guidance(browser, tmp_path):
     page.locator("#drawer").wait_for(state="visible")
     body = page.locator("#dBody").inner_text()
     assert "Normal" in body and "Suspicious" in body and "302013" in body
-    assert "read through a summariser" in body
+    # Both quotes were re-read on the live pages (2026-10-23); no hunt quote is
+    # summariser-only any more, so the flag must not appear here.
+    assert "read through a summariser" not in body
     page.goto(f"{url}#hunts?data=aaa-accounting")
     page.wait_for_timeout(300)
     shown, total = _counts(page, "hunts")
     assert 0 < shown < total
-    page.goto(f"{url}#artifacts/EDGE-0005.09")
+    page.goto(f"{url}#artifacts/EDGE-0005.10")
     page.locator("#drawer").wait_for(state="visible")
     body = page.locator("#dBody").inner_text()
     assert "what it gives you" in body.lower() and "Criterion from: Vendor" in body

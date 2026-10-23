@@ -17,9 +17,13 @@ artifacts:
   - Core dump, scanned with RayDetect
 anti_forensics:
   - Persists below the operating system
-detections: []
+  - "LINE VIPER (NCSC): a core-dump request reboots the device; copying system:/text reboots it; verify of system:/text returns the legitimate firmware's hash"
+detections: [asa-lina-text-implant-grep]
 gap: >-
-  Detection needs a core dump analysed with RayDetect, which CISA states is
+  LINE VIPER has a published on-box check: CISA's grep of the lina text section
+  (asa-lina-text-implant-grep; RayDetect's README says that part of CISA's
+  instructions determines "if there is evidence of LineViper presence on the
+  device"). RayInitiator itself needs a core dump analysed with RayDetect, which CISA states is
   confident only for ASA 5500-X running 9.12 and 9.14 - not Firepower or ASAv.
   The toolkit records the dump as a manual break-glass step and ingests the
   result but does not run the scanner. Cisco separately documents firmware_update.log on
@@ -31,6 +35,12 @@ references:
   - title: CISA RayDetect
     url: https://github.com/cisagov/RayDetect
     accessed: "2026-10-22"
-  - title: CISA ED 25-03 implementation guidance update
+  - title: CISA - Supplemental Direction ED 25-03 - Core Dump and Hunt Instructions (updated 24 April 2026)
+    url: https://www.cisa.gov/news-events/directives/supplemental-direction-ed-25-03-core-dump-and-hunt-instructions
+    accessed: "2026-10-23"
+  - title: CISA - ED 25-03 Identify and Mitigate Potential Compromise of Cisco Devices
+    url: https://www.cisa.gov/news-events/directives/ed-25-03-identify-and-mitigate-potential-compromise-cisco-devices
+    accessed: "2026-10-23"
+  - title: CISA ED 25-03 implementation guidance update (alert, 12 November 2025; pointer only)
     url: https://www.cisa.gov/news-events/alerts/2025/11/12/update-implementation-guidance-emergency-directive-cisco-asa-and-firepower-device-vulnerabilities
     accessed: "2026-10-22"

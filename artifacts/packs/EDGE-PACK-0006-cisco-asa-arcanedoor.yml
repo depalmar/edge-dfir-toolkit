@@ -50,6 +50,28 @@ detect:
     pattern: 'client_bundle[\w-]*\.zip'
     flags: [ignorecase]
     attack: [T1542, T1505]
+    notes: >-
+      Talos - when the zip exists at boot LINE RUNNER unzips it and runs
+      csco_config.lua, and "Once processed, the ZIP file is deleted"; the
+      shutdown hook copies it back to disk0:client_bundle_install.zip. On a
+      running device the zip is therefore normally absent, and its absence proves
+      little.
+
+  - id: asa-line-runner-webcontent
+    title: LINE RUNNER webcontent file on disk0
+    type: log_regex
+    tier: likely
+    evidence_class: persistence
+    sources:
+      steps: [dir_disk0]
+    pattern: '1515480F4B538B669648B17C02337098'
+    flags: [ignorecase]
+    attack: [T1505.003]
+    notes: >-
+      Talos - LINE RUNNER's csco_config.lua creates a file named
+      1515480F4B538B669648B17C02337098 (from hash.txt) in the
+      csco_config/97/webcontent directory on disk0. Unlike the zip, this file is
+      not described as deleted at boot.
 
   - id: asa-zip-on-disk0
     title: Zip archive on disk0

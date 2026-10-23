@@ -24,8 +24,8 @@ method:
   Administrator-account VPN sessions from external addresses, weighted toward low-reputation
   networks; include admin@LocalDomain, whose default password is password.
 - >-
-  Current settings exported, Current settings imported, and Clear all logs outside maintenance
-  windows.
+  Log entries for Current settings exported, Current settings imported, or Clear all logs
+  manually outside maintenance windows.
 - URL queries containing dobackshell or dopasswords.
 normal: Administrator access from management networks; exports only in change windows.
 suspicious: The opposite of either.
@@ -44,7 +44,7 @@ sources:
   read: direct
 - title: Arctic Wolf - Credential access campaign targeting SonicWall SMA devices
   url: >-
-    https://arcticwolf.com/resources/blog/credential-access-campaign-targeting-sonicwall-sma-devices/
+    https://arcticwolf.com/resources/blog/credential-access-campaign-targeting-sonicwall-sma-devices-potentially-linked-to-exploitation-of-cve-2021-20035/
   accessed: '2026-10-23'
   quote: >-
     use of a local super admin account (admin@LocalDomain) on these appliances, which has

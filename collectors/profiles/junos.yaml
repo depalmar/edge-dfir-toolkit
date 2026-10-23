@@ -28,6 +28,8 @@ cli:
   allow:
     - 'show [\w ./-]+( \| display set)? \| no-more'
     - 'file list /[\w./-]+( detail)?( recursive)? \| no-more'
+    # The J-Web PHP log only; file show is not opened to other paths.
+    - 'file show /var/jail/sess/php\.log \| no-more'
   deny:
     - '^(clear|set|delete|start|configure|commit|rollback|restart|load|edit) '
     - '^request '
@@ -81,8 +83,9 @@ steps:
     purpose: >-
       JMRT check that the integrity mechanisms (veriexec on Junos, IMA on Evolved)
       are working. Not read-only: Juniper says to expect log lines such as
-      "MAC/veriexec: no fingerprint (file=/tmp/veriexec_test", so it writes and
-      runs a test file and adds syslog entries - collect the logs first. Junos
+      "MAC/veriexec: no fingerprint (file=/tmp/veriexec_test", so it adds
+      syslog entries - collect the logs first. That it also writes a test file
+      is this toolkit's inference from that path; Juniper does not say so. Junos
       19.2 to 21.3 use a differently named JMRT command (veriexec-check), which
       the guard refuses; run it by hand from Juniper's documentation. UNC3886
       bypassed veriexec by injecting into a running process, so a pass here
@@ -107,7 +110,12 @@ steps:
     tier: P2
     kind: command
     cmd: show system commit | no-more
-    purpose: Commit history with user, time and method (cli, other, autoinstall). An unexpected commit or a "via other" entry in the window needs an owner.
+    purpose: >-
+      Commit history with user, time and method (cli, other, autoinstall). An
+      unexpected commit or a "via other" entry in the window needs an owner. Not
+      reliable after lmpad: its backup command copied /var/db/commits aside and
+      its restore command copied it back, so the history can be rewound to its
+      pre-session state (Mandiant).
     confidence: high
     references:
       - https://juniper.net/documentation/en_US/junos13.1/topics/reference/command-summary/show-system-commit.html
@@ -117,7 +125,7 @@ steps:
     kind: command
     cmd: show log messages | no-more
     timeout: 600
-    purpose: System log including UI_LOGIN_EVENT, UI_AUTH_EVENT and sshd lines. UNC3886 deleted every line containing "root", so gaps around root activity are the finding.
+    purpose: System log including UI_LOGIN_EVENT, UI_AUTH_EVENT and sshd lines. lmpad's command 2 deleted every line containing "root" from messages before each remote shell, so gaps around root activity are the finding.
     confidence: high
     references:
       - https://www.juniper.net/documentation/us/en/software/junos/network-mgmt/topics/topic-map/displaying-system-log-files.html
@@ -127,7 +135,7 @@ steps:
     kind: command
     cmd: show log interactive-commands | no-more
     timeout: 600
-    purpose: CLI command history (UI_CMDLINE_READ_LINE). A target of UNC3886 log-line deletion; compare with the syslog receiver copy.
+    purpose: CLI command history (UI_CMDLINE_READ_LINE). lmpad's command 2 deleted lines containing "root" from it; compare with the syslog receiver copy.
     confidence: medium
 
   - id: listing_var_log
@@ -135,10 +143,12 @@ steps:
     kind: command
     cmd: file list /var/log detail | no-more
     purpose: >-
-      Log directory listing. UNC3886's session scripts copied wtmp to wtmp0 and
-      utx.log to utx.log0, edited the originals, then restored wtmp and deleted
-      wtmp0. utx.log0 was not deleted (Mandiant notes the script overwrote it
-      again), so it can survive; wtmp0 survives only an interrupted session.
+      Log directory listing. lmpad's embedded script (pre_ssh) copied wtmp to
+      wtmp0 and utx.log to utx.log0; post_ssh copied wtmp0 back over wtmp
+      (erasing the session's records) and deleted wtmp0, and - per the script's
+      code, though Mandiant's prose says both were restored - re-copied utx.log
+      to utx.log0 instead of restoring it. utx.log0 therefore survives; wtmp0
+      survives only if post_ssh never ran.
     confidence: high
     references:
       - https://cloud.google.com/blog/topics/threat-intelligence/china-nexus-espionage-targets-juniper-routers
@@ -149,10 +159,11 @@ steps:
     cmd: file list /var/tmp detail | no-more
     purpose: >-
       Temporary directory. Mandiant places pfed_jdhcp6_trace.log (and .bak,
-      both deleted after use) and rts in /var/tmp. The payload files (ldb.b64, ldb.tar.gz, loader.bin,
-      pc.bin, payload.bin) and the FIFO named null sat in a working directory
-      called ldb whose location is not given, and the actor deleted it, so
-      their absence means little. Core files also land here.
+      both deleted after use) and rts in /var/tmp. loader.bin, pc.bin,
+      payload.bin and the FIFO named null were in a directory the actor removed
+      afterwards; Mandiant gives no location for it or for ldb.b64 and
+      ldb.tar.gz, so their absence means little. watchTowr's J-Web uploads were
+      found under /var/jail/tmp, not here. Core files also land here.
     confidence: high
 
   - id: listing_var_jail
@@ -160,13 +171,30 @@ steps:
     kind: command
     cmd: file list /var/jail detail recursive | no-more
     purpose: >-
-      The chroot J-Web's PHP runs in. watchTowr's CVE-2023-36846 reproduction
-      wrote uploads as 64-hex-character names with the original extension and
-      logged to /var/jail/sess/php.log; which on-host directory an upload lands in
-      is not confirmed, so the whole jail is listed rather than a guessed path.
+      The chroot J-Web's PHP runs in. watchTowr's J-Web upload reproduction
+      (webauth_operation.php, which Juniper's JSA72300 tracks as CVE-2023-36851)
+      wrote uploads as 64-hex-character names with the original extension under
+      /var/jail/tmp and logged to /var/jail/sess/php.log. That is one researcher on
+      one SRX, so the whole jail is listed rather than the one path.
     confidence: low
     unverified: true
     references:
+      - https://labs.watchtowr.com/cve-2023-36844-and-friends-rce-in-juniper-firewalls/
+
+  - id: jweb_php_log
+    tier: P4
+    kind: command
+    cmd: file show /var/jail/sess/php.log | no-more
+    purpose: >-
+      J-Web's PHP log, where watchTowr saw the traces of unauthenticated J-Web API
+      use ("CACHING FLOW: query user not set", and "Trying to access array offset
+      on value of type null" from /html/core/session.php). file show is Juniper's
+      documented way to display a log file by path; the path is from watchTowr's
+      single SRX reproduction, so the step errors where it differs.
+    confidence: low
+    unverified: true
+    references:
+      - https://www.juniper.net/documentation/us/en/software/junos/network-mgmt/topics/topic-map/displaying-system-log-files.html
       - https://labs.watchtowr.com/cve-2023-36844-and-friends-rce-in-juniper-firewalls/
 
   - id: listing_config_dir
@@ -174,9 +202,10 @@ steps:
     kind: command
     cmd: file list /config detail | no-more
     purpose: >-
-      Live configuration directory. UNC3886's scripts wrote usage_db here and
-      under /var/db/config - tar archives of juniper.conf files - and then
-      deleted them, so they survive only an interrupted session.
+      Live configuration directory. lmpad's backup command (6) wrote usage_db
+      here and under /var/db/config - tar archives of juniper.conf files - and
+      its restore command (7) deleted them, so they survive between the two or
+      if restore never ran.
     confidence: medium
 
   - id: listing_db_config
@@ -191,10 +220,10 @@ steps:
     kind: command
     cmd: file list /mfs/var/etc detail | no-more
     purpose: >-
-      Runtime configuration directory. UNC3886 backed up the runtime syslog.conf
-      to syslog.conf0 before redirecting logging to /dev/null, then restored it
-      and deleted the copy, so syslog.conf0 survives only an interrupted
-      session. The path comes from one Mandiant report and
+      Runtime configuration directory. lmpad's embedded pre_ssh script backed up
+      the runtime syslog.conf to syslog.conf0 before redirecting logging to
+      /dev/null; post_ssh restored it and deleted the copy, so syslog.conf0
+      survives only if post_ssh never ran. The path comes from one Mandiant report and
       has not been confirmed on other platforms or releases.
     confidence: low
     unverified: true

@@ -4,7 +4,7 @@ aliases: []
 reported_by: [Volexity]
 link_confidence: medium
 stated_confidence: "Volexity assesses with low confidence that UTA0576 has criminal, rather than espionage, motivations based on the target of this activity."
-motivation: financial
+motivation: unknown
 summary: >-
   Exploited Ivanti Connect Secure in 2026 (CVE-2026-104935, an authentication
   bypass and code execution, chained with an unnumbered privilege escalation)
@@ -24,11 +24,16 @@ tradecraft:
   - Removal of its own log lines on the appliance
   - Harvesting LDAP traffic captured on the appliance
 victimology: ["not stated"]
-first_seen: "2026"
+first_seen: "2026-10"
 references:
   - title: Volexity - chained exploitation of Ivanti Connect Secure zero-days (October 2026)
     url: https://www.volexity.com/blog/2026/10/13/a-series-of-unauthenticated-events-chained-exploitation-of-ivanti-connect-secure-zero-days/
     accessed: "2026-10-22"
 notes: >-
-  No pack yet: the indicators are memory-only and a reliable check needs a core
-  dump or snapshot parser. Listed as a gap on purpose.
+  Motivation is recorded as unknown because the schema has no "criminal" value;
+  Volexity's own words are in stated_confidence (low confidence, criminal rather
+  than espionage). Volexity found the activity "In the first week of October 2026".
+  EDGE-PACK-0026 covers on-disk leftovers in /data/.icscap and
+  /home/runtime/tmp; the exploit itself (X-DSCGI-PATH on welcome.cgi, visible
+  only to a proxy that logs headers) and the transient in-memory patch are not
+  covered.

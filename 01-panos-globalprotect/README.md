@@ -15,6 +15,6 @@ Detection packs: `EDGE-PACK-0001`, `EDGE-PACK-0002`, `EDGE-PACK-0025` (see `arti
 
 ## Notes
 
-The TSF is the richest customer-reachable source. Take it before upgrading: logs from the previous install become inaccessible after an upgrade.
+The TSF is the richest customer-reachable source. Take it before upgrading: the vendor says some logs from the prior installation become inaccessible on the device after an upgrade.
 
 CVE-2026-0300 left its tunnelling tools in /var/tmp and /tmp after clearing crash records; with no customer shell, those paths are checked only against files TAC or an image recovers.

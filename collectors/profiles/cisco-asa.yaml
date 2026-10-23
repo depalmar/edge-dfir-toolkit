@@ -7,6 +7,9 @@
 #      erases it. The memory-region check therefore runs first, before anything
 #      that could reload the box, and the core dump is break-glass and manual.
 #   2. LINE RUNNER persisted through a zip on disk0: that is processed at boot.
+#   3. LINE VIPER (2025) also turns a dump request into an immediate reboot, and
+#      reboots the device when system:/text is copied (NCSC). CISA's implant check
+#      on the text section therefore runs after every other live step.
 #
 # Cisco's published check: more than one executable (r-xp) memory region for
 # lina, especially one exactly 0x1000 bytes long, indicates tampering.
@@ -25,6 +28,9 @@ cli:
   allow:
     - 'show [\w -]+( \| (include|exclude|begin) [\w :./-]+)?'
     - 'dir( /recursive)? (disk0|disk1|flash):[\w/.-]*'
+    # CISA ED 25-03's implant check, exactly as CISA prints it. Nothing else
+    # starting with "more" is admitted.
+    - 'more /binary system:/text \| grep 55534154 41554156 41575756 488bb3a0'
   deny:
     - '^(reload|write|copy|delete|erase|format|configure|crashinfo|debug|verify|clear|capture|test)( |$)'
     - '[;&`<>]|\$\('
@@ -70,19 +76,21 @@ steps:
     cmd: show checkheaps
     purpose: >-
       Heap checker state, first snapshot. Checkheaps runs every 60 seconds by
-      default; Cisco reports the 2025 ArcaneDoor actor disabled it, and says a
-      Total number of runs that does not rise over five minutes is evidence of a
-      potential compromise. Compared with show_checkheaps_late.
+      default; Cisco reports the 2025 ArcaneDoor actor disabled it. CISA's
+      procedure waits at least five minutes before the second reading and calls
+      a Total number of runs with no positive change "evidence of a potential
+      compromise". Compared with show_checkheaps_late.
     confidence: high
     references:
       - https://sec.cloudapps.cisco.com/security/center/resources/detection_guide_for_continued_attacks
+      - https://www.cisa.gov/news-events/directives/supplemental-direction-ed-25-03-core-dump-and-hunt-instructions
 
   - id: show_kernel_lina_cs
     tier: V2
     kind: command
     cmd: show kernel process | include lina_cs
     purpose: >-
-      Cisco's check for the 2026 FXOS persistent implant on Firepower 1000, 2100,
+      Cisco's check for the 2026 FXOS persistent implant (FIRESTARTER, per Talos) on Firepower 1000, 2100,
       4100, 9300 and Secure Firewall 1200, 3100, 4200: any output means the device
       is considered compromised. The legitimate lina_cs can get stuck; Cisco's
       false-positive check is verify disk0:/asdm.bin, then this command again. A
@@ -126,6 +134,26 @@ steps:
     purpose: Remote-access sessions with user, address and duration.
     confidence: high
 
+  - id: lina_text_implant_grep
+    tier: X
+    kind: command
+    impact: break-glass
+    cmd: more /binary system:/text | grep 55534154 41554156 41575756 488bb3a0
+    purpose: >-
+      CISA ED 25-03's check for the 2025 actor's implant in the running lina text
+      section; CISA - "Any output from this command is an indicator of
+      compromise." Break-glass and last, beside the core dump: CISA says to stop
+      all actions and contact it if the device crashes during its initial
+      commands, and NCSC reports LINE VIPER reboots the device when system:/text
+      is copied. Whether reading it with more can trigger that is not published,
+      so it is opt-in (--break-glass) and runs after everything that a reload
+      would destroy has been collected. Command as CISA prints it; its output
+      format is not published.
+    confidence: medium
+    references:
+      - https://www.cisa.gov/news-events/directives/supplemental-direction-ed-25-03-core-dump-and-hunt-instructions
+      - https://www.ncsc.gov.uk/static-assets/documents/malware-analysis-reports/RayInitiator-LINE-VIPER/ncsc-mar-rayinitiator-line-viper.pdf
+
   - id: show_running_config
     tier: P2
     kind: command
@@ -152,7 +180,13 @@ steps:
     tier: P7
     kind: command
     cmd: "dir /recursive disk0:"
-    purpose: disk0 contents. LINE RUNNER arrived as client_bundle_install.zip; any zip here needs explaining.
+    purpose: >-
+      disk0 contents. LINE RUNNER arrived as client_bundle.zip, which Talos says
+      is deleted once processed at boot and re-created as
+      client_bundle_install.zip at shutdown, so on a running device the zip is
+      normally absent. Talos says LINE RUNNER's csco_config.lua creates a file
+      named 1515480F4B538B669648B17C02337098 in csco_config/97/webcontent on
+      disk0. Any zip here needs explaining.
     confidence: high
     references:
       - https://blog.talosintelligence.com/arcanedoor-new-espionage-focused-campaign-found-targeting-perimeter-network-devices/
@@ -162,13 +196,15 @@ steps:
     kind: command
     cmd: show checkheaps | begin Checkheaps
     purpose: >-
-      Second checkheaps snapshot, taken last so that minutes have passed since the
+      Second checkheaps snapshot, taken last so that time has passed since the
       first. The pipe only makes the command distinct for replay; the output is the
-      same. Two snapshots are weaker than Cisco's five over five minutes; repeat by
-      hand if the counter has not moved.
+      same. The engine does not wait: CISA's procedure needs at least five minutes
+      between the readings, and the check reports the actual gap. Repeat by hand if
+      the gap was shorter and the counter has not moved.
     confidence: medium
     references:
       - https://sec.cloudapps.cisco.com/security/center/resources/detection_guide_for_continued_attacks
+      - https://www.cisa.gov/news-events/directives/supplemental-direction-ed-25-03-core-dump-and-hunt-instructions
 
   - id: core_dump
     tier: X
@@ -176,12 +212,24 @@ steps:
     impact: break-glass
     purpose: Core dump for memory analysis (RayDetect for the 2025 RayInitiator / LINE VIPER activity).
     instructions: |
-      Do NOT trigger a core dump until mem_region_lina has been collected and reviewed.
-      LINE DANCER hooked the dump routine so that a dump request reloaded the device,
-      destroying the in-memory implant. Follow the vendor and CISA ED 25-03 core dump
-      procedure for your exact model and release, scan the dump with RayDetect, and
+      Do NOT start until every live step above (memory regions, checkheaps, processes,
+      sessions, lina_text_implant_grep) has been collected and saved off the device.
+      CISA's Supplemental Direction procedure reloads the device twice: "The steps
+      below trigger an immediate reload of the device", starting with "Soft reboot the
+      device to maximize the likelihood of a clean core dump", then crashinfo force
+      page-fault. Either reload destroys memory-only implants.
+      LINE DANCER hooked the dump routine so that a dump request reloaded the device.
+      NCSC reports LINE VIPER does the same ("instead the device immediately reboots"),
+      reboots the device when system:/text is copied, and makes verify of system:/text
+      return the hash of the legitimate firmware - so a matching text hash proves nothing.
+      A dump attempt that reboots without producing a file is itself a finding (NCSC:
+      it "could indicate that LINE VIPER was deployed"). CISA: if nothing is written,
+      record it, retry once, and if there is still no output "document and inform CISA".
+      Follow CISA's procedure for your exact model and release, scan the dump with
+      RayDetect (ASA 5500-X only; it cannot detect RayInitiator in Firepower dumps), and
       ingest the dump and the scanner output:
         edge-triage ingest <case> --label coredump --bundle <file>
     references:
+      - https://www.cisa.gov/news-events/directives/supplemental-direction-ed-25-03-core-dump-and-hunt-instructions
+      - https://www.ncsc.gov.uk/static-assets/documents/malware-analysis-reports/RayInitiator-LINE-VIPER/ncsc-mar-rayinitiator-line-viper.pdf
       - https://github.com/cisagov/RayDetect
-      - https://www.cisa.gov/news-events/alerts/2025/11/12/update-implementation-guidance-emergency-directive-cisco-asa-and-firepower-device-vulnerabilities

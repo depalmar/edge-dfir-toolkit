@@ -1,9 +1,9 @@
-title: PAN-OS GlobalProtect Session With Proof-of-Concept Default Host Identifiers (CVE-2026-0257)
+title: PAN-OS GlobalProtect Session From Suspicious Host Identifiers (CVE-2026-0257)
 id: 101c7570-5f12-4c40-9340-22c97f25a9d3
 status: experimental
 description: |
   Unit 42's hunt for CVE-2026-0257: successful GlobalProtect gateway-connected
-  events from host IDs or device names hard-coded in the public proof of concept -
+  events from what Unit 42 calls "suspicious host IDs or device names" -
   aa:bb:cc:dd:ee:ff, 00:11:22:33:44:55, WINDOWS-LAPTOP-001, DESKTOP-GP01, GP-CLIENT.
   Unit 42 says "including but not limited to", so treat any default-looking host
   identity on a connected session the same way.

@@ -1,14 +1,13 @@
 title: Check Point Gateway Blocked a Path Traversal Attempt (CVE-2024-24919)
 id: b6d8fb19-fcf3-412e-a3bc-bd849df92de1
 status: experimental
-description: 'The message the patched code writes to vpnd.elg when it blocks a traversal, per watchTowr.
-  An attempt
-
-  against a patched gateway, not a compromise - but it names the source to hunt for elsewhere.
-
-  '
+description: |
+  The string watchTowr found in the patched code's new logging function
+  (send_path_traversal_alert_log). Taken from watchTowr's patch diff; the log it
+  is written to is not confirmed and Check Point's sk182336 does not mention it,
+  so search vpnd.elg and the gateway's security logs. An attempt against a patched
+  gateway, not a compromise - but it names the source to hunt for elsewhere.
 references:
-- https://support.checkpoint.com/results/sk/sk182336
 - https://labs.watchtowr.com/check-point-wrong-check-point-cve-2024-24919/
 author: Raymond DePalma (edge-dfir-toolkit)
 date: '2026-10-23'
@@ -18,7 +17,6 @@ tags:
 - cve.2024-24919
 logsource:
   product: checkpoint
-  service: vpnd
 detection:
   keywords:
   - Suspected path traversal attack from

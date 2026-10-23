@@ -107,8 +107,8 @@ steps:
     purpose: >-
       Every PHP file under the web roots with mode, owner, size and mtime
       (find -ls). Web shells from the 2023 mass exploitation campaign sat in these
-      directories, and shipped PHP is read-only, so a writable PHP file here is a
-      lead.
+      directories. Fox-IT's triage tool expects shipped PHP at mode 0444, so a
+      writable PHP file here is a lead.
     confidence: medium
     references:
       - https://github.com/fox-it/citrix-netscaler-triage
@@ -189,7 +189,18 @@ steps:
     tier: P7
     kind: command
     cmd: shell ls -la /flash/nsconfig
-    purpose: Persistent configuration directory (/nsconfig points here). Rapid7 found the 2026 framework under /nsconfig/.slap.
+    purpose: Persistent configuration directory (/nsconfig points here). Rapid7 found the 2026 framework under /nsconfig/.slap and a relay implant under /nsconfig/.relay.
+    confidence: medium
+    references:
+      - https://www.rapid7.com/blog/post/ra-netscaler-intrusions-chaining-cve-2026-88771-and-cve-2026-88779/
+
+  - id: listing_flash
+    tier: P7
+    kind: command
+    cmd: shell ls -la /flash
+    purpose: >-
+      Persistent flash. Rapid7 found the 2026 nsvmd proxy agent and its
+      watchdog under /flash/.nsvm, marked immutable with chflags uchg.
     confidence: medium
     references:
       - https://www.rapid7.com/blog/post/ra-netscaler-intrusions-chaining-cve-2026-88771-and-cve-2026-88779/

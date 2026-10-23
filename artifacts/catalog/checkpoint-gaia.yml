@@ -79,9 +79,14 @@ artifacts:
     volatility: rotating
     forensic_value: medium
     evidence_type: [initial-access]
-    confidence: medium
+    confidence: low
+    unverified: true
     collected_by: fetch_vpnd
-    description: A patched gateway logs "Suspected path traversal attack from" when it blocks a CVE-2024-24919 attempt.
+    description: >-
+      Gateway VPN daemon log. watchTowr's patch diff shows the fixed code logging
+      "Suspected path traversal attack from" when it blocks a CVE-2024-24919
+      attempt; which log it lands in (vpnd.elg or a security alert log) is not
+      confirmed, and sk182336 does not mention it.
     seen_in: [CVE-2024-24919]
     provides: >-
       Gateway VPN daemon events.
@@ -89,7 +94,7 @@ artifacts:
       No traversal messages.
     suspicious: >-
       "Suspected path traversal attack from" - an attempt against a patched gateway,
-      naming the source to hunt.
+      naming the source to hunt. Check SmartConsole security logs for it too.
     basis: researcher
   - locator: SmartConsole - Mobile Access certificate logins
     class: auth-logs
@@ -156,7 +161,7 @@ artifacts:
     suspicious: >-
       POSTs carrying ../ or aCSHELL, or from arbitrary internet addresses.
     basis: researcher
-  - locator: listusers / cplp list / cpinfo -y all
+  - locator: listusers / cplp list / cpinfo -d -y all
     class: sessions
     volatility: live
     forensic_value: medium

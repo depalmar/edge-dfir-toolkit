@@ -5,28 +5,41 @@
 
 id: EDGE-TA-0001
 name: UTA0218
-aliases: [Operation MidnightEclipse (Unit 42 campaign name)]
+aliases: []
 reported_by: [Volexity]
 link_confidence: medium
-stated_confidence: "Volexity assessed it is highly likely UTA0218 is a state-backed threat actor"
-state_nexus: "not stated by the reporter beyond 'state-backed'"
-motivation: espionage
+stated_confidence: >-
+  "Volexity assesses that it is highly likely UTA0218 is a state-backed threat
+  actor" (April 2024); "Volexity assesses with moderate confidence that UTA0218
+  is a China-based threat actor" (May 2024)
+state_nexus: "China (Volexity: 'moderate confidence that UTA0218 is a China-based threat actor')"
+motivation: unknown
 summary: >-
   Exploited CVE-2024-3400 in PAN-OS GlobalProtect as a zero-day from at least
-  26 March 2024, deploying the UPSTYLE backdoor, exfiltrating configuration and
-  credentials, and pivoting into internal networks. Volexity's naming; the
-  activity has been tracked under other vendor names since.
+  26 March 2024 (Volexity's earliest attempted exploitation), attempting to
+  deploy the UPSTYLE backdoor (unsuccessfully in the cases Volexity and Unit 42
+  describe), installing a cron download-and-execute backdoor, exfiltrating
+  configuration and credentials, and pivoting into internal networks.
+  Volexity's naming. Neither reporter states a motivation; Volexity says
+  state-backed and China-based.
 platforms: [EDGE-0001]
 packs: [EDGE-PACK-0001]
 implants: [EDGE-IMP-0001]
 tradecraft:
   - Zero-day exploitation of an internet-facing VPN portal
   - Reverse shell and cron-based download-and-execute persistence
-  - Copying running_config.xml to a web-reachable path for unauthenticated retrieval
-  - Deleting its own lines from the nginx error log and restoring file timestamps
+  - Copying running-config.xml to a web-reachable path for unauthenticated retrieval
+  - The UPSTYLE backdoor it tried to install deletes its own lines from the nginx error log and restores file timestamps
 victimology: ["not stated beyond 'multiple organizations' (Volexity)"]
 first_seen: "2024-03-26"
 references:
   - title: Volexity - zero-day exploitation of CVE-2024-3400
     url: https://www.volexity.com/blog/2024/04/12/zero-day-exploitation-of-unauthenticated-remote-code-execution-vulnerability-in-globalprotect-cve-2024-3400/
-    accessed: "2026-10-22"
+    accessed: "2026-10-23"
+  - title: Volexity - detecting compromise of CVE-2024-3400 on GlobalProtect devices (15 May 2024)
+    url: https://www.volexity.com/blog/2024/05/15/detecting-compromise-of-cve-2024-3400-on-palo-alto-networks-globalprotect-devices/
+    accessed: "2026-10-23"
+notes: >-
+  Unit 42 tracks the initial exploitation of CVE-2024-3400 as Operation
+  MidnightEclipse. That is an operation name, and neither Volexity nor Unit 42
+  equates it with UTA0218, so it is not listed as an alias.

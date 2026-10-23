@@ -13,15 +13,28 @@ summary: >-
   and firmware upgrades and hides itself from the device's own file and
   process listings.
 artifacts:
-  - Hidden files and processes on the device (reported; not reachable through the customer CLI)
+  - /bin/smartctl or /data/bin/smartctl that is not a symlink, or is newer than the files around it (fnsysctl ls -la /bin, /data/bin)
+  - "An outgoing connection from a process named httpsd in diagnose sys tcpsock (process=<PID>/httpsd)"
+  - A process with Gid 90, or deleted map entries for /data2/httpsd or /data2/.bd.key/preload.so, in diagnose sys process dump <PID>
+  - Deleted entries for /lib/preload.so in the memory map of PID 1 (diagnose sys process dump 1)
+  - /data2/.bd.key/ (newcli, httpsd, preload.so, authd, sh) and /etc/ld.so.preload
+  - TLS client JA3 339f6adf54e6076d069dcaac54fddc25 (FortiGate logging to ports 541/514 shares it)
   - Integrity mismatch against a known-good baseline of the same build
 anti_forensics:
-  - Hooks system calls to hide its files and processes
-  - Persists through upgrade
-detections: [fortios-fs-hash-baseline]
-gap: Coverage depends entirely on a baseline of the same build being supplied.
+  - preload.so hooks file and process calls to hide anything with GID 90 and any path containing "ld.so.preload" or ".bd.key"
+  - Persists through upgrade ("The malware survives a firmware upgrade")
+  - The advisory warns the hidden folder name (.bd.key) and the process name (httpsd) vary between samples
+detections: [fortios-fs-hash-baseline, fortios-coathanger-smartctl, fortios-coathanger-httpsd-socket, fortios-coathanger-preload-map]
+gap: >-
+  The CLI checks key on names the advisory says vary (httpsd, .bd.key), and an
+  implant that has not reached its C2 shows no socket. /data2/.bd.key and
+  /etc/ld.so.preload are not listed because preload.so hides those names from
+  directory reads. The hash comparison still needs a baseline of the same build.
 confidence: medium
 references:
-  - title: NCSC-NL - COATHANGER advisory (TLP:CLEAR)
+  - title: MIVD / AIVD - COATHANGER advisory (TLP:CLEAR); the ncsc.nl copy now redirects to a news page
     url: https://www.ncsc.nl/documenten/publicaties/2024/februari/6/mivd-aivd-advisory-coathanger-tlp-clear
-    accessed: "2026-10-22"
+    accessed: "2026-10-23"
+  - title: JSCU-NL - COATHANGER IOCs and checker (publisher's repository)
+    url: https://github.com/JSCU-NL/COATHANGER
+    accessed: "2026-10-23"

@@ -11,7 +11,8 @@ and need the parts that are different on appliances.
   (Expert mode), F5 (Advanced Shell) and Junos do, but an implant that hooks
   the C library lies to `ps`, `ls` and `stat`.
 - **The decisive evidence is volatile.** Memory-only implants (LINE DANCER on
-  ASA, in-memory library patching on Ivanti in 2026), memory-disk roots
+  ASA), memory-only exploitation that leaves no implant (UTA0576's transient
+  libdsplibs.so patch on Ivanti in 2026), memory-disk roots
   (NetScaler) and gateway logs that rotate in hours are gone after a reboot,
   an upgrade or a busy afternoon.
 - **The integrity tools have been beaten.** Ivanti's Integrity Checker was
@@ -19,7 +20,8 @@ and need the parts that are different on appliances.
   survived patching; LINE DANCER turned core-dump requests into reloads. A
   clean vendor check is one signal, never a verdict.
 - **Patched does not mean clean.** Most backdoored NetScalers in the 2023
-  campaign had already been patched. Persistence outlives the vulnerability.
+  campaign were patched after the web shell was planted, and the patch did not
+  remove it. Persistence outlives the vulnerability.
 
 ## Before you touch the device
 
@@ -28,8 +30,8 @@ and need the parts that are different on appliances.
 > vendor's own integrity tool.
 
 1. **Do not reboot, upgrade, factory-reset or run an external integrity tool.**
-   Each of those destroys evidence. On PAN-OS, logs from the previous install
-   become inaccessible after an upgrade.
+   Each of those destroys evidence. On PAN-OS, the vendor says some logs from
+   the prior installation become inaccessible on the device after an upgrade.
 2. **Pull the off-box copies first.** SIEM syslog, NetFlow to and from the
    management interface, IdP and MFA logs, AD authentication from the device's
    addresses. These are the copies the attacker is least likely to have touched,
@@ -37,6 +39,9 @@ and need the parts that are different on appliances.
 3. **Record the preflight honestly.** Has the device rebooted or been upgraded
    since the suspected window? The answers change what the report can claim.
 4. **Use a read-only account** where the platform has one, and pin the host key.
+5. **On Cisco ASA and Firepower, do not use tab completion.** CISA: "Do NOT use
+   the “tab” autocomplete or any other autocomplete function. The threat actor
+   has hooked these commands to crash the device."
 
 ## Collection
 
@@ -70,7 +75,11 @@ anyone reboots: anything on the memory-disk root is lost.
 
 **Cisco ASA / FTD.** The memory-region check runs before anything else. Do not
 request a core dump until it has been reviewed; then follow the CISA ED 25-03
-procedure and scan the dump with RayDetect.
+supplemental direction (updated April 24, 2026), which has separate procedures
+for Firepower and Secure Firewall with FTD software, Firepower and Secure
+Firewall with ASA software, and ASA devices - CISA: "instructions and commands
+vary". It adds the FIRESTARTER persistence mechanism on Firepower and Secure
+Firewall devices. Scan the dump with RayDetect.
 
 **SonicWall SMA 100.** No collection profile yet. Export the tech support report
 and logs through the management UI and `ingest` them. GTIG advises disk images

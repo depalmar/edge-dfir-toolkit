@@ -25,10 +25,9 @@ anti_forensics:
   - SELinux set to permissive
 detections: [f5-c05d5254-runtime-files, f5-c05d5254-pipe-open, f5-selinux-not-enforcing, f5-selinux-permissive-domains, f5-setenforce-zero, f5-hubble-util-bash-rest, f5-hubble-util-bash-audit]
 gap: >-
-  Binary tampering is only visible to F5 System Scanner run from known-good
-  media, which the toolkit records as a manual step and ingests but does not run.
-  One secondary report says the sys-eicheck changes did not carry over an upgrade
-  to the other boot partition; that is not confirmed by F5.
+  Binary tampering is only visible to F5 System Scanner (downloaded from MyF5, manifest checked with sha512sum, and run on the device from /var/tmp/scanner (F5 K000160515)), which the toolkit
+  records as a manual step and ingests but does not run. F5 does not say the
+  scanner's process scan detects the in-memory webshells.
 confidence: high
 references:
   - title: F5 K000160486 - c05d5254 indicators

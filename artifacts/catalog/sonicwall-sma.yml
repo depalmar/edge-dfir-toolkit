@@ -37,10 +37,12 @@ artifacts:
     provides: >-
       Libraries the dynamic linker loads into every process.
     normal: >-
-      Typically absent or empty on an appliance; compare with a clean image.
+      Absent, or 2 bytes or fewer. GTIG - "This file should not exist with actual
+      contents on a standard SMA appliance".
     suspicious: >-
-      Any entry, and above all the OVERSTEP library - visible only offline because
-      the hook hides it.
+      More than 2 bytes of contents (GTIG's threshold), above all a path to
+      libsamba-errors.so.6 - visible only offline because the hook hides it.
+      Check the copy inside the extracted INITRD as well.
     basis: researcher
   - locator: /usr/lib/libsamba-errors.so.6 (offline image)
     class: persistence
@@ -58,6 +60,24 @@ artifacts:
     suspicious: >-
       Present or different from the clean image - the OVERSTEP library.
     basis: researcher
+  - locator: /cf/xxx.elf and /cf/libsamba-errors.so.6 (offline image)
+    class: persistence
+    volatility: stable
+    forensic_value: high
+    evidence_type: [persistence]
+    confidence: medium
+    collected_by: ingest
+    description: The persistent /cf directory, where the actor decoded OVERSTEP as xxx.elf and from which rc.fwboot copies libsamba-errors.so.6 into the INITRD at boot.
+    seen_in: [OVERSTEP]
+    provides: >-
+      Files that survive a reboot outside the firmware image.
+    normal: >-
+      No binaries nobody can account for.
+    suspicious: >-
+      xxx.elf or libsamba-errors.so.6, or any file with GTIG's OVERSTEP hash; GTIG
+      lists "Unexpected binaries within the persistent /cf directory or within
+      INITRD files" as a hunting lead.
+    basis: researcher
   - locator: /etc/rc.d/rc.fwboot and the INITRD (offline image)
     class: persistence
     volatility: stable
@@ -72,7 +92,9 @@ artifacts:
     normal: >-
       Match the clean firmware image.
     suspicious: >-
-      Modified - OVERSTEP re-established itself on boot this way.
+      Modified - OVERSTEP re-established itself on boot this way. GTIG publishes
+      the SHA256 of the modified rc.fwboot it saw; the path itself exists on every
+      appliance.
     basis: researcher
   - locator: Tech support report and exported logs
     class: system-logs
@@ -94,6 +116,9 @@ confidence: medium
 references:
   - title: Google Threat Intelligence Group - SonicWall SMA exploitation and the OVERSTEP backdoor (16 July 2025)
     url: https://cloud.google.com/blog/topics/threat-intelligence/sonicwall-secure-mobile-access-exploitation-overstep-backdoor
-    accessed: "2026-10-22"
+    accessed: "2026-10-23"
+  - title: SonicWall - SNWLID-2025-0015, SMA100 10.2.2.2-92sv with additional file checking (22 September 2025)
+    url: https://psirt.global.sonicwall.com/vuln-detail/SNWLID-2025-0015
+    accessed: "2026-10-23"
 notes: No collection profile yet. Analysis runs against ingested image-triage output.
 last_modified: "2026-10-22"

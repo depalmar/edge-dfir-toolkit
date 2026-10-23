@@ -62,20 +62,20 @@ indicators:
 - type: account
   value: dg3y8dpk
   role: actor-controlled
-  context: Hidden account name observed by Trend
+  context: Hidden account name observed by Trend (blog body at page_url; the IoC file at file_url carries only the hashes)
 - type: account
   value: dg4y8epk
   role: actor-controlled
-  context: Hidden account name observed by Trend
+  context: Hidden account name observed by Trend (blog body at page_url; the IoC file at file_url carries only the hashes)
 - type: account
   value: dg5y8fpk
   role: actor-controlled
-  context: Hidden account name observed by Trend
+  context: Hidden account name observed by Trend (blog body at page_url; the IoC file at file_url carries only the hashes)
 - type: account
   value: dg6y8gpk
   role: actor-controlled
-  context: Hidden account name observed by Trend
+  context: Hidden account name observed by Trend (blog body at page_url; the IoC file at file_url carries only the hashes)
 - type: account
   value: dg7y8hpk
   role: actor-controlled
-  context: Hidden account name observed by Trend
+  context: Hidden account name observed by Trend (blog body at page_url; the IoC file at file_url carries only the hashes)

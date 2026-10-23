@@ -9,7 +9,7 @@ confidence: medium
 
 preserve_first:
   - step: Collect before you change anything
-    detail: Run the panos profile and export the tech support file. Logs from the prior install become inaccessible after an upgrade, so the TSF must predate it.
+    detail: Run the panos profile and export the tech support file. The vendor says some logs from the prior installation become inaccessible on the device after an upgrade, so the TSF must predate it; support may still help investigate the prior installation.
   - step: Record whether the device rebooted or was upgraded in the suspected window
     detail: Both destroy evidence; the answer changes what the report can claim.
 
@@ -36,9 +36,14 @@ credential_exposure:
 
 eradicate:
   - step: Do not clean in place
-    detail: UPSTYLE persistence (cron, .pth, web-root files) and any secondary implant may not be fully visible to the customer. Treat a confirmed-compromised device as untrusted.
+    detail: CVE-2024-3400 persistence (cron entries, a .pth file where UPSTYLE was installed, web-root files) and any secondary implant may not be fully visible to the customer. Treat a confirmed-compromised device as untrusted.
   - step: Rebuild from a known-good image of a fixed release, with vendor guidance
-    detail: Follow Palo Alto's CVE-2024-3400 remediation guidance. A Private Data Reset or full reimage, not a config restore that may carry the attacker's changes.
+    detail: >-
+      Follow Palo Alto's remediation guidance: an Enhanced Factory Reset (EFR)
+      through TAC for hardware, and a new replacement instance for VM-Series or
+      Panorama virtual appliances (KB kA14u000000CrO6CAK) - not a config restore
+      that may carry the attacker's changes. The same article covers changing
+      the master key and rotating secrets.
   - step: Re-import a reviewed configuration, not a blind backup
     detail: Diff the running config against the last known-good and import a cleaned version.
 
@@ -54,7 +59,7 @@ verify:
 
 do_not:
   - action: Upgrade before exporting the tech support file
-    because: The vendor advisory states logs from the prior install become inaccessible after an upgrade.
+    because: The vendor advisory states some logs from the prior installation become inaccessible on the device after an upgrade.
   - action: Trust a config backup taken after compromise
     because: It may carry attacker changes (new admins, modified logging, scheduled jobs).
   - action: Treat a clean TAC IOC check as proof the device is clean
@@ -64,6 +69,9 @@ vendor_guidance:
   - title: Palo Alto Networks - CVE-2024-3400 advisory and remediation
     url: https://security.paloaltonetworks.com/CVE-2024-3400
     accessed: "2026-10-22"
+  - title: Palo Alto Networks KB - enhanced factory reset for compromised PAN-OS devices
+    url: https://knowledgebase.paloaltonetworks.com/KCSArticleDetail?id=kA14u000000CrO6CAK
+    accessed: "2026-10-23"
 
 references:
   - title: Volexity - detecting compromise of CVE-2024-3400

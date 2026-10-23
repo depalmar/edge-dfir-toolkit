@@ -3,8 +3,11 @@
 #
 # SonicWall's English SMA 100 advisory URL now returns "Article Not Found"; the
 # vendor controls below were read from SonicWall's Japanese-locale copy of the
-# same notice (published 2025-08-01), so they carry medium confidence until an
-# English primary is found. GTIG's controls are read in English.
+# same notice (published 2025-07-31, updated 2025-08-02), so they carry medium
+# confidence until an English primary is found. GTIG's controls are read in
+# English. SonicWall's English PSIRT advisories SNWLID-2025-0015 (10.2.2.2-92sv)
+# and SNWLID-2024-0018 (CVE-2024-38475, OTP reset, 10.2.1.14-75sv) are English
+# vendor primaries for the upgrade control.
 
 platform_id: EDGE-0006
 name: SonicWall SMA 100 series
@@ -59,21 +62,33 @@ controls:
         accessed: "2026-10-22"
 
   - id: sma-upgrade-rebuild
-    control: Upgrade to 10.2.2.1-90sv or later; rebuild SMA 500v from a verified image
+    control: Upgrade to 10.2.2.2-92sv or later; rebuild SMA 500v from a verified image
     category: patching
     priority: critical
     why: >-
+      SonicWall strongly recommends 10.2.2.2-92sv, which adds "additional file
+      checking, providing the capability to remove known rootkit malware".
       CVE-2024-38475 was exploited (fixed in 10.2.1.14-75sv); CVE-2025-40599 is
       fixed in 10.2.2.1-90sv.
     how: >-
       Upgrade physical units. For SMA 500v, deploy from a checksum-verified image
       and delete the old VM's disks and snapshots.
     blunts: [CVE-2024-38475, CVE-2025-40599]
-    confidence: medium
+    confidence: high
     sources:
+      - title: SonicWall - SNWLID-2025-0015, SMA100 10.2.2.2-92sv with additional file checking (22 September 2025)
+        url: https://psirt.global.sonicwall.com/vuln-detail/SNWLID-2025-0015
+        accessed: "2026-10-23"
+        quote: "SonicWall strongly recommends that users of the SMA 100 series products (SMA 210, 410, and 500v) upgrade to the 10.2.2.2-92sv version."
+      - title: SonicWall - SNWLID-2025-0014 (CVE-2025-40599)
+        url: https://psirt.global.sonicwall.com/vuln-detail/SNWLID-2025-0014
+        accessed: "2026-10-23"
+      - title: SonicWall - SNWLID-2024-0018 (CVE-2024-38475 on SMA 100)
+        url: https://psirt.global.sonicwall.com/vuln-detail/SNWLID-2024-0018
+        accessed: "2026-10-23"
       - title: SonicWall - urgent SMA 100 notice (Japanese-locale copy)
         url: https://www.sonicwall.com/ja-jp/support/notices/kA1VN0000000RGN0A2
-        accessed: "2026-10-22"
+        accessed: "2026-10-23"
 
   - id: sma-external-syslog
     control: Send logs to an external syslog collector, not just the appliance

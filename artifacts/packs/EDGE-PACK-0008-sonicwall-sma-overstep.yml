@@ -9,25 +9,35 @@ implants: [OVERSTEP]
 summary: >-
   A user-mode rootkit loaded through /etc/ld.so.preload and started from
   rc.fwboot, which hooked file and directory APIs to hide itself and removed its
-  own log lines. Because it lies to on-box tools, the reporting team recommended
-  an offline disk image. This pack therefore only evaluates against image or
-  image-triage output ingested into the case.
-confidence: high
+  own log lines. GTIG observed OVERSTEP deployment in June 2025. Because it lies
+  to on-box tools, GTIG recommends an offline disk image. This pack therefore only
+  evaluates against image or image-triage output ingested into the case. Paths,
+  hashes and the ld.so.preload threshold come from GTIG alone; SonicWall's notice
+  cites GTIG and publishes no paths, hence medium confidence.
+confidence: medium
 references:
-  - title: Google Threat Intelligence Group - SonicWall SMA exploitation and the OVERSTEP backdoor (16 July 2025)
+  - title: Google Threat Intelligence Group - SonicWall SMA exploitation and the OVERSTEP backdoor (16 July 2025, updated 16 September 2025)
     url: https://cloud.google.com/blog/topics/threat-intelligence/sonicwall-secure-mobile-access-exploitation-overstep-backdoor
-    accessed: "2026-10-22"
+    accessed: "2026-10-23"
 
 detect:
   - id: sma-ld-so-preload
-    title: Dynamic-linker preload file present
-    type: path_exists
+    title: Dynamic-linker preload file with more than 2 bytes of contents
+    type: yara
     tier: likely
     evidence_class: persistence
-    scope: ["**/etc/**"]
-    paths: ["**/etc/ld.so.preload"]
+    rule: 06-sonicwall-sma/sma_ld_so_preload_contents.yar
+    sources:
+      files: ["**/etc/ld.so.preload"]
     attack: [T1574.006]
-    notes: Evaluated only when the case holds files from the appliance's /etc.
+    notes: >-
+      GTIG (16 September 2025 update) - "Presence of the file /etc/ld.so.preload
+      on a disk image with greater than 2 bytes of contents. This file should not
+      exist with actual contents on a standard SMA appliance". A present but empty
+      file is evaluated and does not fire. Checks every copy in the case, including
+      the extracted INITRD's /etc. When no ld.so.preload is in the case the
+      detection is not evaluated: absence on the image and absence from the
+      collection cannot be told apart.
 
   - id: sma-overstep-library
     title: OVERSTEP library name present
@@ -37,3 +47,35 @@ detect:
     scope: ["**/lib/**"]
     paths: ["**/lib/libsamba-errors.so.6"]
     attack: [T1014]
+    notes: >-
+      GTIG's path is /usr/lib/libsamba-errors.so.6; rc.fwboot also copies it into
+      the INITRD's /usr/lib, so extract INITRD.GZ from /cf/firmware/current and
+      ingest it too.
+
+  - id: sma-overstep-cf-files
+    title: OVERSTEP file names in the persistent /cf directory
+    type: path_exists
+    tier: likely
+    evidence_class: persistence
+    scope: ["**/cf/**"]
+    paths: ["**/cf/xxx.elf", "**/cf/libsamba-errors.so.6"]
+    attack: [T1014, T1027]
+    notes: >-
+      Paths from GTIG's host-based IOC table. GTIG - the actor decoded the binary
+      "into the persistent /cf directory with the filename xxx.elf", and rc.fwboot
+      copies /cf/libsamba-errors.so.6 into the INITRD at boot. GTIG also lists
+      "Unexpected binaries within the persistent /cf directory" as a hunting lead.
+
+  - id: sma-overstep-published-hash
+    title: File matching a SHA256 GTIG published for OVERSTEP or the modified rc.fwboot
+    type: yara
+    tier: confirmed
+    evidence_class: persistence
+    rule: 06-sonicwall-sma/sma_overstep_published_hashes.yar
+    sources:
+      files: ["**/cf/**", "**/lib/**", "**/etc/rc.d/**"]
+    attack: [T1014, T1037]
+    notes: >-
+      Exact hash match with GTIG's IOC table (the same values as EDGE-IOC-0008).
+      A rebuilt sample or a differently modified rc.fwboot will not match, so no
+      hit is not a clean result; compare rc.fwboot with the clean firmware image.

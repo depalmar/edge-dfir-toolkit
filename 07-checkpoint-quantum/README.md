@@ -22,5 +22,6 @@ it to your raw-message field in the Sigma pipeline. Keyword rules need no mappin
 
 
 Most 2026 hunting runs in SmartConsole log queries, which the `checkpoint-gaia`
-profile records as a manual export step. On a management server, patching
-CVE-2026-93616 does not reveal earlier compromise, and LivePatch does not fix it.
+profile records as a manual export step. On a management server, installing the
+CVE-2026-93616 fix does not tell you whether the server was attacked before (the
+toolkit's guidance; run the sk1000171 indicators), and LivePatch does not fix it.

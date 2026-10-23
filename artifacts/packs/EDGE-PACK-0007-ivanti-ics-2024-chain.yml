@@ -11,7 +11,13 @@ summary: >-
   a shell. Web shells were written into legitimate CGI, Perl and Python
   components and credentials were harvested. CISA reported that the internal and
   a previous external Integrity Checker Tool failed to detect compromise, so
-  this pack looks at off-box web logs rather than at ICT output.
+  this pack looks at off-box web logs rather than at ICT output. Volexity: "the
+  web requests associated with the exploits being used in the wild will not
+  appear in the logs, even with the Unauthenticated Request setting enabled" -
+  these detections need an upstream reverse proxy, WAF or TLS-terminating load
+  balancer that logs the raw URI. UTA0178 (Volexity) and UNC5221 (Mandiant)
+  are both listed because each reported this exploitation; neither equates
+  them.
 confidence: high
 references:
   - title: CISA AA24-060B
@@ -20,22 +26,32 @@ references:
   - title: Volexity - Ivanti Connect Secure VPN exploitation, new observations
     url: https://www.volexity.com/blog/2024/01/18/ivanti-connect-secure-vpn-exploitation-new-observations/
     accessed: "2026-10-22"
-  - title: Assetnote - detection and exploitation of the Ivanti auth bypass and RCE (source for the traversal path and endpoints)
-    url: https://www.assetnote.io/resources/research/high-signal-detection-and-exploitation-of-ivantis-pulse-connect-secure-auth-bypass-rce
+  - title: Volexity - active exploitation of two Ivanti Connect Secure zero-days (exploit requests absent from appliance logs)
+    url: https://www.volexity.com/blog/2024/01/10/active-exploitation-of-two-zero-day-vulnerabilities-in-ivanti-connect-secure-vpn/
+    accessed: "2026-10-23"
+  - title: Assetnote (now Searchlight Cyber) - detection and exploitation of the Ivanti auth bypass and RCE (source for the traversal paths and endpoints)
+    url: https://www.slcyber.io/research/high-signal-detection-and-exploitation-of-ivantis-pulse-connect-secure-auth-bypass-rce
     accessed: "2026-10-22"
 
 detect:
   - id: ivanti-totp-traversal
-    title: Path traversal through the TOTP backup-code endpoint
+    title: Path traversal through the TOTP backup-code or CAV client-status endpoint
     type: log_regex
     sigma: [03-ivanti-connect-secure/ivanti_cve_2023_46805_totp_traversal.yml]
     tier: possible
     evidence_class: web-logs
     sources:
       files: ["**/*.log*", "**/*.csv", "**/*.txt"]
-    pattern: '/api/v1/totp/user-backup-code/(\.\.|%2e%2e)'
+    pattern: '/api/v1/(totp/user-backup-code|cav/client/status)/(\.\.|%2e%2e|\.%2e|%2e\.)'
     flags: [ignorecase]
     attack: [T1190]
+    notes: >-
+      Assetnote's published payloads: "GET
+      /api/v1/totp/user-backup-code/../../system/system-information" and, as a
+      detection payload that also works on older versions, "GET
+      /api/v1/cav/client/status/../../admin/options". A hit is an attempt;
+      vulnerability scanners and public proof-of-concept use produce
+      the same requests.
 
   - id: ivanti-traversal-to-injectable-endpoint
     title: Traversal reaching an endpoint used for command injection
@@ -45,7 +61,7 @@ detect:
     evidence_class: web-logs
     sources:
       files: ["**/*.log*", "**/*.csv", "**/*.txt"]
-    pattern: '/api/v1/totp/user-backup-code/(\.\.|%2e%2e)[^\s"]*license/keys-status'
+    pattern: '/api/v1/totp/user-backup-code/(\.\.|%2e%2e|\.%2e|%2e\.)[^\s"]*license/keys-status'
     flags: [ignorecase]
     attack: [T1190, T1059]
     notes: >-

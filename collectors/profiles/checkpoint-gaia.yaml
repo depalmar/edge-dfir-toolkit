@@ -24,7 +24,7 @@ cli:
   # Allow rules must match the whole command (the engine uses fullmatch).
   allow:
     - 'date -u|uptime|ps auxww|netstat -anp|cplp list|listusers|fw ver|fwm ver|crontab -l'
-    - 'cpinfo -y all'
+    - 'cpinfo -d -y all'
     - 'ls -[1dlt]+ [\w/.*$-]+( [\w/.*$-]+)*'
   deny:
     - '^(rm|mv|cp|chmod|chown|kill|reboot|shutdown|cpstop|cpstart|fw unloadlocal|clish|expert)\b'
@@ -38,14 +38,14 @@ steps:
     kind: command
     cmd: date -u
     purpose: Device clock in UTC.
-    confidence: high
+    confidence: medium
 
   - id: uptime
     tier: V0
     kind: command
     cmd: uptime
     purpose: Time since boot.
-    confidence: high
+    confidence: medium
 
   - id: fw_ver
     tier: V0
@@ -64,9 +64,14 @@ steps:
   - id: hotfixes
     tier: V0
     kind: command
-    cmd: cpinfo -y all
+    cmd: cpinfo -d -y all
     timeout: 300
-    purpose: Installed hotfixes and Jumbo takes. Read with the version to decide whether CVE-2026-93616, -85102, -50751 and -16232 were ever exploitable here.
+    purpose: >-
+      Installed hotfixes and Jumbo takes. Read with the version to decide whether
+      CVE-2026-93616, -85102, -50751 and -16232 were ever exploitable here. sk92739
+      calls CPInfo "an auto-updatable utility" that checks for its own updates
+      weekly and does not say whether -y skips that check; -d ("Specifies not to
+      check for updates of CPInfo utility") keeps this step from downloading.
     confidence: medium
     references:
       - https://support.checkpoint.com/results/sk/sk92739
@@ -85,13 +90,13 @@ steps:
     kind: command
     cmd: ps auxww
     purpose: Process list.
-    confidence: high
+    confidence: medium
 
   - id: netstat
     tier: V2
     kind: command
     cmd: netstat -anp
-    purpose: Sockets with owning process. After CVE-2026-85102 logins, Check Point advises looking for internal port and service scanning.
+    purpose: Sockets with owning process.
     confidence: medium
 
   - id: ma_users
@@ -138,7 +143,11 @@ steps:
     tier: P4
     kind: fetch
     list_cmd: ls -1d $FWDIR/log/vpnd.elg*
-    purpose: Gateway VPN daemon log. A patched gateway logs "Suspected path traversal attack from" when it blocks a CVE-2024-24919 attempt. Absent on management servers.
+    purpose: >-
+      Gateway VPN daemon log. watchTowr's patch diff shows the fixed code logging
+      "Suspected path traversal attack from" when it blocks a CVE-2024-24919
+      attempt; whether that line lands here or only in a security alert log is not
+      confirmed. Absent on management servers.
     confidence: medium
     references:
       - https://labs.watchtowr.com/check-point-wrong-check-point-cve-2024-24919/
@@ -174,16 +183,25 @@ steps:
           (any hit before the fix or mitigation date is suspicious)
         CVE-2024-24919 follow-on logins (label cp-24919):
           blade:"Mobile Access" AND action:"Log In" AND auth_method:Password
-        CVE-2026-16232 (Audit Logs view, label cp-16232):
+        CVE-2026-16232 (Audit Logs view, label cp-16232), both queries:
           Authentication method: application token
+          "Authentication method: Password based application token"
+          (sk185169: "Any found events should be treated as suspicious and
+          inspected for an unrecognized administrator name or IP address.")
       Then:  edge-triage ingest <case> --label <label> --bundle <export.csv>
       Compare source addresses against the IP lists in sk185033, sk185169 and
-      sk182336; they are not copied here because they go stale.
+      sk182336; they are not copied here because they go stale. sk185169's list is
+      "relevant for events before 2026-07-23".
+      After CVE-2026-85102 logins, Check Point's blog advises looking for "second
+      stage activity originating from suspicious logged-in users via Mobile
+      Access", often "internal port and service scan" - traffic through the
+      gateway, so look for it in these log exports, not in the gateway's sockets.
     references:
       - https://support.checkpoint.com/results/sk/sk1000117
       - https://support.checkpoint.com/results/sk/sk185033
       - https://support.checkpoint.com/results/sk/sk185169
       - https://support.checkpoint.com/results/sk/sk182336
+      - https://blog.checkpoint.com/security/security-advisory-action-required-active-exploitation-of-cve-2026-85102-and-a-management-pre-authentication-vulnerability-cve-2026-93616/
 
   - id: cpinfo_bundle
     tier: B

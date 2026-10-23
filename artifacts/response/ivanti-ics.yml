@@ -7,16 +7,20 @@ confidence: medium
 
 preserve_first:
   - step: Snapshot the virtual appliance with memory before anything else
-    detail: The external ICT reboots the appliance and the 2026 activity was memory-only. Capture memory and disk first.
+    detail: >-
+      The external ICT reboots the appliance. The 2026 actor left no persistent
+      implant: its tooling sat in /tmp and /data/.icscap, a renamed tcpdump
+      (dsstatmond) ran in memory, and Volexity recovered files from memory.
+      Capture memory and disk first.
   - step: Pull the syslog receiver's copy of the logs
-    detail: In 2025 the operator added iptables DROP rules on the syslog ports and SPAWNSLOTH suppressed logging in-process; a forwarding gap dates the intrusion.
+    detail: In 2025 UNC5221's exploit script added iptables DROP rules on the syslog ports and SPAWNSLOTH disabled local and remote logging; a forwarding gap dates the intrusion.
 
 contain:
   - step: Disconnect the appliance from untrusted networks
     detail: For an actively exploited zero-day with no patch, isolation may be the only control. Weigh against the outage, but the 2024 and 2026 chains were unauthenticated.
     when: COMPROMISED, LIKELY-COMPROMISED
   - step: Do not run the external ICT as a containment step
-    detail: It reboots the appliance and destroys memory-only evidence; run it only after the snapshot, as a break-glass collection step.
+    detail: It reboots the appliance and destroys memory and running-process evidence; run it only after the snapshot, as a break-glass collection step.
 
 credential_exposure:
   - what: Connected directory bind accounts and any cached domain credentials
@@ -31,7 +35,11 @@ credential_exposure:
 
 eradicate:
   - step: Rebuild, do not clean
-    detail: CISA reported that an actor may retain root-level persistence through a factory reset, and the ICT can be made to lie. A confirmed-compromised appliance is replaced or rebuilt from vendor-supplied clean media, following Ivanti's current guidance.
+    detail: >-
+      CISA showed in a lab that root-level persistence may survive a factory
+      reset (Ivanti says this "has not been observed by CISA, Ivanti or Mandiant
+      in the wild"), and the ICT can be made to lie. For virtual appliances Ivanti
+      itself recommends a new build over a factory reset. A confirmed-compromised appliance is replaced or rebuilt from vendor-supplied clean media, following Ivanti's current guidance.
     when: COMPROMISED, LIKELY-COMPROMISED
   - step: Apply the fixed release on the rebuilt appliance
     detail: Patch the specific CVE chain in scope; confirm the build with the vendor.
@@ -48,11 +56,19 @@ verify:
 
 do_not:
   - action: Run the external ICT before snapshotting
-    because: It reboots the appliance and erases memory-only implants and the 2026 in-memory patches.
+    because: >-
+      It reboots the appliance and erases what lives only in memory - the 2026
+      renamed tcpdump and the files Volexity recovered from memory. The 2026
+      in-memory patch itself was restored after each command, so a snapshot will
+      usually not contain it either.
   - action: Treat a clean internal ICT as a clean device
     because: CISA AA24-060B reports the internal and an earlier external ICT failed to detect compromise, and SPAWNANT re-signed the manifest.
   - action: Rely on a factory reset to evict the actor
-    because: CISA reported root-level persistence surviving factory reset.
+    because: >-
+      CISA showed in a lab that root-level persistence may survive a factory
+      reset (Ivanti disputes real-world feasibility); Ivanti recommends a new
+      build over a factory reset for virtual appliances, which "have not been
+      consistently successful".
 
 vendor_guidance:
   - title: CISA AA24-060B

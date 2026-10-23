@@ -4,8 +4,8 @@
 platform_id: EDGE-0009
 name: Cisco IOS XE
 summary: >-
-  The 2023 web UI implant reached tens of thousands of devices because the HTTP
-  server was on and reachable from the internet. AA25-239A adds the network-
+  The 2023 web UI implant reached devices whose HTTP server was on and reachable
+  from the internet. AA25-239A adds the network-
   device basics the PRC-nexus actors exploited: Smart Install, Guest Shell, weak
   password types and management planes open to the world.
 

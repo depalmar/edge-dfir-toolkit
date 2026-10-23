@@ -7,7 +7,7 @@ confidence: high
 
 preserve_first:
   - step: Collect in Expert mode before patching
-    detail: Run the checkpoint-gaia profile. Check Point notes that patching CVE-2026-93616 does not show whether the server was already attacked, so hunt separately.
+    detail: Run the checkpoint-gaia profile. Installing the CVE-2026-93616 fix does not tell you whether the server was attacked before (the toolkit's guidance, not Check Point's words); run the sk1000171 indicators as well.
   - step: Export the SmartConsole hunting queries over the full retention window
     detail: Certificate logins (CVE-2026-85102), IKEv1 Quick Mode (CVE-2026-50751), password logins (CVE-2024-24919), application-token audit entries (CVE-2026-16232).
 
@@ -16,7 +16,7 @@ contain:
     detail: For CVE-2026-93616, restrict TCP/19009 and Trusted Clients until the hotfix is in.
     when: COMPROMISED, LIKELY-COMPROMISED, SUSPICIOUS
   - step: Remove IKEv1 Remote Access exposure
-    detail: For CVE-2026-50751, any one of - clear "Allow older clients", set IKEv2 only, or make machine certificates mandatory.
+    detail: For CVE-2026-50751, any one of - clear "Allow older clients" under VPN Clients > Authentication (and under Mobile Access > Authentication if Mobile Access is enabled), set IKEv2 only, or make machine certificates mandatory (sk185033). On locally managed Spark only the IKEv2 option applies, through the Spark WebUI.
     when: COMPROMISED, LIKELY-COMPROMISED, SUSPICIOUS
   - step: Limit VPN negotiation to known sources if you cannot update
     detail: For CVE-2026-85102 - disable the VPN implied rules and allow UDP 500/4500 (plus TCP 443/80 for Remote Access) only from known sources. Not available for locally managed Spark.
@@ -32,6 +32,9 @@ credential_exposure:
   - what: HTTPS and SSH Inspection certificates and keys, IKE and Multi-Portal certificates
     why: Listed in sk182336.
     action: Reissue and revoke.
+  - what: Azure HA credentials, Gaia scheduled snapshot and backup passwords, Log Exporter destination certificates, Identity Broker certificates on the PDP gateway
+    why: Also among sk182336's 18 additional measures.
+    action: Rotate or reissue each; see sk182336 for the full list.
   - what: SmartConsole administrator sessions and tokens
     why: CVE-2026-16232 granted full administrator access through an application login token; CVE-2026-93616 allowed scripts to run on the management server.
     action: Review administrator accounts and recent policy installs, revoke sessions, and rotate administrator credentials.
@@ -55,7 +58,8 @@ recover:
 
 verify:
   - step: Re-run the Check Point hunting greps and SmartConsole queries; expect no new hits after the fix date
-  - step: Confirm hotfix and LivePatch state with `cpinfo -y all` and `cplp list`
+  - step: Confirm hotfix and LivePatch state with `cpinfo -d -y all` and `cplp list`
+    detail: -d stops CPInfo's own update check (sk92739), so the check does not download anything.
   - step: Hunt into the network for the dwell period, starting with internal scanning from VPN sessions
 
 do_not:
@@ -64,7 +68,7 @@ do_not:
   - action: Disable the VPN implied rules without planning the replacement rules
     because: Check Point advises caution with this mitigation because a wrong configuration can cause connectivity issues; the replacement rules are this toolkit's way of applying that caution.
   - action: Treat the patch as proof the server was not attacked
-    because: Check Point says patching does not reveal earlier compromise.
+    because: Installing the fix does not tell you whether the server was attacked before; run the sk1000171 indicators. This is the toolkit's guidance; Check Point says only that an indicator match "does not necessarily confirm successful compromise".
 
 vendor_guidance:
   - title: Check Point sk1000171 - CVE-2026-93616

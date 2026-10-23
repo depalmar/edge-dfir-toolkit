@@ -16,7 +16,7 @@ contain:
     detail: Apply controls on an upstream device rather than editing the suspect config.
     when: COMPROMISED, LIKELY-COMPROMISED, SUSPICIOUS
   - step: Patch state tells you nothing about compromise state
-    detail: Most backdoored NetScalers in 2023 were already patched. A patched device still needs investigation.
+    detail: Most backdoored NetScalers in 2023 had been patched after the web shell was planted, and patching did not remove it (Fox-IT). A patched device still needs investigation.
 
 credential_exposure:
   - what: Session tokens (Citrix Bleed class)
@@ -53,7 +53,7 @@ do_not:
   - action: Reboot before imaging md0
     because: The memory-disk root is rebuilt at boot; implants written there are lost.
   - action: Treat patched as clean
-    because: The 2023 campaign left backdoors on devices that were already patched.
+    because: In 2023 most backdoored NetScalers were patched after the web shell was planted; the patch did not remove it.
   - action: Assume a patch invalidates stolen session tokens
     because: It does not; sessions must be explicitly terminated.
 

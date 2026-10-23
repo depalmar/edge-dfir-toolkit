@@ -5,9 +5,12 @@ platform_id: EDGE-0005
 name: Cisco ASA / Firepower Threat Defense
 summary: >-
   ArcaneDoor used ASA and FTD devices as the way in twice (2024 and 2025), and in
-  2025 modified ROMMON on 5500-X models that predate Secure Boot. The controls
-  that matter most are hardware with Secure Boot, fixed releases applied fast,
-  and management access that only named addresses can reach.
+  2025 modified ROMMON on 5500-X models that predate Secure Boot. In April 2026
+  Cisco disclosed a persistence mechanism in FXOS on Firepower and Secure
+  Firewall hardware, which supports Secure Boot: Secure Boot hardware is
+  necessary but not sufficient. The controls that matter most are supported
+  hardware, fixed releases applied fast, and management access that only named
+  addresses can reach.
 
 controls:
   - id: asa-secure-boot-hardware
@@ -15,9 +18,13 @@ controls:
     category: integrity
     priority: critical
     why: >-
-      Cisco has seen ROMMON modification only on 5500-X models released before
-      Secure Boot, and has not seen successful compromise or persistence on
-      platforms that support Secure Boot and Trust Anchors. CISA ED 25-03 told
+      In 2025 Cisco had seen ROMMON modification only on 5500-X models released
+      before Secure Boot, and had not seen successful compromise or persistence on
+      platforms that support Secure Boot and Trust Anchors. That changed in April
+      2026: Cisco's persist advisory reports a mechanism, preserved across
+      upgrading to the September 2025 fixed releases, in FXOS on Firepower 1000,
+      2100, 4100, 9300 and Secure Firewall 1200, 3100 and 4200 (asa-persist-fixed-
+      release-reimage). CISA ED 25-03 told
       US federal agencies to permanently disconnect the end-of-support models by
       30 September 2025.
     how: >-
@@ -81,8 +88,11 @@ controls:
     category: access
     priority: high
     why: >-
-      Interface ACLs do not filter traffic addressed to the ASA itself; a
-      control-plane access list does.
+      A control-plane access list filters traffic addressed to the ASA itself, but
+      Cisco's hardening guide notes that management access granted by http, ssh or
+      telnet statements takes precedence over it and is admitted even when the
+      control-plane ACL denies it. Restrict those statements to named sources as
+      well (asa-mgmt-named-sources).
     how: "`access-list <name> in interface <interface> control-plane` (from Cisco's ASA hardening guide)."
     confidence: high
     sources:
@@ -134,7 +144,13 @@ controls:
     why: >-
       Cisco's interim mitigation for the 2025 vulnerabilities. Temporary only:
       it stops SSL VPN remote access.
-    how: Cisco gives no commands on the event-response page; follow the advisory for your release.
+    how: >-
+      Cisco's syntax on the event-response page: `no webvpn` in global
+      configuration mode disables all SSL VPN services; IKEv2 client services are
+      disabled "by repeating the crypto ikev2 enable <interface_name> command in
+      global configuration mode for every interface on which IKEv2 client services
+      are enabled" (that is, without client-services). On FTD under FMC, uncheck
+      Enable Client Services and Enable SSL in the remote access VPN policy.
     blunts: [CVE-2025-20333, CVE-2025-20362]
     confidence: high
     sources:
@@ -143,4 +159,20 @@ controls:
         accessed: "2026-10-22"
         quote: "The risk can also be mitigated by disabling all SSL/TLS-based VPN web services."
 
-last_modified: "2026-10-22"
+  - id: asa-persist-fixed-release-reimage
+    control: On Firepower and Secure Firewall hardware, reimage and upgrade to the release Cisco's persist advisory lists
+    category: integrity
+    priority: critical
+    why: >-
+      Cisco's April 2026 advisory reports a persistence mechanism in FXOS that is
+      preserved across upgrading to the September 2025 fixed releases, so an
+      upgrade alone does not remove it.
+    how: Reimage and upgrade as the advisory describes for your platform and train; Cisco gives the procedure there, not a single command.
+    confidence: high
+    sources:
+      - title: Cisco - Continued evolution of persistence mechanism (cisco-sa-asaftd-persist-CISAED25-03, v1.3)
+        url: https://sec.cloudapps.cisco.com/security/center/content/CiscoSecurityAdvisory/cisco-sa-asaftd-persist-CISAED25-03
+        accessed: "2026-10-23"
+        quote: "To fully remove the persistence mechanism, Cisco strongly recommends reimaging and upgrading the device"
+
+last_modified: "2026-10-23"

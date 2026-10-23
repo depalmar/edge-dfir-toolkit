@@ -1,7 +1,7 @@
 id: EDGE-TA-0007
 name: AA25-239A APT actors
 aliases: [Salt Typhoon, OPERATOR PANDA, RedMike, UNC5807, GhostEmperor]
-reported_by: [CISA, NSA, FBI and international partners (AA25-239A), Cisco Talos]
+reported_by: [CISA, NSA, FBI and international partners (AA25-239A)]
 link_confidence: medium
 stated_confidence: "AA25-239A: 'People's Republic of China (PRC) state-sponsored cyber threat actors ... This activity partially overlaps with cyber threat actor reporting by the cybersecurity industry—commonly referred to as Salt Typhoon, OPERATOR PANDA, RedMike, UNC5807, and GhostEmperor, among others. The authoring agencies are not adopting a particular commercial naming convention'"
 state_nexus: China (as assessed by the authoring agencies)
@@ -11,19 +11,24 @@ summary: >-
   network infrastructure that modified router configurations for persistent
   access, captured TACACS+ traffic, and used Guest Shell. The aliases are listed
   because the advisory itself names them as partial overlaps; the toolkit does
-  not merge these clusters on its own. Sources disagree on initial access:
-  AA25-239A lists CVE-2023-20198, CVE-2023-20273 and CVE-2018-0171 as exploited,
-  while Talos found CVE-2018-0171 likely abused in one case and otherwise
-  stolen credentials, and "we have not identified any evidence to confirm"
-  reports of three other Cisco vulnerabilities. The JumbledPath
-  tool Talos describes ran in Guest Shell on Nexus (NX-OS) devices, not IOS XE.
-platforms: [EDGE-0009]
+  not merge these clusters on its own. AA25-239A lists CVE-2024-21887
+  (commonly chained after CVE-2023-46805), CVE-2024-3400, CVE-2023-20273,
+  CVE-2023-20198 and CVE-2018-0171 as example exploited CVEs. Talos reports on
+  "a highly sophisticated threat actor dubbed Salt Typhoon" and does not mention
+  AA25-239A; its findings are linked here only through the advisory's "partially
+  overlaps", and are labelled as Talos's below. Salt Typhoon (Talos) - partial
+  overlap per AA25-239A: Talos found CVE-2018-0171 likely abused in one case and
+  otherwise stolen credentials, said "we have not identified any evidence to
+  confirm" reports of three other Cisco vulnerabilities, and described the
+  JumbledPath tool running in Guest Shell on Nexus (NX-OS) devices, not IOS XE.
+platforms: [EDGE-0009, EDGE-0003, EDGE-0001]
 packs: [EDGE-PACK-0012]
 implants: []
 tradecraft:
   - Packet captures of TACACS+ (TCP/49) staged on bootflash for retrieval
   - Requests to the web UI services endpoint, including double-encoded forms
-  - Guest Shell used to host tooling; .bash_history, auth.log, lastlog, wtmp and btmp cleared "where applicable" (Talos, device types not stated)
+  - Guest Shell used to host tooling (AA25-239A)
+  - "Salt Typhoon (Talos) - partial overlap per AA25-239A: .bash_history, auth.log, lastlog, wtmp and btmp cleared 'where applicable' (device types not stated)"
   - Configuration changes for persistence (ACLs, tunnels, AAA servers)
 victimology: ["telecommunications, government, transportation, lodging and military infrastructure (AA25-239A)"]
 first_seen: "2021"
@@ -31,12 +36,18 @@ references:
   - title: CISA and partners - AA25-239A (canonical URL)
     url: https://www.cisa.gov/news-events/cybersecurity-advisories/aa25-239a
     accessed: "2026-10-22"
-  - title: AA25-239A as published by IC3 (read because cisa.gov refused automated access)
+  - title: AA25-239A as published by IC3 (PDF copy)
     url: https://www.ic3.gov/CSA/2025/250827.pdf
     accessed: "2026-10-22"
-  - title: Cisco Talos - Salt Typhoon analysis (20 February 2025)
+  - title: AA25-239A STIX 2.1 bundle (CISA, v1.1)
+    url: https://www.cisa.gov/sites/default/files/2025-09/AA25-239A_Countering_Chinese_State-Sponsored_Actors_Compromise_of_Networks_Worldwide_to_Feed_Global_Espionage_System.stix_.json
+    accessed: "2026-10-23"
+  - title: Cisco Talos - Salt Typhoon analysis (20 February 2025; partial overlap per AA25-239A, not an AA25-239A reporter)
     url: https://blog.talosintelligence.com/salt-typhoon-analysis/
     accessed: "2026-10-22"
 notes: >-
   The attribution sentence, victimology and "since at least 2021" were checked
-  verbatim against the IC3 copy of the advisory on 2026-10-22.
+  verbatim against the IC3 copy of the advisory on 2026-10-22; cisa.gov now
+  loads with the same attribution text (v1.1, 3 September 2025: "one IP
+  correction and two removals"). No AA25-239A indicator set exists yet in
+  artifacts/intel/iocs/; the STIX bundle above is its source.

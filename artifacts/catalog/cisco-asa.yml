@@ -15,11 +15,28 @@ collection:
     impact: none
     description: Memory region map, processes, sessions, configuration, logging state, disk0 contents.
     confidence: high
+  - method: Implant check on the lina text section (CISA)
+    impact: none
+    description: >-
+      CISA's ED 25-03 command more /binary system:/text | grep 55534154 41554156
+      41575756 488bb3a0, run before the core dump. CISA - "Any output from this
+      command is an indicator of compromise." CISA also says to stop and contact
+      it if the device crashes while running this step.
+    confidence: medium
+    references: [https://www.cisa.gov/news-events/directives/supplemental-direction-ed-25-03-core-dump-and-hunt-instructions]
   - method: Core dump scanned with RayDetect
     impact: break-glass
-    description: CISA ED 25-03 procedure. Run only after the memory-region check; LINE DANCER turned dump requests into reloads.
+    description: >-
+      CISA ED 25-03 Supplemental Direction procedure, which starts with a soft
+      reboot and then crashinfo force page-fault; both reload the device. Run
+      only after every live step. LINE DANCER and LINE VIPER both turn a dump
+      request into a reboot. CISA also requires core dumps from Firepower and
+      Secure Firewall devices, submitted to CISA; RayDetect "CANNOT detect
+      RayInitator within core dumps for Firepower devices".
     confidence: high
-    references: [https://github.com/cisagov/RayDetect]
+    references:
+      - https://www.cisa.gov/news-events/directives/supplemental-direction-ed-25-03-core-dump-and-hunt-instructions
+      - https://github.com/cisagov/RayDetect
 volatility:
   - LINE DANCER was memory-only; a reboot erases it
   - An unexplained reboot (uptime reset) or a crashinfo record can reveal a forced reload
@@ -34,8 +51,18 @@ anti_forensics:
     seen_in: ArcaneDoor 2025 (Cisco detection guide)
   - technique: Disabled checkheaps
     seen_in: ArcaneDoor 2025 (Cisco detection guide)
-  - technique: Persistent implant in FXOS that survives upgrade, reboot and reload; removed only by a cold restart
-    seen_in: FXOS lina_cs implant (2026)
+  - technique: Persistent implant in FXOS that survives upgrade, reboot and reload; reimaging removes it (Cisco's recommendation), and Cisco says a cold restart also removes it
+    seen_in: FIRESTARTER (FXOS lina_cs implant, 2026)
+  - technique: Modified the core-dump signal handler so that a dump request reboots the device immediately
+    seen_in: LINE VIPER (NCSC MAR v1.1)
+  - technique: Hooked the copy command so that copying system:/text reboots the device
+    seen_in: LINE VIPER (NCSC MAR v1.1)
+  - technique: Hooked the verify command so that hashing system:/text returns the hash of the legitimate firmware's text section
+    seen_in: LINE VIPER (NCSC MAR v1.1)
+  - technique: Forces a delayed reboot unless cancelled; NCSC observed delays between one and ten hours
+    seen_in: LINE VIPER (NCSC MAR v1.1)
+  - technique: Harvests user CLI commands
+    seen_in: LINE VIPER (NCSC MAR v1.1)
 response: cisco-asa
 hardening: cisco-asa
 artifacts:
@@ -51,13 +78,38 @@ artifacts:
     provides: >-
       The memory regions mapped to the lina process.
     normal: >-
-      NCSC notes that two, or occasionally five, executable lina regions can be
-      normal. A normal map does not clear the device: NCSC reports LINE VIPER
-      (2025) fixed the split-lina effect.
+      One executable (r-xp) lina region. NCSC - the number of lina regions of all
+      permissions "has been observed being either 2 or 5" depending on the ASA
+      version and "in itself is not an indicator of compromise". A normal map
+      does not clear the device: NCSC reports LINE VIPER (2025) does not leave
+      the split-lina effect.
     suspicious: >-
-      More executable regions than that, one exactly 0x1000 bytes - Cisco's LINE
-      DANCER indicator; a lead, not proof.
+      More than one r-xp lina region, especially one of exactly 0x1000 bytes -
+      Talos's LINE DANCER check; NCSC calls a 0x1000 region "a strong indicator
+      of compromise for Line Dancer".
     basis: vendor
+  - locator: more /binary system:/text | grep 55534154 41554156 41575756 488bb3a0
+    class: memory
+    volatility: live
+    forensic_value: high
+    evidence_type: [execution, defense-evasion]
+    confidence: medium
+    collected_by: lina_text_implant_grep
+    description: >-
+      CISA's ED 25-03 check for the presence of the 2025 actor's implant in the
+      running lina text section. Gone on reload. CISA gives the command but not
+      its output. Break-glass and opt-in: CISA warns the device can crash during
+      its initial commands and NCSC reports LINE VIPER reboots the device on
+      access to system:/text, so it runs last, beside the core dump.
+    seen_in: [LINE VIPER]
+    provides: >-
+      Lines of the running text section that contain CISA's byte sequence.
+    normal: >-
+      No output.
+    suspicious: >-
+      Any output - CISA: "Any output from this command is an indicator of
+      compromise."
+    basis: government
   - locator: "dir /recursive disk0:"
     class: persistence
     volatility: stable
@@ -82,7 +134,7 @@ artifacts:
     evidence_type: [execution, persistence, defense-evasion]
     confidence: high
     collected_by: manual
-    description: Scanned with RayDetect (confident only for ASA 5500-X on 9.12 and 9.14; not Firepower or ASAv) for the 2025 bootkit activity. Break-glass - LINE DANCER turned a dump request into a reload.
+    description: Scanned with RayDetect (confident only for ASA 5500-X on 9.12 and 9.14; not Firepower or ASAv) for the 2025 bootkit activity. Break-glass - CISA's procedure reloads the device, and LINE DANCER and LINE VIPER both turn a dump request into a reboot. CISA - if no dump file is written after a second attempt, "document and inform CISA; this may indicate an error or possible compromise."
     seen_in: [RayInitiator, LINE VIPER]
     provides: >-
       A full memory image for RayDetect and Cisco.
@@ -179,7 +231,7 @@ artifacts:
     evidence_type: [persistence, execution]
     confidence: high
     collected_by: show_kernel_lina_cs
-    description: Cisco's check for the 2026 FXOS persistent implant on Firepower and Secure Firewall hardware. Survives reload; a cold restart removes it, so collect before power is pulled.
+    description: Cisco's check for the 2026 FXOS persistent implant (FIRESTARTER, per Talos) on Firepower and Secure Firewall hardware. Survives reload; a cold restart removes it, so collect before power is pulled. For these models CISA also requires a core dump, submitted to CISA; RayDetect cannot detect RayInitiator in Firepower dumps.
     seen_in: [FXOS lina_cs implant]
     provides: >-
       Whether a process named lina_cs is running in the base operating system.
@@ -214,7 +266,16 @@ references:
   - title: NCSC UK - LINE DANCER
     url: https://www.ncsc.gov.uk/sites/default/files/documents/ncsc-tip-line-dancer.pdf
     accessed: "2026-10-22"
-  - title: CISA ED 25-03 implementation guidance update
+  - title: CISA - Supplemental Direction ED 25-03 - Core Dump and Hunt Instructions (updated 24 April 2026)
+    url: https://www.cisa.gov/news-events/directives/supplemental-direction-ed-25-03-core-dump-and-hunt-instructions
+    accessed: "2026-10-23"
+  - title: CISA - ED 25-03 Identify and Mitigate Potential Compromise of Cisco Devices
+    url: https://www.cisa.gov/news-events/directives/ed-25-03-identify-and-mitigate-potential-compromise-cisco-devices
+    accessed: "2026-10-23"
+  - title: NCSC - RayInitiator and LINE VIPER malware analysis report (v1.1)
+    url: https://www.ncsc.gov.uk/static-assets/documents/malware-analysis-reports/RayInitiator-LINE-VIPER/ncsc-mar-rayinitiator-line-viper.pdf
+    accessed: "2026-10-23"
+  - title: CISA ED 25-03 implementation guidance update (alert, 12 November 2025; pointer only)
     url: https://www.cisa.gov/news-events/alerts/2025/11/12/update-implementation-guidance-emergency-directive-cisco-asa-and-firepower-device-vulnerabilities
     accessed: "2026-10-22"
 last_modified: "2026-10-23"

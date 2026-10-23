@@ -15,8 +15,9 @@ controls:
     category: exposure
     priority: critical
     why: >-
-      F5, CISA ED 26-01 and the Canadian Cyber Centre all give this as the first
-      control after the October 2025 incident.
+      F5, CISA ED 26-01 and the Canadian Cyber Centre all list it among their
+      first actions after the October 2025 incident (ED 26-01 and the Cyber
+      Centre start with an inventory of F5 devices).
     how: >-
       Reach the management port only from a management network or jump host,
       segmented and access-controlled.
@@ -24,7 +25,7 @@ controls:
     confidence: high
     sources:
       - title: F5 - lessons we are learning from our security incident
-        url: https://www.f5.com/pt_br/company/blog/lessons-we-are-learning-from-our-security-incident
+        url: https://www.f5.com/company/blog/lessons-we-are-learning-from-our-security-incident
         accessed: "2026-10-22"
         quote: "management interfaces should never be exposed to the public Internet"
       - title: Canadian Centre for Cyber Security AL25-014 - security incident impacting F5
@@ -41,36 +42,69 @@ controls:
       the self IP addresses.
     how: >-
       Network > Self IPs > Port Lockdown: Allow None. In tmsh, the `allow-service`
-      property of `net self` takes `none`, which is also the default for a new
-      self IP.
+      property of `net self` takes `none`.
     blunts: [CVE-2022-1388]
     confidence: high
     sources:
+      - title: F5 K23605346 - BIG-IP iControl REST vulnerability CVE-2022-1388
+        url: https://my.f5.com/manage/s/article/K23605346
+        accessed: "2026-10-23"
+        quote: "you can change the Port Lockdown setting to Allow None for each self IP address in the system."
       - title: BIG-IP 14.0 - common elements for self IP tasks
         url: https://techdocs.f5.com/en-us/bigip-14-0-0/big-ip-access-policy-manager-secure-web-gateway-14-0-0/common-elements-for-self-ip-tasks.html
         accessed: "2026-10-22"
         quote: "Selecting Allow None blocks administrative traffic only, for this self IP address."
-      - title: CISA - threat actors exploiting F5 BIG-IP CVE-2022-1388
-        url: https://us-cert.cisa.gov/ncas/alerts/aa22-138a
-        accessed: "2026-10-22"
+      - title: CISA AA22-138A - threat actors exploiting F5 BIG-IP CVE-2022-1388 (archived)
+        url: https://www.cisa.gov/news-events/cybersecurity-advisories/aa22-138a
+        accessed: "2026-10-23"
 
   - id: f5-httpd-allow
     control: Restrict which sources can reach the Configuration utility
     category: access
     priority: high
     why: >-
-      CISA's CVE-2022-1388 mitigations included modifying the httpd configuration.
-      Whether this alone covers iControl REST depends on the advisory for your
-      release.
+      Fewer sources can reach the Configuration utility. It is not a CVE-2022-1388
+      mitigation: F5 - "Restricting access to the management interface by IP
+      address in httpd is not a viable mitigation for this issue." The httpd change
+      F5 and CISA name for CVE-2022-1388 is a different one (f5-httpd-1388-header).
     how: >-
       `modify sys httpd allow replace-all-with { <network>/<mask> }`. The tmsh
       reference warns that the value `none` allows no HTTP clients.
-    blunts: [CVE-2022-1388]
     confidence: high
     sources:
       - title: F5 tmsh reference - sys httpd
         url: https://clouddocs.f5.com/cli/tmsh-reference/latest/modules/sys/sys_httpd.html
         accessed: "2026-10-22"
+      - title: F5 K23605346 - BIG-IP iControl REST vulnerability CVE-2022-1388
+        url: https://my.f5.com/manage/s/article/K23605346
+        accessed: "2026-10-23"
+        quote: "Restricting access to the management interface by IP address in httpd is not a viable mitigation for this issue."
+
+  - id: f5-httpd-1388-header
+    control: If CVE-2022-1388 cannot be patched or blocked yet, apply F5's httpd configuration change
+    category: services
+    priority: medium
+    why: >-
+      F5's interim mitigation, "In addition to blocking access through the self IP
+      addresses and management interface, or as an alternative to blocking access
+      if those options are not possible in your environment". CISA AA22-138A lists
+      it as "Modify the BIG-IP httpd configuration".
+    how: >-
+      Follow K23605346 for your release: F5 has the httpd all-properties opened for
+      editing and the line that starts with include none replaced with a
+      RequestHeader connection configuration (or appended to an existing include).
+      The steps differ by version; copy them from the article rather than from
+      here.
+    blunts: [CVE-2022-1388]
+    confidence: high
+    sources:
+      - title: F5 K23605346 - BIG-IP iControl REST vulnerability CVE-2022-1388
+        url: https://my.f5.com/manage/s/article/K23605346
+        accessed: "2026-10-23"
+        quote: "you can modify the BIG-IP httpd configuration to mitigate this issue."
+      - title: CISA AA22-138A - threat actors exploiting F5 BIG-IP CVE-2022-1388 (archived)
+        url: https://www.cisa.gov/news-events/cybersecurity-advisories/aa22-138a
+        accessed: "2026-10-23"
 
   - id: f5-sshd-allow
     control: Restrict SSH to known source networks
@@ -97,7 +131,7 @@ controls:
     confidence: high
     sources:
       - title: F5 - lessons we are learning from our security incident
-        url: https://www.f5.com/pt_br/company/blog/lessons-we-are-learning-from-our-security-incident
+        url: https://www.f5.com/company/blog/lessons-we-are-learning-from-our-security-incident
         accessed: "2026-10-22"
         quote: "urging customers to update their BIG-IP software as quickly as possible"
 
@@ -105,7 +139,11 @@ controls:
     control: Disconnect and decommission F5 devices past end of support
     category: patching
     priority: high
-    why: ED 26-01 and the Canadian Cyber Centre both require it; unsupported devices get no fixes.
+    why: >-
+      ED 26-01 directs it for public-facing F5 devices that have reached end of
+      support ("For all public-facing F5 devices that have reached end of support,
+      disconnect and decommission these devices"); the Canadian Cyber Centre says
+      to decommission end-of-life F5 products. Unsupported devices get no fixes.
     how: Replace, or move to a supported release where the hardware allows.
     confidence: high
     sources:
@@ -113,8 +151,12 @@ controls:
         url: https://cyber.gc.ca/en/alerts-advisories/al25-014-security-incident-impacting-f5
         accessed: "2026-10-22"
         quote: "Decommission End-of-Life F5 products."
+      - title: CISA ED 26-01 - mitigate vulnerabilities in F5 devices
+        url: https://www.cisa.gov/news-events/directives/ed-26-01-mitigate-vulnerabilities-f5-devices
+        accessed: "2026-10-23"
+        quote: "For all public-facing F5 devices that have reached end of support, disconnect and decommission these devices."
       - title: FedRAMP - responding to CISA Emergency Directive 26-01 (restates the directive)
         url: https://www.fedramp.gov/2025-10-15-responding-to-cisa-emergency-directive-26-01/
         accessed: "2026-10-22"
 
-last_modified: "2026-10-22"
+last_modified: "2026-10-23"

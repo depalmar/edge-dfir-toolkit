@@ -71,25 +71,25 @@ indicators:
   context: Administrator or local user created by the attacker (random names; examples only)
 - type: ipv4
   value: 45.55.158.47
-  role: actor-controlled
-  context: Attacker address - most used
+  role: unknown
+  context: "Address the threat actor was seen using (Fortinet: 'most used IP address')"
 - type: ipv4
   value: 87.249.138.47
-  role: actor-controlled
-  context: Attacker address
+  role: unknown
+  context: Address the threat actor was seen using (Fortinet)
 - type: ipv4
   value: 155.133.4.175
-  role: actor-controlled
-  context: Attacker address
+  role: unknown
+  context: Address the threat actor was seen using (Fortinet)
 - type: ipv4
   value: 37.19.196.65
-  role: actor-controlled
-  context: Attacker address
+  role: unknown
+  context: Address the threat actor was seen using (Fortinet)
 - type: ipv4
   value: 149.22.94.37
-  role: actor-controlled
-  context: Attacker address
+  role: unknown
+  context: Address the threat actor was seen using (Fortinet)
 - type: ipv4
   value: 158.255.215.126
-  role: actor-controlled
-  context: Attacker address
+  role: unknown
+  context: Address the threat actor was seen using (Fortinet)

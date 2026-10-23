@@ -7,15 +7,23 @@ cves: [CVE-2023-36844, CVE-2023-36845, CVE-2023-36846, CVE-2023-36847, CVE-2023-
 summary: >-
   PHP environment-variable modification and missing authentication in J-Web on
   SRX and EX, chained into unauthenticated code execution. All five are in
-  CISA's KEV catalog. The only indicators public without a Juniper support login
-  come from one researcher's reproduction on SRX, so everything here is a lead:
-  attempt traces in the PHP log, and uploaded files named by a 64-character hex
-  digest. A J-Web that was never reachable is the strongest negative evidence.
+  CISA's KEV catalog. Juniper's JSA72300 is public: "Juniper SIRT is now aware
+  of successful exploitation of these vulnerabilities" (8 November 2023 update),
+  and J-Web is exposed only with "[system services web-management http] or
+  [system services web-management https]" configured. It publishes no on-box
+  indicators, so the ones here come from one researcher's reproduction on SRX and
+  are leads: attempt traces in the PHP log, and uploaded files named by a
+  64-character hex digest. A CVE-2023-36845 variant "works without a previous
+  file upload" (JSA72300, 26 September 2023 update), so no hex-named upload means
+  little. A J-Web that was never reachable is the strongest negative evidence.
 confidence: low
 unverified: true
 references:
   - title: watchTowr - CVE-2023-36844 and friends, RCE in Juniper firewalls
     url: https://labs.watchtowr.com/cve-2023-36844-and-friends-rce-in-juniper-firewalls/
+    accessed: "2026-10-23"
+  - title: Juniper JSA72300 - J-Web vulnerabilities (created 2023-08-17, updated 2023-11-08)
+    url: https://supportportal.juniper.net/JSA72300
     accessed: "2026-10-23"
   - title: CVE-2023-36844 as published by Juniper (CNA record)
     url: https://cveawg.mitre.org/api/cve/CVE-2023-36844
@@ -32,8 +40,9 @@ detect:
     pattern: '\b[0-9a-f]{64}\.(php|ini|so)[*/|@=]?\s*$'
     attack: [T1190, T1505.003]
     notes: >-
-      watchTowr's upload handler test stored files under a 64-hex name with the
-      original extension. A php.ini among them containing auto_prepend_file is
+      watchTowr's upload handler test (webauth_operation.php, which JSA72300 tracks
+      as CVE-2023-36851) stored files under a 64-hex name with the original
+      extension, found under /var/jail/tmp. A php.ini among them containing auto_prepend_file is
       the step that turns an upload into execution - read any hit's contents.
       Single-source; not confirmed on a compromised device.
 
@@ -43,10 +52,28 @@ detect:
     tier: possible
     evidence_class: web-logs
     sources:
+      steps: [jweb_php_log]
       files: ["**/php.log*"]
     pattern: 'CACHING FLOW: query user not set'
     attack: [T1190]
     notes: >-
       watchTowr: "not indicative of a successful attack", but an API action was
-      attempted without authentication. Evaluated only when /var/jail/sess/php.log
-      is ingested; the profile has no read-only command for it.
+      attempted without authentication. Read from the jweb_php_log step (file show
+      /var/jail/sess/php.log, unverified on a device) or an ingested php.log.
+
+  - id: junos-jweb-php-log-session-null
+    title: J-Web PHP log shows anonymous access without a valid session
+    type: log_regex
+    tier: possible
+    evidence_class: web-logs
+    sources:
+      steps: [jweb_php_log]
+      files: ["**/php.log*"]
+    pattern: '\[message\] => Trying to access array offset on value of type null'
+    attack: [T1190]
+    notes: >-
+      watchTowr's PHP log entry, with "[file] => /html/core/session.php" on a
+      following line - "a direct result of anonymous access without a valid
+      session, and while not conclusive, may indicate an attack is being
+      attempted". The message is generic PHP, so check that the next lines name
+      /html/core/session.php.

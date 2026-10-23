@@ -5,3 +5,9 @@ This product is licensed under the Apache License, Version 2.0 (see LICENSE).
 Detection content is derived from public vendor, government and researcher
 publications, cited where it is used. Indicator sets in artifacts/intel/iocs/
 keep the publisher's own licence, stated in each file.
+
+The UPSTYLE YARA rule (01-panos-globalprotect/panos_upstyle_backdoor.yar) uses
+the strings and logic of Volexity's rule apt_malware_py_upstyle, published under
+the BSD 2-Clause licence in github.com/volexity/threat-intel. The TINYSHELL
+hunting rules credit Mandiant; the OVERSTEP hash rule uses the SHA-256 values
+GTIG published.

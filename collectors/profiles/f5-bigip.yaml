@@ -13,8 +13,10 @@
 #
 # Do not trust the box's own integrity tools on a suspect device: the c05d5254
 # malware (CVE-2025-53521) tampered with /usr/bin/sys-icheck and
-# /usr/libexec/sys-eicheck.py. F5's System Scanner, run from known-good media,
-# is the vendor's integrity check and is a break-glass step here.
+# /usr/libexec/sys-eicheck.py. F5's System Scanner - downloaded from MyF5,
+# manifest checked with sha512sum, and run on the device from /var/tmp/scanner
+# (K000160515) - is the vendor's integrity check and is a break-glass step here.
+# It still runs on a possibly tampered host.
 
 profile: f5-bigip
 platform_id: EDGE-0010
@@ -240,7 +242,8 @@ steps:
     purpose: >-
       Configuration utility (Tomcat) log. CVE-2023-46748 exploitation left
       "java.sql.SQLException: Column not found: 0." followed by
-      "sh: no job control in this shell".
+      "sh: no job control in this shell"; the number after "Column not found:"
+      varies (F5).
     confidence: high
     references:
       - https://my.f5.com/manage/s/article/K000137365
@@ -276,13 +279,22 @@ steps:
     impact: break-glass
     purpose: F5 System Scanner, the vendor's file-integrity check (writes a report to the device).
     instructions: |
-      Download F5 System Scanner and the dat file for your exact release from F5,
-      copy them to /var/tmp/scanner, and run as root:
+      Download F5 System Scanner and the .ndjson file for your exact release from
+      MyF5, copy them to /var/tmp/scanner, check the manifest with
+      sha512sum -c <release>.ndjson.sha512, and run as root:
         nice -n 19 ./f5-system-scanner --dat-file ./<release>.ndjson \
           --dat-file-sha512 "$(cut -d' ' -f1 <release>.ndjson.sha512)" \
           --root / --format text --progress --output ./scanner-report.txt
-      Scanner 1.2 adds --scan-procs and --scan-all-procs, which scan process
-      memory - the only vendor check that reaches the in-memory webshells.
+      Limits F5 states: it supports "BIG-IP versions released between October 2025
+      and Oct 14, 2026" and "EHFs released between October 2025 and Oct 11, 2026";
+      it "cannot be run on systems configured in Appliance mode"; and if running
+      it with no flags shows a usage that "requires the --sha256 flag, you must
+      download a new copy" (the current build requires --dat-file-sha512).
+      Scanner 1.2 adds --scan-procs ("Scans only process executables that have
+      been deleted from the disk (unlinked)") and --scan-all-procs (hashes every
+      running process's in-memory binary, read from /proc, against the manifest).
+      F5 does not say either detects the in-memory c05d5254 webshells, so a clean
+      result does not clear them. The scanner runs on the suspect host itself.
       Do not substitute sys-icheck: c05d5254 tampered with it. On any mismatch F5
       asks for a support case with the scanner results and a qkview. Ingest the
       report:  edge-triage ingest <case> --label scanner --bundle scanner-report.txt

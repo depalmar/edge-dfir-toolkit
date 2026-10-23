@@ -1,14 +1,18 @@
-title: Ivanti Connect Secure Path Traversal Through the TOTP Endpoint (CVE-2023-46805 / CVE-2024-21887)
+title: Ivanti Connect Secure Path Traversal Through the TOTP or CAV Endpoint (CVE-2023-46805 / CVE-2024-21887)
 id: 84365f16-6dd9-4fc7-83de-ae395e4ac7c0
 status: experimental
 description: |
   The 2024 Ivanti Connect Secure chain bypassed authentication by traversing
-  out of /api/v1/totp/user-backup-code/ into other REST endpoints, including
-  license/keys-status, which passed input to a shell. Logs that record the raw URI show the traversal;
-  appliances that normalise the path before logging will not.
+  out of /api/v1/totp/user-backup-code/ (or /api/v1/cav/client/status/, which
+  Assetnote published as a detection payload) into other REST endpoints,
+  including license/keys-status, which passed input to a shell. The appliance's
+  own logs do not record these requests (Volexity: they "will not appear in the
+  logs, even with the Unauthenticated Request setting enabled"); only an
+  upstream reverse proxy, WAF or TLS-terminating load balancer that logs the
+  raw URI shows them.
 references:
-  - https://www.assetnote.io/resources/research/high-signal-detection-and-exploitation-of-ivantis-pulse-connect-secure-auth-bypass-rce
-  - https://www.volexity.com/blog/2024/01/18/ivanti-connect-secure-vpn-exploitation-new-observations/
+  - https://www.slcyber.io/research/high-signal-detection-and-exploitation-of-ivantis-pulse-connect-secure-auth-bypass-rce
+  - https://www.volexity.com/blog/2024/01/10/active-exploitation-of-two-zero-day-vulnerabilities-in-ivanti-connect-secure-vpn/
 author: Raymond DePalma (edge-dfir-toolkit)
 date: 2026-10-22
 tags:
@@ -20,13 +24,17 @@ logsource:
   category: webserver
 detection:
   selection_endpoint:
-    cs-uri-stem|contains: '/api/v1/totp/user-backup-code/'
+    cs-uri-stem|contains:
+      - '/api/v1/totp/user-backup-code/'
+      - '/api/v1/cav/client/status/'
   selection_traversal:
     cs-uri-stem|contains:
       - '/../'
       - '%2e%2e'
       - '%2E%2E'
+      - '.%2e'
+      - '%2e.'
   condition: selection_endpoint and selection_traversal
 falsepositives:
-  - None expected.
+  - Vulnerability scanners and public proof-of-concept use (attempts, not success).
 level: high

@@ -1,5 +1,6 @@
 id: EDGE-IMP-0011
 name: IOS XE web UI implant (2023)
+aliases: [BadCandy (Talos)]
 platforms: [EDGE-0009]
 actors: []
 cves: [CVE-2023-20198, CVE-2023-20273]
@@ -10,10 +11,11 @@ survives_upgrade: "no"
 summary: >-
   An implant written through the web UI after CVE-2023-20198 created a
   privilege-15 account and CVE-2023-20273 gave root command injection. It
-  answered a specific HTTP request with a hexadecimal string. Talos tracked
-  three variants: the original, one that added an Authorization header check
-  around 20 October 2023, and one that also accepted an X-Csrf-Token header
-  from 2 November 2023. Not persistent - a reboot removes it - but the local
+  answered a specific HTTP request with a hexadecimal string. Talos named the
+  Lua-based web shell BadCandy and tracked three versions: the original, a second
+  with an Authorization header check that "likely started to be deployed as early
+  as Oct. 20", and a third, discovered by Talos on 2 November 2023, that includes
+  a check for the X-Csrf-Token HTTP header. Not persistent - a reboot removes it - but the local
   accounts created by the exploit remain.
 artifacts:
   - nginx service configuration at /usr/binos/conf/nginx-conf/cisco_service.conf

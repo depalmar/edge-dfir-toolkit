@@ -13,26 +13,36 @@ summary: >-
   Modular Ivanti Connect Secure implant set: an installer that persists across
   upgrades, a tunneler, an SSH backdoor and a log-tampering component. The
   installer recalculated file hashes and re-signed the Integrity Checker Tool
-  manifest so the tool reported clean. The log-tampering component suppresses
-  logging in-process while the SSH backdoor runs; the iptables syslog block and
-  the read-write root remount were the operator's own commands, not the malware.
+  manifest so the tool reported clean. The log-tampering component, SPAWNSLOTH,
+  "targets the dslogserver process to disable both local logging and remote
+  syslog forwarding" (GTIG). The iptables syslog block and the read-write root
+  remount were steps of UNC5221's exploit and script for CVE-2025-0282, not the
+  malware. First described by Mandiant in 2024 (Cutting Edge Part 4); GTIG's
+  January 2025 post says Mandiant previously attributed the SPAWN ecosystem to
+  UNC5337, and its April 2025 post calls it "attributed to UNC5221". The cves
+  listed are the 2025 entry points; the 2024 deployments followed the
+  CVE-2023-46805 / CVE-2024-21887 chain.
 artifacts:
   - ICT manifest and signing-key changes
-  - iptables DROP rules on the syslog ports (operator command)
-  - Root filesystem remounted read-write; SELinux disabled (operator commands)
+  - iptables DROP rules on the syslog ports (exploit script, not the malware)
+  - Root filesystem remounted read-write; SELinux disabled (exploit script steps)
 anti_forensics:
   - Re-signed the ICT manifest (SPAWNANT)
-  - Suppressed logging in-process while the SSH backdoor ran (SPAWNSLOTH)
+  - Disabled local logging and remote syslog forwarding by targeting dslogserver (SPAWNSLOTH)
 detections: []
 gap: >-
   The indicators sit on the root filesystem and inside ICT internals a customer
   cannot read. Coverage needs a vendor-assisted image or snapshot parser; the
-  off-box syslog gap is the only customer-visible signal today.
+  off-box syslog gap is the only customer-visible signal today, and SPAWNSLOTH
+  disabling remote forwarding is why it is one.
 confidence: medium
 references:
-  - title: CISA AA24-060B
-    url: https://www.cisa.gov/news-events/cybersecurity-advisories/aa24-060b
-    accessed: "2026-10-22"
-  - title: The Record - Mandiant on Ivanti exploitation (secondary; replace with the primary GTIG post)
-    url: https://therecord.media/china-espionage-ivanti-vulnerabilities-mandiant
-    accessed: "2026-10-22"
+  - title: GTIG - Ivanti Connect Secure VPN targeted in new zero-day exploitation (CVE-2025-0282, January 2025)
+    url: https://cloud.google.com/blog/topics/threat-intelligence/ivanti-connect-secure-vpn-zero-day
+    accessed: "2026-10-23"
+  - title: GTIG - suspected China-nexus actor exploiting CVE-2025-22457 (April 2025)
+    url: https://cloud.google.com/blog/topics/threat-intelligence/china-nexus-exploiting-critical-ivanti-vulnerability
+    accessed: "2026-10-23"
+  - title: Mandiant - Cutting Edge Part 4, Ivanti post-exploitation lateral movement (2024, original SPAWN description)
+    url: https://cloud.google.com/blog/topics/threat-intelligence/ivanti-post-exploitation-lateral-movement
+    accessed: "2026-10-23"

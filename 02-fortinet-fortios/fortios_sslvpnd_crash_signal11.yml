@@ -9,6 +9,7 @@ description: |
   integrity check against a baseline.
 references:
   - https://www.fortiguard.com/psirt/FG-IR-22-398
+  - https://community.fortinet.com/fortigate-3/technical-tip-critical-vulnerability-protect-against-heap-based-buffer-overflow-in-sslvpnd-125663
 author: Raymond DePalma (edge-dfir-toolkit)
 date: 2026-10-22
 tags:

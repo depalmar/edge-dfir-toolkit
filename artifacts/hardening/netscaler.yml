@@ -19,8 +19,8 @@ controls:
     blunts: [CVE-2025-5349]
     confidence: high
     sources:
-      - title: NetScaler secure deployment guide (PDF)
-        url: https://docs.netscaler.com/en-us/netscaler-adc-secure-deployment/netscaler-secure-deployment-guide.pdf
+      - title: NetScaler secure deployment guide
+        url: https://docs.netscaler.com/us/en/netscaler-adc-secure-deployment/netscaler-adc-secure-deployment.html
         accessed: "2026-10-22"
         quote: "Do not expose the NSIP and Management Service IP address to the Internet:"
       - title: Cloud Software Group CTX693420 - NetScaler ADC and Gateway security bulletin
@@ -35,8 +35,8 @@ controls:
     how: A dedicated management VLAN or network for NSIP and LOM; LOM access restricted to a known address range.
     confidence: high
     sources:
-      - title: NetScaler secure deployment guide (PDF)
-        url: https://docs.netscaler.com/en-us/netscaler-adc-secure-deployment/netscaler-secure-deployment-guide.pdf
+      - title: NetScaler secure deployment guide
+        url: https://docs.netscaler.com/us/en/netscaler-adc-secure-deployment/netscaler-adc-secure-deployment.html
         accessed: "2026-10-22"
         quote: "is separated, either physically or logically, from normal network traffic."
 
@@ -51,8 +51,8 @@ controls:
       -restrictAccess enabled`.
     confidence: high
     sources:
-      - title: NetScaler secure deployment guide (PDF)
-        url: https://docs.netscaler.com/en-us/netscaler-adc-secure-deployment/netscaler-secure-deployment-guide.pdf
+      - title: NetScaler secure deployment guide
+        url: https://docs.netscaler.com/us/en/netscaler-adc-secure-deployment/netscaler-adc-secure-deployment.html
         accessed: "2026-10-22"
         quote: "By default, all protocols and ports, including GUI and SSH, are accessible"
 
@@ -66,23 +66,26 @@ controls:
       On NetScaler Console, clear "Enable fallback local authentication".
     confidence: high
     sources:
-      - title: NetScaler secure deployment guide (PDF)
-        url: https://docs.netscaler.com/en-us/netscaler-adc-secure-deployment/netscaler-secure-deployment-guide.pdf
+      - title: NetScaler secure deployment guide
+        url: https://docs.netscaler.com/us/en/netscaler-adc-secure-deployment/netscaler-adc-secure-deployment.html
         accessed: "2026-10-22"
 
   - id: netscaler-remote-syslog
-    control: Send audit logs to a remote syslog host and use trusted NTP
+    control: Send audit logs off the appliance and use trusted NTP
     category: logging
     priority: high
     why: The secure deployment guide; on-box ns.log rotates quickly on a busy gateway.
     how: >-
-      `set audit nslogparams -serverip <host> -serverport <port>` (the guide prints
-      an en-dash before serverip; type a hyphen), `add ntp server <ip> 10`, then
-      `enable ntp sync`.
+      The guide's "Local Audit Server Configuration" is `set audit nslogparams
+      -serverip <hostname> -serverport <port>` (the guide prints an en-dash before
+      serverip; type a hyphen). It is not a remote syslog setting: for a remote
+      computer the guide says "install the Audit Server on that computer". The
+      guide gives no syslog action syntax, so none is given here. Time: `add ntp
+      server <ip> 10`, then `enable ntp sync`.
     confidence: high
     sources:
-      - title: NetScaler secure deployment guide (PDF)
-        url: https://docs.netscaler.com/en-us/netscaler-adc-secure-deployment/netscaler-secure-deployment-guide.pdf
+      - title: NetScaler secure deployment guide
+        url: https://docs.netscaler.com/us/en/netscaler-adc-secure-deployment/netscaler-adc-secure-deployment.html
         accessed: "2026-10-22"
 
   - id: netscaler-snmp-ssh-forwarding
@@ -93,12 +96,12 @@ controls:
     how: "`set ns ip <ip> -snmp disabled`; `AllowTcpForwarding no` in the sshd configuration."
     confidence: high
     sources:
-      - title: NetScaler secure deployment guide (PDF)
-        url: https://docs.netscaler.com/en-us/netscaler-adc-secure-deployment/netscaler-secure-deployment-guide.pdf
+      - title: NetScaler secure deployment guide
+        url: https://docs.netscaler.com/us/en/netscaler-adc-secure-deployment/netscaler-adc-secure-deployment.html
         accessed: "2026-10-22"
 
   - id: netscaler-kill-sessions
-    control: After patching a session-leak flaw, kill all sessions on every node; do not reboot instead
+    control: After patching a session-leak flaw, kill all sessions (each cluster node, or the HA primary); do not reboot instead
     category: recovery
     priority: critical
     why: >-
@@ -107,8 +110,10 @@ controls:
     how: >-
       CVE-2023-4966: `kill aaa session -all`, `kill icaconnection -all`, `kill rdp
       connection -all`, `kill pcoipConnection -all`, `clear lb persistentSessions`.
-      CVE-2025-5777: `kill icaconnection -all`, `kill pcoipConnection -all`. On every
-      node of an HA pair or cluster.
+      CVE-2025-5777: `kill icaconnection -all`, `kill pcoipConnection -all`. Run
+      them after every node is on the fixed build: on each node of a cluster, or
+      on the primary node of an HA pair ("In case of HA, executing the commands on
+      the Primary active node is sufficient").
     blunts: [CVE-2023-4966, CVE-2025-5777]
     confidence: high
     sources:
@@ -116,9 +121,9 @@ controls:
         url: https://www.netscaler.com/blog/news/critical-security-updates-for-netscaler-netscaler-gateway-and-netscaler-console/
         accessed: "2026-10-22"
         quote: "Rebooting appliances instead of firing these commands isn't recommended."
-      - title: NetScaler - investigation recommendations for CVE-2023-4966
-        url: https://www.netscaler.com/blog/news/netscaler-investigation-recommendations-for-cve-2023-4966
-        accessed: "2026-10-22"
+      - title: NCSC-NL - casus Citrix kwetsbaarheid (lists the CVE-2023-4966-era kill commands; the NetScaler CVE-2023-4966 blog URL now returns 404)
+        url: https://www.ncsc.nl/alerts/casus-citrix-kwetsbaarheid
+        accessed: "2026-10-23"
 
   - id: netscaler-retire-eol
     control: Move off end-of-life firmware (12.1 and 13.0)

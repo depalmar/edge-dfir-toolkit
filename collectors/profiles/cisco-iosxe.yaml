@@ -56,11 +56,13 @@ steps:
     cmd: show platform software process memory rp active name iosd smaps
     timeout: 300
     purpose: >-
-      Memory map of the IOSd process. Cisco's forensic guide: an executable and
-      writable (rwxp) segment with Private_Dirty above zero may indicate the
-      running code has been tampered with. Collected before anything that could
-      reload the device. This is the router form; iosd_smaps_switch is the
-      Catalyst switch form, and one of the two errors on any given device.
+      Memory map of the IOSd process. Cisco's forensic guide checks "for non-zero
+      values in the Private Dirty entry for each segment with the executable flag
+      set (i.e., r-xp or rwxp)"; its example of possible tampering is an rwxp
+      segment with Private_Dirty above zero. Collected before anything that could
+      reload the device. This is the router form; iosd_smaps_switch and
+      iosd_smaps_switch_r0 are the switch forms, and all but one error on any
+      given device.
     confidence: high
     references:
       - https://sec.cloudapps.cisco.com/security/center/resources/forensic_guides/iosxe_forensic_guide.html
@@ -72,6 +74,20 @@ steps:
     timeout: 300
     purpose: The same IOSd memory map in the form Cisco's guide gives for Catalyst switches. Expected to error on routers.
     confidence: high
+    references:
+      - https://sec.cloudapps.cisco.com/security/center/resources/forensic_guides/iosxe_forensic_guide.html
+
+  - id: iosd_smaps_switch_r0
+    tier: V1
+    kind: command
+    cmd: show platform software process memory switch active r0 active name iosd smaps
+    timeout: 300
+    purpose: >-
+      The switch form with r0 in place of rp. Cisco's guide - "Some switches
+      require a target of r0. Replace rp with r0 in the following two commands if
+      a syntax error occurs." The command is that literal substitution; Cisco
+      prints no output for it. Expected to error where the rp form works.
+    confidence: medium
     references:
       - https://sec.cloudapps.cisco.com/security/center/resources/forensic_guides/iosxe_forensic_guide.html
 
@@ -189,7 +205,22 @@ steps:
       Every filesystem. Look for packet captures left on bootflash (tac.pcap,
       mycap.pcap, 1.pcap were named in AA25-239A) and the system_shell trace
       logs under tracelogs, which Cisco's guide says to collect for the TAC
-      service request.
+      service request. Cisco's guide lists dir harddisk:/tracelogs, not this
+      command; dir /recursive all-filesystems is the toolkit's choice.
+    confidence: medium
+    references:
+      - https://sec.cloudapps.cisco.com/security/center/resources/forensic_guides/iosxe_forensic_guide.html
+
+  - id: dir_tracelogs
+    tier: P6
+    kind: command
+    cmd: dir harddisk:/tracelogs
+    purpose: >-
+      The command Cisco's forensic guide gives for trace logs; files whose names
+      begin with system_shell are to be preserved for the TAC service request.
+      Cisco notes core files and tracelogs "may exist on the flash:, bootflash:,
+      harddisk:, or crashinfo: partitions", so this errors on devices without
+      harddisk: and dir_all covers the rest.
     confidence: high
     references:
       - https://sec.cloudapps.cisco.com/security/center/resources/forensic_guides/iosxe_forensic_guide.html

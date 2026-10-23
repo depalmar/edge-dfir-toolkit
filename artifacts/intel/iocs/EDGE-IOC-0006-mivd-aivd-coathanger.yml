@@ -6,8 +6,7 @@ id: EDGE-IOC-0006
 title: COATHANGER - FortiGate implant
 publisher: MIVD / AIVD (JSCU-NL)
 published: '2024-02-06'
-page_url: >-
-  https://www.ncsc.nl/documenten/publicaties/2024/februari/6/mivd-aivd-advisory-coathanger-tlp-clear
+page_url: https://github.com/JSCU-NL/COATHANGER
 file_url: https://raw.githubusercontent.com/JSCU-NL/COATHANGER/main/iocs/coathanger_hashes.txt
 file_format: text
 license: Apache-2.0

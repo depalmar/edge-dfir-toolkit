@@ -35,8 +35,25 @@ detect:
     evidence_class: filesystem
     sources:
       steps: [dir_all]
-    pattern: '\s(tac|mycap|1)\.pcap\s*$'
+    pattern: '\s(tac|mycap)\.pcap\s*$'
     attack: [T1040, T1074.001]
+    notes: >-
+      AA25-239A - "PCAPs have been observed containing naming schemes such as
+      mycap.pcap, tac.pcap, 1.pcap, or similar variations." The generic 1.pcap
+      is reported separately at possible (iosxe-1-pcap-on-flash).
+
+  - id: iosxe-1-pcap-on-flash
+    title: Packet capture named 1.pcap
+    type: log_regex
+    tier: possible
+    evidence_class: filesystem
+    sources:
+      steps: [dir_all]
+    pattern: '\s1\.pcap\s*$'
+    attack: [T1040, T1074.001]
+    notes: >-
+      Named in AA25-239A, but a name an administrator could choose too, so it is
+      held at possible.
 
   - id: iosxe-any-pcap-on-flash
     title: Packet capture file on a device filesystem

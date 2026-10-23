@@ -10,6 +10,9 @@ preserve_first:
     detail: Run the cisco-asa profile. LINE DANCER was memory-only and hooked the dump routine, so the memory-region check runs first and the core dump is a deliberate, later break-glass step.
   - step: On Firepower and Secure Firewall hardware, run `show kernel process | include lina_cs` before anyone pulls power
     detail: Cisco says a cold restart removes the 2026 FXOS implant while shutdown, reboot and reload do not, so a power cycle taken to "clean" the device also destroys the only on-box indicator. The profile collects it at V2.
+  - step: If a core dump or the implant check shows compromise, keep the device powered on and disconnect it from the network
+    detail: CISA's Supplemental Direction - "If core dump results indicate compromise, keep the device powered on, immediately disconnect the device from the network"; ED 25-03 - "immediately disconnect the device from their network (but do not power off), report the incident to CISA". The hard restart CISA prescribes is for devices whose dump showed no compromise, after patching.
+    when: COMPROMISED, LIKELY-COMPROMISED
   - step: Capture the syslog receiver's record, not just the device
     detail: ArcaneDoor disabled syslog; the gap at the collector dates the intrusion.
 
@@ -37,11 +40,11 @@ eradicate:
     detail: But only after evidence is captured, the entry vector is fixed, and you have ruled out disk and boot persistence. A reload with LINE RUNNER present on disk0 re-establishes it.
   - step: For LINE RUNNER, remove the disk0 bundle and rebuild
     detail: Follow Cisco's guidance for the exact models and releases.
-  - step: For the FXOS lina_cs implant, reimage and upgrade
+  - step: For the FXOS lina_cs implant (FIRESTARTER), reimage and upgrade
     detail: Cisco strongly recommends reimaging and upgrading to the fixed releases in its advisory to remove the persistence fully; a cold restart removes it but leaves the entry point.
     when: COMPROMISED, LIKELY-COMPROMISED
   - step: For RayInitiator / bootkit, follow CISA ED 25-03
-    detail: The directive's guidance covers core-dump collection and, for affected hardware, replacement where the bootkit cannot be assured removed.
+    detail: Where compromise is detected, ED 25-03 says to disconnect the device without powering it off, report to CISA and "work with CISA on incident response and eviction actions". ED 25-03 also directed permanent disconnection of ASA models whose support ended on or before 30 September 2025.
     when: COMPROMISED
 
 recover:
@@ -57,8 +60,10 @@ verify:
   - step: Hunt into the network for the dwell period
 
 do_not:
-  - action: Request a core dump before checking the memory regions
-    because: LINE DANCER hooked the dump routine to reboot the device, destroying the in-memory implant.
+  - action: Request a core dump, or copy or verify system:/text, before every live step is collected
+    because: LINE DANCER hooked the dump routine to reboot the device. NCSC reports LINE VIPER reboots the device on a dump request and on copy of system:/text, and makes verify of system:/text return the legitimate firmware's hash; CISA's own dump procedure starts with a soft reboot.
+  - action: Trust a verify /sha-512 system:memory/text hash that matches the release
+    because: NCSC reports LINE VIPER's modified verify command "returns the hash of text section of legitimate firmware instead".
   - action: Reload a device with LINE RUNNER on disk0 and call it clean
     because: The boot-time feature re-establishes it.
   - action: Treat an unsplit lina region map as clean
@@ -66,10 +71,16 @@ do_not:
   - action: Power-cycle a Firepower or Secure Firewall device before collecting
     because: A cold restart removes the FXOS lina_cs implant and its only on-box indicator.
   - action: Assume a factory reset clears a bootkit
-    because: RayInitiator persists below the OS; CISA directed replacement for affected hardware.
+    because: RayInitiator persists below the OS (NCSC - it survives reboots and firmware upgrades). Where compromise is detected, ED 25-03 says to disconnect without powering off and work with CISA; it directed permanent disconnection of the end-of-support models.
 
 vendor_guidance:
-  - title: CISA ED 25-03 implementation guidance update
+  - title: CISA - Supplemental Direction ED 25-03 - Core Dump and Hunt Instructions (updated 24 April 2026)
+    url: https://www.cisa.gov/news-events/directives/supplemental-direction-ed-25-03-core-dump-and-hunt-instructions
+    accessed: "2026-10-23"
+  - title: CISA - ED 25-03 Identify and Mitigate Potential Compromise of Cisco Devices
+    url: https://www.cisa.gov/news-events/directives/ed-25-03-identify-and-mitigate-potential-compromise-cisco-devices
+    accessed: "2026-10-23"
+  - title: CISA ED 25-03 implementation guidance update (alert, 12 November 2025; pointer only)
     url: https://www.cisa.gov/news-events/alerts/2025/11/12/update-implementation-guidance-emergency-directive-cisco-asa-and-firepower-device-vulnerabilities
     accessed: "2026-10-22"
   - title: Cisco - Continued evolution of persistence mechanism (cisco-sa-asaftd-persist-CISAED25-03)

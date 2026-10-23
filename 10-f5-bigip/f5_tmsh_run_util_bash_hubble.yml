@@ -1,0 +1,28 @@
+title: F5 BIG-IP tmsh run util bash by f5hubblelcdadmin (c05d5254)
+id: aecc7c11-c57f-4727-a7ea-fdef36917477
+status: experimental
+description: |
+  F5's K000160486 /var/log/audit sample for the c05d5254 activity: "user=f5hubblelcdadmin
+  folder=/Common module=(tmos)# status=[Command OK] cmd_data=run util bash <VARIABLE_COMMAND>".
+  The account name is the distinguishing field; the sample has no -c.
+references:
+- https://my.f5.com/manage/s/article/K000160486
+- https://my.f5.com/manage/s/article/K000156741
+author: Raymond DePalma (edge-dfir-toolkit)
+date: 2026-10-23
+tags:
+- attack.execution
+- attack.t1059.004
+- cve.2025-53521
+logsource:
+  product: f5
+  service: audit
+detection:
+  keywords_user:
+  - user=f5hubblelcdadmin
+  keywords_cmd:
+  - cmd_data=run util bash
+  condition: keywords_user and keywords_cmd
+falsepositives:
+- Unknown. Confirm with F5 support before treating as benign.
+level: high

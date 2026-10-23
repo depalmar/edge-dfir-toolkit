@@ -21,7 +21,9 @@ platforms:
 - EDGE-0008
 staleness: >-
   Found mid-2024, published March 2025, no validity window given. Each backdoor carries its own C2 list;
-  the addresses are historic.
+  the addresses are historic. Mandiant - "Mandiant believes these IPs are staging nodes of a GOBRAT ORB
+  network, eventually leading to a single, backend Adversary Controlled Operations Server ("ACOS")";
+  it does not say whether the nodes are leased or compromised, so their role is unknown.
 indicators:
 - type: md5
   value: 2c89a18944d3a895bd6432415546635e
@@ -121,33 +123,33 @@ indicators:
   context: TINYSHELL backdoor named lmpad
 - type: ipv4
   value: 129.126.109.50
-  role: actor-controlled
-  context: TINYSHELL Command and Control server (port 22)
+  role: unknown
+  context: TINYSHELL Command and Control server (port 22); Mandiant - staging nodes of a GOBRAT ORB network
 - type: ipv4
   value: 116.88.34.184
-  role: actor-controlled
-  context: TINYSHELL Command and Control server (port 22)
+  role: unknown
+  context: TINYSHELL Command and Control server (port 22); Mandiant - staging nodes of a GOBRAT ORB network
 - type: ipv4
   value: 223.25.78.136
-  role: actor-controlled
-  context: TINYSHELL Command and Control server (port 22)
+  role: unknown
+  context: TINYSHELL Command and Control server (port 22); Mandiant - staging nodes of a GOBRAT ORB network
 - type: ipv4
   value: 45.77.39.28
-  role: actor-controlled
-  context: TINYSHELL Command and Control server (port 22)
+  role: unknown
+  context: TINYSHELL Command and Control server (port 22); Mandiant - staging nodes of a GOBRAT ORB network
 - type: ipv4
   value: 101.100.182.122
-  role: actor-controlled
-  context: TINYSHELL Command and Control server (port 22)
+  role: unknown
+  context: TINYSHELL Command and Control server (port 22); Mandiant - staging nodes of a GOBRAT ORB network
 - type: ipv4
   value: 118.189.188.122
-  role: actor-controlled
-  context: TINYSHELL Command and Control server (port 22)
+  role: unknown
+  context: TINYSHELL Command and Control server (port 22); Mandiant - staging nodes of a GOBRAT ORB network
 - type: ipv4
   value: 158.140.135.244
-  role: actor-controlled
-  context: TINYSHELL Command and Control server (port 22)
+  role: unknown
+  context: TINYSHELL Command and Control server (port 22); Mandiant - staging nodes of a GOBRAT ORB network
 - type: ipv4
   value: 8.222.225.8
-  role: actor-controlled
-  context: TINYSHELL Command and Control server (port 22)
+  role: unknown
+  context: TINYSHELL Command and Control server (port 22); Mandiant - staging nodes of a GOBRAT ORB network

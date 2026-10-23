@@ -163,10 +163,11 @@ def test_ingest_refuses_hostile_members_and_chains_manifest(fx, tmp_path):
 def test_panos_compromised(fx, tmp_path):
     root = run(fx, tmp_path, "panos", "panos-compromised")
     f = analyze(root)
-    assert f["verdict"]["level"] == "COMPROMISED"
+    # CLI collection alone shows exploitation attempts; the cron record lives in the TSF.
+    assert f["verdict"]["level"] == "SUSPICIOUS"
     assert det(f, "panos-3400-gpsvc-non-guid-session")["hit_count"] == 2
     assert det(f, "panos-3400-gpsvc-injection-payload")["hit_count"] == 1
-    assert det(f, "panos-3400-crond-download-exec")["status"] == "hit"
+    assert det(f, "panos-3400-crond-download-exec")["status"] == "not-evaluated"
     assert det(f, "panos-3400-upstyle-pth")["status"] == "not-evaluated"
 
 
@@ -180,6 +181,8 @@ def test_panos_tsf_ingest_finds_upstyle_and_config(fx, tmp_path):
     assert det(f, "panos-3400-upstyle-pth")["status"] == "hit"
     assert det(f, "panos-3400-upstyle-yara")["status"] == "hit"
     assert det(f, "panos-3400-config-in-webroot")["status"] == "hit"
+    r = det(f, "panos-3400-crond-download-exec")
+    assert r["status"] == "hit" and r["hits"][0]["source"].endswith("syslog-system.log")
     assert f["verdict"]["level"] == "COMPROMISED"
 
 
@@ -231,12 +234,18 @@ def test_asa_line_dancer_regions(fx, tmp_path):
     assert det(f, "asa-firmware-update-log")["status"] == "hit"
     assert det(f, "asa-checkheaps-stalled")["status"] == "hit"
     assert det(f, "asa-20269-default-group-session")["status"] == "hit"
+    # Break-glass and opt-in: not run by default, so not evaluated - never a pass.
+    assert det(f, "asa-lina-text-implant-grep")["status"] == "not-evaluated"
+    bg = analyze(run(fx, tmp_path, "cisco-asa", "asa-compromised", case_id="IR-TEST-BG",
+                     break_glass=True, confirm=lambda _m: True))
+    assert det(bg, "asa-lina-text-implant-grep")["status"] == "hit"
+    assert det(f, "asa-line-runner-webcontent")["status"] == "hit"
     assert f["verdict"]["level"] == "COMPROMISED"            # memory + persistence corroborate
 
 
 def test_single_likely_class_stays_likely(fx, tmp_path):
     root = run(fx, tmp_path, "fortios", "fortios-compromised",
-               variables={"sslvpn_lang_dir": "/data/lang/custom"})
+               variables={"sslvpn_lang_dir": "/migadmin/lang"})
     f = analyze(root)
     assert f["verdict"]["level"] == "LIKELY-COMPROMISED"     # symlink only (persistence)
 
@@ -248,7 +257,44 @@ def test_asa_benign(fx, tmp_path):
     assert det(f, "asa-fxos-lina-cs-process")["status"] == "no-hit"
     assert det(f, "asa-checkheaps-stalled")["status"] == "no-hit"
     assert det(f, "asa-20269-default-group-session")["status"] == "no-hit"
+    assert det(f, "asa-lina-text-implant-grep")["status"] == "not-evaluated"   # break-glass, opt-in
+    assert det(f, "asa-line-runner-webcontent")["status"] == "no-hit"
     assert f["verdict"]["level"] == "NO-INDICATORS-FOUND"
+
+
+def test_asa_line_dancer_detail_does_not_excuse_extra_exec_regions(fx, tmp_path):
+    """NCSC's '2 or 5' counts lina regions of all permissions; it is not a normal
+    range for r-xp regions, and the hit detail must not tell the analyst it is."""
+    f = analyze(run(fx, tmp_path, "cisco-asa", "asa-compromised"))
+    detail = det(f, "asa-lina-multiple-exec-regions")["hits"][0]["detail"]
+    assert "can be normal" not in detail and "all permissions" in detail
+
+
+def test_asa_cisa_implant_grep_is_exact_and_ignores_the_echo(fx, tmp_path):
+    """Only CISA's exact command is admitted, and an echoed command line (which
+    carries the same hex groups) is not a hit."""
+    p = get_profile("cisco-asa")
+    p.check_command("more /binary system:/text | grep 55534154 41554156 41575756 488bb3a0")
+    for bad in ("more /binary system:/text", "more /binary system:/text | grep 41",
+                "more disk0:/asa.cfg", "more /binary system:/text | grep 55534154 41554156 41575756 488bb3a0 | redirect disk0:/x"):
+        with pytest.raises(Exception):
+            p.check_command(bad)
+    ids = [s.id for s in p.ordered(break_glass=True)]
+    live = [s.id for s in p.steps if s.tier.startswith("V") and s.id != "lina_text_implant_grep"]
+    assert all(ids.index(i) < ids.index("lina_text_implant_grep") for i in live)   # after every other live step
+    assert ids.index("lina_text_implant_grep") < ids.index("core_dump")
+    assert next(s for s in p.steps if s.id == "lina_text_implant_grep").impact == "break-glass"
+    assert "lina_text_implant_grep" not in [s.id for s in p.ordered(break_glass=False)]   # never by default
+    import shutil
+    from edgetriage.util import slugify
+    rp = tmp_path / "echo"
+    shutil.copytree(fx / "asa-benign", rp)
+    cmd = "more /binary system:/text | grep 55534154 41554156 41575756 488bb3a0"
+    (rp / "commands" / (slugify(cmd) + ".txt")).write_text("fw-asa-lab# " + cmd + "\n")
+    case = Case(tmp_path / "IR-ECHO")
+    collect(p, ReplayTransport(rp), case, case_id="IR-ECHO", operator="t",
+            target={"host": "192.0.2.10"}, preflight={}, variables={}, break_glass=True, confirm=lambda _m: True)
+    assert det(analyze(case.root), "asa-lina-text-implant-grep")["status"] == "no-hit"
 
 
 def test_asa_checkheaps_needs_time_and_a_counter():
@@ -263,15 +309,33 @@ def test_asa_checkheaps_needs_time_and_a_counter():
     assert asa_checkheaps_stalled(V(ch(10, 5), ch(3, 6)), {}) == (True, [])     # moved: evaluated, clean
     ok, hits = asa_checkheaps_stalled(V(ch(10, 5), ch(75, 5)), {})
     assert ok and hits and hits[0].extra["runs_last"] == 5
+    assert "five minutes" in hits[0].detail                                     # no step times: gap unknown
+
+    class T(V):   # with manifest step times: CISA's five-minute wait is reported
+        def __init__(self, a, b, gap):
+            super().__init__(a, b)
+            self.s = {"show_checkheaps": {"started_utc": "2026-10-22T14:00:00.000Z"},
+                      "show_checkheaps_late": {"started_utc": f"2026-10-22T14:{gap // 60:02d}:{gap % 60:02d}.000Z"}}
+        def step(self, s): return self.s.get(s)
+    _, hits = asa_checkheaps_stalled(T(ch(10, 5), ch(75, 5), 90), {})
+    assert hits[0].extra["reading_gap_s"] == 90 and "repeat by hand" in hits[0].detail
+    _, hits = asa_checkheaps_stalled(T(ch(10, 5), ch(320, 5), 330), {})
+    assert "meeting CISA's five-minute wait" in hits[0].detail
 
 
 def test_fortios_baseline_is_required_and_used(fx, tmp_path):
     root = run(fx, tmp_path, "fortios", "fortios-compromised",
-               variables={"sslvpn_lang_dir": "/data/lang/custom"})
+               variables={"sslvpn_lang_dir": "/migadmin/lang"})
     f = analyze(root)
     assert det(f, "fortios-fs-hash-baseline")["status"] == "not-evaluated"
     assert det(f, "fortios-symlink-root")["status"] == "hit"
-    assert det(f, "fortios-sslvpnd-crash")["status"] == "hit"
+    assert det(f, "fortios-crashlog-sslvpnd-segv")["status"] == "hit"
+    # The event-log regex no longer claims the crash log: without a log export it is not evaluated.
+    assert det(f, "fortios-sslvpnd-crash")["status"] == "not-evaluated"
+    # New listings were collected and are clean in this fixture: evaluated, no hit.
+    for d in ("fortios-42475-ioc-files", "fortios-coathanger-smartctl", "fortios-coathanger-httpsd-socket",
+              "fortios-coathanger-preload-map", "fortios-41328-lspci-symlink", "fortios-41328-castletap-fgfm"):
+        assert det(f, d)["status"] == "no-hit", d
     baseline = json.loads((fx / "fortios-baseline.json").read_text())
     f = analyze(root, baseline=baseline)
     r = det(f, "fortios-fs-hash-baseline")
@@ -525,7 +589,8 @@ def test_junos_listing_type_markers_do_not_hide_files(fx, tmp_path):
 
 
 def test_junos_integrity_check_is_not_impact_free():
-    """JMRT integrity-check writes a test file and syslog lines (Juniper), so it is opt-in."""
+    """JMRT integrity-check produces syslog lines (Juniper: "MAC/veriexec: no fingerprint
+    (file=/tmp/veriexec_test"); that it writes a test file is the toolkit's inference. Opt-in."""
     p = get_profile("junos")
     step = next(s for s in p.steps if s.id == "jmrt_integrity_check")
     assert step.impact == "vendor-bundle"
@@ -565,6 +630,40 @@ def test_iosxe_switch_form_smaps_is_read(fx, tmp_path):
             target={"host": "192.0.2.10"}, preflight={}, variables={"boot_image": IOSXE_PKG})
     r = det(analyze(case.root), "iosxe-iosd-rwx-dirty")
     assert r["hit_count"] == 1 and r["hits"][0]["source"] == "step:iosd_smaps_switch"
+
+
+def test_iosxe_r0_switch_form_and_dirty_rx_segments(fx, tmp_path):
+    """Cisco's guide: some switches need r0 for rp. And its procedure checks every
+    executable segment (r-xp or rwxp); dirty r-xp is reported separately at possible."""
+    import shutil
+    from edgetriage.util import slugify
+    from make_fixtures import _smaps
+    rp = tmp_path / "r0"
+    shutil.copytree(fx / "iosxe-benign", rp)
+    err = "% Invalid input detected at '^' marker.\n"
+    for c in ("show platform software process memory rp active name iosd smaps",
+              "show platform software process memory switch active rp active name iosd smaps"):
+        (rp / "commands" / (slugify(c) + ".txt")).write_text(err)
+    (rp / "commands" / (slugify("show platform software process memory switch active r0 active name iosd smaps") + ".txt")).write_text(
+        _smaps([("55d6c4a00000-55d6c5000000", "r-xp", 8), ("55d6c5400000-55d6c5600000", "rwxp", 0)]))
+    case = Case(tmp_path / "IR-R0")
+    collect(get_profile("cisco-iosxe"), ReplayTransport(rp), case, case_id="IR-R0", operator="t",
+            target={"host": "192.0.2.10"}, preflight={}, variables={"boot_image": IOSXE_PKG})
+    f = analyze(case.root)
+    assert det(f, "iosxe-iosd-rwx-dirty")["status"] == "no-hit"           # evaluated from the r0 form
+    r = det(f, "iosxe-iosd-rx-dirty")
+    assert r["hit_count"] == 1 and r["hits"][0]["tier"] == "possible"
+    assert r["hits"][0]["source"] == "step:iosd_smaps_switch_r0"
+
+
+def test_iosxe_weblogin_and_pcap_names(fx, tmp_path):
+    f = analyze(run(fx, tmp_path, "cisco-iosxe", "iosxe-compromised", variables={"boot_image": IOSXE_PKG}))
+    assert det(f, "iosxe-weblogin-talos-user")["status"] == "hit"
+    assert det(f, "iosxe-named-pcap-on-flash")["status"] == "hit"        # tac.pcap, likely
+    assert det(f, "iosxe-1-pcap-on-flash")["status"] == "no-hit"
+    b = analyze(run(fx, tmp_path, "cisco-iosxe", "iosxe-benign", case_id="IR-B", variables={"boot_image": IOSXE_PKG}))
+    assert det(b, "iosxe-weblogin-talos-user")["status"] == "no-hit"
+    assert det(b, "iosxe-iosd-rx-dirty")["status"] == "no-hit"
 
 
 def test_iosxe_packages_conf_readable_but_not_writable():
@@ -617,7 +716,11 @@ def test_checkpoint_cert_subject_export_corroborates(fx, tmp_path):
     case.save(m)
     f = analyze(root)
     assert det(f, "cp-85102-attacker-cert-subject")["status"] == "hit"
-    assert f["verdict"]["level"] == "COMPROMISED"     # likely auth-logs + likely web-logs corroborate
+    # sk1000171: the oversized CPM username "may indicate an attempt" and "does not
+    # necessarily confirm successful compromise", so it is possible, not likely, and
+    # no longer corroborates the certificate login up to COMPROMISED.
+    assert det(f, "cp-93616-oversized-username")["hits"][0]["tier"] == "possible"
+    assert f["verdict"]["level"] == "LIKELY-COMPROMISED"
 
 
 def test_new_bash_guards_refuse_smuggling():
@@ -726,3 +829,182 @@ def test_fortios_jsconsole_patterns_match_fortinet_lines():
     assert pat["fortios-jsconsole-admin-login"].search(login)
     assert pat["fortios-jsconsole-admin-add"].search(add)
     assert not pat["fortios-jsconsole-admin-login"].search(login.replace('ui="jsconsole"', 'ui="https(192.0.2.10)"'))
+
+
+# ------------------------------------------------------------------ verification regressions, round 3 (2026-10-23)
+class _StepView:
+    """Minimal evidence view for coded checks: step text plus a manifest."""
+    def __init__(self, steps):
+        self.t = steps
+        self.manifest = {"steps": [{"step_id": k, "status": "ok"} for k in steps]}
+    def step_text(self, s): return self.t.get(s)
+    def rejected_members(self): return []
+
+
+def test_fortios_crashlog_check_pairs_published_rows():
+    """The crash log prints the application and the signal on separate rows (Fortinet tech tip)."""
+    from edgetriage.checks.fortinet import fortios_crashlog_sslvpnd_segv as chk
+    published = ("xxxx: [ Date & Time ] <.....> firmware [ Firmware version ]\n"
+                 "xxxx: [ Date & Time ] <.....> application sslvpnd\n"
+                 "xxxx: [ Date & Time ] <.....> *** signal 11 (Segmentation fault) received ***\n")
+    ok, hits = chk(_StepView({"crashlog": published}), {})
+    assert ok and len(hits) == 1
+    other = published.replace("application sslvpnd", "application httpsd")
+    assert chk(_StepView({"crashlog": other}), {}) == (True, [])
+    assert chk(_StepView({"crashlog": "Command fail. Return code -1\n"}), {}) == (False, [])  # nothing parsed
+    assert chk(_StepView({}), {}) == (False, [])                                               # not collected
+    # The event-log form stays with the line regex.
+    import yaml
+    pack = yaml.safe_load((ROOT / "artifacts/packs/EDGE-PACK-0003-fortios-sslvpn-persistence.yml").read_text())
+    pat = {d["id"]: d for d in pack["detect"]}["fortios-sslvpnd-crash"]
+    import re
+    event = 'logdesc="Application crashed" msg="[...] application: sslvpnd,[...], Signal 11 received, Backtrace: [...]"'
+    assert re.search(pat["pattern"], event, re.I)
+
+
+def test_fortios_symlink_check_accepts_the_clean_custom_link():
+    from edgetriage.checks.fortinet import fortios_symlink_to_root as chk
+    clean = "lrwxrwxrwx 1 peter peter 18 Jan 20 01:00 custom -> /data2/custom_lang\n"
+    assert chk(_StepView({"listing_sslvpn_lang": clean}), {}) == (True, [])
+    ok, hits = chk(_StepView({"listing_sslvpn_lang": clean.replace("/data2/custom_lang", "/")}), {})
+    assert ok and len(hits) == 1
+    # /bin is full of links to /bin/init on a clean device (Mandiant's listing); not scored here.
+    bin_rows = "lrwxrwxrwx 1 root root 9 Oct 18 13:09 lldptx -> /bin/init\n"
+    assert chk(_StepView({"listing_bin": bin_rows}), {}) == (False, [])
+
+
+def test_fortios_listing_patterns_match_published_rows():
+    import re
+    import yaml
+    pats = {}
+    for f in ("EDGE-PACK-0003-fortios-sslvpn-persistence.yml", "EDGE-PACK-0024-fortios-cve-2022-41328.yml"):
+        for d in yaml.safe_load((ROOT / "artifacts/packs" / f).read_text())["detect"]:
+            if d["type"] == "log_regex":
+                pats[d["id"]] = re.compile(d["pattern"])
+    # Mandiant, `fnsysctl ls -la /bin` on a compromised and a clean FortiGate.
+    assert pats["fortios-41328-lspci-symlink"].search("lrwxrwxrwx 1 root root 11 Oct 19 05:11 lspci -> /bin/sysctl")
+    assert not pats["fortios-41328-lspci-symlink"].search("-rwxr-xr-x 1 0 0 Fri Sep 2 12:07:55 2022 131736 lspci")
+    assert pats["fortios-41328-castletap-fgfm"].search("-rwxr-xr-x 1 0 0 Fri Sep 2 12:07:55 2022 131736 fgfm")
+    assert not pats["fortios-41328-castletap-fgfm"].search("lrwxrwxrwx 1 0 0 Fri Sep 2 12:07:55 2022 9 fgfmd -> /bin/init")
+    # MIVD/AIVD COATHANGER: smartctl that is not a symlink, the tcpsock row, the PID 1 map row.
+    smart = pats["fortios-coathanger-smartctl"]
+    assert smart.search("-rwxr-xr-x 1 0 0 Fri Sep 2 12:07:55 2022 52344 smartctl")
+    assert not smart.search("lrwxrwxrwx 1 0 0 Fri Sep 2 12:07:55 2022 9 smartctl -> /bin/init")
+    sock = ("<device_IP>:<device_port>-><c2_IP>:<c2_port>->state=established err=0 socktype=1 rma=0 wma=0 "
+            "fma=0 tma=0 inode=<inode> process=<PID>/httpsd")
+    assert pats["fortios-coathanger-httpsd-socket"].search(sock)
+    assert not pats["fortios-coathanger-httpsd-socket"].search(sock.replace("established", "listen"))
+    assert pats["fortios-coathanger-preload-map"].search("7f7ff.....-7f7ff..... ....    0000....   00:..   .....   /lib/preload.so (deleted)")
+    assert pats["fortios-coathanger-preload-map"].search("0040.....-0040..... ....     0000....   b3:..   .....  /data2/httpsd (deleted)")
+    # Fortinet FG-IR-22-398 file indicators in `fnsysctl ls -l` rows.
+    ioc = pats["fortios-42475-ioc-files"]
+    for name in ("libips.bak", "libgif.so", "libiptcp.so", "libipudp.so", "libjepg.so", ".sslvpnconfigbk", "wxd.conf", "flash"):
+        assert ioc.search(f"-rw-r--r-- 1 0 0 4096 Mar 1 10:00 {name}"), name
+    assert not ioc.search("-rw-r--r-- 1 0 0 4096 Mar 1 10:00 libips.so")
+
+
+# ------------------------------------------------------------------ SonicWall SMA 100 (OVERSTEP)
+def _sma_case(fx: Path, tmp: Path, image: str) -> dict:
+    case = Case(tmp / image.replace(".tgz", ""))
+    m = Case.new_manifest(case.root.name, "tester", "EDGE-0006", None)
+    m["expected_evidence"] = []
+    m["ingested"].append(case.ingest(fx / image, "image"))
+    case.save(m)
+    return analyze(case.root)
+
+
+def test_sma_ld_so_preload_uses_gtig_size_threshold(fx, tmp_path):
+    """GTIG: ld.so.preload 'with greater than 2 bytes of contents'. An empty file is
+    evaluated and does not fire; a missing file is not evaluated."""
+    hit = _sma_case(fx, tmp_path, "sma-image-overstep.tgz")
+    assert det(hit, "sma-ld-so-preload")["status"] == "hit"
+    assert det(hit, "sma-overstep-cf-files")["hit_count"] == 2          # /cf/xxx.elf, /cf/libsamba-errors.so.6
+    assert det(hit, "sma-overstep-published-hash")["status"] == "no-hit"  # placeholders never match GTIG's hashes
+    empty = _sma_case(fx, tmp_path, "sma-image-empty-preload.tgz")
+    assert det(empty, "sma-ld-so-preload")["status"] == "no-hit"
+    assert det(empty, "sma-overstep-cf-files")["status"] == "no-hit"
+    missing = _sma_case(fx, tmp_path, "sma-image-no-preload.tgz")
+    assert det(missing, "sma-ld-so-preload")["status"] == "not-evaluated"
+
+
+def test_sma_overstep_hash_rule_carries_gtig_values():
+    """The YARA hash rule and the parsed GTIG indicator set hold the same SHA256 values."""
+    import re
+    import yaml
+    rule = (ROOT / "06-sonicwall-sma/sma_overstep_published_hashes.yar").read_text()
+    ioc = yaml.safe_load((ROOT / "artifacts/intel/iocs/EDGE-IOC-0008-gtig-unc6148-overstep.yml").read_text())
+    published = {i["value"] for i in ioc["indicators"] if i["type"] == "sha256"}
+    assert set(re.findall(r'== "([0-9a-f]{64})"', rule)) == published and len(published) == 2
+    import yara
+    yara.compile(filepath=str(ROOT / "06-sonicwall-sma/sma_overstep_published_hashes.yar"))
+
+
+def test_sma_38475_patterns_cover_the_rewrite_rule():
+    """watchTowr's published request is caught by the literal; other suffixes the
+    abused RewriteRule accepts are caught by the generalised pattern instead."""
+    import re
+    import yaml
+    pack = yaml.safe_load((ROOT / "artifacts/packs/EDGE-PACK-0022-sonicwall-sma-2025-credential-access.yml").read_text())
+    d = {x["id"]: x for x in pack["detect"]}
+    lit, gen = d["sma-38475-css-suffix-file-read"], d["sma-38475-css-suffix-generalised"]
+    published = "GET /tmp/temp.db%3f.1.1.1.1a-1.css"
+    variant = "GET /tmp/temp.db%3F.20.4.0.17xyz-9.css HTTP/1.1"
+    hits = lambda det_, line: bool(re.search(det_["pattern"], line, re.I)) and not any(
+        re.search(x, line, re.I) for x in det_.get("exclude", []))
+    assert hits(lit, published) and not hits(gen, published)
+    assert hits(gen, variant) and not hits(lit, variant)
+    assert not hits(gen, "GET /css/style.1.2.3.4abc-5.css HTTP/1.1")    # the rule's legitimate use has no %3f
+
+
+def test_netscaler_pitboss_pattern_takes_both_published_forms():
+    """Unit 42 prints no space before NSPPE; Rapid7 prints one. Payloads here are inert."""
+    import re
+    import yaml
+    pack = yaml.safe_load((ROOT / "artifacts/packs/EDGE-PACK-0028-netscaler-2026-log-poisoning.yml").read_text())
+    pat = re.compile({d["id"]: d for d in pack["detect"]}["netscaler-pitboss-log-poisoning"]["pattern"])
+    sigma = yaml.safe_load((ROOT / "04-citrix-netscaler/netscaler_cve_2026_88771_pitboss_log_poisoning.yml").read_text())
+    assert sigma["detection"]["selection"]["Message|re"] == pat.pattern
+    assert pat.search("pitboss PPE missed too many heartbeatsNSPPE;echo fixture-only")     # Unit 42 form
+    assert pat.search("pitboss PPE unexpectedly died NSPPE;echo fixture-only")              # Rapid7 form
+    assert pat.search("pitboss PPE unexpectedly died NSPPE-00;echo fixture-only")
+    assert not pat.search("pitboss PPE unexpectedly died NSPPE;")                            # nothing appended
+
+
+def test_netscaler_2026_listing_patterns():
+    import re
+    import yaml
+    pack = yaml.safe_load((ROOT / "artifacts/packs/EDGE-PACK-0028-netscaler-2026-log-poisoning.yml").read_text())
+    p = {d["id"]: re.compile(d["pattern"]) for d in pack["detect"] if d["type"] == "log_regex"}
+    assert p["netscaler-slap-framework-dir"].search("drwxr-xr-x  2 root  wheel  512 Oct 14 07:21 .relay")
+    assert p["netscaler-nsvm-flash-dir"].search("drwxr-xr-x  2 root  wheel  512 Oct 14 07:21 .nsvm")
+    assert not p["netscaler-nsvm-flash-dir"].search("drwxr-xr-x  3 root  wheel  512 Oct 01 09:00 nsconfig")
+    assert p["netscaler-var-tmp-staging"].search("drwxr-xr-x  2 nobody  wheel  512 Oct 14 07:30 .s2loot")
+    assert p["netscaler-rc-netscaler-nsvm"].search("/flash/.nsvm/nsvmd &")
+
+
+def test_netscaler_nonprintable_takes_vendor_and_huntress_forms():
+    from edgetriage.checks.netscaler import _leaky
+    vendor = (b'10/13/2026:06:05:01 GMT ns-gw 0-PPE-0 : default AAA Message 2001 0 : '
+              b'"Authentication is rejected for \xc3\x9f\x80\x01leak"')
+    assert _leaky(vendor)
+    assert not _leaky(vendor.replace(b"\xc3\x9f\x80", b"jdoe"))         # control byte only: vendor counts 128-255
+    huntress = b'default AAA LOGIN_FAILED 102 0 :  User \x00\x07\xc3\x1fX\x02 - Client_ip 198.51.100.66'
+    assert _leaky(huntress)
+    assert not _leaky(b'default AAA LOGIN_FAILED 101 0 :  User jdoe-lab - Client_ip 198.51.100.20')
+    # Bytes elsewhere in the line (before the marker) do not count.
+    assert not _leaky(b'\xff\xfe AAA Message : "Authentication is rejected for jdoe-lab"')
+
+
+def test_ivanti_traversal_takes_both_published_payloads():
+    import re
+    import yaml
+    pack = yaml.safe_load((ROOT / "artifacts/packs/EDGE-PACK-0007-ivanti-ics-2024-chain.yml").read_text())
+    p = {d["id"]: re.compile(d["pattern"], re.I) for d in pack["detect"]}
+    trav = p["ivanti-totp-traversal"]
+    # Assetnote's published requests.
+    assert trav.search("GET /api/v1/totp/user-backup-code/../../system/system-information")
+    assert trav.search("GET /api/v1/cav/client/status/../../admin/options")
+    assert trav.search("GET /api/v1/cav/client/status/.%2e/.%2e/admin/options")
+    assert not trav.search("GET /api/v1/totp/user-backup-code/12345")
+    assert p["ivanti-traversal-to-injectable-endpoint"].search(
+        "GET /api/v1/totp/user-backup-code/../../license/keys-status/x")

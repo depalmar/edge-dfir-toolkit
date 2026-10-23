@@ -32,9 +32,12 @@ controls:
     priority: high
     why: Keeps administrative traffic apart from user VPN traffic.
     how: >-
-      Where the appliance has a management interface, enable it and turn off ICS
-      management access on both other interfaces. The configuration path for ICS
-      was not confirmed; use Ivanti's admin guide for your appliance.
+      Ivanti: "Configure the Management interface to allow administrators to sign
+      in and disable administrators to sign in on the Internal Port.
+      Administrators > Admin Realms > Admin Users > Authentication Policy >
+      Administrator sign in ports". For the external port: Administrator > Admin
+      Realms > Select Realm > Authentication Policy > Source IP, and ensure
+      "Enable administrators to sign in on the External Port" is not enabled.
     confidence: high
     sources:
       - title: Ivanti Connect Secure security best practices - additional hardening measures
@@ -45,7 +48,10 @@ controls:
     control: Source-IP restrictions on the administrator realm and MFA for every administrator
     category: identity
     priority: critical
-    why: Ivanti's hardening guide makes both mandatory for administrative access.
+    why: >-
+      Ivanti's hardening guide requires MFA for all administrator access and lists
+      source-IP restrictions among the hardening measures that "should be
+      considered".
     how: >-
       Source IP restrictions on the Administrator realm; MFA for all internal and
       external admin access. The same guide adds a non-default admin URL, one
@@ -62,8 +68,9 @@ controls:
     category: logging
     priority: high
     why: >-
-      In 2025 an operator's iptables rule blocked syslog forwarding on compromised
-      appliances; the external copy is the one that dates that gap.
+      In 2025 UNC5221's exploit script dropped syslog with iptables and SPAWNSLOTH
+      disabled local and remote logging in dslogserver; the external copy is the
+      one that dates that gap.
     how: External syslog configured for all event, user access and admin access logs.
     confidence: high
     sources:

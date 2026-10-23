@@ -1,9 +1,9 @@
 id: EDGE-TA-0003
 name: UAT4356
-aliases: [STORM-1849]
-reported_by: [Cisco Talos, Microsoft]
+aliases: [UAT-4356, "STORM-1849 (Microsoft's name, as given by Talos)"]
+reported_by: [Cisco Talos]
 link_confidence: medium
-stated_confidence: "Cisco Talos: 'a state-sponsored actor'; Talos did not attribute to a specific government"
+stated_confidence: "Cisco Talos: 'we assess with high confidence that these actions were performed by a state-sponsored actor'; Talos did not attribute to a specific government"
 state_nexus: "not stated by the reporter"
 motivation: espionage
 summary: >-
@@ -11,21 +11,33 @@ summary: >-
   (CVE-2024-20353, CVE-2024-20359) with the memory-resident LINE DANCER and the
   disk-persistent LINE RUNNER. Cisco and CISA tied the 2025 activity
   (CVE-2025-20333, CVE-2025-20362, RayInitiator, LINE VIPER) to the same
-  campaign.
+  campaign. In April 2026 Talos reported UAT-4356's continued targeting of
+  Firepower devices and its FXOS backdoor FIRESTARTER.
 platforms: [EDGE-0005]
-packs: [EDGE-PACK-0006]
-implants: [EDGE-IMP-0002, EDGE-IMP-0003, EDGE-IMP-0004]
+packs: [EDGE-PACK-0006, EDGE-PACK-0018]
+implants: [EDGE-IMP-0002, EDGE-IMP-0003, EDGE-IMP-0004, EDGE-IMP-0013]
 tradecraft:
   - Memory-only shellcode interpreter that disabled syslog and bypassed AAA
   - Hooked the core-dump routine so that a dump request reloaded the device
   - Boot-loader persistence on models without Secure Boot (2025)
+  - FXOS backdoor (FIRESTARTER) that rewrites itself to disk during a graceful reboot (2026)
   - Packet capture and configuration exfiltration from the device
 victimology: ["government networks (Talos)"]
-first_seen: "2024-01"
+notes: >-
+  first_seen is the actor-controlled infrastructure Talos dates to early
+  November 2023; Talos also saw evidence the capability was "being tested and
+  developed as early as July 2023".
+first_seen: "2023-11"
 references:
   - title: Cisco Talos - ArcaneDoor
     url: https://blog.talosintelligence.com/arcanedoor-new-espionage-focused-campaign-found-targeting-perimeter-network-devices/
     accessed: "2026-10-22"
-  - title: CISA ED 25-03 implementation guidance update
+  - title: Cisco Talos - UAT-4356 FIRESTARTER (23 April 2026)
+    url: https://blog.talosintelligence.com/uat-4356-firestarter/
+    accessed: "2026-10-23"
+  - title: CISA - Supplemental Direction ED 25-03 - Core Dump and Hunt Instructions (updated 24 April 2026)
+    url: https://www.cisa.gov/news-events/directives/supplemental-direction-ed-25-03-core-dump-and-hunt-instructions
+    accessed: "2026-10-23"
+  - title: CISA ED 25-03 implementation guidance update (alert, 12 November 2025; pointer only)
     url: https://www.cisa.gov/news-events/alerts/2025/11/12/update-implementation-guidance-emergency-directive-cisco-asa-and-firepower-device-vulnerabilities
     accessed: "2026-10-22"

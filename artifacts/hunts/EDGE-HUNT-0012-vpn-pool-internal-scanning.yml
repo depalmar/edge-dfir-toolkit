@@ -10,7 +10,7 @@ platforms:
 actors:
 - EDGE-TA-0003
 seen_in:
-- ArcaneDoor 2025 (CISA)
+- Cisco ASA/FTD campaign 2025-26 (CISA ED 25-03; Cisco attributes it to the ArcaneDoor actor)
 - Check Point CVE-2026-85102
 hypothesis: An actor holding a VPN session is mapping the internal network.
 data:
@@ -36,10 +36,18 @@ confidence: medium
 sources:
 - title: CISA - ED 25-03 supplemental direction, core dump and hunt instructions
   url: >-
-    https://cisa.gov/news-events/directives/supplemental-direction-ed-25-03-core-dump-and-hunt-instructions
+    https://www.cisa.gov/news-events/directives/supplemental-direction-ed-25-03-core-dump-and-hunt-instructions
   accessed: '2026-10-23'
   quote: widespread scans of printers, largely across TCP port 443
-  read: summariser
+  read: direct
+- title: Cisco - Detection guide for continued attacks against Cisco firewalls
+  url: >-
+    https://sec.cloudapps.cisco.com/security/center/resources/detection_guide_for_continued_attacks
+  accessed: '2026-10-23'
+  quote: >-
+    According to the update, the ArcaneDoor threat actor has developed a previously unknown
+    persistence mechanism
+  read: direct
 - title: Check Point sk1000117 - CVE-2026-85102
   url: https://support.checkpoint.com/results/sk/sk1000117
   accessed: '2026-10-23'

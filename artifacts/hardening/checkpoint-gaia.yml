@@ -18,13 +18,17 @@ controls:
     how: >-
       Place the management server behind a Security Gateway and restrict TCP/19009
       to trusted IP addresses, as sk1000171 describes, alongside the hotfix.
-    blunts: [CVE-2026-93616]
+    blunts: [CVE-2026-93616, CVE-2026-16232]
     confidence: high
     sources:
       - title: Check Point sk1000171 - CVE-2026-93616
         url: https://support.checkpoint.com/results/sk/sk1000171
         accessed: "2026-10-22"
         quote: "Make sure that access to port TCP/19009 is only possible from Trusted IP addresses."
+      - title: Check Point sk185169 - CVE-2026-16232
+        url: https://support.checkpoint.com/results/sk/sk185169
+        accessed: "2026-10-23"
+        quote: "Successful remote exploit requires internet access to the Management Server IP address and no restrictions on Trusted Clients (GUI clients)."
 
   - id: cp-trusted-clients
     control: Limit SmartConsole Trusted Clients to internal addresses
@@ -34,9 +38,13 @@ controls:
       Trusted Clients creates an implied rule limiting who can reach management.
       Named in sk1000171 and in Check Point's hardening guide.
     how: SmartConsole > Manage & Settings > Permissions & Administrators > Trusted Clients.
-    blunts: [CVE-2026-93616]
+    blunts: [CVE-2026-93616, CVE-2026-16232]
     confidence: high
     sources:
+      - title: Check Point sk185169 - CVE-2026-16232
+        url: https://support.checkpoint.com/results/sk/sk185169
+        accessed: "2026-10-23"
+        quote: "Limit Trusted Clients (GUI clients) to trusted IP addresses/subnets."
       - title: Check Point sk1000171 - CVE-2026-93616
         url: https://support.checkpoint.com/results/sk/sk1000171
         accessed: "2026-10-22"
@@ -68,16 +76,21 @@ controls:
     how: >-
       Any one of the following closes the bypass, per sk185033: in the gateway's
       VPN Clients > Authentication, clear "Allow older clients to connect to this
-      gateway"; or in Global Properties > Remote Access > VPN Authentication, select
-      IKEv2 only; or set Machine Certificate Authentication to Mandatory. Then
-      install the Jumbo Hotfix (R82.10 Take 24, R82 Take 107, R81.20 Take 146,
-      R81.10 Take 187).
+      gateway" and, if Mobile Access is enabled, clear the same checkbox under
+      Mobile Access > Authentication, then install policy; or in Global Properties
+      > Remote Access > VPN Authentication, select IKEv2 only; or set Machine
+      Certificate Authentication to Mandatory. Options 1 and 3 are "not relevant
+      for locally managed Spark Firewall"; there, Spark WebUI > Device > Advanced
+      Settings > Remote Access VPN - Encryption Method, select IKEv2. Then install
+      the Jumbo Hotfix (R82.10 Take 24, R82 Take 107, R81.20 Take 146, R81.10 Take
+      187).
     blunts: [CVE-2026-50751]
     confidence: high
     sources:
       - title: Check Point sk185033 - CVE-2026-50751
         url: https://support.checkpoint.com/results/sk/sk185033
-        accessed: "2026-10-22"
+        accessed: "2026-10-23"
+        quote: "This mitigation option is not relevant for locally managed Spark Firewall."
 
   - id: cp-no-password-only-vpn
     control: Do not authenticate Remote Access VPN users with password-only local accounts
@@ -110,7 +123,7 @@ controls:
       - title: Check Point gateway and management hardening - administrator identity and access control
         url: https://sc1.checkpoint.com/documents/Check_Point_Gateway_and_Management_Hardening/Hardening_GW_and_MGMT/Administrator-Identity-and-Access-Control.html
         accessed: "2026-10-22"
-        quote: "Enforce MFA for all administrative access using an external Identity Provider."
+        quote: "Enforce MFA for all administrative access using an external Identity Provider (for example, SAML-based administrator login or TACACS / RADIUS where applicable)."
       - title: Check Point gateway and management hardening - Gaia OS hardening
         url: https://sc1.checkpoint.com/documents/Check_Point_Gateway_and_Management_Hardening/Hardening_GW_and_MGMT/Gaia-OS-Hardening.html
         accessed: "2026-10-22"
@@ -127,6 +140,10 @@ controls:
         url: https://sc1.checkpoint.com/documents/Check_Point_Gateway_and_Management_Hardening/Hardening_GW_and_MGMT/Decreasing-Security-Gateway-Exposure-with-Policy.html
         accessed: "2026-10-22"
         quote: "Configure a Stealth Rule to drop traffic that is directed to the Security Gateway itself"
+      - title: Check Point gateway and management hardening - Gaia OS hardening (LOM)
+        url: https://sc1.checkpoint.com/documents/Check_Point_Gateway_and_Management_Hardening/Hardening_GW_and_MGMT/Gaia-OS-Hardening.html
+        accessed: "2026-10-23"
+        quote: "Not directly exposed to the Internet."
 
   - id: cp-snmp
     control: Disable SNMP if unused; otherwise SNMPv3 only on internal interfaces

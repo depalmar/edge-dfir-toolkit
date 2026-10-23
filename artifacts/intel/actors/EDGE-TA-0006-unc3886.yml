@@ -3,7 +3,7 @@ name: UNC3886
 aliases: []
 reported_by: [Mandiant / Google Threat Intelligence Group]
 link_confidence: medium
-stated_confidence: "Mandiant: 'Mandiant attributed these backdoors to the China-nexus espionage group, UNC3886' and 'a highly adept China-nexus cyber espionage group that has historically targeted network devices and virtualization technologies with zero-day exploits'"
+stated_confidence: "Mandiant: 'Mandiant attributed these backdoors to the China-nexus espionage group, UNC3886' and 'a highly adept China-nexus cyber espionage group that has historically targeted network devices and virtualization technologies with zero-day exploits' (2025, Juniper); for the 2023 FortiOS activity Mandiant's words were 'Mandiant attributes this activity to UNC3886, a group we suspect has a China-nexus'"
 state_nexus: China (as assessed by the reporter)
 motivation: espionage
 summary: >-
@@ -21,11 +21,15 @@ implants: [EDGE-IMP-0010]
 tradecraft:
   - Backdoors named to resemble legitimate daemons
   - Process injection to get past veriexec
-  - Deleted log lines containing "root" and redirected logging to /dev/null in the runtime syslog.conf
-  - Backed up and edited login records
+  - lmpad backdoor deleted log lines containing "root" and, through its embedded script, redirected logging to /dev/null in the runtime syslog.conf (malware behaviour, not hands-on)
+  - lmpad's embedded script copied login records and the commit database aside and restored them after the session
+  - Hands-on, by the operator - built the injection payload with a here document (ldb.b64) and injected lmpad into a hijacked cat process
 victimology: ["defence, technology and telecommunications organisations, mainly in the US and Asia (Mandiant)"]
 first_seen: "2022 (first Mandiant reporting on the group's malware; no first-seen date given)"
 references:
-  - title: Mandiant - China-nexus espionage targets Juniper routers (12 March 2025)
+  - title: Mandiant - Fortinet zero-day and custom malware used by suspected Chinese actor (16 March 2023; FortiOS, CVE-2022-41328)
+    url: https://cloud.google.com/blog/topics/threat-intelligence/fortinet-malware-ecosystem
+    accessed: "2026-10-23"
+  - title: Mandiant - China-nexus espionage targets Juniper routers (March 2025)
     url: https://cloud.google.com/blog/topics/threat-intelligence/china-nexus-espionage-targets-juniper-routers
     accessed: "2026-10-22"

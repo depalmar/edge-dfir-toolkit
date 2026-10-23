@@ -20,13 +20,19 @@ credential_exposure:
   - what: VPN user credentials and OTP seeds
     why: OVERSTEP steals credentials and one-time-password seeds from the device.
     action: Force VPN user password resets and re-enrol OTP/MFA seeds; assume every account that authenticated through the device is exposed.
-  - what: Local admin credentials
-    why: Device compromise exposes local accounts.
-    action: Rotate on the replacement device.
+  - what: Local admin credentials, and local, AD and LDAP user passwords
+    why: Device compromise exposes local accounts; SonicWall's notice says to change the passwords of local, AD and LDAP users, not only administrators.
+    action: Rotate on the replacement device and in the directory.
+  - what: Certificates and private keys stored on the appliance (/etc/EasyAccess/var/cert)
+    why: OVERSTEP's dopasswords command bundles /tmp/temp.db, /etc/EasyAccess/var/conf/persist.db and /etc/EasyAccess/var/cert for download.
+    action: GTIG - "Revoke and reissue any certificates with private keys stored on the appliance."
+  - what: Active sessions in temp.db
+    why: temp.db is in the same bundle and holds session tokens (GTIG).
+    action: Invalidate all sessions on the appliance.
 
 eradicate:
   - step: Replace the device
-    detail: SMA 100 is end-of-life. The reliable path is replacement, or a rebuild from clean firmware (GTIG names 10.2.1.15-81sv as the fixed release) with the entry vector closed, following SonicWall guidance.
+    detail: SMA 100 is end-of-life. The reliable path is replacement, or a rebuild from a checksum-verified image at 10.2.2.2-92sv or later with the entry vector closed. SonicWall SNWLID-2025-0015 recommends 10.2.2.2-92sv, which adds "additional file checking, providing the capability to remove known rootkit malware". 10.2.1.15-81sv is the release GTIG's victim appliances had already been updated to - not a fix.
     when: COMPROMISED, LIKELY-COMPROMISED
 
 recover:
@@ -35,7 +41,8 @@ recover:
 
 verify:
   - step: On a replacement, confirm no ld.so.preload, no rogue libsamba-errors.so.6, expected rc.fwboot and initrd
-  - step: Hunt into the network for the dwell period; ransomware staging was the suspected objective
+  - step: Hunt into the network for the dwell period
+    detail: GTIG assesses with moderate confidence that UNC6148's aim may be data theft and extortion, and possibly ransomware deployment.
 
 do_not:
   - action: Trust the tech support report or a live listing on a suspected OVERSTEP host
@@ -44,14 +51,20 @@ do_not:
     because: Boot-level persistence and hidden files make in-place cleaning unreliable on end-of-life hardware.
 
 vendor_guidance:
-  - title: SonicWall - SMA 100 series guidance (locate the current advisory for your firmware)
-    url: https://www.sonicwall.com/support/product-notification
-    accessed: "2026-10-22"
+  - title: SonicWall - SNWLID-2025-0015, SMA100 10.2.2.2-92sv with additional file checking (22 September 2025)
+    url: https://psirt.global.sonicwall.com/vuln-detail/SNWLID-2025-0015
+    accessed: "2026-10-23"
+  - title: SonicWall - SNWLID-2024-0018 (CVE-2024-38475 on SMA 100; OTP seed rotation)
+    url: https://psirt.global.sonicwall.com/vuln-detail/SNWLID-2024-0018
+    accessed: "2026-10-23"
+  - title: SonicWall - urgent notice on rootkits in SMA 100 (Japanese-locale copy; the English page returns Article Not Found)
+    url: https://www.sonicwall.com/ja-jp/support/notices/kA1VN0000000RGN0A2
+    accessed: "2026-10-23"
 
 references:
   - title: Google Threat Intelligence Group - SonicWall SMA exploitation and the OVERSTEP backdoor (16 July 2025)
     url: https://cloud.google.com/blog/topics/threat-intelligence/sonicwall-secure-mobile-access-exploitation-overstep-backdoor
     accessed: "2026-10-22"
 notes: >-
-  The fixed-release version is from GTIG's report; confirm it against SonicWall's
-  own notice for your hardware before operational use.
+  The recommended build, 10.2.2.2-92sv, is from SonicWall's SNWLID-2025-0015;
+  GTIG's 10.2.1.15-81sv is the release its victims were already running.

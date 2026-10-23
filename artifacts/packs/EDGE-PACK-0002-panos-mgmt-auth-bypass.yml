@@ -12,8 +12,11 @@ summary: >-
   request to a PHP utility with a ".js.map" suffix and an X-PAN-AUTHCHECK header
   set to off. Exposure of the management interface to untrusted networks is the
   precondition.
-confidence: high
+confidence: medium
 references:
+  - title: Palo Alto Networks - CVE-2024-0012 advisory
+    url: https://security.paloaltonetworks.com/CVE-2024-0012
+    accessed: "2026-10-23"
   - title: watchTowr - PAN-OS CVE-2024-0012 and CVE-2024-9474
     url: https://labs.watchtowr.com/pots-and-pans-aka-an-sslvpn-palo-alto-pan-os-cve-2024-0012-and-cve-2024-9474/
     accessed: "2026-10-22"
@@ -54,7 +57,12 @@ detect:
     pattern: '(user|admin)[=:\s]+[^\s]*(`|\$\(|\$\{IFS\}|;\s*(curl|wget|bash|sh)\b)'
     flags: [ignorecase]
     attack: [T1068, T1059.004]
-    notes: A username carrying a command substitution is the CVE-2024-9474 injection, not a typo.
+    notes: >-
+      A username carrying a command substitution is the CVE-2024-9474 injection,
+      not a typo. Unverified toolkit inference: watchTowr shows the payload in the
+      PHP session file and in "sh -c export panusername=...", not in a PAN-OS
+      log, and the vendor publishes no log indicator. That the username reaches
+      the configuration or system log is not shown by any source.
 
   - id: panos-mgmt-webshell
     title: Web shell content under the management web root

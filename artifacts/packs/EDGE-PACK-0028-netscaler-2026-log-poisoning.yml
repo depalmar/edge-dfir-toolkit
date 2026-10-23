@@ -7,14 +7,21 @@ cves: [CVE-2026-88771, CVE-2026-88772, CVE-2026-88779]
 summary: >-
   Citrix has observed exploits of CVE-2026-88771 and CVE-2026-88772 on
   unmitigated deployments. Unit 42 describes a staged chain: text injected into
-  a failed login is logged to ns.log as a pitboss line, and the crash-handling
-  Perl script later executes it. Rapid7 found two organisations compromised,
-  with CVE-2026-88779 supplying the crash, and does not attribute the activity.
+  a failed login is logged to ns.log as a pitboss line, and the Perl script
+  /netscaler/ns_monuploadd_err.pl later processes it (Rapid7: "the NetScaler
+  call-home crash handler processed the retained attacker-controlled text and
+  executed a payload as root"). Rapid7 investigated one compromised NetScaler
+  ADC (14.1), with CVE-2026-88779 supplying the crash, and notes the activity
+  "overlaps with public reporting on the WHIPSHOT/SLAPSHOT NetScaler campaign"
+  without attributing it to an actor.
   Both report PHP web shells hidden in the Gateway customisation directory
   behind CSS-looking Apache aliases, php_flag engine switched on, and /bin/sh
   set to mode 6555.
 confidence: medium
 references:
+  - title: Citrix - CTX697096 security bulletin (CVE-2026-88771, CVE-2026-88772)
+    url: https://support.citrix.com/support-home/kbsearch/article?articleNumber=CTX697096
+    accessed: "2026-10-23"
   - title: Unit 42 - NetScaler zero-days exploited
     url: https://unit42.paloaltonetworks.com/netscaler-zero-days-exploited/
     accessed: "2026-10-23"
@@ -32,13 +39,16 @@ detect:
     sources:
       steps: [fetch_logs]
       files: ["**/ns.log*"]
-    pattern: 'pitboss PPE (unexpectedly died|missed too many heartbeats\s?)NSPPE(-00)?;.+'
+    pattern: 'pitboss PPE (unexpectedly died|missed too many heartbeats)\s?NSPPE(-00)?;.+'
     attack: [T1190, T1059.004]
     notes: >-
       Unit 42 logs the injection as "pitboss PPE missed too many
-      heartbeatsNSPPE;<additional text>" and hunts the unexpectedly-died form too.
-      A genuine pitboss line does not continue after a semicolon. A hit is the
-      payload reaching the log; whether it ran depends on the crash handler.
+      heartbeatsNSPPE;<additional text>" (no space) and hunts the
+      unexpectedly-died form; Rapid7 publishes "pitboss PPE unexpectedly died
+      NSPPE;..." (with a space). The pattern takes both. That a genuine pitboss
+      line never continues after the semicolon is toolkit inference: no source
+      publishes the benign format. A hit is the payload reaching the log;
+      whether it ran depends on /netscaler/ns_monuploadd_err.pl processing it.
 
   - id: netscaler-logonpoint-hidden-receiver
     title: Hidden receiver file in the LogonPoint customisation directory
@@ -75,12 +85,59 @@ detect:
     notes: Unit 42 and Rapid7 both report chmod 6555 /bin/sh, letting the unprivileged web process become root.
 
   - id: netscaler-slap-framework-dir
-    title: .slap directory in /nsconfig
+    title: .slap or .relay directory in /nsconfig
     type: log_regex
     tier: likely
     evidence_class: persistence
     sources:
       steps: [nsconfig_listing]
-    pattern: '\s\.slap\s*$'
+    pattern: '\s\.(slap|relay)\s*$'
     attack: [T1037]
-    notes: Rapid7 - the implant framework lived under /nsconfig/.slap (agent, bridge, boot and reverse-agent scripts).
+    notes: >-
+      Rapid7 - the implant framework lived under /nsconfig/.slap (agent, bridge,
+      boot and reverse-agent scripts); its IOC table adds /nsconfig/.relay/
+      ("Relay implant directory").
+
+  - id: netscaler-nsvm-flash-dir
+    title: .nsvm directory on /flash
+    type: log_regex
+    tier: likely
+    evidence_class: persistence
+    sources:
+      steps: [listing_flash]
+    pattern: '\s\.nsvm\s*$'
+    attack: [T1037, T1090]
+    notes: >-
+      Rapid7 - /flash/.nsvm/nsvmd is a FreeBSD Go proxy agent; the installer added
+      a watchdog (/flash/.nsvm/watchdog.sh), cron jobs and boot persistence
+      through /nsconfig/rc.netscaler, and marked nsvmd immutable with chflags
+      uchg.
+
+  - id: netscaler-rc-netscaler-nsvm
+    title: rc.netscaler starts something from /flash/.nsvm
+    type: log_regex
+    tier: likely
+    evidence_class: persistence
+    sources:
+      steps: [rc_netscaler]
+      files: ["**/rc.netscaler"]
+    pattern: '\.nsvm/|nsvmd'
+    attack: [T1037.004]
+    notes: Rapid7 - the nsvmd installer created "boot persistence through /nsconfig/rc.netscaler".
+
+  - id: netscaler-var-tmp-staging
+    title: 2026 framework staging or coordination files in /tmp or /var/tmp
+    type: log_regex
+    tier: likely
+    evidence_class: filesystem
+    sources:
+      steps: [listing_tmp]
+    pattern: '\s\.(ux|s2loot|uxdport|uxdlock)\s*$'
+    attack: [T1074.001]
+    notes: >-
+      Rapid7 IOC table: /var/tmp/.ux/slapshot.py and /var/tmp/.s2loot/ ("Loot
+      staging directory"); agent.pl recorded its port in /tmp/.uxdport and used
+      /tmp/.uxdlock for coordination. The listing step covers /tmp and /var/tmp together,
+      so check which directory a hit sits in. Unit 42's .deb-named PHP shells
+      (/vpn/scripts/linux/nsgclient18.deb, nsg64.deb) are a URL path whose
+      on-disk location is not published, so they are not checked.

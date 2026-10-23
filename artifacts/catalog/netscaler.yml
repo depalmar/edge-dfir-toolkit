@@ -26,11 +26,11 @@ collection:
     references: [https://github.com/fox-it/citrix-netscaler-triage]
 volatility:
   - Anything written to the memory-disk root is gone after reboot
-  - ns.log rotates quickly on busy gateways; a short window of logs says little about memory-disclosure attempts
+  - ns.log rotates quickly on busy gateways; the vendor says "the system logs may only be available for a few days prior", so a short window of logs says little about memory-disclosure attempts
 anti_forensics:
-  - technique: Trace wiping and log deletion after web-shell installation
+  - technique: Actively erased traces (NCSC-NL - "zijn er actief sporen gewist")
     seen_in: CVE-2025-6543 exploitation (NCSC-NL)
-  - technique: Backdoors remained on devices that had been patched
+  - technique: Most backdoored NetScalers had been patched after the web shell was planted; patching did not remove it
     seen_in: CVE-2023-3519 mass exploitation (Fox-IT / NCC Group)
 response: netscaler
 hardening: netscaler
@@ -38,12 +38,19 @@ artifacts:
   - locator: /var/log/ns.log*
     class: auth-logs
     volatility: rotating
-    retention: Hours on a busy gateway; rotations are compressed in /var/log
+    retention: >-
+      Days at most (vendor: "the system logs may only be available for a few days
+      prior"), less on a busy gateway (Huntress); rotations are compressed in /var/log
     forensic_value: high
     evidence_type: [initial-access, credential-access, timeline]
     confidence: high
     collected_by: fetch_logs
-    description: AAA events. Memory-disclosure attempts (Citrix Bleed class) surface as LOGIN_FAILED lines carrying non-printable leaked bytes; session reuse across addresses shows hijack.
+    description: >-
+      AAA events. CVE-2025-5777 memory-disclosure attempts surface, per NetScaler,
+      as "Authentication is rejected for" lines with "AAA Message" and bytes in
+      the range 128-255, and per Huntress as LOGIN_FAILED lines with an
+      unprintable User value. Session reuse shows in SSLVPN TCPCONNSTAT lines
+      where Client_ip and Source differ (vendor).
     seen_in: [CVE-2023-4966, CVE-2025-5777]
     provides: >-
       AAA events - logins, failures and session handling.
@@ -52,7 +59,7 @@ artifacts:
     suspicious: >-
       Login failures carrying non-printable bytes (leaked memory), or one session
       used from several addresses (hijack).
-    basis: researcher
+    basis: vendor
   - locator: /var/log/httpaccess.log* and httperror.log*
     class: web-logs
     volatility: rotating
@@ -77,16 +84,20 @@ artifacts:
     evidence_type: [persistence, execution]
     confidence: high
     collected_by: fetch_php
-    description: Web roots where the 2023 mass-exploitation web shells lived. Shipped PHP is read-only; a writable or recently modified PHP file is a lead.
+    description: >-
+      Web roots where the 2023 mass-exploitation web shells lived. Fox-IT's
+      triage tool expects shipped PHP at mode 0444 (EXPECTED_PHP_FILE_PERMISSION)
+      and reports other modes as suspicious; a writable or recently modified PHP
+      file is a lead.
     seen_in: [CVE-2023-3519]
     provides: >-
       The PHP the gateway serves.
     normal: >-
-      The release's files, read-only.
+      The release's files at mode 0444 (Fox-IT triage tool).
     suspicious: >-
       A writable or recently modified PHP file, or one containing eval, base64
       decoding or request-parameter execution.
-    basis: vendor
+    basis: researcher
   - locator: crontab -l, /etc/crontab
     class: persistence
     volatility: stable
@@ -241,4 +252,13 @@ references:
   - title: NCSC-NL citrix-2025
     url: https://github.com/NCSC-NL/citrix-2025
     accessed: "2026-10-22"
+  - title: NCSC-NL - casus Citrix kwetsbaarheid (CVE-2025-6543)
+    url: https://www.ncsc.nl/alerts/casus-citrix-kwetsbaarheid
+    accessed: "2026-10-23"
+  - title: NetScaler - evaluating logs for indicators of attempted exploitation of CVE-2025-5777
+    url: https://www.netscaler.com/blog/news/evaluating-netscaler-logs-for-indicators-of-attempted-exploitation-of-cve-2025-5777/
+    accessed: "2026-10-23"
+  - title: Fox-IT - citrix-netscaler-triage
+    url: https://github.com/fox-it/citrix-netscaler-triage
+    accessed: "2026-10-23"
 last_modified: "2026-10-23"

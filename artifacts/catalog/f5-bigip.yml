@@ -29,7 +29,7 @@ collection:
     references: [https://my.f5.com/manage/s/article/K12878]
   - method: F5 System Scanner
     impact: break-glass
-    description: The vendor's file-integrity check, run from known-good media because c05d5254 tampered with sys-icheck.
+    description: The vendor's file-integrity check, used because c05d5254 tampered with sys-icheck; downloaded from MyF5, manifest checked with sha512sum, and run on the device from /var/tmp/scanner (F5 K000160515). It runs on the possibly tampered host, and F5 does not say it detects the in-memory webshells.
     confidence: high
     references: [https://my.f5.com/manage/s/article/K000160515]
   - method: Disk image and TPM attestation
@@ -137,7 +137,7 @@ artifacts:
     collected_by: fetch_catalina
     description: >-
       "java.sql.SQLException: Column not found: 0." followed by "sh: no job
-      control in this shell" marked CVE-2023-46748.
+      control in this shell" marked CVE-2023-46748. F5 - "In the line of Column not found: 0, the 0 can be replaced with a different number."
     seen_in: [CVE-2023-46748]
     provides: >-
       The Configuration utility's Tomcat log.
@@ -193,7 +193,7 @@ artifacts:
     basis: toolkit
 confidence: high
 references:
-  - title: F5 K11438344 - checking a BIG-IP system for compromise
+  - title: F5 K11438344 - Considerations and guidance when you suspect a security compromise on a BIG-IP system
     url: https://my.f5.com/manage/s/article/K11438344
     accessed: "2026-10-22"
   - title: F5 K000160486 - c05d5254 indicators

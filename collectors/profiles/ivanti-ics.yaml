@@ -10,7 +10,8 @@
 # The Integrity Checker Tool is one signal, never a verdict. CISA AA24-060B
 # reports that the internal and a previous external ICT failed to detect
 # compromise, SPAWNANT re-signed the ICT manifest, and the October 2026
-# exploitation reported by Volexity executed only in memory.
+# exploitation reported by Volexity left no persistent implant and restored its
+# in-memory library patch after each command.
 
 profile: ivanti-ics
 platform_id: EDGE-0003
@@ -41,9 +42,10 @@ steps:
     purpose: Off-box copies of event, user-access and admin-access logs.
     instructions: |
       Export the appliance's syslog stream from your SIEM for the full retention window.
-      These are the copies most likely to be intact: in 2025 the operator added
-      iptables DROP rules on the syslog ports and SPAWNSLOTH suppressed logging
-      in-process, so a gap in the off-box stream is itself evidence. Ingest with --label siem.
+      These are the copies most likely to be intact: in 2025 UNC5221's exploit
+      script added iptables DROP rules on the syslog ports and SPAWNSLOTH disabled
+      local logging and remote syslog forwarding, so a gap in the off-box stream
+      is itself evidence. Ingest with --label siem.
 
   - id: ui_log_export
     tier: P3
@@ -68,8 +70,12 @@ steps:
     purpose: Internal ICT scan history and its last result.
     instructions: |
       Record the internal ICT history from the admin UI (screenshots are acceptable
-      evidence if they are hashed on ingest). A clean result is NOT evidence of a
-      clean device; note it as one signal. Ingest with --label ict-internal.
+      evidence if they are hashed on ingest). Ivanti KB44859: results also reach
+      the Events log as SYS32039 (new files) and SYS32040 (mismatched files). A
+      clean result is NOT evidence of a clean device; note it as one signal.
+      Ingest with --label ict-internal.
+    references:
+      - https://hub.ivanti.com/s/article/KB44859?language=en_US
 
   - id: ict_external
     tier: X
@@ -77,9 +83,12 @@ steps:
     impact: break-glass
     purpose: External ICT snapshot (reboots the appliance).
     instructions: |
-      Only after vm_snapshot is complete. Run the current external ICT, keep the
-      encrypted snapshot, and send it to Ivanti for decryption and analysis. The
-      external ICT reboots the appliance, which destroys anything memory-only.
+      Only after vm_snapshot is complete. Run the current external ICT and keep
+      its snapshot: since February 2024 Ivanti says it provides "an unencrypted
+      snapshot for their own review" when new or modified files are found. The
+      external ICT reboots the appliance (Volexity), which destroys memory and
+      running-process evidence.
       Ingest the snapshot and Ivanti's findings with --label ict-external.
     references:
       - https://www.cisa.gov/news-events/cybersecurity-advisories/aa24-060b
+      - https://www.ivanti.com/blog/enhanced-external-integrity-checking-tool-to-provide-additional-visibility-and-protection-for-customers-against-evolving-threat-actor-techniques-in-relation-to-previously-disclosed-vulnerabilities

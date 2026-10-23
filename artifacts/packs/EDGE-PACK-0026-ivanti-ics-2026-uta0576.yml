@@ -13,9 +13,17 @@ summary: >-
   recent entries from debuglog and audit.log, captured traffic with a renamed
   tcpdump into /data/.icscap and parsed it for credentials, and
   its root payload deleted itself. Volexity assesses with low confidence that the
-  motivation is criminal rather than espionage.
+  motivation is criminal rather than espionage. Ivanti's advisory: affected
+  "25.1.1.1 and prior 25.1.2.2 and prior 22.8R2.4 and prior". Not covered here:
+  Volexity's primary detection - "large numbers of network requests for
+  /dana-na/auth/url_default/welcome.cgi" with an X-DSCGI-PATH header naming
+  another script - needs a reverse proxy that logs request headers; the
+  appliance's own logs are not shown to carry it.
 confidence: medium
 references:
+  - title: Ivanti - security advisory, Ivanti Connect Secure CVE-2026-104935
+    url: https://hub.ivanti.com/s/article/Security-Advisory-Ivanti-Connect-Secure-CVE-2026-104935
+    accessed: "2026-10-23"
   - title: Volexity - Chained exploitation of Ivanti Connect Secure zero-days (13 October 2026)
     url: https://www.volexity.com/blog/2026/10/13/a-series-of-unauthenticated-events-chained-exploitation-of-ivanti-connect-secure-zero-days/
     accessed: "2026-10-23"
@@ -57,3 +65,17 @@ detect:
     paths: ["**/home/runtime/tmp/ics-root-run-inband-*", "**/home/runtime/tmp/ics-root-result-inband-*"]
     attack: [T1068, T1070.004]
     notes: The payload deletes these itself; one left behind means an interrupted run. Absence means nothing.
+
+  - id: ivanti-uta0576-tmp-tooling
+    title: UTA0576 scripts or output files in /tmp
+    type: path_exists
+    tier: likely
+    evidence_class: filesystem
+    scope: ["**/tmp/**"]
+    paths: ["**/tmp/ml.py", "**/tmp/rq5.py", "**/tmp/mk.py", "**/tmp/rr.py", "**/tmp/pu.txt", "**/tmp/sp_out.txt", "**/tmp/spray_hits.json"]
+    attack: [T1087.002, T1552]
+    notes: >-
+      Volexity: "Check the /tmp/ directory for evidence of post-exploitation
+      actions"; the actor wrote its LDAP tooling to /tmp/ml.py and /tmp/rq5.py
+      and recovered commands "explicitly delete /tmp/rq5.py and /tmp/rr.py".
+      Absence means little. Evaluated against a snapshot or image.

@@ -27,7 +27,7 @@ staleness: >-
 indicators:
 - type: ipv4
   value: 206.189.208.156
-  role: actor-controlled
+  role: unknown
   context: DigitalOcean IP address tied to UTA0178.
 - type: domain
   value: gpoaccess.com
@@ -43,7 +43,7 @@ indicators:
   context: UTA0178 domain used to collect credentials from compromised devices
 - type: ipv4
   value: 75.145.243.85
-  role: actor-controlled
+  role: unknown
   context: UTA0178 IP address observed interacting with compromised device
 - type: ipv4
   value: 47.207.9.89

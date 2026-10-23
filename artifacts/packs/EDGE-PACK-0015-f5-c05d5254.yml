@@ -12,7 +12,7 @@ summary: >-
   documents follow-on malware it calls c05d5254: webshells that run in memory,
   runtime files under /run, SELinux set to permissive, and tampering with the
   binaries F5's own integrity check relies on (sys-icheck, sys-eicheck.py).
-  F5 credits Schuberg Philis, Fox-IT and NCSC-NL and names no actor.
+  F5 thanks Schuberg Philis, Bart Vrancken, Fox-IT and NCSC-NL for assistance in investigating the issue, and names no actor.
 confidence: high
 references:
   - title: F5 K000156741 - CVE-2025-53521
@@ -89,7 +89,7 @@ detect:
   - id: f5-hubble-util-bash-audit
     title: tmsh run util bash as f5hubblelcdadmin
     type: log_regex
-    sigma: [10-f5-bigip/f5_tmsh_run_util_bash.yml]
+    sigma: [10-f5-bigip/f5_tmsh_run_util_bash_hubble.yml]
     tier: likely
     evidence_class: system-logs
     sources:

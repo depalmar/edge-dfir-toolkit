@@ -17,31 +17,41 @@ collection:
     confidence: high
   - method: Internal Integrity Checker Tool (ICT) history
     impact: none
-    description: One signal. Repeatedly evaded.
+    description: >-
+      One signal. Repeatedly evaded. Ivanti KB44859: the in-build checker
+      "detects new or modified system files and logs them in the Scan UI and
+      Event Logs" (SYS32087 scan started, SYS32088 finished, SYS32100 completed,
+      SYS32039 new files, SYS32040 mismatched files).
     confidence: high
-    references: [https://www.cisa.gov/news-events/cybersecurity-advisories/aa24-060b]
+    references: ["https://hub.ivanti.com/s/article/KB44859?language=en_US", "https://www.cisa.gov/news-events/cybersecurity-advisories/aa24-060b"]
   - method: Hypervisor snapshot with memory (virtual appliance)
     impact: none
     description: The only customer-controlled path to memory and disk.
     confidence: medium
   - method: External ICT snapshot
     impact: break-glass
-    description: Encrypted snapshot decrypted by the vendor. Reboots the appliance.
+    description: >-
+      Reboots the appliance (Volexity). Since February 2024 Ivanti says the
+      enhanced external ICT "will now provide customers with an unencrypted
+      snapshot for their own review" when new or modified files are found.
     confidence: high
+    references: [https://www.ivanti.com/blog/enhanced-external-integrity-checking-tool-to-provide-additional-visibility-and-protection-for-customers-against-evolving-threat-actor-techniques-in-relation-to-previously-disclosed-vulnerabilities]
 volatility:
-  - The external ICT reboots the appliance, destroying memory-only evidence
-  - Attackers have executed only in memory and restored modified libraries afterwards (Volexity, October 2026)
+  - The external ICT reboots the appliance, destroying memory and running-process evidence
+  - In October 2026 the actor left no persistent implant and restored its in-memory library patch after each command; its tooling sat in /tmp and /data/.icscap and a renamed tcpdump ran in memory (Volexity)
 anti_forensics:
   - technique: Modified the internal ICT
     seen_in: UTA0178 (January 2024)
   - technique: Re-signed the ICT manifest after recalculating hashes
     seen_in: SPAWNANT (2025)
-  - technique: Operator iptables DROP rules on syslog ports and a read-write root remount
-    seen_in: UNC5221 hands-on-keyboard (2025)
+  - technique: iptables DROP rules on syslog ports 514 and 6514 and a read-write root remount
+    seen_in: UNC5221 exploit and post-exploitation script, CVE-2025-0282 (GTIG, 2025) - not SPAWN malware
   - technique: In-process syslog suppression by hooking the log function
     seen_in: SPAWNSLOTH (2025)
-  - technique: In-memory library patch (on-disk library untouched) with manual log-line removal
+  - technique: Transient in-memory library patch (on-disk library untouched, restored afterwards) and payload-automated removal of its own lines from debuglog and audit.log
     seen_in: UTA0576 (October 2026)
+  - technique: Exploit script removed specific debug and application log entries with sed
+    seen_in: UNC5221, CVE-2025-0282 (GTIG, 2025)
 response: ivanti-ics
 hardening: ivanti-ics
 artifacts:
@@ -59,8 +69,10 @@ artifacts:
     normal: >-
       Loaded libraries match their on-disk copies.
     suspicious: >-
-      A library patched in memory but not on disk; dsstatmond, h.py or rotating
-      cap* captures under /data/.icscap/.
+      dsstatmond running, h.py or rotating cap* captures under /data/.icscap/,
+      and files Volexity recovered from memory. A library patched in memory is
+      unlikely to be caught: the 2026 payload restored the patch after each
+      command.
     basis: researcher
   - locator: Internal ICT history (admin UI)
     class: integrity
@@ -69,7 +81,12 @@ artifacts:
     evidence_type: [defense-evasion]
     confidence: high
     collected_by: manual
-    description: One signal. Both the internal tool and an earlier external tool failed to detect compromise, and SPAWNANT re-signed the manifest.
+    description: >-
+      One signal. Both the internal tool and an earlier external tool failed to
+      detect compromise, and SPAWNANT re-signed the manifest. Ivanti KB44859 logs
+      the results to the Events log as SYS32039 ("Detection 1 new files!") and
+      SYS32040 (mismatched files), with SYS32087/SYS32088/SYS32100 for scan
+      start, finish and completion.
     seen_in: [CVE-2023-46805, SPAWNANT]
     provides: >-
       The integrity checker's past results.
@@ -86,7 +103,10 @@ artifacts:
     evidence_type: [initial-access, credential-access, timeline]
     confidence: high
     collected_by: manual
-    description: Local logs, subject to tampering; SPAWNSLOTH suppressed logging while the SSH backdoor ran and the operator removed entries by hand. Prefer the syslog copy.
+    description: >-
+      Local logs, subject to tampering; SPAWNSLOTH suppressed logging while the
+      SSH backdoor ran, the 2025 exploit script removed entries with sed, and the
+      2026 payload removed its own lines automatically. Prefer the syslog copy.
     seen_in: [SPAWNSLOTH]
     provides: >-
       Authentication, user-access and administrator events.
@@ -103,15 +123,18 @@ artifacts:
     evidence_type: [timeline, defense-evasion]
     confidence: high
     collected_by: ingest
-    description: In 2025 the operator added iptables DROP rules on the syslog ports and SPAWNSLOTH suppressed logging in-process; a gap in the off-box stream dates the intrusion.
+    description: >-
+      In 2025 UNC5221's exploit script added iptables DROP rules on the syslog
+      ports and SPAWNSLOTH disabled local logging and remote syslog forwarding in
+      dslogserver; a gap in the off-box stream dates the intrusion.
     seen_in: [SPAWN]
     provides: >-
       The copies of the logs the actor could not edit.
     normal: >-
       A continuous stream.
     suspicious: >-
-      A gap - in 2025 the operator dropped syslog with iptables and SPAWNSLOTH
-      suppressed logging in-process.
+      A gap - in 2025 the exploit script dropped syslog with iptables and
+      SPAWNSLOTH disabled local and remote logging.
     basis: researcher
   - locator: system.cfg / user.cfg / XML export
     class: config
@@ -135,15 +158,20 @@ artifacts:
     evidence_type: [initial-access]
     confidence: medium
     collected_by: ingest
-    description: The 2024 traversal chain is visible as a raw URI where the appliance or an upstream proxy logs it.
+    description: >-
+      Volexity: "the web requests associated with the exploits being used in the
+      wild will not appear in the logs, even with the Unauthenticated Request
+      setting enabled." The 2024 traversal is visible only where an upstream
+      reverse proxy, WAF or TLS-terminating load balancer logs the raw URI.
     seen_in: [CVE-2023-46805, CVE-2024-21887]
     provides: >-
       The raw request paths for the TOTP backup-code API.
     normal: >-
-      No traversal sequences after /api/v1/totp/user-backup-code/.
+      No traversal sequences after /api/v1/totp/user-backup-code/ or
+      /api/v1/cav/client/status/.
     suspicious: >-
-      ../ or %2e%2e after that path, and above all reaching license/keys-status -
-      the documented injection chain.
+      ../ or %2e%2e after either path, and above all reaching
+      license/keys-status - the documented injection chain.
     basis: researcher
   - locator: /home/runtime/dlogs/debuglog and /var/log/audit/audit.log (vendor-assisted)
     class: system-logs

@@ -3,7 +3,15 @@ name: UNC6148
 aliases: []
 reported_by: [Google Threat Intelligence Group / Mandiant]
 link_confidence: medium
-stated_confidence: "GTIG: overlaps with earlier Abyss-related reporting 'suggest UNC6148 is the same actor or a related one' (no confidence level given for that link). GTIG's 'moderate confidence' statement concerns possible zero-day use, not attribution."
+stated_confidence: >-
+  GTIG: 'a suspected financially-motivated threat actor we track as UNC6148';
+  'GTIG assesses with moderate confidence that UNC6148's operations, dating back
+  to at least October 2024, may be to enable data theft and extortion
+  operations, and possibly ransomware deployment'; overlaps with earlier
+  Abyss-related reporting 'suggest that UNC6148 is the same actor or a related
+  one' (no confidence level given for that link). A separate moderate-confidence
+  statement concerns possible zero-day use: 'UNC6148 may have used an unknown
+  zero-day remote code execution vulnerability to deploy OVERSTEP'.
 motivation: financial
 summary: >-
   Deployed the OVERSTEP rootkit on fully patched, end-of-life SonicWall SMA 100
@@ -18,8 +26,12 @@ tradecraft:
   - Userland rootkit through ld.so.preload with log-line deletion
   - Persistence through a modified boot script and initrd
 victimology: ["not stated"]
+notes: >-
+  motivation records the direction of GTIG's assessment; GTIG calls the actor
+  only "suspected" financially motivated and the aim a moderate-confidence
+  "may be", so read it with stated_confidence.
 first_seen: "2024-10"
 references:
   - title: Google Threat Intelligence Group - SonicWall SMA exploitation and the OVERSTEP backdoor (16 July 2025)
     url: https://cloud.google.com/blog/topics/threat-intelligence/sonicwall-secure-mobile-access-exploitation-overstep-backdoor
-    accessed: "2026-10-22"
+    accessed: "2026-10-23"
