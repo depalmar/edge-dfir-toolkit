@@ -1,5 +1,45 @@
 # Changelog
 
+## 0.6.0 - 2026-10-23
+
+### Detections
+- Rules and detections merged: every Sigma rule is attached to the pack
+  detection it expresses (`sigma:`), or tagged `edge-dfir.standalone`; the
+  validator fails on an unlinked rule. The Rules tab became a filter of
+  Detections (`#detections?runs=siem`), and old `#rules` links still land.
+- 14 new Sigma rules (25 in all) and 11 new packs (`EDGE-PACK-0018` to `-0028`) for CISA KEV
+  CVEs on the ten platforms that had none, wherever a primary source publishes
+  an indicator: ASA ArcaneDoor 2025-2026 (FXOS `lina_cs`, `firmware_update.log`,
+  stalled checkheaps), ASA remote-access VPN abuse, Junos J-Web, IOS XE Zero
+  Disco, SMA 100 2025, FortiOS jsconsole bypass and CVE-2022-41328, PAN-OS
+  CVE-2026-0300/0257, Ivanti CVE-2026-104935 and NetScaler CVE-2025-6543 and the
+  2026 log-poisoning chain. The KEV CVEs with no published indicator are listed
+  in `docs/VERIFICATION.md`.
+- New read-only collection steps: ASA `show kernel process | include lina_cs`
+  and a second checkheaps reading, Junos J-Web jail listing, and five NetScaler
+  reads (httpd.conf, rc.netscaler, LogonPoint custom, /flash/nsconfig, /bin/sh).
+
+### Hunts
+- New `artifacts/hunts/`: 25 off-box hunts (NetFlow, SIEM, AAA accounting,
+  identity, proxies) from CISA/FBI, Cisco, Talos, Mandiant/GTIG, Check Point,
+  Fortinet, Volexity, Unit 42 and ASD guidance. Each gives the hypothesis, data,
+  method, normal versus suspicious and the quote it rests on. A Hunts library on
+  the site.
+
+### Artifacts
+- Every catalog artifact now says what it gives you and what normal and
+  suspicious look like, and whether the suspicious criterion comes from the
+  vendor, a researcher, a government or this toolkit's inference.
+
+### Threat intel
+- 358 indicators from 11 publications, parsed from the publishers' own files,
+  each with the publisher's role (actor-controlled, compromised third party,
+  VPN exit, shared infrastructure, unstated) and a staleness note. Shown
+  defanged in each actor and implant, exported as CSV or STIX 2.1.
+- A reporting timeline, reporter and motivation splits, an actor-by-platform
+  matrix and the share of published addresses that are actually actor-owned.
+- New implant record for the FXOS `lina_cs` persistence (`EDGE-IMP-0013`).
+
 ## 0.5.0 - 2026-10-22
 
 ### Prevention and hardening

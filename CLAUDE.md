@@ -104,7 +104,26 @@ detection. No working exploit, implant or exploitation steps.
 **Synthetic data only.** Fixtures use documentation address ranges
 (192.0.2.0/24, 198.51.100.0/24, 203.0.113.0/24) and placeholder names.
 
+**Artifacts say what normal looks like.** A catalog artifact's `normal`,
+`suspicious` and `basis` go together, and `basis: toolkit` marks this project's
+own inference. Copy the contrast from the source; where none is published, say
+so with `toolkit` rather than dressing an inference up as a vendor's.
+
+**Hunts are off-box and quoted.** `artifacts/hunts/` holds hypotheses for data
+the device's owner keeps elsewhere (NetFlow, SIEM, AAA accounting, identity,
+proxies). Each quotes its source; a quote that came through a summarising fetch
+is `read: summariser`, and a hunt resting only on such quotes is `unverified`.
+The analyzer never runs hunts. No vendor query dialect in hunts either.
+
 ## Threat intel and response rules
+
+**Indicators are parsed, never retyped.** `artifacts/intel/iocs/` sets come from
+the publisher's own file or table, parsed in code from a copy in its own
+directory (run the parser with `python -I`). Each value keeps the publisher's
+role - most published addresses are compromised third parties, VPN exits or
+shared hosting, not the actor - and every set states when it was valid. Store
+values refanged; the site defangs them. Never infer a role the publisher did
+not state; use `unknown`.
 
 **Attribution is reported, never computed.** An actor profile carries two
 confidences: `link_confidence` is ours and measures provenance (one reporting
@@ -163,7 +182,7 @@ correction in `docs/VERIFICATION.md`.
 ## Site generation
 
 `artifacts/scripts/build_site.py` emits one self-contained vanilla-JS HTML file.
-Artifacts, platforms, detections, rules and intel are client-side libraries
+Artifacts, platforms, detections, hunts, intel and hardening are client-side libraries
 built from one JSON block (facet rail, search, drawer, export); filter state is
 in the URL (`#artifacts?platform=EDGE-0003&volatility=live`). `FACET_KEYS` in the
 generator must match the facets the JS defines - the page logs an error if they
@@ -173,9 +192,11 @@ without an entry fails `--check`. `tests/test_site.py` drives the page in
 Chromium and skips when Playwright is not installed. No framework, no CDN, no
 build step; never hand-edited, never committed. The Pages workflow builds it at deploy time. Every embedded data blob goes through
 `js_data()`, which escapes `</` so a rule body cannot close the script element.
-Tab order puts knowledge first (Start, Artifacts, Platforms, Detections, Threat
-intel, Response) and toolkit operation plus reference after the divider
-(Collection plans, Rules, Coverage, Guide); Start is the default route. Type:
+Tab order puts knowledge first (Start, Artifacts, Platforms, Detections, Hunts,
+Threat intel, Response, Hardening) and toolkit operation plus reference after
+the divider (Collection plans, Coverage, Guide); Start is the default route.
+Rules live inside Detections (`#rules` redirects to `#detections?runs=siem`).
+Indicator values are defanged on screen and exported refanged. Type:
 one sans family, sizes only from the `--fs-*` tokens, monospace only for
 literal strings (commands, paths, file names, patterns); prose goes through
 `rich()` in the JS, which wraps the literals inline. Every platform needs a

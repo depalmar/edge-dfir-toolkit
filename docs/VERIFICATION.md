@@ -245,6 +245,62 @@ session before writing. Sources are recorded per control in
 - ED 26-01 was read through FedRAMP's restatement and the Canadian Cyber
   Centre's alert; AA25-239A through the Australian co-sealed copy.
 
+## 2026-10-23 - detections, hunts, artifact guidance and indicators
+
+Every new indicator string was checked against a saved copy of its source
+before it went into a pattern. Where a quote reached us only through a
+summarising fetch it is marked `read: summariser` and the hunt carries
+`unverified: true` when nothing else supports it.
+
+### Corrections that changed detection behaviour
+
+| Item | Was | Now | Basis |
+|---|---|---|---|
+| LINE DANCER region check (`EDGE-PACK-0006`, `EDGE-0005.01`, ASA playbook) | An unsplit lina region map read as reassuring | Says it proves nothing about the 2025 activity | NCSC RayInitiator / LINE VIPER report: "the 'split lina' effect is not observable" |
+| ASA collection order | Nothing about power-cycling | Playbook forbids a cold restart before `show kernel process \| include lina_cs` | Cisco cisco-sa-asaftd-persist-CISAED25-03: a cold restart removes the FXOS implant; shutdown, reboot and reload do not |
+| `/data/.icscap` (Ivanti, UTA0576) | "Tooling under /data/.icscap" | dsstatmond (renamed tcpdump) and h.py are the actor's; cap* captures held at possible | Volexity, 13 October 2026 |
+| NetScaler `/var/netscaler/.ns_suidcmd` | Listed by a research pass as a success indicator | Not used: Unit 42 calls it "the NetScaler SUID binary" the shell abused | Unit 42 NetScaler zero-days post |
+| CVE-2022-41328 hs20-icon detection | - | Notes that success is not logged; only failed attempts reach the elogs | Mandiant Fortinet malware ecosystem post |
+| Check Point/F5-style catalog guidance | - | Every artifact now states normal and suspicious with the basis of the criterion; `toolkit` marks this project's own inference | - |
+
+### Corrections to facts and attribution
+
+| Item | Was | Now | Basis |
+|---|---|---|---|
+| UTA0576 `stated_confidence` | "Volexity assesses with low confidence that UTA0576 is a criminal actor" (paraphrase) | Volexity's sentence verbatim: "...has criminal, rather than espionage, motivations based on the target of this activity." | Volexity |
+| CISA ED 25-03 supplemental | "303013" | Read as 302013, the ID Cisco's detection guide lists | Cisco detection guide v1.2 |
+| `firmware_update.log` | CISA spells it firmwareupdate.log and firmware-update.log | Cisco's spelling is used | Cisco detection guide and event response page |
+| ROMMON persistence vs RayInitiator | - | Not equated: Cisco does not name the mechanism; NCSC names a GRUB bootkit on the same models | Cisco, NCSC |
+| FXOS implant name | - | Recorded as Cisco describes it; Talos's name FIRESTARTER kept as an alias only (page read through a summariser) | Cisco advisory |
+
+### Low confidence by design
+
+- `EDGE-PACK-0020` (Junos J-Web), `EDGE-PACK-0021` (IOS XE Zero Disco) and
+  `EDGE-PACK-0022` (SMA 100 2025) rest on one researcher or vendor-researcher
+  publication each and are `low` / `unverified`. Juniper's JSA72300 needs a
+  support login and was not read.
+- No published indicators, so no pack: PAN-OS CVE-2024-3393, CVE-2025-0111,
+  CVE-2026-0322 (addresses only); FortiOS CVE-2019-6693, CVE-2025-68686; ASA
+  CVE-2020-3259, CVE-2014-2120, CVE-2026-20349; IOS XE CVE-2023-20109,
+  CVE-2016-6415; NetScaler CVE-2023-6548/6549, CVE-2026-3055, CVE-2026-8452,
+  CVE-2026-19490. CVE-2025-0108 (PAN-OS) and CVE-2026-88772's `.deb` file names
+  were left out: the first string came only through a summariser, and the
+  second names files the directory legitimately hosts.
+- Jaguar Tooth (CVE-2017-6742) targeted classic IOS, not IOS XE; omitted.
+- F5 K000154696 (hunting guide) and CISA ED 26-01 could not be read; F5 has no hunt.
+- The AA25-239A STIX bundle returned 403 to every fetch; the advisory's
+  indicators are not in the IOC set.
+
+### Indicators
+
+Eleven indicator sets were parsed in code from the publishers' own files
+(Volexity CSV, Talos STIX and text, JSCU-NL text) or HTML tables (Mandiant,
+GTIG, Trend Micro, Unit 42, Fortinet), never retyped. Each value keeps the
+publisher's role; the validator rejects malformed or defanged values. Volexity's
+2024-01-18 Ivanti file was left out: it mixes several actors and XMRig activity.
+Fortinet's srcip and dstip example values are left out because Fortinet says
+they are attacker-chosen parameters.
+
 ## Device verification
 
 | Date | Platform / release | Step | Change | Basis |

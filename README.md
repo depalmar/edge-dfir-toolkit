@@ -25,8 +25,9 @@ So this toolkit does three things a generic collector does not:
    report lists its evidence gaps.
 
 **Browse it at [depalmar.github.io/edge-dfir-toolkit](https://depalmar.github.io/edge-dfir-toolkit/)** -
-filterable libraries of every artifact, platform, detection, rule and threat
-actor or implant (facet filters with live counts, a detail panel per record,
+filterable libraries of every artifact (with what normal and suspicious look
+like), platform, detection with its Sigma or YARA rule, off-box hunt, and threat
+actor or implant with the publishers' own indicators (CSV and STIX 2.1) (facet filters with live counts, a detail panel per record,
 shareable filtered links, CSV/JSON export of what you pick), every collection
 plan in order of volatility with a command builder, containment and recovery
 playbooks, prevention and hardening controls with their sources, clickable coverage matrices and the
@@ -68,8 +69,11 @@ edge-dfir-toolkit/
 │   ├── packs/                # EDGE-PACK-NNNN per-CVE detection packs the analyzer runs
 │   ├── intel/actors/         # EDGE-TA-NNNN actor profiles (attribution reported, not computed)
 │   ├── intel/implants/       # EDGE-IMP-NNNN implants: survival, coverage, gaps
+│   ├── intel/iocs/           # EDGE-IOC-NNNN indicators parsed from each publisher's own file
+│   ├── hunts/                # EDGE-HUNT-NNNN off-box hunts: NetFlow, SIEM, AAA, identity
+│   ├── hardening/            # prevention controls, each with its source
 │   ├── response/             # containment and recovery playbook per platform
-│   ├── schema/               # JSON schemas for both
+│   ├── schema/               # JSON schemas for all of the above
 │   └── scripts/validate.py   # the CI gate
 ├── docs/                     # investigation guide, roadmap, verification log
 └── tests/                    # synthetic fixtures and the test suite

@@ -34,21 +34,28 @@ Ordered by value. Effort figures are judgment, not measurement.
 
 - Profiles for SonicWall (TSR + image mode) and FortiManager. Check Point, F5,
   Juniper and IOS XE landed in 0.3.0.
-- Packs still missing: Juniper J-Web (CVE-2023-36844 chain), Junos Evolved PTX
-  (CVE-2026-21902, once primary indicators exist), IOS XE SNMP (CVE-2025-20352).
+- Packs still missing: Junos Evolved PTX (CVE-2026-21902, once primary
+  indicators exist). J-Web and IOS XE SNMP landed in 0.6.0 at low confidence;
+  raise them when a second source or Juniper's own advisory is read.
+- KEV CVEs with no published indicator (listed in `VERIFICATION.md`): revisit
+  each quarter for new vendor or researcher indicators.
 - PAN-OS XML API transport, so collection works where SSH is disabled.
 - Dissect-based image ingestion for NetScaler and SonicWall, producing the same
   `files/` view the analyzer already reads.
-- Ivanti October 2026 (UTA0576) pack once indicators are stable: core dumps
-  produced by exploitation, `/tmp/*.py` and `*.json` staging, capture files under
-  `/data/.icscap/`, and gaps in debuglog and audit.log. (The read-write root
-  remount and iptables syslog block belong to the 2025 UNC5221 activity, not
-  this one.)
+- Ivanti October 2026 (UTA0576): `EDGE-PACK-0026` covers `/data/.icscap`
+  tooling and leftover payloads; still missing are the `/tmp/*.py` and `*.json`
+  staging names (read only through a summariser) and debuglog / audit.log gaps,
+  which need the off-box copy.
 
 ## Phase 3 - analysis
 
 - Off-box correlation: syslog forwarding gaps, NetFlow to and from the
-  management plane, IdP and AD events tied to the device's addresses.
+  management plane, IdP and AD events tied to the device's addresses. The 25
+  hunts in `artifacts/hunts/` describe these by hand; the next step is an
+  `ingest` mode that evaluates the simplest (syslog gap, device-sourced
+  transfers) against exported data.
+- Indicators: the AA25-239A STIX bundle (403 on every fetch so far) and a
+  scheduled re-pull of the Volexity and Talos repositories.
 - Clock-skew correction applied to every timeline row, using the V0 clock step.
 - Plaso / Timesketch export.
 - Evaluate the LLM brief against the fixture corpus before anyone relies on it.
