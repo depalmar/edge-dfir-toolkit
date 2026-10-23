@@ -1210,8 +1210,10 @@ footer{max-width:1440px;margin:0 auto;padding:22px 28px 40px;color:var(--faint);
 .amd{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:var(--accent);color:var(--on-accent);font-size:10px}
 .iocset{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:10px 0}.iocset .callout{margin:8px 0;padding:8px 12px;font-size:var(--fs-sm)}
 .btnchip{cursor:pointer;font:inherit;font-size:var(--fs-xs)}.btnchip:hover{border-color:var(--accent)}
+.iocd .iocs{max-height:420px;overflow:auto;border:1px solid var(--line-soft);border-radius:8px}
 .iocd summary{cursor:pointer;font-size:var(--fs-sm);margin:6px 0}.ioct{border-collapse:collapse;font-size:var(--fs-xs);width:100%}
 .ioct td{padding:4px 6px;border-bottom:1px solid var(--line-soft);vertical-align:top}.ioct code{word-break:break-all}
+.ioct td:nth-child(2){min-width:16ch}.ioct .chip{white-space:nowrap}
 @media (max-width:900px){.chg,.attg{grid-template-columns:minmax(0,1fr)}.tlr{grid-template-columns:96px minmax(0,1fr)}}
 .attrib{background:var(--panel-2);border:1px solid var(--line-soft);border-radius:8px;padding:9px 12px;margin:12px 0;font-size:var(--fs-sm);display:grid;gap:4px}
 .attrib .k{display:inline-block;min-width:110px;font-size:var(--fs-xs);letter-spacing:.05em;text-transform:uppercase;color:var(--faint)}
@@ -1540,7 +1542,7 @@ function iocBlock(ids){
       '<button type="button" class="chip btnchip" data-ioc="' + id + '" data-fmt="csv">CSV</button><button type="button" class="chip btnchip" data-ioc="' + id + '" data-fmt="stix">STIX 2.1</button>' +
       '<button type="button" class="chip btnchip copy" data-copy="' + esc(s.ind.map(function(i){ return i[1]; }).join('\n')) + '">Copy values</button></div></div>';
     var roles = '<div class="links">' + Object.keys(ROLE).filter(function(k){ return rc[k]; }).map(function(k){ return '<span class="chip role role-' + k + '">' + rc[k] + ' ' + esc(ROLE[k]) + '</span>'; }).join('') + '</div>';
-    var tbl = '<details class="iocd"' + (s.ind.length <= 12 ? ' open' : '') + '><summary>Show the ' + s.ind.length + ' values (defanged)</summary><div class="scroll"><table class="ioct"><tbody>' +
+    var tbl = '<details class="iocd" open><summary>' + s.ind.length + ' values (defanged) - click to collapse</summary><div class="scroll iocs"><table class="ioct"><tbody>' +
       s.ind.map(function(i){ return '<tr><td class="muted">' + esc(i[0]) + '</td><td><code>' + esc(defang(i[0], i[1])) + '</code></td><td><span class="chip role role-' + i[2] + '">' + esc(ROLE[i[2]] || i[2]) + '</span></td><td class="small">' + esc(i[3]) + '</td></tr>'; }).join('') +
       '</tbody></table></div></details>';
     return head + '<div class="callout inf"><b>Staleness.</b> ' + rich(s.staleness) + '</div>' + roles + tbl + '</div>';

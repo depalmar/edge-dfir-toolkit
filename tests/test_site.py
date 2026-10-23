@@ -181,7 +181,8 @@ def test_intel_indicators_and_charts(browser, tmp_path):
     page.locator("#drawer").wait_for(state="visible")
     body = page.locator("#dBody")
     assert "actor-controlled" in body.inner_text() and "shared infrastructure" in body.inner_text()
-    codes = body.locator(".ioct code").all_text_contents()   # inside a closed <details>
+    assert body.locator("details.iocd").count() == body.locator("details.iocd[open]").count() > 0   # lists open by default
+    codes = body.locator(".ioct code").all_inner_texts()
     assert codes and all("[.]" in c for c in codes)            # addresses are defanged on screen
     with page.expect_download() as dl:
         body.locator('[data-ioc="EDGE-IOC-0004"][data-fmt="stix"]').click()
