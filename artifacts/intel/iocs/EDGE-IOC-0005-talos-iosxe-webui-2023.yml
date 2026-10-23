@@ -1,0 +1,469 @@
+# Indicators EDGE-IOC-0005 - parsed from Cisco Talos's own publication, not retyped.
+# Values are live, not defanged: do not paste them into a browser. Roles and context are the publisher's.
+# Schema: ../../schema/ioc.schema.json
+
+id: EDGE-IOC-0005
+title: IOS XE web UI implant - CVE-2023-20198 and CVE-2023-20273
+publisher: Cisco Talos
+published: '2023-10-16'
+page_url: https://blog.talosintelligence.com/active-exploitation-of-cisco-ios-xe-software/
+file_url: https://raw.githubusercontent.com/Cisco-Talos/IOCs/main/2023/11/Cisco-iOS-XE-IOCs.txt
+file_format: text
+license: CC0-1.0
+accessed: '2026-10-23'
+actors: []
+implants:
+- EDGE-IMP-0011
+cves:
+- CVE-2023-20198
+- CVE-2023-20273
+platforms:
+- EDGE-0009
+staleness: >-
+  October to November 2023. After the proof of concept was published many unrelated parties scanned and
+  exploited; the post-release addresses are not one actor. The account names are the durable indicator.
+indicators:
+- type: ipv4
+  value: 5.149.249.74
+  role: unknown
+  context: Seen before the public proof of concept
+- type: ipv4
+  value: 154.53.56.231
+  role: unknown
+  context: Seen before the public proof of concept
+- type: ipv4
+  value: 154.53.63.93
+  role: unknown
+  context: Seen before the public proof of concept
+- type: ipv4
+  value: 192.3.101.111
+  role: unknown
+  context: Seen before the public proof of concept
+- type: ipv4
+  value: 37.1.210.7
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 91.102.11.36
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 45.59.185.134
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 116.169.1.254
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 146.190.123.78
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 139.162.153.145
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 103.214.22.59
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 159.223.207.233
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 24.144.90.137
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 146.190.173.162
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 164.92.114.166
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 45.77.43.24
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 64.190.113.5
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 146.190.134.234
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 54.243.19.140
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 172.104.140.191
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 176.97.75.57
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 146.190.133.67
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 172.104.134.5
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 137.184.15.64
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 24.199.106.43
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 164.92.98.124
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 159.223.205.233
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 146.190.145.46
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 59.148.233.250
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 24.144.86.251
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 159.223.194.163
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 137.184.7.106
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 170.187.187.229
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 24.199.99.201
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 146.70.94.236
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 162.240.159.247
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 164.92.80.197
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 143.198.48.112
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 143.110.144.97
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 172.105.248.78
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 207.148.99.46
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 24.199.99.215
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 103.157.142.150
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 162.158.245.37
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 161.97.153.6
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 139.162.171.216
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 137.184.127.176
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 164.92.66.140
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 143.42.30.155
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 146.190.171.1
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 139.162.167.139
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 172.105.64.47
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 139.162.150.209
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 85.90.244.40
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 34.203.220.111
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 192.46.237.225
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 170.187.187.142
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 24.199.125.18
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 172.104.246.151
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 172.71.154.167
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 179.191.187.186
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 146.190.118.42
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 8.222.202.34
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 137.184.180.224
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 162.158.167.25
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 103.207.14.211
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 159.223.207.130
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 175.6.103.17
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 172.105.76.36
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 172.105.78.77
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 146.190.58.4
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 137.184.119.141
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 137.184.43.108
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 146.190.163.150
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 164.92.108.28
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 137.184.184.232
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 179.191.187.182
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 159.223.207.76
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 194.195.246.228
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 103.73.67.95
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 24.199.101.62
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 79.133.56.60
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 164.92.85.124
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 24.199.113.238
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 164.92.106.36
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 139.162.168.40
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 45.77.31.68
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 61.238.103.245
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 172.104.149.95
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 103.207.14.201
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 143.110.235.77
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 193.42.40.140
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 152.32.206.17
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 107.155.56.99
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 164.92.69.183
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 8.222.243.16
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 38.181.52.191
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 38.54.56.27
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 185.82.200.130
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 38.60.199.10
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 206.188.196.114
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 45.55.134.29
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 116.48.102.106
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 23.105.207.92
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 178.128.176.153
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 139.162.108.25
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 142.93.141.67
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: ipv4
+  value: 107.175.229.142
+  role: unknown
+  context: Seen after the public proof of concept - likely includes opportunistic third parties
+- type: account
+  value: cisco_tac_admin
+  role: actor-controlled
+  context: Local account created through the implant
+- type: account
+  value: cisco_support
+  role: actor-controlled
+  context: Local account created through the implant
+- type: account
+  value: cisco_sys_manager
+  role: actor-controlled
+  context: Local account created through the implant

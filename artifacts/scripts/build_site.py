@@ -119,11 +119,12 @@ def load() -> dict:
     intel = ROOT / "artifacts" / "intel"
     actors = sorted((yaml.safe_load(f.read_text()) for f in (intel / "actors").glob("*.yml")), key=lambda a: a["id"])
     implants = sorted((yaml.safe_load(f.read_text()) for f in (intel / "implants").glob("*.yml")), key=lambda i: i["id"])
+    iocs = sorted((yaml.safe_load(f.read_text()) for f in (intel / "iocs").glob("*.yml")), key=lambda i: i["id"])
     response = {f.stem: yaml.safe_load(f.read_text()) for f in sorted((ROOT / "artifacts" / "response").glob("*.yml"))}
     hardening = {f.stem: yaml.safe_load(f.read_text()) for f in sorted((ROOT / "artifacts" / "hardening").glob("*.yml"))}
     hunts = [yaml.safe_load(f.read_text()) for f in sorted((ROOT / "artifacts" / "hunts").glob("*.yml"))]
     return {"catalog": catalog, "profiles": profiles, "packs": packs, "rules": rules, "guide": guide,
-            "actors": actors, "implants": implants, "response": response, "hardening": hardening, "hunts": hunts}
+            "actors": actors, "implants": implants, "iocs": iocs, "response": response, "hardening": hardening, "hunts": hunts}
 
 
 # --------------------------------------------------------------------------- data for the libraries
@@ -297,6 +298,15 @@ def build_data(d: dict) -> dict:
                 "stem": stem,
             })
 
+    iocs = [{
+        "id": s_["id"], "title": s_["title"], "publisher": s_["publisher"], "published": str(s_["published"]),
+        "page_url": s_["page_url"], "file_url": s_.get("file_url", ""), "license": s_["license"], "format": s_["file_format"],
+        "staleness": s_["staleness"].strip(), "actors": s_["actors"], "implants": s_["implants"], "cves": s_.get("cves", []),
+        "platforms": s_["platforms"],
+        "ind": [[i["type"], str(i["value"]), i["role"], i["context"].strip()] for i in s_["indicators"]],
+    } for s_ in d["iocs"]]
+    for it in intel:
+        it["iocs"] = [s_["id"] for s_ in iocs if it["id"] in (s_["actors"] if it["kind"] == "actor" else s_["implants"])]
     actor_name = {a["id"]: a["name"] for a in d["actors"]}
     hunts = [{
         "id": h["id"], "title": h["title"], "platforms": h["platforms"], "actors": h.get("actors", []),
@@ -310,7 +320,7 @@ def build_data(d: dict) -> dict:
     } for h in d["hunts"]]
 
     return {"platforms": platforms, "artifacts": artifacts, "detections": dets, "packs": packs, "rules": rules,
-            "intel": intel, "hardening": hard, "hunts": hunts, "facetKeys": FACET_KEYS, "repo": REPO_URL,
+            "intel": intel, "iocs": iocs, "hardening": hard, "hunts": hunts, "facetKeys": FACET_KEYS, "repo": REPO_URL,
             "profiles": [{"name": p.name, "ssh": "ssh" in p.transports,
                           "vars": sorted({v for s in p.steps for v in s.requires_vars})} for p in d["profiles"]]}
 
@@ -1175,6 +1185,34 @@ footer{max-width:1440px;margin:0 auto;padding:22px 28px 40px;color:var(--faint);
 .mot-espionage{color:var(--conf-strong);border-color:currentColor}.mot-financial{color:var(--high);border-color:currentColor}
 .mot-unknown,.mot-mixed{color:var(--muted)}
 .kind-actor{color:var(--high);border-color:currentColor}.kind-implant{color:var(--crit);border-color:currentColor}
+.charts{margin:14px 0 4px}.charts>summary{cursor:pointer;font-weight:600;font-size:var(--fs-md);margin-bottom:8px}
+.chg{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px}.chp{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px;min-width:0}
+.chp.wide{grid-column:1/-1}.chp h4{margin:0 0 8px;font-size:var(--fs-sm);color:var(--ink-2)}
+.tl{display:grid;gap:3px;padding-right:16px}.tlr{display:grid;grid-template-columns:150px minmax(0,1fr);align-items:center;gap:8px;font-size:var(--fs-sm);min-height:20px}
+.tlr>a,.tlr>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.tlr.un>a,.tlr.un>span{color:var(--muted)}
+.tlk{position:relative;height:18px;border-bottom:1px dashed var(--line-soft)}.tlh .tlk{border-bottom:1px solid var(--line);height:16px}
+.tlt{position:absolute;transform:translateX(-50%);font-size:var(--fs-xs);color:var(--muted);top:0}
+.tlb{position:absolute;top:8px;height:3px;background:var(--accent-border);border-radius:2px}
+.tld{position:absolute;top:4px;width:11px;height:11px;margin-left:-5px;border-radius:50%;background:var(--accent);border:2px solid var(--accent)}
+.tld.first{background:var(--panel)}.tlr.un .tld{background:var(--faint);border-color:var(--faint)}
+.tld.inl{position:relative;display:inline-block;top:1px;margin:0 2px 0 0}
+.attg{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}.attg h4{margin:0 0 6px}
+.sbar{display:flex;border-radius:7px;overflow:hidden;min-height:26px;font-size:var(--fs-xs)}
+.sbar>span{display:flex;align-items:center;gap:4px;padding:0 8px;color:var(--on-accent);white-space:nowrap;overflow:hidden;min-width:28px}
+.sbar .q1{background:var(--conf-mid)}.sbar .q2{background:var(--conf-strong)}
+.role-actor-controlled{background:var(--crit)!important;color:var(--on-accent)!important;border-color:var(--crit)!important}
+.sbar .role-compromised-infrastructure,.chip.role-compromised-infrastructure{background:var(--high);color:var(--on-accent);border-color:var(--high)}
+.sbar .role-anonymiser,.chip.role-anonymiser{background:var(--med);color:var(--on-accent);border-color:var(--med)}
+.sbar .role-multi-tenant,.chip.role-multi-tenant{background:var(--conf-mid);color:var(--on-accent);border-color:var(--conf-mid)}
+.sbar .role-suspected,.sbar .role-unknown,.chip.role-suspected,.chip.role-unknown{background:var(--faint);color:var(--on-accent);border-color:var(--faint)}
+.amx{border-collapse:collapse;font-size:var(--fs-xs)}.amx th,.amx td{padding:4px 6px;border-bottom:1px solid var(--line-soft);text-align:center}
+.amx thead th{font-weight:500;white-space:nowrap}.amx tbody th{text-align:left;font-weight:500;white-space:nowrap}
+.amd{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:var(--accent);color:var(--on-accent);font-size:10px}
+.iocset{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:10px 0}.iocset .callout{margin:8px 0;padding:8px 12px;font-size:var(--fs-sm)}
+.btnchip{cursor:pointer;font:inherit;font-size:var(--fs-xs)}.btnchip:hover{border-color:var(--accent)}
+.iocd summary{cursor:pointer;font-size:var(--fs-sm);margin:6px 0}.ioct{border-collapse:collapse;font-size:var(--fs-xs);width:100%}
+.ioct td{padding:4px 6px;border-bottom:1px solid var(--line-soft);vertical-align:top}.ioct code{word-break:break-all}
+@media (max-width:900px){.chg,.attg{grid-template-columns:minmax(0,1fr)}.tlr{grid-template-columns:96px minmax(0,1fr)}}
 .attrib{background:var(--panel-2);border:1px solid var(--line-soft);border-radius:8px;padding:9px 12px;margin:12px 0;font-size:var(--fs-sm);display:grid;gap:4px}
 .attrib .k{display:inline-block;min-width:110px;font-size:var(--fs-xs);letter-spacing:.05em;text-transform:uppercase;color:var(--faint)}
 .attrib q{font-style:italic;color:var(--ink)}
@@ -1395,6 +1433,126 @@ var SHELL = {yes:'shell: yes', restricted:'shell: restricted', no:'shell: none'}
 var PN = {}, PLAT = {}; D.platforms.forEach(function(p){ PN[p.id] = p.short; PLAT[p.id] = p; });
 var PACK = {}; D.packs.forEach(function(p){ PACK[p.id] = p; });
 var INTEL = {}; D.intel.forEach(function(i){ INTEL[i.id] = i; });
+var PABBR = {'EDGE-0001':'PAN-OS', 'EDGE-0002':'FortiOS', 'EDGE-0003':'Ivanti', 'EDGE-0004':'NetScaler', 'EDGE-0005':'ASA/FTD',
+  'EDGE-0006':'SMA 100', 'EDGE-0007':'Check Point', 'EDGE-0008':'Junos', 'EDGE-0009':'IOS XE', 'EDGE-0010':'BIG-IP'};
+var IOC = {}; D.iocs.forEach(function(s){ IOC[s.id] = s; });
+var ROLE = {'actor-controlled':'actor-controlled', 'compromised-infrastructure':'compromised third party', anonymiser:'VPN / anonymiser',
+  'multi-tenant':'shared infrastructure', suspected:'suspected', unknown:'role not stated'};
+function defang(t, v){
+  if (t === 'ipv4' || t === 'domain') return v.replace(/\./g, '[.]');
+  if (t === 'url') return v.replace(/^http/i, 'hxxp').replace(/\./g, '[.]');
+  return v;
+}
+function iocCsv(sets){
+  var rows = [['set', 'publisher', 'published', 'type', 'value', 'role', 'context', 'source']];
+  sets.forEach(function(s){ s.ind.forEach(function(i){ rows.push([s.id, s.publisher, s.published, i[0], i[1], i[2], i[3], s.page_url]); }); });
+  return rows.map(function(r){ return r.map(csvq).join(','); }).join('\n');
+}
+function uuid4(){ if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c){ var r = Math.random() * 16 | 0; return (c === 'x' ? r : (r & 3 | 8)).toString(16); }); }
+function stixPattern(t, v){
+  var q = "'" + v.replace(/\\/g, '\\\\').replace(/'/g, "\\'") + "'";
+  switch (t){
+    case 'ipv4': return '[ipv4-addr:value = ' + q + ']';
+    case 'domain': return '[domain-name:value = ' + q + ']';
+    case 'url': return '[url:value = ' + q + ']';
+    case 'sha256': return "[file:hashes.'SHA-256' = " + q + ']';
+    case 'sha1': return "[file:hashes.'SHA-1' = " + q + ']';
+    case 'md5': return "[file:hashes.MD5 = " + q + ']';
+    case 'path': return '[file:name = ' + "'" + v.split('/').pop().replace(/'/g, "\\'") + "'" + ']';
+    case 'account': return '[user-account:account_login = ' + q + ']';
+    case 'user-agent': return "[network-traffic:extensions.'http-request-ext'.request_header.'User-Agent' = " + q + ']';
+  }
+  return null;
+}
+function iocStix(sets){
+  var now = new Date().toISOString(), ident = 'identity--' + uuid4(), objs = [{type:'identity', spec_version:'2.1', id:ident, created:now, modified:now,
+    name:'edge-dfir-toolkit export', identity_class:'system', description:'Re-export of publisher indicators; the publisher, role and context are in each indicator.'}];
+  var IT = {'actor-controlled':'malicious-activity', 'compromised-infrastructure':'compromised', anonymiser:'anonymization', 'multi-tenant':'anomalous-activity', suspected:'unknown', unknown:'unknown'};
+  sets.forEach(function(s){ s.ind.forEach(function(i){
+    var pat = stixPattern(i[0], i[1]); if (!pat) return;
+    objs.push({type:'indicator', spec_version:'2.1', id:'indicator--' + uuid4(), created:now, modified:now, created_by_ref:ident,
+      name:i[0] + ' from ' + s.publisher, description:i[3] + (i[0] === 'path' ? ' (full path: ' + i[1] + ')' : '') + ' Role per publisher: ' + (ROLE[i[2]] || i[2]) + '. ' + s.staleness,
+      indicator_types:[IT[i[2]] || 'unknown'], pattern:pat, pattern_type:'stix', valid_from:s.published + 'T00:00:00Z',
+      external_references:[{source_name:s.publisher, url:s.page_url, description:s.title}]});
+  }); });
+  return JSON.stringify({type:'bundle', id:'bundle--' + uuid4(), objects:objs}, null, 2);
+}
+function ymd(v){ var m = /^(\d{4})(?:-(\d{2}))?(?:-(\d{2}))?/.exec(v || ''); return m ? +m[1] + ((+(m[2] || 1)) - 1) / 12 + ((+(m[3] || 1)) - 1) / 365 : null; }
+function intelCharts(){
+  var actors = D.intel.filter(function(i){ return i.kind === 'actor'; }), imps = D.intel.filter(function(i){ return i.kind === 'implant'; });
+  /* 1. timeline: first seen (hollow) and each publication of indicators (filled) */
+  var rows = actors.map(function(a){
+    var pts = a.iocs.map(function(x){ return {t:ymd(IOC[x].published), l:IOC[x].publisher + ', ' + IOC[x].published}; });
+    return {label:a.name, href:'#intel/' + a.id, first:ymd(a.first_seen), firstl:a.first_seen, pts:pts};
+  });
+  D.iocs.filter(function(s){ return !s.actors.length; }).forEach(function(s){
+    rows.push({label:s.title.split(' - ')[0], href:s.implants.length ? '#intel/' + s.implants[0] : '', first:null, pts:[{t:ymd(s.published), l:s.publisher + ', ' + s.published}], un:true});
+  });
+  var all = []; rows.forEach(function(r){ if (r.first) all.push(r.first); r.pts.forEach(function(p){ all.push(p.t); }); });
+  var lo = Math.floor(Math.min.apply(null, all)), hi = Math.ceil(Math.max.apply(null, all.concat([2026.9]))), span = hi - lo;
+  function x(t){ return ((t - lo) / span * 100).toFixed(2) + '%'; }
+  var ticks = ''; for (var y = lo; y <= hi; y++) ticks += '<span class="tlt" style="left:' + x(y) + '">' + y + '</span>';
+  var tl = '<div class="tl"><div class="tlr tlh"><span></span><div class="tlk">' + ticks + '</div></div>' + rows.map(function(r){
+    var ts = r.pts.map(function(p){ return p.t; }).concat(r.first ? [r.first] : []), a = Math.min.apply(null, ts), b = Math.max.apply(null, ts);
+    return '<div class="tlr' + (r.un ? ' un' : '') + '">' + (r.href ? '<a href="' + r.href + '">' + esc(r.label) + '</a>' : '<span>' + esc(r.label) + '</span>') + '<div class="tlk">' +
+      (b > a ? '<span class="tlb" style="left:' + x(a) + ';width:' + ((b - a) / span * 100).toFixed(2) + '%"></span>' : '') +
+      (r.first ? '<span class="tld first" style="left:' + x(r.first) + '" title="First seen: ' + esc(r.firstl) + '"></span>' : '') +
+      r.pts.map(function(p){ return '<span class="tld" style="left:' + x(p.t) + '" title="Indicators published: ' + esc(p.l) + '"></span>'; }).join('') + '</div></div>';
+  }).join('') + '</div><p class="muted small"><span class="tld first inl"></span> first seen, as the actor record states it · <span class="tld inl"></span> indicators published. Rows in grey have no actor record: the publisher named none, or the toolkit does not link it.</p>';
+  /* 2. attribution: reporters behind each actor, motivation, implants with an actor */
+  var one = actors.filter(function(a){ return a.reported_by.length === 1; }).length;
+  var mot = {}; actors.forEach(function(a){ mot[a.motivation] = (mot[a.motivation] || 0) + 1; });
+  var withA = imps.filter(function(i){ return i.actors.length; }).length;
+  function bar(parts){ var tot = parts.reduce(function(n, p){ return n + p[1]; }, 0);
+    return '<div class="sbar">' + parts.filter(function(p){ return p[1]; }).map(function(p){ return '<span class="' + p[2] + '" style="flex:' + p[1] + '" title="' + esc(p[0]) + ': ' + p[1] + '"><b>' + p[1] + '</b> ' + esc(p[0]) + '</span>'; }).join('') + '</div>'; }
+  var att = '<div class="attg"><div><h4>Reporting parties behind each actor</h4>' + bar([['one reporter', one, 'q1'], ['two or more', actors.length - one, 'q2']]) +
+    '<p class="muted small">Link confidence is ours and cannot exceed medium on one reporter, however authoritative.</p></div>' +
+    '<div><h4>Motivation, as the reporter states it</h4>' + bar(Object.keys(mot).sort().map(function(k, n){ return [k, mot[k], 'q' + (n % 2 + 1)]; })) +
+    '<p class="muted small">UTA0576\'s is Volexity\'s low-confidence assessment.</p></div>' +
+    '<div><h4>Implants tied to a named actor</h4>' + bar([['attributed by the reporter', withA, 'q2'], ['no actor named', imps.length - withA, 'q1']]) + '</div></div>';
+  /* 3. who touched which platform */
+  var plats = D.platforms.map(function(p){ return p.id; });
+  var mx = '<div class="scroll"><table class="amx"><thead><tr><th></th>' + plats.map(function(p){ return '<th><a href="#platforms/' + p + '" title="' + esc(PN[p]) + '">' + esc(PABBR[p] || PLAT[p].short) + '</a></th>'; }).join('') + '</tr></thead><tbody>' +
+    actors.map(function(a){ return '<tr><th><a href="#intel/' + a.id + '">' + esc(a.name) + '</a></th>' + plats.map(function(p){
+      var on = a.platforms.indexOf(p) >= 0, n = a.implants.filter(function(x){ return INTEL[x] && INTEL[x].platforms.indexOf(p) >= 0; }).length;
+      return '<td>' + (on ? '<span class="amd" title="' + esc(a.name + ' on ' + PN[p] + (n ? ': ' + n + ' implant record(s)' : '')) + '">' + (n || '') + '</span>' : '') + '</td>'; }).join('') + '</tr>'; }).join('') +
+    '</tbody></table></div><p class="muted small">A dot is a platform the actor record names; the number is implant records on it.</p>';
+  /* 4. what published indicators are */
+  var rc = {}, tot = 0; D.iocs.forEach(function(s){ s.ind.forEach(function(i){ if (i[0] === 'ipv4' || i[0] === 'domain'){ rc[i[2]] = (rc[i[2]] || 0) + 1; tot++; } }); });
+  var own = rc['actor-controlled'] || 0;
+  var ioc = '<h4>Published addresses and domains, by the publisher\'s own label</h4>' + bar(Object.keys(ROLE).map(function(k){ return [ROLE[k], rc[k] || 0, 'role-' + k]; })) +
+    '<div class="links" style="margin:8px 0 0">' + Object.keys(ROLE).filter(function(k){ return rc[k]; }).map(function(k){ return '<span class="chip role role-' + k + '">' + rc[k] + ' ' + esc(ROLE[k]) + '</span>'; }).join('') + '</div>' +
+    '<p class="muted small">' + own + ' of ' + tot + ' are labelled actor-controlled. The rest are compromised routers and appliances, VPN exits, shared hosting or unlabelled - block them with care and never attribute on them alone. ' +
+    '<button type="button" class="chip btnchip" data-ioc="all" data-fmt="csv">All indicators, CSV</button> <button type="button" class="chip btnchip" data-ioc="all" data-fmt="stix">All indicators, STIX 2.1</button></p>';
+  return '<details class="charts" open><summary>Timeline, attribution and indicators</summary><div class="chg">' +
+    '<section class="chp wide"><h4>Reporting timeline</h4>' + tl + '</section>' +
+    '<section class="chp wide">' + att + '</section>' +
+    '<section class="chp wide"><h4>Actors by platform</h4>' + mx + '</section>' +
+    '<section class="chp wide">' + ioc + '</section></div></details>';
+}
+function iocBlock(ids){
+  return ids.map(function(id){
+    var s = IOC[id], rc = {}; s.ind.forEach(function(i){ rc[i[2]] = (rc[i[2]] || 0) + 1; });
+    var head = '<div class="iocset"><div class="ioch"><b>' + esc(s.publisher) + '</b> <span class="muted">' + esc(s.published) + ' · ' + s.ind.length + ' indicators · ' + esc(s.license) + '</span>' +
+      '<div class="links" style="margin:6px 0 0"><a class="chip link" href="' + esc(s.page_url) + '" rel="noopener" target="_blank">Publication</a>' +
+      (s.file_url ? '<a class="chip link" href="' + esc(s.file_url) + '" rel="noopener" target="_blank">Publisher\'s file</a>' : '') +
+      '<button type="button" class="chip btnchip" data-ioc="' + id + '" data-fmt="csv">CSV</button><button type="button" class="chip btnchip" data-ioc="' + id + '" data-fmt="stix">STIX 2.1</button>' +
+      '<button type="button" class="chip btnchip copy" data-copy="' + esc(s.ind.map(function(i){ return i[1]; }).join('\n')) + '">Copy values</button></div></div>';
+    var roles = '<div class="links">' + Object.keys(ROLE).filter(function(k){ return rc[k]; }).map(function(k){ return '<span class="chip role role-' + k + '">' + rc[k] + ' ' + esc(ROLE[k]) + '</span>'; }).join('') + '</div>';
+    var tbl = '<details class="iocd"' + (s.ind.length <= 12 ? ' open' : '') + '><summary>Show the ' + s.ind.length + ' values (defanged)</summary><div class="scroll"><table class="ioct"><tbody>' +
+      s.ind.map(function(i){ return '<tr><td class="muted">' + esc(i[0]) + '</td><td><code>' + esc(defang(i[0], i[1])) + '</code></td><td><span class="chip role role-' + i[2] + '">' + esc(ROLE[i[2]] || i[2]) + '</span></td><td class="small">' + esc(i[3]) + '</td></tr>'; }).join('') +
+      '</tbody></table></div></details>';
+    return head + '<div class="callout inf"><b>Staleness.</b> ' + rich(s.staleness) + '</div>' + roles + tbl + '</div>';
+  }).join('');
+}
+document.addEventListener('click', function(ev){
+  var b = ev.target.closest('[data-ioc]'); if (!b) return;
+  var sets = b.dataset.ioc === 'all' ? D.iocs : [IOC[b.dataset.ioc]], stamp = new Date().toISOString().slice(0, 10), base = 'edge-dfir-iocs-' + (b.dataset.ioc === 'all' ? 'all' : b.dataset.ioc) + '-' + stamp;
+  if (b.dataset.fmt === 'stix') download(base + '.stix.json', 'application/json', iocStix(sets));
+  else download(base + '.csv', 'text/csv', iocCsv(sets));
+  toast('Exported ' + sets.reduce(function(n, s){ return n + s.ind.length; }, 0) + ' indicators');
+});
 var RULE = {}; D.rules.forEach(function(r){ RULE[r.id] = r; });
 var RUNS = {analyzer:'Analyzer, on collected evidence', siem:'Your SIEM (Sigma rule)', yara:'File scan (YARA rule)'};
 function ruleBlock(r){
@@ -1591,7 +1749,7 @@ intel: {
     F('reporter', 'Reported by', function(i){ return i.kind === 'actor' ? i.reported_by : []; }),
     F('platform', 'Platform', function(i){ return i.platforms; }, function(v){ return PN[v] || v; })
   ],
-  text:function(i){ return [i.id, i.name, (i.aliases || []).join(' '), i.summary, (i.reported_by || []).join(' '), (i.tradecraft || []).join(' '), (i.cves || []).join(' '), i.type, i.motivation].join(' '); },
+  text:function(i){ return [i.id, i.name, (i.aliases || []).join(' '), i.summary, i.iocs.map(function(x){ return IOC[x].ind.map(function(v){ return v[1]; }).join(' '); }).join(' '), (i.reported_by || []).join(' '), (i.tradecraft || []).join(' '), (i.cves || []).join(' '), i.type, i.motivation].join(' '); },
   card:function(i){
     if (i.kind === 'actor') return hd(i.id, i.name, i.aliases.length ? 'also: ' + esc(i.aliases.join(', ')) : '', b('actor', 'kind-actor') + b(i.motivation, 'mot mot-' + i.motivation)) +
       '<p class="clamp"><q class="quote">' + esc(i.stated_confidence) + '</q></p>' +
@@ -1627,6 +1785,8 @@ intel: {
       h += sec('Anti-forensics', list(i.anti_forensics));
     }
     if (i.notes) h += '<p class="note">' + rich(i.notes) + '</p>';
+    if (i.iocs.length) h += sec('Indicators', '<p class="muted small">Parsed from each publisher\'s own file or table, with the publisher\'s role for every value. Most published addresses are not the actor\'s own machines - read the roles before blocking or attributing.</p>' + iocBlock(i.iocs));
+    else h += sec('Indicators', '<p class="muted small">No machine-readable indicators are published for this ' + i.kind + ', or none the toolkit could parse from the publisher\'s own file.</p>');
     return h + refs(i.references);
   },
   exp:function(i){ return i.kind === 'actor'
@@ -1643,7 +1803,7 @@ intel: {
       : '<div class="tile"><b>' + n + '</b><span>' + esc(label) + '</span></div>'; }
     return '<div class="tiles">' + tile(actors, 'actors and named clusters', 'kind', 'actor') + tile(imps.length, 'implants and tool families', 'kind', 'implant') +
       tile(gaps, 'implants with no detection - each says why', 'coverage', 'gap', true) + tile(boot, 'implants that survive a reboot', 'reboot', 'yes', true) +
-      tile(Object.keys(rep).length, 'reporting parties, quoted verbatim') + tile(Object.keys(dets).length, 'detections tied to a named implant') + '</div>';
+      tile(Object.keys(rep).length, 'reporting parties, quoted verbatim') + tile(Object.keys(dets).length, 'detections tied to a named implant') + '</div>' + intelCharts();
   }
 },
 

@@ -1,0 +1,153 @@
+# Indicators EDGE-IOC-0007 - parsed from Mandiant (Google Threat Intelligence Group)'s own publication, not retyped.
+# Values are live, not defanged: do not paste them into a browser. Roles and context are the publisher's.
+# Schema: ../../schema/ioc.schema.json
+
+id: EDGE-IOC-0007
+title: UNC3886 - Juniper Junos TINYSHELL backdoors
+publisher: Mandiant (Google Threat Intelligence Group)
+published: '2025-03-12'
+page_url: >-
+  https://cloud.google.com/blog/topics/threat-intelligence/china-nexus-espionage-targets-juniper-routers
+file_format: html-table
+license: publisher's terms
+accessed: '2026-10-23'
+actors:
+- EDGE-TA-0006
+implants:
+- EDGE-IMP-0010
+cves:
+- CVE-2025-21590
+platforms:
+- EDGE-0008
+staleness: >-
+  Found mid-2024, published March 2025, no validity window given. Each backdoor carries its own C2 list;
+  the addresses are historic.
+indicators:
+- type: md5
+  value: 2c89a18944d3a895bd6432415546635e
+  role: actor-controlled
+  context: TINYSHELL backdoor named appid
+- type: sha1
+  value: 50520639cf77df0c15cc95076fac901e3d04b708
+  role: actor-controlled
+  context: TINYSHELL backdoor named appid
+- type: sha256
+  value: 98380ec6bf4e03d3ff490cdc6c48c37714450930e4adf82e6e14d244d8373888
+  role: actor-controlled
+  context: TINYSHELL backdoor named appid
+- type: md5
+  value: aac5d83d296df81c9259c9a533a8423a
+  role: actor-controlled
+  context: TINYSHELL backdoor named irad
+- type: sha1
+  value: 1a6d07da7e77a5706dd8af899ebe4daa74bbbe91
+  role: actor-controlled
+  context: TINYSHELL backdoor named irad
+- type: sha256
+  value: 5bef7608d66112315eefff354dae42f49178b7498f994a728ae6203a8a59f5a2
+  role: actor-controlled
+  context: TINYSHELL backdoor named irad
+- type: md5
+  value: 8023d01ffb7a38b582f0d598afb974ee
+  role: actor-controlled
+  context: TINYSHELL backdoor named jdosd
+- type: sha1
+  value: 06a1f879da398c00522649171526dc968f769093
+  role: actor-controlled
+  context: TINYSHELL backdoor named jdosd
+- type: sha256
+  value: c0ec15e08b4fb3730c5695fb7b4a6b85f7fe341282ad469e4e141c40ead310c3
+  role: actor-controlled
+  context: TINYSHELL backdoor named jdosd
+- type: md5
+  value: 5724d76f832ce8061f74b0e9f1dcad90
+  role: actor-controlled
+  context: TINYSHELL backdoor named lmpad
+- type: sha1
+  value: f8697b400059d4d5082eee2d269735aa8ea2df9a
+  role: actor-controlled
+  context: TINYSHELL backdoor named lmpad
+- type: sha256
+  value: 5995aaff5a047565c0d7fe3c80fa354c40e7e8c3e7d4df292316c8472d4ac67a
+  role: actor-controlled
+  context: TINYSHELL backdoor named lmpad
+- type: md5
+  value: e7622d983d22e749b3658600df00296d
+  role: actor-controlled
+  context: TINYSHELL backdoor named oemd
+- type: sha1
+  value: cf7af504ef0796d91207e41815187a793d430d85
+  role: actor-controlled
+  context: TINYSHELL backdoor named oemd
+- type: sha256
+  value: 905b18d5df58dd6c16930e318d9574a2ad793ec993ad2f68bca813574e3d854b
+  role: actor-controlled
+  context: TINYSHELL backdoor named oemd
+- type: md5
+  value: b9e4784fa0e6283ce6e2094426a02fce
+  role: actor-controlled
+  context: TINYSHELL backdoor named to
+- type: sha1
+  value: 01735bb47a933ae9ec470e6be737d8f646a8ec66
+  role: actor-controlled
+  context: TINYSHELL backdoor named to
+- type: sha256
+  value: e1de05a2832437ab70d36c4c05b43c4a57f856289224bbd41182deea978400ed
+  role: actor-controlled
+  context: TINYSHELL backdoor named to
+- type: md5
+  value: bf80c96089d37b8571b5de7cab14dd9f
+  role: actor-controlled
+  context: TINYSHELL backdoor named oemd
+- type: sha1
+  value: cec327e51b79cf11b3eeffebf1be8ac0d66e9529
+  role: actor-controlled
+  context: TINYSHELL backdoor named oemd
+- type: sha256
+  value: 3751997cfcb038e6b658e9180bc7cce28a3c25dbb892b661bcd1065723f11f7e
+  role: actor-controlled
+  context: TINYSHELL backdoor named oemd
+- type: md5
+  value: 3243e04afe18cc5e1230d49011e19899
+  role: actor-controlled
+  context: TINYSHELL backdoor named lmpad
+- type: sha1
+  value: 2e9215a203e908483d04dfc0328651d79d35b54f
+  role: actor-controlled
+  context: TINYSHELL backdoor named lmpad
+- type: sha256
+  value: 7ae38a27494dd6c1bc9ab3c02c3709282e0ebcf1e5fcf59a57dc3ae56cfd13b4
+  role: actor-controlled
+  context: TINYSHELL backdoor named lmpad
+- type: ipv4
+  value: 129.126.109.50
+  role: actor-controlled
+  context: TINYSHELL Command and Control server (port 22)
+- type: ipv4
+  value: 116.88.34.184
+  role: actor-controlled
+  context: TINYSHELL Command and Control server (port 22)
+- type: ipv4
+  value: 223.25.78.136
+  role: actor-controlled
+  context: TINYSHELL Command and Control server (port 22)
+- type: ipv4
+  value: 45.77.39.28
+  role: actor-controlled
+  context: TINYSHELL Command and Control server (port 22)
+- type: ipv4
+  value: 101.100.182.122
+  role: actor-controlled
+  context: TINYSHELL Command and Control server (port 22)
+- type: ipv4
+  value: 118.189.188.122
+  role: actor-controlled
+  context: TINYSHELL Command and Control server (port 22)
+- type: ipv4
+  value: 158.140.135.244
+  role: actor-controlled
+  context: TINYSHELL Command and Control server (port 22)
+- type: ipv4
+  value: 8.222.225.8
+  role: actor-controlled
+  context: TINYSHELL Command and Control server (port 22)

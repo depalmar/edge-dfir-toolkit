@@ -1,0 +1,270 @@
+# Indicators EDGE-IOC-0004 - parsed from Cisco Talos's own publication, not retyped.
+# Values are live, not defanged: do not paste them into a browser. Roles and context are the publisher's.
+# Schema: ../../schema/ioc.schema.json
+
+id: EDGE-IOC-0004
+title: ArcaneDoor (UAT4356) - Cisco ASA, 2024
+publisher: Cisco Talos
+published: '2024-04-24'
+page_url: >-
+  https://blog.talosintelligence.com/arcanedoor-new-espionage-focused-campaign-found-targeting-perimeter-network-devices/
+file_url: >-
+  https://raw.githubusercontent.com/Cisco-Talos/IOCs/main/2024/04/arcanedoor-new-espionage-focused-campaign-found-targeting-perimeter-network-devices.json
+file_format: stix-2.0
+license: CC0-1.0
+accessed: '2026-10-23'
+actors:
+- EDGE-TA-0003
+implants:
+- EDGE-IMP-0002
+- EDGE-IMP-0003
+cves:
+- CVE-2024-20353
+- CVE-2024-20359
+platforms:
+- EDGE-0005
+staleness: >-
+  Valid from 18 April 2024. Talos labels most addresses multi-tenant infrastructure (shared VPN and hosting
+  services); only the 'likely actor-controlled' ones point at the actor, and none is current evidence.
+  No file hashes were published.
+indicators:
+- type: ipv4
+  value: 192.36.57.181
+  role: unknown
+  context: (no description in the publisher's file)
+- type: ipv4
+  value: 185.167.60.85
+  role: unknown
+  context: (no description in the publisher's file)
+- type: ipv4
+  value: 185.227.111.17
+  role: unknown
+  context: (no description in the publisher's file)
+- type: ipv4
+  value: 176.31.18.153
+  role: unknown
+  context: (no description in the publisher's file)
+- type: ipv4
+  value: 172.105.90.154
+  role: unknown
+  context: (no description in the publisher's file)
+- type: ipv4
+  value: 185.244.210.120
+  role: unknown
+  context: (no description in the publisher's file)
+- type: ipv4
+  value: 45.86.163.224
+  role: unknown
+  context: (no description in the publisher's file)
+- type: ipv4
+  value: 172.105.94.93
+  role: actor-controlled
+  context: Likely Actor-Controlled Infrastructure
+- type: ipv4
+  value: 213.156.138.77
+  role: actor-controlled
+  context: Likely Actor-Controlled Infrastructure
+- type: ipv4
+  value: 89.44.198.189
+  role: actor-controlled
+  context: Likely Actor-Controlled Infrastructure
+- type: ipv4
+  value: 45.77.52.253
+  role: actor-controlled
+  context: Likely Actor-Controlled Infrastructure
+- type: ipv4
+  value: 103.114.200.230
+  role: actor-controlled
+  context: Likely Actor-Controlled Infrastructure
+- type: ipv4
+  value: 212.193.2.48
+  role: actor-controlled
+  context: Likely Actor-Controlled Infrastructure
+- type: ipv4
+  value: 51.15.145.37
+  role: actor-controlled
+  context: Likely Actor-Controlled Infrastructure
+- type: ipv4
+  value: 89.44.198.196
+  role: actor-controlled
+  context: Likely Actor-Controlled Infrastructure
+- type: ipv4
+  value: 131.196.252.148
+  role: actor-controlled
+  context: Likely Actor-Controlled Infrastructure
+- type: ipv4
+  value: 213.156.138.78
+  role: actor-controlled
+  context: Likely Actor-Controlled Infrastructure
+- type: ipv4
+  value: 121.227.168.69
+  role: actor-controlled
+  context: Likely Actor-Controlled Infrastructure
+- type: ipv4
+  value: 213.156.138.68
+  role: actor-controlled
+  context: Likely Actor-Controlled Infrastructure
+- type: ipv4
+  value: 194.4.49.6
+  role: actor-controlled
+  context: Likely Actor-Controlled Infrastructure
+- type: ipv4
+  value: 185.244.210.65
+  role: actor-controlled
+  context: Likely Actor-Controlled Infrastructure
+- type: ipv4
+  value: 216.238.75.155
+  role: actor-controlled
+  context: Likely Actor-Controlled Infrastructure
+- type: ipv4
+  value: 5.183.95.95
+  role: multi-tenant
+  context: Multi-Tenant Infrastructure
+- type: ipv4
+  value: 45.63.119.131
+  role: multi-tenant
+  context: Multi-Tenant Infrastructure
+- type: ipv4
+  value: 45.76.118.87
+  role: multi-tenant
+  context: Multi-Tenant Infrastructure
+- type: ipv4
+  value: 45.77.54.14
+  role: multi-tenant
+  context: Multi-Tenant Infrastructure
+- type: ipv4
+  value: 45.86.163.244
+  role: multi-tenant
+  context: Multi-Tenant Infrastructure
+- type: ipv4
+  value: 45.128.134.189
+  role: multi-tenant
+  context: Multi-Tenant Infrastructure
+- type: ipv4
+  value: 89.44.198.16
+  role: multi-tenant
+  context: Multi-Tenant Infrastructure
+- type: ipv4
+  value: 96.44.159.46
+  role: multi-tenant
+  context: Multi-Tenant Infrastructure
+- type: ipv4
+  value: 103.20.222.218
+  role: multi-tenant
+  context: Multi-Tenant Infrastructure
+- type: ipv4
+  value: 103.27.132.69
+  role: multi-tenant
+  context: Multi-Tenant Infrastructure
+- type: ipv4
+  value: 103.51.140.101
+  role: multi-tenant
+  context: Multi-Tenant Infrastructure
+- type: ipv4
+  value: 103.119.3.230
+  role: multi-tenant
+  context: Multi-Tenant Infrastructure
+- type: ipv4
+  value: 103.125.218.198
+  role: multi-tenant
+  context: Multi-Tenant Infrastructure
+- type: ipv4
+  value: 104.156.232.22
+  role: multi-tenant
+  context: Multi-Tenant Infrastructure
+- type: ipv4
+  value: 107.148.19.88
+  role: multi-tenant
+  context: Multi-Tenant Infrastructure
+- type: ipv4
+  value: 107.172.16.208
+  role: multi-tenant
+  context: Multi-Tenant Infrastructure
+- type: ipv4
+  value: 107.173.140.111
+  role: multi-tenant
+  context: Multi-Tenant Infrastructure
+- type: ipv4
+  value: 121.37.174.139
+  role: multi-tenant
+  context: Multi-Tenant Infrastructure
+- type: ipv4
+  value: 139.162.135.12
+  role: multi-tenant
+  context: Multi-Tenant Infrastructure
+- type: ipv4
+  value: 149.28.166.244
+  role: multi-tenant
+  context: Multi-Tenant Infrastructure
+- type: ipv4
+  value: 152.70.83.47
+  role: multi-tenant
+  context: Multi-Tenant Infrastructure
+- type: ipv4
+  value: 154.22.235.13
+  role: multi-tenant
+  context: Multi-Tenant Infrastructure
+- type: ipv4
+  value: 154.22.235.17
+  role: multi-tenant
+  context: Multi-Tenant Infrastructure
+- type: ipv4
+  value: 154.39.142.47
+  role: multi-tenant
+  context: Multi-Tenant Infrastructure
+- type: ipv4
+  value: 172.233.245.241
+  role: multi-tenant
+  context: Multi-Tenant Infrastructure
+- type: ipv4
+  value: 185.123.101.250
+  role: multi-tenant
+  context: Multi-Tenant Infrastructure
+- type: ipv4
+  value: 192.210.137.35
+  role: multi-tenant
+  context: Multi-Tenant Infrastructure
+- type: ipv4
+  value: 194.32.78.183
+  role: multi-tenant
+  context: Multi-Tenant Infrastructure
+- type: ipv4
+  value: 205.234.232.196
+  role: multi-tenant
+  context: Multi-Tenant Infrastructure
+- type: ipv4
+  value: 207.148.74.250
+  role: multi-tenant
+  context: Multi-Tenant Infrastructure
+- type: ipv4
+  value: 216.155.157.136
+  role: multi-tenant
+  context: Multi-Tenant Infrastructure
+- type: ipv4
+  value: 216.238.66.251
+  role: multi-tenant
+  context: Multi-Tenant Infrastructure
+- type: ipv4
+  value: 216.238.71.49
+  role: multi-tenant
+  context: Multi-Tenant Infrastructure
+- type: ipv4
+  value: 216.238.72.201
+  role: multi-tenant
+  context: Multi-Tenant Infrastructure
+- type: ipv4
+  value: 216.238.74.95
+  role: multi-tenant
+  context: Multi-Tenant Infrastructure
+- type: ipv4
+  value: 216.238.81.149
+  role: multi-tenant
+  context: Multi-Tenant Infrastructure
+- type: ipv4
+  value: 216.238.85.220
+  role: multi-tenant
+  context: Multi-Tenant Infrastructure
+- type: ipv4
+  value: 216.238.86.24
+  role: multi-tenant
+  context: Multi-Tenant Infrastructure

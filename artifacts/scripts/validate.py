@@ -291,6 +291,38 @@ def main() -> int:
         if all(s.get("read") == "summariser" for s in doc.get("sources", [])) and not doc.get("unverified"):
             err(f"hunts/{p.name}: every source was read through a summariser; mark it unverified")
 
+    # ---- indicators: parsed from the publisher's own file, every value well-formed
+    iv2 = schema("ioc.schema.json")
+    ioc_ids: set[str] = set()
+    n_ind = 0
+    fmt = {"ipv4": r"(25[0-5]|2[0-4]\d|1?\d?\d)(\.(25[0-5]|2[0-4]\d|1?\d?\d)){3}", "sha256": r"[0-9a-f]{64}",
+           "sha1": r"[0-9a-f]{40}", "md5": r"[0-9a-f]{32}", "ja3": r"[0-9a-f]{32}", "domain": r"[a-z0-9.-]+\.[a-z]{2,}",
+           "url": r"https?://\S+", "path": r"/\S*"}
+    for p in sorted((ROOT / "artifacts" / "intel" / "iocs").glob("*.yml")):
+        doc = yaml.safe_load(p.read_text())
+        validate_doc(iv2, doc, f"iocs/{p.name}")
+        rid = doc.get("id", "")
+        if not p.name.startswith(f"{rid}-") or rid in ioc_ids:
+            err(f"iocs/{p.name}: file must be named <id>-<slug>.yml with a unique id")
+        ioc_ids.add(rid)
+        for aid in doc.get("actors", []):
+            if aid not in actor_ids:
+                err(f"iocs/{p.name}: actor {aid} does not exist")
+        for im in doc.get("implants", []):
+            if im not in implant_ids:
+                err(f"iocs/{p.name}: implant {im} does not exist")
+        seen = set()
+        for i in doc.get("indicators", []):
+            t, v = i.get("type"), str(i.get("value", ""))
+            n_ind += 1
+            if t in fmt and not re.fullmatch(fmt[t], v, re.I):
+                err(f"iocs/{p.name}: {t} value is malformed: {v[:40]}")
+            if "[.]" in v or "hxxp" in v:
+                err(f"iocs/{p.name}: store values refanged; the site defangs them for display")
+            if (t, v) in seen:
+                err(f"iocs/{p.name}: duplicate {t} {v[:40]}")
+            seen.add((t, v))
+
     # ---- rule directories
     for d in sorted(ROOT.glob("[0-9][0-9]-*")):
         if d.is_dir() and not (d / "README.md").is_file():
@@ -304,7 +336,8 @@ def main() -> int:
     n_det = len(det_ids)
     print(f"OK  {len(platforms)} platforms, {len(profiles)} profiles, {len(pack_ids)} packs, "
           f"{n_det} detections, {len(actor_ids)} actors, {len(implant_ids)} implants, "
-          f"{len(response_stems)} response playbooks, {n_controls} hardening controls, {len(hunt_ids)} hunts")
+          f"{len(response_stems)} response playbooks, {n_controls} hardening controls, {len(hunt_ids)} hunts, "
+          f"{n_ind} indicators from {len(ioc_ids)} publications")
     return 0
 
 

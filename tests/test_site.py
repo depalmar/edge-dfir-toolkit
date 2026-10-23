@@ -166,3 +166,27 @@ def test_hunts_and_artifact_reading_guidance(browser, tmp_path):
     body = page.locator("#dBody").inner_text()
     assert "what it gives you" in body.lower() and "Criterion from: Vendor" in body
     assert page.locator("#dBody code", has_text="disk0:/asdm.bin").count() >= 1
+
+
+def test_intel_indicators_and_charts(browser, tmp_path):
+    """Actors carry the publisher's indicators, defanged for display with the
+    publisher's role on each; the intel page draws the timeline and matrix."""
+    url = _build(tmp_path)
+    page = browser.new_page(viewport={"width": 1440, "height": 900})
+    page.goto(f"{url}#intel")
+    page.locator(".charts .tl").wait_for(state="visible")
+    assert page.locator(".charts .tlr").count() >= 8
+    assert page.locator(".charts .amx tbody tr").count() == 7
+    page.goto(f"{url}#intel/EDGE-TA-0003")
+    page.locator("#drawer").wait_for(state="visible")
+    body = page.locator("#dBody")
+    assert "actor-controlled" in body.inner_text() and "shared infrastructure" in body.inner_text()
+    codes = body.locator(".ioct code").all_text_contents()   # inside a closed <details>
+    assert codes and all("[.]" in c for c in codes)            # addresses are defanged on screen
+    with page.expect_download() as dl:
+        body.locator('[data-ioc="EDGE-IOC-0004"][data-fmt="stix"]').click()
+    import json
+    bundle = json.loads(open(dl.value.path()).read())
+    inds = [o for o in bundle["objects"] if o["type"] == "indicator"]
+    assert len(inds) == 60 and all(o["pattern"].startswith("[ipv4-addr:value = '") for o in inds)
+    assert "[.]" not in inds[0]["pattern"]                     # exports carry the real value

@@ -1,0 +1,81 @@
+# Indicators EDGE-IOC-0009 - parsed from Trend Micro's own publication, not retyped.
+# Values are live, not defanged: do not paste them into a browser. Roles and context are the publisher's.
+# Schema: ../../schema/ioc.schema.json
+
+id: EDGE-IOC-0009
+title: Operation Zero Disco - Cisco IOS / IOS XE SNMP CVE-2025-20352
+publisher: Trend Micro
+published: '2025-10-15'
+page_url: >-
+  https://www.trendmicro.com/en/research/25/j/operation-zero-disco-cisco-snmp-vulnerability-exploit.html
+file_url: >-
+  https://documents.trendmicro.com/images/uploads/Operation%20Zero%20Disco%20IoCs-wpV04Mt.txt
+file_format: text
+license: publisher's terms
+accessed: '2026-10-23'
+actors: []
+implants: []
+cves:
+- CVE-2025-20352
+platforms:
+- EDGE-0009
+staleness: >-
+  No actor named and no network indicators published. The rootkit can hide the account names from the
+  running configuration.
+indicators:
+- type: sha256
+  value: 2abc874435c16aa5cfd431b0d9c26095ef4b9429bd82306f054c367e96df49b2
+  role: actor-controlled
+  context: UDPcontrol.tar
+- type: sha256
+  value: 69d761bdde73ea8e33384cf986d7e9c2d9011f7aad8933e8af64e60a77091e11
+  role: actor-controlled
+  context: a2p (arp spoofing tool)
+- type: sha256
+  value: b08877f6f1c6c097240a6a8aa4a23243e3b14a1432170bc3fa5fa9886a2b19b4
+  role: actor-controlled
+  context: C93K_Toolkit_GD_V1.tar
+- type: sha256
+  value: 9b8a896aa2057f46e17b18bbe091d85fb816b1d3232a3178d6aba94df3a92f6a
+  role: actor-controlled
+  context: TracelogRStop_RV2_1.tar
+- type: sha256
+  value: 81b35152768f28a479ba9f7e27d66042b0d7edcd79355481aa401f3f47a7733b
+  role: actor-controlled
+  context: TracelogRStop_RV2_2.tar
+- type: sha256
+  value: 3a524bc40ca7c11b68283504f0119caeefd7589edea621d43d5d0cd973354675
+  role: actor-controlled
+  context: transport_force_all_1.tar
+- type: sha256
+  value: e303d0c6c59b4dc55edc0212a9319702e9db7fa03185ae9177777b874c02d4c1
+  role: actor-controlled
+  context: transport_force_all_2.tar
+- type: sha256
+  value: 7cc7aed51adb426e55d82fd74c55b78f6ecbb895a315be721ef149a17f4b3a9b
+  role: actor-controlled
+  context: tsfz-trans.zip
+- type: sha256
+  value: 235dc2d8c92661e5e2797a03bccd2653272ca1ac93401d194d7784930ca17a5a
+  role: actor-controlled
+  context: tnsz.zip
+- type: account
+  value: dg3y8dpk
+  role: actor-controlled
+  context: Hidden account name observed by Trend
+- type: account
+  value: dg4y8epk
+  role: actor-controlled
+  context: Hidden account name observed by Trend
+- type: account
+  value: dg5y8fpk
+  role: actor-controlled
+  context: Hidden account name observed by Trend
+- type: account
+  value: dg6y8gpk
+  role: actor-controlled
+  context: Hidden account name observed by Trend
+- type: account
+  value: dg7y8hpk
+  role: actor-controlled
+  context: Hidden account name observed by Trend

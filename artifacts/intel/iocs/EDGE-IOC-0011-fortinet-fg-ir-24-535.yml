@@ -1,0 +1,95 @@
+# Indicators EDGE-IOC-0011 - parsed from Fortinet PSIRT's own publication, not retyped.
+# Values are live, not defanged: do not paste them into a browser. Roles and context are the publisher's.
+# Schema: ../../schema/ioc.schema.json
+
+id: EDGE-IOC-0011
+title: FortiOS authentication bypass - CVE-2024-55591
+publisher: Fortinet PSIRT
+published: '2025-01-14'
+page_url: https://fortiguard.fortinet.com/psirt/FG-IR-24-535
+file_format: html-text
+license: publisher's terms
+accessed: '2026-10-23'
+actors: []
+implants: []
+cves:
+- CVE-2024-55591
+- CVE-2025-24472
+platforms:
+- EDGE-0002
+staleness: >-
+  Late 2024 to early 2025. The srcip and dstip values inside Fortinet's log examples are attacker-chosen
+  parameters and are deliberately not included here; Fortinet says not to block on them.
+indicators:
+- type: account
+  value: Gujhmk
+  role: actor-controlled
+  context: Administrator or local user created by the attacker (random names; examples only)
+- type: account
+  value: Ed8x4k
+  role: actor-controlled
+  context: Administrator or local user created by the attacker (random names; examples only)
+- type: account
+  value: G0xgey
+  role: actor-controlled
+  context: Administrator or local user created by the attacker (random names; examples only)
+- type: account
+  value: Pvnw81
+  role: actor-controlled
+  context: Administrator or local user created by the attacker (random names; examples only)
+- type: account
+  value: Alg7c4
+  role: actor-controlled
+  context: Administrator or local user created by the attacker (random names; examples only)
+- type: account
+  value: Ypda8a
+  role: actor-controlled
+  context: Administrator or local user created by the attacker (random names; examples only)
+- type: account
+  value: Kmi8p4
+  role: actor-controlled
+  context: Administrator or local user created by the attacker (random names; examples only)
+- type: account
+  value: 1a2n6t
+  role: actor-controlled
+  context: Administrator or local user created by the attacker (random names; examples only)
+- type: account
+  value: 8ah1t6
+  role: actor-controlled
+  context: Administrator or local user created by the attacker (random names; examples only)
+- type: account
+  value: M4ix9f
+  role: actor-controlled
+  context: Administrator or local user created by the attacker (random names; examples only)
+- type: account
+  value: watchTowr
+  role: actor-controlled
+  context: Administrator or local user created by the attacker (random names; examples only)
+- type: account
+  value: fortinet-support
+  role: actor-controlled
+  context: Administrator or local user created by the attacker (random names; examples only)
+- type: ipv4
+  value: 45.55.158.47
+  role: actor-controlled
+  context: Attacker address - most used
+- type: ipv4
+  value: 87.249.138.47
+  role: actor-controlled
+  context: Attacker address
+- type: ipv4
+  value: 155.133.4.175
+  role: actor-controlled
+  context: Attacker address
+- type: ipv4
+  value: 37.19.196.65
+  role: actor-controlled
+  context: Attacker address
+- type: ipv4
+  value: 149.22.94.37
+  role: actor-controlled
+  context: Attacker address
+- type: ipv4
+  value: 158.255.215.126
+  role: actor-controlled
+  context: Attacker address

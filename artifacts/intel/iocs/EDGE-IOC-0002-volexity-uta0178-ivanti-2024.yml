@@ -1,0 +1,102 @@
+# Indicators EDGE-IOC-0002 - parsed from Volexity's own publication, not retyped.
+# Values are live, not defanged: do not paste them into a browser. Roles and context are the publisher's.
+# Schema: ../../schema/ioc.schema.json
+
+id: EDGE-IOC-0002
+title: UTA0178 - Ivanti Connect Secure CVE-2023-46805 and CVE-2024-21887
+publisher: Volexity
+published: '2024-01-10'
+page_url: >-
+  https://www.volexity.com/blog/2024/01/10/active-exploitation-of-two-zero-day-vulnerabilities-in-ivanti-connect-secure-vpn/
+file_url: >-
+  https://raw.githubusercontent.com/volexity/threat-intel/main/2024/2024-01-10%20Ivanti%20Connect%20Secure/indicators/iocs.csv
+file_format: csv
+license: BSD-2-Clause
+accessed: '2026-10-23'
+actors:
+- EDGE-TA-0002
+implants: []
+cves:
+- CVE-2023-46805
+- CVE-2024-21887
+platforms:
+- EDGE-0003
+staleness: >-
+  Observed December 2023 to January 2024. Most addresses are compromised Cyberoam appliances used as proxies;
+  two domains are suspected from registration patterns only.
+indicators:
+- type: ipv4
+  value: 206.189.208.156
+  role: actor-controlled
+  context: DigitalOcean IP address tied to UTA0178.
+- type: domain
+  value: gpoaccess.com
+  role: suspected
+  context: Suspected UTA0178 domain discovered via domain registration patterns
+- type: domain
+  value: webb-institute.com
+  role: suspected
+  context: Suspected UTA0178 domain discovered via domain registration patterns
+- type: domain
+  value: symantke.com
+  role: actor-controlled
+  context: UTA0178 domain used to collect credentials from compromised devices
+- type: ipv4
+  value: 75.145.243.85
+  role: actor-controlled
+  context: UTA0178 IP address observed interacting with compromised device
+- type: ipv4
+  value: 47.207.9.89
+  role: compromised-infrastructure
+  context: >-
+    UTA0178 IP address observed interacting with compromised device tied to Cyberoam proxy network
+- type: ipv4
+  value: 98.160.48.170
+  role: compromised-infrastructure
+  context: >-
+    UTA0178 IP address observed interacting with compromised device tied to Cyberoam proxy network
+- type: ipv4
+  value: 173.220.106.166
+  role: compromised-infrastructure
+  context: >-
+    UTA0178 IP address observed interacting with compromised device tied to Cyberoam proxy network
+- type: ipv4
+  value: 73.128.178.221
+  role: compromised-infrastructure
+  context: >-
+    UTA0178 IP address observed interacting with compromised device tied to Cyberoam proxy network
+- type: ipv4
+  value: 50.243.177.161
+  role: compromised-infrastructure
+  context: >-
+    UTA0178 IP address observed interacting with compromised device tied to Cyberoam proxy network
+- type: ipv4
+  value: 50.213.208.89
+  role: compromised-infrastructure
+  context: >-
+    UTA0178 IP address observed interacting with compromised device tied to Cyberoam proxy network
+- type: ipv4
+  value: 64.24.179.210
+  role: compromised-infrastructure
+  context: >-
+    UTA0178 IP address observed interacting with compromised device tied to Cyberoam proxy network
+- type: ipv4
+  value: 75.145.224.109
+  role: compromised-infrastructure
+  context: >-
+    UTA0178 IP address observed interacting with compromised device tied to Cyberoam proxy network
+- type: ipv4
+  value: 50.215.39.49
+  role: compromised-infrastructure
+  context: >-
+    UTA0178 IP address observed interacting with compromised device tied to Cyberoam proxy network
+- type: ipv4
+  value: 71.127.149.194
+  role: compromised-infrastructure
+  context: >-
+    UTA0178 IP address observed interacting with compromised device tied to Cyberoam proxy network
+- type: ipv4
+  value: 173.53.43.7
+  role: compromised-infrastructure
+  context: >-
+    UTA0178 IP address observed interacting with compromised device tied to Cyberoam proxy network

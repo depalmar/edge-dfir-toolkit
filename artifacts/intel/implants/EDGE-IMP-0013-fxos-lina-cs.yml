@@ -1,6 +1,6 @@
 id: EDGE-IMP-0013
 name: FXOS lina_cs implant
-aliases: [FIRESTARTER (Talos name; Talos page read only through a summariser - verify)]
+aliases: [FIRESTARTER (Talos)]
 platforms: [EDGE-0005]
 actors: [EDGE-TA-0003]
 cves: [CVE-2025-20333, CVE-2025-20362]
@@ -15,7 +15,9 @@ summary: >-
   disclosed by Cisco in April 2026 after a CISA ED 25-03 update. It is preserved
   across upgrading to the September 2025 fixed releases and starts a process
   named lina_cs. Cisco: shutdown, reboot and reload do not clear it; a cold
-  restart does. ASA 5500-X, ASAv and FTDv are not affected.
+  restart does. ASA 5500-X, ASAv and FTDv are not affected. The FIRESTARTER
+  name is Talos's; its page was read only through a summariser, so the name is
+  recorded but nothing else is taken from it.
 artifacts:
   - show kernel process | include lina_cs
 anti_forensics:

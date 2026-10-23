@@ -1,0 +1,283 @@
+# Indicators EDGE-IOC-0006 - parsed from MIVD / AIVD (JSCU-NL)'s own publication, not retyped.
+# Values are live, not defanged: do not paste them into a browser. Roles and context are the publisher's.
+# Schema: ../../schema/ioc.schema.json
+
+id: EDGE-IOC-0006
+title: COATHANGER - FortiGate implant
+publisher: MIVD / AIVD (JSCU-NL)
+published: '2024-02-06'
+page_url: >-
+  https://www.ncsc.nl/documenten/publicaties/2024/februari/6/mivd-aivd-advisory-coathanger-tlp-clear
+file_url: https://raw.githubusercontent.com/JSCU-NL/COATHANGER/main/iocs/coathanger_hashes.txt
+file_format: text
+license: Apache-2.0
+accessed: '2026-10-23'
+actors: []
+implants:
+- EDGE-IMP-0009
+cves:
+- CVE-2022-42475
+platforms:
+- EDGE-0002
+staleness: >-
+  File hashes do not age the way addresses do, but an implant rebuilt for another victim will not match.
+  The JA3 has a documented FortiGate false positive.
+indicators:
+- type: md5
+  value: 6c0adca790235445d07be98cd0f820b5
+  role: actor-controlled
+  context: 'COATHANGER component: libpe.so'
+- type: sha1
+  value: cd6944926169f56ba78cdf15df6eea44b267bb51
+  role: actor-controlled
+  context: 'COATHANGER component: libpe.so'
+- type: sha256
+  value: 50451bb5b6d68115695a6cb277839a6dd2bad8f70bdb8b79670b18dcde188965
+  role: actor-controlled
+  context: 'COATHANGER component: libpe.so'
+- type: md5
+  value: 205a8c6049061930490b2482855babcd
+  role: actor-controlled
+  context: 'COATHANGER component: smartctl'
+- type: sha1
+  value: 77698f3f915e61852b6a79bbd85744d845b112c4
+  role: actor-controlled
+  context: 'COATHANGER component: smartctl'
+- type: sha256
+  value: 4519baebba73827e2b33f36f835d6cb704755abf1312d8d197be635f4d9ffade
+  role: actor-controlled
+  context: 'COATHANGER component: smartctl'
+- type: md5
+  value: 9124ce75319514561156d2013fc9d3be
+  role: actor-controlled
+  context: 'COATHANGER component: authd'
+- type: sha1
+  value: b59d6ec835329ea8982fbbe87bb6b6132514c491
+  role: actor-controlled
+  context: 'COATHANGER component: authd'
+- type: sha256
+  value: f40c04fb9e2d4157a0bc753925dbc5f757feb77cdd22f90fedf3cc5e095143bc
+  role: actor-controlled
+  context: 'COATHANGER component: authd'
+- type: md5
+  value: 218a3525ab8e46f7afe252d050a86907
+  role: actor-controlled
+  context: 'COATHANGER component: httpsd'
+- type: sha1
+  value: 44ed7bf2187c5f7442d8167ef009598dbbed60cb
+  role: actor-controlled
+  context: 'COATHANGER component: httpsd'
+- type: sha256
+  value: 3ed99aad5922744b6a75ea90ea6ece81ba0d8eb9935aec38b897e44ac3b36c35
+  role: actor-controlled
+  context: 'COATHANGER component: httpsd'
+- type: md5
+  value: ab89139e3d47fbaba2da33040da95200
+  role: actor-controlled
+  context: 'COATHANGER component: newcli'
+- type: sha1
+  value: 302743eaaa12018647b67b390a270ed98d3219d6
+  role: actor-controlled
+  context: 'COATHANGER component: newcli'
+- type: sha256
+  value: 2acc6a2a931db63fe3a875780f00192a60955c9794df68fe0ace0012d309b04f
+  role: actor-controlled
+  context: 'COATHANGER component: newcli'
+- type: md5
+  value: a62377c01935f366761846b5ceed5a49
+  role: actor-controlled
+  context: 'COATHANGER component: preload.so'
+- type: sha1
+  value: c259f0efa8ff0ea798a6a3dda22b8df62627405b
+  role: actor-controlled
+  context: 'COATHANGER component: preload.so'
+- type: sha256
+  value: 1c437dc9e929669e5a65a1c70afb3107fba471afb9ad35e3848334c9332f2b59
+  role: actor-controlled
+  context: 'COATHANGER component: preload.so'
+- type: md5
+  value: 991461b86aebecfd096dc11ff2a04b4b
+  role: actor-controlled
+  context: 'COATHANGER component: sh'
+- type: sha1
+  value: dc5074340d4631bbf89adc122e8f1a3ca8d87564
+  role: actor-controlled
+  context: 'COATHANGER component: sh'
+- type: sha256
+  value: dcd9a5af1c6297ed1a66c851efa305000335d8ade068ba515125a6612f1d5300
+  role: actor-controlled
+  context: 'COATHANGER component: sh'
+- type: md5
+  value: e24d14d3e6c6de0ed3db050dd5c935f0
+  role: actor-controlled
+  context: 'COATHANGER component: liblog.so / ld.so.preload'
+- type: sha1
+  value: 4226726bbdc05cc72e4fbb9bcef4a3b625e8a53b
+  role: actor-controlled
+  context: 'COATHANGER component: liblog.so / ld.so.preload'
+- type: sha256
+  value: a79f80158ebbf9e34f6a7ec86b564de2fbee783fe6c1e20eefe2832226e2f827
+  role: actor-controlled
+  context: 'COATHANGER component: liblog.so / ld.so.preload'
+- type: md5
+  value: 201ee76e996846d5ea3fc03bac3273dd
+  role: actor-controlled
+  context: 'COATHANGER component: packfile'
+- type: sha1
+  value: 95c69c5a0751c0c2fc30e9ab5de0af5623b28da3
+  role: actor-controlled
+  context: 'COATHANGER component: packfile'
+- type: sha256
+  value: 4591b4fb1c93c27203b36c773597fd3f885338ad7641dcebf8ed2395acdf4a5f
+  role: actor-controlled
+  context: 'COATHANGER component: packfile'
+- type: md5
+  value: 9e333e7b57e5773a68df065477af33ae
+  role: actor-controlled
+  context: 'COATHANGER component: ld.so.preload'
+- type: sha1
+  value: 97621c409295341808d3697f54dc7b59ee5c42af
+  role: actor-controlled
+  context: 'COATHANGER component: ld.so.preload'
+- type: sha256
+  value: 80baadc163ab14128a8d3f65de093a400f5ae8e27ec979918cf065cea38af7f8
+  role: actor-controlled
+  context: 'COATHANGER component: ld.so.preload'
+- type: md5
+  value: fb8bc202b1a6e1661fc6fb72a5b186d6
+  role: actor-controlled
+  context: 'COATHANGER component: unpack.so'
+- type: sha1
+  value: dbd4726251d710cbaabbd3c345c72df431d7454b
+  role: actor-controlled
+  context: 'COATHANGER component: unpack.so'
+- type: sha256
+  value: cb284b2e846181a6148059d592c9e6687567433810d1376a8e6f83cb5347c93b
+  role: actor-controlled
+  context: 'COATHANGER component: unpack.so'
+- type: md5
+  value: 1bc945d6aa5d1b2ad7ccfd3fac82422d
+  role: actor-controlled
+  context: 'COATHANGER component: preload.so'
+- type: sha1
+  value: 4e365312a06c3da747c7425612ef3fe360b52c05
+  role: actor-controlled
+  context: 'COATHANGER component: preload.so'
+- type: sha256
+  value: 45fc722b9959384fa46be673c246c9fc94491898a9b1aef6b4a408d81e6fed0f
+  role: actor-controlled
+  context: 'COATHANGER component: preload.so'
+- type: md5
+  value: 4d0d41064cb24d690226577fe2e52248
+  role: actor-controlled
+  context: 'COATHANGER component: newcli'
+- type: sha1
+  value: ad60b32dce36f45e742db69d3f432c2456abf942
+  role: actor-controlled
+  context: 'COATHANGER component: newcli'
+- type: sha256
+  value: 47501cebf0b4ffbf5171d811c1517ea4fce178d925fcc4a3b3057be211add88b
+  role: actor-controlled
+  context: 'COATHANGER component: newcli'
+- type: md5
+  value: 6a1e036b7b7fea19a68b9d05b54dbda6
+  role: actor-controlled
+  context: 'COATHANGER component: httpsd'
+- type: sha1
+  value: bd5911d32ddb7893b076ba2dc80b48b3875584df
+  role: actor-controlled
+  context: 'COATHANGER component: httpsd'
+- type: sha256
+  value: 2a5ea4b166163bf028c4f3c8d4dc1cd6788e991b7300b5ea948e38ec4f6ac8fd
+  role: actor-controlled
+  context: 'COATHANGER component: httpsd'
+- type: md5
+  value: dba4fd981120faa360ac5df67d3566aa
+  role: actor-controlled
+  context: 'COATHANGER component: packfile'
+- type: sha1
+  value: cfcae79765e169267445257417cbe06df7d336f4
+  role: actor-controlled
+  context: 'COATHANGER component: packfile'
+- type: sha256
+  value: d2ba18a8b851b87163e42807a3541d17b272b679045d2de00364a718973cb5d4
+  role: actor-controlled
+  context: 'COATHANGER component: packfile'
+- type: md5
+  value: 98a4f08e6617e30ca8f8bd8e5b9177a5
+  role: actor-controlled
+  context: 'COATHANGER component: ld.so.preload'
+- type: sha1
+  value: 70581b5075d88223cfb830b28e823d2eecd92134
+  role: actor-controlled
+  context: 'COATHANGER component: ld.so.preload'
+- type: sha256
+  value: bdf838ca2268c6a33718c3682a03118213652903568d66fba362d3ce18b4b4cf
+  role: actor-controlled
+  context: 'COATHANGER component: ld.so.preload'
+- type: md5
+  value: 8d0fffd6b8b127e0972e281c85fbf11c
+  role: actor-controlled
+  context: 'COATHANGER component: sh'
+- type: sha1
+  value: ddd53cb70798ed530e6e5880bf0182607ca1eecd
+  role: actor-controlled
+  context: 'COATHANGER component: sh'
+- type: sha256
+  value: 218a64bc50f4f82d07c459868b321ec0ef5cf315b012255a129e0bde5cc80320
+  role: actor-controlled
+  context: 'COATHANGER component: sh'
+- type: md5
+  value: b37756edc2b756223acacf491be06d48
+  role: actor-controlled
+  context: 'COATHANGER component: preload.so'
+- type: sha1
+  value: 5edb7c6aa9cc3e441523a32e99e01f83e174949c
+  role: actor-controlled
+  context: 'COATHANGER component: preload.so'
+- type: sha256
+  value: 7b0709ec1f6e0eda3205a4ebdafbd2484f0590bbfe6ddd7c82d979f0f471e664
+  role: actor-controlled
+  context: 'COATHANGER component: preload.so'
+- type: md5
+  value: c6eca7f3a99bff43be8ed5e2a2cd689f
+  role: actor-controlled
+  context: 'COATHANGER component: newcli'
+- type: sha1
+  value: dda35b053f2072fdb30fe21ad3c136b5054817be
+  role: actor-controlled
+  context: 'COATHANGER component: newcli'
+- type: sha256
+  value: 7fba5ab17972daa6250f3097c5254c4cf0e5e19889e10c02307f73c7481b4d5e
+  role: actor-controlled
+  context: 'COATHANGER component: newcli'
+- type: md5
+  value: b9f2ae5082184fdc88b914ab136e54bd
+  role: actor-controlled
+  context: 'COATHANGER component: httpsd'
+- type: sha1
+  value: 0b209c3b1fd247c56dd003888214bf4ee9a872fc
+  role: actor-controlled
+  context: 'COATHANGER component: httpsd'
+- type: sha256
+  value: ce2d55a794bd7f41218796ef4a2cfab9707e8a5e8e971aa02ac8ff908b5f02f6
+  role: actor-controlled
+  context: 'COATHANGER component: httpsd'
+- type: md5
+  value: 92cf72c7e85cc8657644b1e6ca9f8b1e
+  role: actor-controlled
+  context: 'COATHANGER component: authd'
+- type: sha1
+  value: 9211b7cd8d4e8c2416e11a7794a37c31683c2be0
+  role: actor-controlled
+  context: 'COATHANGER component: authd'
+- type: sha256
+  value: 01942a2b1b64446f8bf332004f8f875e66924a8405ac049fd0bb8d03c992fba6
+  role: actor-controlled
+  context: 'COATHANGER component: authd'
+- type: ja3
+  value: 339f6adf54e6076d069dcaac54fddc25
+  role: actor-controlled
+  context: >-
+    COATHANGER TLS client fingerprint. FortiGate's own logging produces the same JA3: traffic to ports
+    541 or 514 from a FortiGate is a false positive.

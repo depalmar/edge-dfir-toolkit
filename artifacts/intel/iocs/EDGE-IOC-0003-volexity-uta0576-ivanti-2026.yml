@@ -1,0 +1,30 @@
+# Indicators EDGE-IOC-0003 - parsed from Volexity's own publication, not retyped.
+# Values are live, not defanged: do not paste them into a browser. Roles and context are the publisher's.
+# Schema: ../../schema/ioc.schema.json
+
+id: EDGE-IOC-0003
+title: UTA0576 - Ivanti Connect Secure CVE-2026-104935
+publisher: Volexity
+published: '2026-10-13'
+page_url: >-
+  https://www.volexity.com/blog/2026/10/13/a-series-of-unauthenticated-events-chained-exploitation-of-ivanti-connect-secure-zero-days/
+file_url: >-
+  https://raw.githubusercontent.com/volexity/threat-intel/main/2026/2026-10-13%20Ivanti/iocs.csv
+file_format: csv
+license: BSD-2-Clause
+accessed: '2026-10-23'
+actors:
+- EDGE-TA-0005
+implants: []
+cves:
+- CVE-2026-104935
+platforms:
+- EDGE-0003
+staleness: >-
+  Volexity: an Evoxt VPS observed running an OpenVPN server from 30 September to 7 October 2026. Rented
+  infrastructure changes hands.
+indicators:
+- type: ipv4
+  value: 108.165.147.64
+  role: actor-controlled
+  context: UTA0576 exploitation IP
