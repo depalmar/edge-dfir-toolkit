@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.6.1 - 2026-10-23
+
+### Response
+- Each playbook is now one top-to-bottom timeline in the fixed order (preserve,
+  contain, rotate, eradicate, recover, verify) with a phase bar to jump between
+  phases.
+- Verdict filter: pick the analyzer's verdict and only the steps it calls for
+  stay open; the rest collapse to a greyed line naming the verdicts they need.
+  The choice is in the URL (`#response/cisco-asa?verdict=SUSPICIOUS`). The
+  validator keeps every `when:` a list of real verdicts.
+- Checklist: tick steps as you go (kept in your browser, per platform), with a
+  progress bar, Copy as checklist (Markdown for case notes), Print, and Clear.
+- Links from each playbook to its collection plan, detections, hunts, threat
+  intel, hardening and platform entry; commands render as code; a platform menu
+  replaces the pill row on phones; credential rows stack on narrow screens.
+
+### Threat intel
+- Cards show indicator and pack counts; a "Published indicators" filter.
+- The record panel opens with a jump bar (Indicators, Hunts, Response) and adds
+  the hunts tied to the actor and the response playbooks for its platforms.
+- Chart bars no longer cut their labels short; charts start collapsed on phones.
+
+### Site
+- Light theme by default, whatever the operating system prefers; dark only when
+  the viewer picks it.
+- Byline and footer credit Raymond DePalma and DePalma Research LLC, with LinkedIn
+  links; README, NOTICE and pyproject carry the same.
+
 ## 0.6.0 - 2026-10-23
 
 ### Detections

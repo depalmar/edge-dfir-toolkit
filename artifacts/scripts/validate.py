@@ -216,6 +216,13 @@ def main() -> int:
         response_stems.add(p.stem)
         if doc.get("platform_id") not in platforms:
             err(f"response/{p.name}: platform {doc.get('platform_id')} not in catalog")
+        # `when` is read by the site's verdict filter, so it must name analyzer verdicts.
+        verdicts = {"COMPROMISED", "LIKELY-COMPROMISED", "SUSPICIOUS", "NO-INDICATORS-FOUND"}
+        for phase in ("preserve_first", "contain", "eradicate", "recover", "verify"):
+            for st in doc.get(phase) or []:
+                bad = [w.strip() for w in str(st.get("when", "")).split(",") if w.strip() and w.strip() not in verdicts]
+                if bad:
+                    err(f"response/{p.name}: {phase} step '{st.get('step', '')[:40]}' has when values that are not verdicts: {bad}")
     # A catalog entry that names a response playbook must have one, and vice versa.
     for pid, doc in platforms.items():
         r = doc.get("response")

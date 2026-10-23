@@ -25,7 +25,7 @@ contain:
 credential_exposure:
   - what: Local VPN users and local Gaia and Expert accounts
     why: CVE-2024-24919 read the local password store; Check Point's sk182336 is the one article with a rotation list.
-    action: Reset local VPN users' passwords and block them with blockSFAInternalUsers; rotate Gaia local and Expert passwords.
+    action: Reset local VPN users' passwords and block them with `blockSFAInternalUsers`; rotate Gaia local and Expert passwords.
   - what: LDAP account unit, RADIUS/TACACS+ and SNMP secrets, SSH keys
     why: Listed in sk182336 as exposed by the file read.
     action: Rotate each.
@@ -55,7 +55,7 @@ recover:
 
 verify:
   - step: Re-run the Check Point hunting greps and SmartConsole queries; expect no new hits after the fix date
-  - step: Confirm hotfix and LivePatch state with cpinfo -y all and cplp list
+  - step: Confirm hotfix and LivePatch state with `cpinfo -y all` and `cplp list`
   - step: Hunt into the network for the dwell period, starting with internal scanning from VPN sessions
 
 do_not:

@@ -95,8 +95,12 @@ missing file and on a rule nothing links, unless the rule is tagged
 
 **Detections are Sigma and YARA only.** No SPL, KQL, XQL, ES|QL or any vendor
 dialect. Converting inside CI to prove a rule parses is fine; committing the
-output is not. Do not name the maintainer's employer anywhere in the
-repository - the disclaimer says "any employer" deliberately.
+output is not. Do not name the maintainer's former employers anywhere in
+the repository - the disclaimer says "any former employer" deliberately. The
+publisher is the maintainer's own firm, DePalma Research LLC; credit it and
+Raymond DePalma only in the README, NOTICE, pyproject and the site's byline and
+footer (`AUTHOR` and `FIRM` in the generator). Citing a vendor's or a research
+team's publication as a source is not naming an employer.
 
 **Defensive content only.** Fixtures carry the minimum content to exercise a
 detection. No working exploit, implant or exploitation steps.

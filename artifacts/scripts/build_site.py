@@ -38,6 +38,8 @@ from edgetriage.profiles import TIER_CLASS, TIER_ORDER, available_profiles, load
 
 OUT = ROOT / "docs" / "site" / "index.html"
 REPO_URL = "https://github.com/depalmar/edge-dfir-toolkit"
+AUTHOR, AUTHOR_URL = "Raymond DePalma", "https://www.linkedin.com/in/raymond-depalma/"
+FIRM, FIRM_URL = "DePalma Research LLC", "https://www.linkedin.com/company/depalma-research"
 TIERS = ("possible", "likely", "confirmed")
 CLASSES = ["identity", "memory", "process", "sessions", "integrity", "config",
            "auth-logs", "web-logs", "system-logs", "filesystem", "persistence"]
@@ -64,7 +66,7 @@ FACET_KEYS = {
     "artifacts": ["platform", "class", "volatility", "value", "evidence", "kind", "confidence", "basis", "seen"],
     "platforms": ["vendor", "shell", "memory", "profile"],
     "detections": ["platform", "runs", "pack", "tier", "evidence", "type", "attack", "cve", "actor"],
-    "intel": ["kind", "platform", "motivation", "type", "resides", "reboot", "coverage", "reporter"],
+    "intel": ["kind", "platform", "motivation", "type", "resides", "reboot", "coverage", "iocs", "reporter"],
     "hardening": ["platform", "category", "priority", "confidence"],
     "hunts": ["platform", "data", "actor", "confidence"],
 }
@@ -581,46 +583,88 @@ def hard_link(pid: str, d: dict) -> str:
     return f'<a class="chip link" href="#hardening?platform={pid}">hardening ({n})</a>' if n else ""
 
 
+RESP_PHASES = [("preserve_first", "Preserve first", "before anything changes the device"),
+               ("contain", "Contain", "stop further access without destroying evidence"),
+               ("credential_exposure", "Rotate credentials", "everything the device held is exposed"),
+               ("eradicate", "Eradicate", "remove the foothold"),
+               ("recover", "Recover", "return to service on a trusted build"),
+               ("verify", "Verify", "prove it, and hunt for the dwell period")]
+RESP_VERDICTS = ("COMPROMISED", "LIKELY-COMPROMISED", "SUSPICIOUS", "NO-INDICATORS-FOUND")
+
+
 def render_response(d: dict) -> str:
     """Containment and recovery, ordered: preserve, contain, rotate, eradicate,
-    recover, verify. Guidance a human acts on, not automation."""
-    picker, secs = [], []
+    recover, verify. Guidance a human acts on, not automation: the page is a
+    checklist a responder ticks through, filtered by the analyzer's verdict."""
+    profile_of = {c["id"]: c.get("profile") for c in d["catalog"]}
+    picker, options, secs = [], [], []
+    rich = lambda t: f'<span class="rx">{e(t)}</span>'
     for n, (stem, r) in enumerate(sorted(d["response"].items(), key=lambda kv: kv[1]["platform_id"])):
+        pid = r["platform_id"]
         picker.append(f'<button type="button" class="rbtn" data-resp="{e(stem)}" aria-pressed="{str(n == 0).lower()}">{e(short(r["name"]))}</button>')
+        options.append(f'<option value="{e(stem)}">{e(short(r["name"]))}</option>')
 
-        def steps(key):
-            out = []
-            for st in r.get(key, []):
-                detail = f'<div class="muted">{e(st["detail"])}</div>' if st.get("detail") else ""
-                when = f'<div class="when">applies to: {e(st["when"])}</div>' if st.get("when") else ""
-                out.append(f'<li><b>{e(st["step"])}</b>{detail}{when}</li>')
-            return "".join(out)
-        cred = "".join(f'<tr><td><b>{e(c["what"])}</b></td><td class="muted">{e(c["why"])}</td><td>{e(c["action"])}</td></tr>'
-                       for c in r.get("credential_exposure", []))
-        dont = "".join(f'<li><b>{e(x["action"])}</b><div class="muted">{e(x["because"])}</div></li>' for x in r.get("do_not", []))
-        vg = "".join(f'<li><a href="{e(x["url"])}" rel="noopener">{e(x["title"])}</a></li>' for x in r.get("vendor_guidance", []))
-        refs = "".join(f'<li><a href="{e(x["url"])}" rel="noopener">{e(x["title"])}</a></li>' for x in r["references"])
+        def when_attr(st):
+            w = [x.strip() for x in str(st.get("when", "")).split(",") if x.strip()]
+            return ",".join(w)
+
+        def when_badges(w):
+            return ('<span class="for">for</span>' + "".join(f'<span class="verdict v-{x.lower()}">{x}</span>' for x in w.split(","))) if w else ""
+
+        phases, nav, total = [], [], 0
+        for i, (key, title, sub) in enumerate(RESP_PHASES, 1):
+            items = []
+            if key == "credential_exposure":
+                for j, c in enumerate(r.get(key, [])):
+                    k = f"{key}:{j}"
+                    items.append(f'<li class="rstep cred" data-k="{k}" data-when=""><label><input type="checkbox" class="rchk" data-k="{k}">'
+                                 f'<span class="rbody"><b>{rich(c["what"])}</b><span class="cw"><span class="cl">Why</span>{rich(c["why"])}</span>'
+                                 f'<span class="ca"><span class="cl">Do</span>{rich(c["action"])}</span></span></label></li>')
+            else:
+                for j, st in enumerate(r.get(key, [])):
+                    k, w = f"{key}:{j}", when_attr(st)
+                    detail = f'<span class="rdet">{rich(st["detail"])}</span>' if st.get("detail") else ""
+                    items.append(f'<li class="rstep" data-k="{k}" data-when="{e(w)}"><label><input type="checkbox" class="rchk" data-k="{k}">'
+                                 f'<span class="rbody"><b>{rich(st["step"])}</b>{detail}<span class="rwhen">{when_badges(w)}</span></span></label>'
+                                 f'<span class="roff"><span class="rofft">{e(st["step"])}</span>{when_badges(w)}</span></li>')
+            total += len(items)
+            anchor = f"r-{stem}-{key.replace('_', '-')}"
+            nav.append(f'<a href="#{anchor}" data-jump="{anchor}"><span class="pn">{i}</span>{e(title)}<span class="rc" data-phase="{key}">{len(items)}</span></a>')
+            phases.append(f'<section class="rphase" id="{anchor}" data-phase="{key}"><div class="rrail"><span class="pn">{i}</span></div>'
+                          f'<div class="rcol"><h4>{e(title)} <span class="muted small">- {e(sub)}</span></h4>'
+                          f'<ol class="rlist">{"".join(items) or "<li class=muted>Nothing specific to this platform.</li>"}</ol></div></section>')
+        dont = "".join(f'<li><b>{rich(x["action"])}</b><span class="rdet">{rich(x["because"])}</span></li>' for x in r.get("do_not", []))
+        vg = "".join(f'<li><a href="{e(x["url"])}" rel="noopener" target="_blank">{e(x["title"])}</a></li>' for x in r.get("vendor_guidance", []))
+        refs = "".join(f'<li><a href="{e(x["url"])}" rel="noopener" target="_blank">{e(x["title"])}</a></li>' for x in r["references"])
+        prof = profile_of.get(pid)
+        links = ([f'<a class="chip link" href="#plans/{e(prof)}">Collection plan</a>'] if prof else ['<span class="chip ghost">no collection profile</span>']) + [
+            f'<a class="chip link" href="#detections?platform={e(pid)}">Detections</a>',
+            f'<a class="chip link" href="#hunts?platform={e(pid)}">Hunts</a>',
+            f'<a class="chip link" href="#intel?platform={e(pid)}">Threat intel</a>',
+            hard_link(pid, d),
+            f'<a class="chip link" href="#platforms/{e(pid)}">Platform entry</a>']
+        conf = r.get("confidence", "medium")
         secs.append(f'''
-<article class="card resp" id="response-{e(stem)}" data-resp="{e(stem)}"{'' if n == 0 else ' hidden'}>
-  <header class="card-h"><div><span class="id">{e(r['platform_id'])}</span><h3>{e(r['name'])}</h3></div>
-    <div class="badges"><a class="chip link" href="#platforms/{e(r['platform_id'])}">platform entry</a>{hard_link(r['platform_id'], d)}{conf_badge(r.get('confidence', 'medium'), False)}</div></header>
-  <div class="dont top"><h4>Do not</h4><ul class="plain">{dont}</ul></div>
-  <div class="phases">
-    <div class="phase"><h4><span class="pn">1</span>Preserve first</h4><ol>{steps("preserve_first")}</ol></div>
-    <div class="phase"><h4><span class="pn">2</span>Contain</h4><ol>{steps("contain")}</ol></div>
-  </div>
-  <h4><span class="pn">3</span>Credential exposure - rotate</h4>
-  <div class="scroll"><table class="tbl"><thead><tr><th>What</th><th>Why it is exposed</th><th>Action</th></tr></thead><tbody>{cred}</tbody></table></div>
-  <div class="phases">
-    <div class="phase"><h4><span class="pn">4</span>Eradicate</h4><ol>{steps("eradicate")}</ol></div>
-    <div class="phase"><h4><span class="pn">5</span>Recover</h4><ol>{steps("recover")}</ol></div>
-    <div class="phase"><h4><span class="pn">6</span>Verify</h4><ol>{steps("verify")}</ol></div>
-  </div>
-  {f'<p class="note">{e(r["notes"].strip())}</p>' if r.get('notes') else ''}
-  <details><summary>Vendor guidance and references</summary><ul>{vg}{refs}</ul></details>
+<article class="card resp" id="response-{e(stem)}" data-resp="{e(stem)}" data-name="{e(r['name'])}" data-total="{total}"{'' if n == 0 else ' hidden'}>
+  <header class="card-h"><div><span class="id">{e(pid)}</span><h3>{e(r['name'])}</h3></div>
+    <div class="badges"><span class="conf c-{e(conf)}" title="How well sourced this playbook is">playbook confidence: {e(conf)}</span></div></header>
+  <div class="links rlinks">{"".join(links)}</div>
+  <div class="dont top"><h4>Do not - read before touching the device</h4><ul class="plain">{dont}</ul></div>
+  <div class="rtool"><div class="rprog"><span class="rprog-t"><b class="rdone">0</b> of <b class="rall">{total}</b> steps done</span><span class="rbarw"><span class="rbar"></span></span></div>
+    <div class="links"><button type="button" class="chip btnchip rcopy">Copy as checklist</button><button type="button" class="chip btnchip rprint">Print</button><button type="button" class="chip btnchip rreset">Clear ticks</button></div></div>
+  <nav class="rnav" aria-label="Phases">{"".join(nav)}</nav>
+  <div class="rtl">{"".join(phases)}</div>
+  {f'<p class="note">{rich(r["notes"].strip())}</p>' if r.get('notes') else ''}
+  <details class="rrefs"><summary>Vendor guidance and references ({len(r.get("vendor_guidance", [])) + len(r["references"])})</summary><ul>{vg}{refs}</ul></details>
 </article>''')
-    return f'''<div class="lhead"><h2>Response</h2><p class="lede">Containment and recovery for each platform, in the order that protects evidence: <b>preserve</b>, contain, rotate credentials, eradicate, recover, verify. The do-not list comes first because most evidence is destroyed by a well-meant action taken too early. Guidance a person acts on after triage - the toolkit never contains or remediates on its own.</p></div>
-<div class="picker">{"".join(picker)}</div>
+    lens = "".join(f'<button type="button" class="vbtn" data-v="{v}" aria-pressed="false"><span class="verdict v-{v.lower()}">{v}</span></button>' for v in RESP_VERDICTS)
+    return f'''<div class="lhead"><h2>Response</h2><p class="lede">Containment and recovery for each platform, in the order that protects evidence: <b>preserve</b>, contain, rotate credentials, eradicate, recover, verify. The do-not list comes first because most evidence is destroyed by a well-meant action taken too early. Pick the verdict the analyzer gave to see only the steps it calls for, tick them off as you go, and copy the list into your case notes. Guidance a person acts on - the toolkit never contains or remediates on its own.</p></div>
+<div class="rhead">
+  <label class="rsel-l">Platform <select class="rsel" aria-label="Platform">{"".join(options)}</select></label>
+  <div class="picker rpick">{"".join(picker)}</div>
+  <div class="vlens" role="group" aria-label="Show the steps for a verdict"><span class="vl">Analyzer verdict</span><button type="button" class="vbtn" data-v="" aria-pressed="true">All steps</button>{lens}</div>
+  <p class="vhint muted small" hidden>Steps without a verdict condition apply whatever the verdict. Hidden steps are still in the playbook - choose All steps to see them.</p>
+</div>
 {"".join(secs)}'''
 
 
@@ -938,6 +982,7 @@ p{text-wrap:pretty}
 h1{margin:0;font-size:var(--fs-lg);font-weight:600;letter-spacing:-.01em}
 .pill{font-family:var(--mono);font-size:var(--fs-xs);color:var(--muted);background:var(--panel);border:1px solid var(--line);border-radius:20px;padding:2px 8px}
 .sub{margin:5px 0 0;font-size:var(--fs-sm);color:var(--muted);max-width:68ch}
+.byline{margin:4px 0 0;font-size:var(--fs-xs);color:var(--muted)}.byline a,footer a{color:var(--ink-2)}
 .hdr-right{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .hbtn{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:7px 12px;font-size:var(--fs-sm);color:var(--ink);text-decoration:none;white-space:nowrap}
 .hbtn:hover{border-color:var(--accent)}
@@ -1049,6 +1094,11 @@ code.loc{display:inline-block;max-width:100%;background:var(--code-bg);border:1p
 .lc.gap{box-shadow:inset 3px 0 0 var(--crit),0 1px 2px var(--shadow)}
 .lc-h{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
 .lc-t{min-width:0}
+.dist .seg.hd{min-width:0}
+.ioc-c{border-color:var(--crit);color:var(--crit)}
+.djump{display:flex;flex-wrap:wrap;gap:6px;margin:12px 0 2px;padding-bottom:10px;border-bottom:1px solid var(--line-soft)}
+.djump a{font-size:var(--fs-sm);padding:3px 10px;border:1px solid var(--line);border-radius:999px;text-decoration:none;color:var(--ink-2)}
+.djump a:hover{border-color:var(--accent-border)}
 .lc h3{margin:2px 0 0;font-size:var(--fs-md);font-weight:600;line-height:1.3}
 .lc-sub{font-size:var(--fs-xs);color:var(--muted);margin-top:2px}
 .lc .badges{flex:none;justify-content:flex-end}
@@ -1229,6 +1279,51 @@ footer{max-width:1440px;margin:0 auto;padding:22px 28px 40px;color:var(--faint);
 .phase ol,.resp ol{margin:4px 0;padding-left:18px}.phase li{margin:5px 0;font-size:var(--fs-sm)}
 .pn{display:inline-grid;place-items:center;width:18px;height:18px;border-radius:50%;background:var(--accent);color:var(--on-accent);font-size:var(--fs-xs);margin-right:7px;vertical-align:1px;letter-spacing:0}
 .when{font-size:var(--fs-xs);color:var(--high);margin-top:2px}
+/* ---- response: verdict lens, timeline checklist */
+.rhead{padding:6px 0 10px;margin-bottom:8px;border-bottom:1px solid var(--line-soft)}
+.rsel-l{display:none;font-size:var(--fs-sm);color:var(--muted);gap:8px;align-items:center;margin-bottom:8px}
+.rsel{font:inherit;font-size:var(--fs-base);padding:7px 10px;border:1px solid var(--field);border-radius:8px;background:var(--panel);color:var(--ink);flex:1}
+.rpick{margin-bottom:8px}
+.vlens{display:flex;flex-wrap:wrap;gap:6px;align-items:center}.vl{font-size:var(--fs-xs);text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-right:4px}
+.vbtn{background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:3px 6px;font-size:var(--fs-sm);color:var(--muted);cursor:pointer}
+.vbtn[data-v=""]{padding:5px 12px}.vbtn .verdict{margin:0}
+.vbtn[aria-pressed=true]{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft);color:var(--ink)}
+.vhint{margin:6px 0 0}
+.rlinks{margin:10px 0 0}
+.rtool{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;justify-content:space-between;margin:14px 0 6px}
+.rprog{display:flex;align-items:center;gap:10px;font-size:var(--fs-sm);flex:1;min-width:220px}
+.rbarw{flex:1;max-width:320px;height:8px;border-radius:5px;background:var(--line-soft);overflow:hidden}.rbar{display:block;height:100%;width:0;background:var(--low);transition:width .2s}
+.rnav{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 4px}
+.rnav a{display:inline-flex;align-items:center;gap:2px;font-size:var(--fs-sm);padding:4px 10px 4px 5px;border:1px solid var(--line);border-radius:999px;color:var(--ink-2);text-decoration:none;background:var(--panel)}
+.rnav a:hover{border-color:var(--accent-border)}.rnav .rc{margin-left:6px;font-size:var(--fs-xs);color:var(--muted)}
+.rtl{margin-top:6px;max-width:1000px}
+.rphase{display:grid;grid-template-columns:30px minmax(0,1fr);gap:10px;scroll-margin-top:calc(var(--hdr) + 12px)}
+.rrail{position:relative;display:flex;justify-content:center}.rrail::after{content:"";position:absolute;top:24px;bottom:-4px;width:2px;background:var(--line)}
+.rphase:last-child .rrail::after{display:none}.rrail .pn{width:24px;height:24px;margin:10px 0 0;font-size:var(--fs-sm);position:relative;z-index:1}
+.rcol{padding:8px 0 14px;min-width:0}.rcol h4{margin:12px 0 6px}
+.rlist{list-style:none;margin:0;padding:0}
+.rstep{border:1px solid var(--line-soft);border-radius:8px;background:var(--panel);margin:6px 0}
+.rstep label{display:grid;grid-template-columns:22px minmax(0,1fr);gap:8px;padding:9px 12px;cursor:pointer;font-size:var(--fs-sm)}
+.rchk{width:16px;height:16px;margin:2px 0 0;accent-color:var(--low)}
+.rbody b{display:block;font-weight:600;color:var(--ink)}.rdet{display:block;color:var(--ink-2);margin-top:3px;line-height:1.5}
+.rwhen{display:flex;flex-wrap:wrap;gap:4px;align-items:center;margin-top:5px}.rwhen:empty{display:none}.rwhen .for{font-size:var(--fs-xs);color:var(--muted)}
+.rwhen .verdict{font-size:var(--fs-xs);margin:0}
+.rstep.done{background:var(--panel-2)}.rstep.done .rbody b{text-decoration:line-through;text-decoration-color:var(--faint);color:var(--muted)}
+.roff{display:none}
+.rstep.off{border-style:dashed;background:transparent}.rstep.off label{display:none}
+.rstep.off .roff{display:flex;flex-wrap:wrap;gap:4px 6px;align-items:center;padding:5px 12px;font-size:var(--fs-xs);color:var(--faint)}
+.rofft{flex:1 1 260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.roff .verdict{opacity:.6;font-size:var(--fs-xs);margin:0}
+.rstep.cred .rbody{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.3fr) minmax(0,1.3fr);gap:4px 16px}
+.cred .cw,.cred .ca{color:var(--ink-2);line-height:1.5}.cl{display:block;font-size:var(--fs-xs);text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.dont .rdet{color:var(--ink-2)}.dont li{padding:6px 0;border-bottom:1px solid var(--line-soft)}.dont li:last-child{border-bottom:0}
+.rrefs{margin-top:12px}
+@media (max-width:760px){.rsel-l{display:flex}.rpick{display:none}.rstep.cred .rbody{grid-template-columns:minmax(0,1fr)}
+  .rphase{grid-template-columns:24px minmax(0,1fr);gap:6px}.rrail .pn{width:20px;height:20px;font-size:var(--fs-xs)}}
+@media print{
+  .hdr,.rhead,.rtool .links,.rnav,.rlinks,.rail,footer,.toast,.scrim,#drawer{display:none!important}
+  .panel:not(#tab-response){display:none!important}.resp[hidden]{display:none!important}
+  body{background:#fff}.card.resp{border:0;box-shadow:none;padding:0}.rstep{break-inside:avoid}.rstep.off{display:none}
+  .rrail::after{display:none}.rrefs[open] summary,.rrefs{display:block}}
 .dont{margin-top:14px;background:var(--alert-bg);border:1px solid var(--line-soft);border-left:3px solid var(--crit);border-radius:8px;padding:4px 12px 8px}
 .dont h4{color:var(--crit)}
 .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--ink);color:var(--bg);border-radius:9px;padding:9px 16px;font-size:var(--fs-sm);z-index:60;box-shadow:0 6px 24px var(--shadow-lg)}
@@ -1507,7 +1602,8 @@ function intelCharts(){
   var mot = {}; actors.forEach(function(a){ mot[a.motivation] = (mot[a.motivation] || 0) + 1; });
   var withA = imps.filter(function(i){ return i.actors.length; }).length;
   function bar(parts){ var tot = parts.reduce(function(n, p){ return n + p[1]; }, 0);
-    return '<div class="sbar">' + parts.filter(function(p){ return p[1]; }).map(function(p){ return '<span class="' + p[2] + '" style="flex:' + p[1] + '" title="' + esc(p[0]) + ': ' + p[1] + '"><b>' + p[1] + '</b> ' + esc(p[0]) + '</span>'; }).join('') + '</div>'; }
+    return '<div class="sbar">' + parts.filter(function(p){ return p[1]; }).map(function(p){ var w = p[1] / tot;
+      return '<span class="' + p[2] + '" style="flex:' + p[1] + '" title="' + esc(p[0]) + ': ' + p[1] + '">' + (w >= .14 ? '<b>' + p[1] + '</b> ' + esc(p[0]) : (w >= .05 ? '<b>' + p[1] + '</b>' : '')) + '</span>'; }).join('') + '</div>'; }
   var att = '<div class="attg"><div><h4>Reporting parties behind each actor</h4>' + bar([['one reporter', one, 'q1'], ['two or more', actors.length - one, 'q2']]) +
     '<p class="muted small">Link confidence is ours and cannot exceed medium on one reporter, however authoritative.</p></div>' +
     '<div><h4>Motivation, as the reporter states it</h4>' + bar(Object.keys(mot).sort().map(function(k, n){ return [k, mot[k], 'q' + (n % 2 + 1)]; })) +
@@ -1527,12 +1623,18 @@ function intelCharts(){
     '<div class="links" style="margin:8px 0 0">' + Object.keys(ROLE).filter(function(k){ return rc[k]; }).map(function(k){ return '<span class="chip role role-' + k + '">' + rc[k] + ' ' + esc(ROLE[k]) + '</span>'; }).join('') + '</div>' +
     '<p class="muted small">' + own + ' of ' + tot + ' are labelled actor-controlled. The rest are compromised routers and appliances, VPN exits, shared hosting or unlabelled - block them with care and never attribute on them alone. ' +
     '<button type="button" class="chip btnchip" data-ioc="all" data-fmt="csv">All indicators, CSV</button> <button type="button" class="chip btnchip" data-ioc="all" data-fmt="stix">All indicators, STIX 2.1</button></p>';
-  return '<details class="charts" open><summary>Timeline, attribution and indicators</summary><div class="chg">' +
+  return '<details class="charts"' + (window.innerWidth > 760 ? ' open' : '') + '><summary>Timeline, attribution and indicators</summary><div class="chg">' +
     '<section class="chp wide"><h4>Reporting timeline</h4>' + tl + '</section>' +
     '<section class="chp wide">' + att + '</section>' +
     '<section class="chp wide"><h4>Actors by platform</h4>' + mx + '</section>' +
     '<section class="chp wide">' + ioc + '</section></div></details>';
 }
+function iocChip(i){ var n = i.iocs.reduce(function(t, x){ return t + IOC[x].ind.length; }, 0);
+  return n ? '<span class="chip ioc-c" title="Indicators from the publishers\' own files">' + n + (n === 1 ? ' indicator' : ' indicators') + '</span>' : ''; }
+document.addEventListener('click', function(ev){
+  var a = ev.target.closest('[data-dj]'); if (!a) return; ev.preventDefault();
+  var t = document.getElementById(a.dataset.dj); if (t) t.scrollIntoView({behavior:'smooth', block:'start'});
+});
 function iocBlock(ids){
   return ids.map(function(id){
     var s = IOC[id], rc = {}; s.ind.forEach(function(i){ rc[i[2]] = (rc[i[2]] || 0) + 1; });
@@ -1570,7 +1672,8 @@ function platLinks(ids){ return (ids || []).map(function(x){ return lnk('#platfo
 /* ---------------------------------------------------------------- theme */
 function isDark(){ var t = root.getAttribute('data-theme'); return t ? t === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches; }
 function themeLabel(){ $('themeBtn').textContent = isDark() ? '☀ Light' : '☾ Dark'; }
-var th = store('edt-theme'); if (th) root.setAttribute('data-theme', th); themeLabel();
+// Light by default whatever the OS prefers; dark only when the viewer picked it.
+var th = store('edt-theme'); root.setAttribute('data-theme', th === 'dark' ? 'dark' : 'light'); themeLabel();
 $('themeBtn').addEventListener('click', function(){ var n = isDark() ? 'light' : 'dark'; root.setAttribute('data-theme', n); store('edt-theme', n); themeLabel(); });
 function hdrH(){ root.style.setProperty('--hdr', document.querySelector('.hdr').offsetHeight + 'px'); }
 window.addEventListener('resize', hdrH); hdrH();
@@ -1748,23 +1851,30 @@ intel: {
     F('resides', 'Resides in', function(i){ return i.kind === 'implant' ? [i.resides] : []; }),
     F('type', 'Implant type', function(i){ return i.kind === 'implant' ? [i.type] : []; }),
     F('motivation', 'Motivation', function(i){ return i.kind === 'actor' ? [i.motivation] : []; }),
+    F('iocs', 'Published indicators', function(i){ return [i.iocs.length ? 'yes' : 'no']; }, function(v){ return v === 'yes' ? 'has published indicators' : 'none published'; }),
     F('reporter', 'Reported by', function(i){ return i.kind === 'actor' ? i.reported_by : []; }),
     F('platform', 'Platform', function(i){ return i.platforms; }, function(v){ return PN[v] || v; })
   ],
   text:function(i){ return [i.id, i.name, (i.aliases || []).join(' '), i.summary, i.iocs.map(function(x){ return IOC[x].ind.map(function(v){ return v[1]; }).join(' '); }).join(' '), (i.reported_by || []).join(' '), (i.tradecraft || []).join(' '), (i.cves || []).join(' '), i.type, i.motivation].join(' '); },
   card:function(i){
-    if (i.kind === 'actor') return hd(i.id, i.name, i.aliases.length ? 'also: ' + esc(i.aliases.join(', ')) : '', b('actor', 'kind-actor') + b(i.motivation, 'mot mot-' + i.motivation)) +
+    var nid = i.id.replace(/-/g, '\u2011');   // non-breaking hyphens: ids never split across lines
+    if (i.kind === 'actor') return hd(nid, i.name, i.aliases.length ? 'also: ' + esc(i.aliases.join(', ')) : '', b('actor', 'kind-actor') + b(i.motivation, 'mot mot-' + i.motivation)) +
       '<p class="clamp"><q class="quote">' + esc(i.stated_confidence) + '</q></p>' +
-      '<div class="lc-f">' + b('link: ' + i.link_confidence, 'conf c-' + i.link_confidence) + chips(i.platforms.map(function(p){ return PN[p]; })) + '</div>';
-    return hd(i.id, i.name, i.aliases.length ? esc(i.aliases.join(', ')) : '', b('implant', 'kind-implant') + b(i.type, 'itype')) +
+      '<div class="lc-f">' + b('link: ' + i.link_confidence, 'conf c-' + i.link_confidence) + chips(i.platforms.map(function(p){ return PN[p]; })) +
+      (i.packs.length ? '<span class="chip">' + i.packs.length + (i.packs.length === 1 ? ' pack' : ' packs') + '</span>' : '<span class="chip ghost">no pack</span>') + iocChip(i) + '</div>';
+    return hd(nid, i.name, i.aliases.length ? esc(i.aliases.join(', ')) : '', b('implant', 'kind-implant') + b(i.type, 'itype')) +
       '<p class="clamp">' + rich(i.summary) + '</p>' +
       '<div class="lc-f">' + b('resides: ' + i.resides, 'res res-' + i.resides) + b('reboot: ' + i.reboot, 'surv surv-' + i.reboot) +
-      (i.coverage === 'gap' ? b('coverage gap', 'gap-b') : '<span class="chip">' + i.detections.length + ' detections</span>') + '</div>';
+      (i.coverage === 'gap' ? b('coverage gap', 'gap-b') : '<span class="chip">' + i.detections.length + ' detections</span>') + iocChip(i) + '</div>';
   },
   cls:function(i){ return i.kind === 'implant' && i.coverage === 'gap' ? ' gap' : ''; },
   title:function(i){ return i.name; },
   drawer:function(i){
-    var h;
+    var h, aids = i.kind === 'actor' ? [i.id] : i.actors;
+    var hunts = D.hunts.filter(function(x){ return x.actors.some(function(a){ return aids.indexOf(a) >= 0; }); });
+    var resp = i.platforms.filter(function(p){ return PLAT[p] && PLAT[p].response; });
+    var jumps = [['dj-ind', 'Indicators', i.iocs.reduce(function(n, x){ return n + IOC[x].ind.length; }, 0)], ['dj-hunt', 'Hunts', hunts.length], ['dj-resp', 'Response', resp.length]];
+    var jump = '<nav class="djump" aria-label="In this record">' + jumps.map(function(j){ return '<a href="#" data-dj="' + j[0] + '">' + j[1] + ' <span class="muted">' + j[2] + '</span></a>'; }).join('') + '</nav>';
     if (i.kind === 'actor'){
       h = '<div class="links" style="margin-top:14px">' + b('actor', 'kind-actor') + b(i.motivation, 'mot mot-' + i.motivation) + b('link: ' + i.link_confidence, 'conf c-' + i.link_confidence) + '</div>';
       if (i.aliases.length) h += '<p class="muted small">also: ' + esc(i.aliases.join(', ')) + '</p>';
@@ -1787,6 +1897,12 @@ intel: {
       h += sec('Anti-forensics', list(i.anti_forensics));
     }
     if (i.notes) h += '<p class="note">' + rich(i.notes) + '</p>';
+    h = jump + h;
+    h += '<div id="dj-hunt"></div>' + sec('Hunts' + (i.kind === 'implant' ? ' for its actors' : ''), hunts.length
+      ? '<div class="links">' + hunts.map(function(x){ return lnk('#hunts/' + x.id, x.title); }).join('') + '</div>'
+      : '<p class="muted small">No hunt names this ' + (i.kind === 'actor' ? 'actor' : 'implant\'s actor') + '. The platform hunts still apply: ' + i.platforms.map(function(p){ return '<a href="#hunts?platform=' + p + '">' + esc(PN[p]) + '</a>'; }).join(', ') + '.</p>');
+    h += '<div id="dj-resp"></div>' + sec('Response', resp.length ? '<div class="links">' + resp.map(function(p){ return lnk('#response/' + PLAT[p].response, 'Contain and recover - ' + PN[p]); }).join('') + '</div>' : '<p class="muted small">No playbook for these platforms yet.</p>');
+    h += '<div id="dj-ind"></div>';
     if (i.iocs.length) h += sec('Indicators', '<p class="muted small">Parsed from each publisher\'s own file or table, with the publisher\'s role for every value. Most published addresses are not the actor\'s own machines - read the roles before blocking or attributing.</p>' + iocBlock(i.iocs));
     else h += sec('Indicators', '<p class="muted small">No machine-readable indicators are published for this ' + i.kind + ', or none the toolkit could parse from the publisher\'s own file.</p>');
     return h + refs(i.references);
@@ -2019,7 +2135,7 @@ var pageAnchor = {};
 function writeHash(){
   if (!cur) return;
   var a = LIB[cur] ? (openId && openLib === cur ? openId : '') : (pageAnchor[cur] || '');
-  var h = '#' + cur + (a ? '/' + encodeURIComponent(a) : '') + (LIB[cur] ? qs(cur) : '');
+  var h = '#' + cur + (a ? '/' + encodeURIComponent(a) : '') + (LIB[cur] ? qs(cur) : (cur === 'response' && RV ? '?verdict=' + RV : ''));
   if (location.hash !== h) history.replaceState(null, '', h);
 }
 function readQuery(n, query){
@@ -2084,6 +2200,7 @@ function route(){
     if (el && el.closest('#tab-guide')){ tab = 'guide'; anchor = h.replace(/^g-/, ''); }
     else if (el){ el.scrollIntoView(); return; } }
   if (LIB[tab] && query !== null) readQuery(tab, query);
+  if (tab === 'response'){ var m = /(?:^|&)verdict=([A-Z-]+)/.exec(query || ''); setVerdict(m && RESP_V.indexOf(m[1]) >= 0 ? m[1] : ''); }
   show(tab, anchor);
 }
 tabs.forEach(function(b){ b.addEventListener('click', function(){ var t = b.dataset.tab; location.hash = '#' + t + (LIB[t] ? qs(t) : ''); }); });
@@ -2238,14 +2355,71 @@ document.addEventListener('keydown', function(ev){
   if (!$('drawer').hidden && !typing && (ev.key === 'ArrowRight' || ev.key === 'j')){ stepDrawer(1); ev.preventDefault(); }
 });
 
-/* ---------------------------------------------------------------- response picker */
+/* ---------------------------------------------------------------- response: picker, verdict lens, checklist */
+var RESP_V = ['COMPROMISED', 'LIKELY-COMPROMISED', 'SUSPICIOUS', 'NO-INDICATORS-FOUND'];
+var RV = '';   // analyzer verdict the responder picked; '' = all steps
+document.querySelectorAll('.resp .rx').forEach(function(el){ el.innerHTML = rich(el.textContent); });
+function respTicks(stem){ try{ return JSON.parse(store('edt-resp-' + stem) || '{}') || {}; }catch(_){ return {}; } }
+function applies(li){ var w = li.dataset.when; return !RV || !w || w.split(',').indexOf(RV) >= 0; }
+function respRefresh(art){
+  if (!art) return;
+  var ticks = respTicks(art.dataset.resp), done = 0, all = 0;
+  art.querySelectorAll('.rstep').forEach(function(li){
+    var on = applies(li), cb = li.querySelector('.rchk');
+    li.classList.toggle('off', !on);
+    cb.checked = !!ticks[li.dataset.k]; li.classList.toggle('done', cb.checked);
+    if (on){ all++; if (cb.checked) done++; }
+  });
+  art.querySelectorAll('.rnav .rc').forEach(function(c){
+    var lis = art.querySelectorAll('.rphase[data-phase="' + c.dataset.phase + '"] .rstep');
+    c.textContent = Array.prototype.filter.call(lis, applies).length;
+  });
+  art.querySelector('.rdone').textContent = done; art.querySelector('.rall').textContent = all;
+  art.querySelector('.rbar').style.width = (all ? Math.round(done / all * 100) : 0) + '%';
+}
 function pickResp(stem){
   if (!document.querySelector('.resp[data-resp="' + stem + '"]')) return;
   pageAnchor.response = stem;
   document.querySelectorAll('.rbtn').forEach(function(b){ b.setAttribute('aria-pressed', String(b.dataset.resp === stem)); });
+  document.querySelectorAll('.rsel').forEach(function(x){ x.value = stem; });
   document.querySelectorAll('.resp').forEach(function(s){ s.hidden = s.dataset.resp !== stem; });
+  respRefresh(document.querySelector('.resp[data-resp="' + stem + '"]'));
 }
-document.querySelectorAll('.rbtn').forEach(function(b){ b.addEventListener('click', function(){ history.replaceState(null, '', '#response/' + b.dataset.resp); pickResp(b.dataset.resp); }); });
+function setVerdict(v){
+  RV = v || '';
+  document.querySelectorAll('.vbtn').forEach(function(b){ b.setAttribute('aria-pressed', String(b.dataset.v === RV)); });
+  document.querySelector('.vhint').hidden = !RV;
+  respRefresh(document.querySelector('.resp:not([hidden])'));
+}
+function goResp(stem){ pickResp(stem); writeHash(); }
+document.querySelectorAll('.rbtn').forEach(function(b){ b.addEventListener('click', function(){ goResp(b.dataset.resp); }); });
+document.querySelectorAll('.rsel').forEach(function(x){ x.addEventListener('change', function(){ goResp(x.value); }); });
+document.querySelectorAll('.vbtn').forEach(function(b){ b.addEventListener('click', function(){ setVerdict(b.dataset.v); writeHash(); }); });
+document.querySelectorAll('.resp').forEach(function(art){
+  art.addEventListener('change', function(ev){
+    var cb = ev.target.closest('.rchk'); if (!cb) return;
+    var t = respTicks(art.dataset.resp); if (cb.checked) t[cb.dataset.k] = 1; else delete t[cb.dataset.k];
+    store('edt-resp-' + art.dataset.resp, JSON.stringify(t)); respRefresh(art);
+  });
+  art.querySelector('.rreset').addEventListener('click', function(){ store('edt-resp-' + art.dataset.resp, '{}'); respRefresh(art); toast('Ticks cleared'); });
+  art.querySelector('.rprint').addEventListener('click', function(){ window.print(); });
+  art.querySelector('.rcopy').addEventListener('click', function(){
+    var md = ['# ' + art.dataset.name + ' - response checklist' + (RV ? ' (verdict: ' + RV + ')' : ''),
+      'From the edge-dfir-toolkit playbook: ' + location.href.split('#')[0] + '#response/' + art.dataset.resp, '', '## Do not'];
+    art.querySelectorAll('.dont li').forEach(function(li){ md.push('- **' + li.querySelector('b').textContent.trim() + '** - ' + li.querySelector('.rdet').textContent.trim()); });
+    art.querySelectorAll('.rphase').forEach(function(ph, i){
+      var lis = Array.prototype.filter.call(ph.querySelectorAll('.rstep'), applies); if (!lis.length) return;
+      md.push('', '## ' + (i + 1) + '. ' + ph.querySelector('h4').childNodes[0].textContent.trim());
+      lis.forEach(function(li){
+        var box = li.querySelector('.rchk').checked ? '[x]' : '[ ]', title = li.querySelector('b').textContent.trim();
+        var det = li.classList.contains('cred') ? ' - ' + li.querySelector('.ca').textContent.replace(/^Do/, '').trim() : (li.querySelector('.rdet') ? ' - ' + li.querySelector('.rdet').textContent.trim() : '');
+        md.push('- ' + box + ' ' + title + det);
+      });
+    });
+    copyText(md.join('\n'), function(){ toast('Checklist copied as Markdown'); });
+  });
+  art.querySelectorAll('.rnav a').forEach(function(a){ a.addEventListener('click', function(ev){ ev.preventDefault(); var t = document.getElementById(a.dataset.jump); if (t) t.scrollIntoView({behavior:'smooth', block:'start'}); }); });
+});
 
 /* ---------------------------------------------------------------- collection plan picker + command builder */
 var curP = D.profiles[0] ? D.profiles[0].name : null;
@@ -2327,7 +2501,7 @@ def page(d: dict) -> tuple[str, dict]:
             "stroke='%23fff' stroke-width='2.6' fill='none' stroke-linecap='round'/%3E%3Cpath d='M21 10l4 6-4 6' "
             "stroke='%23ddc4b0' stroke-width='2.6' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")
     html_doc = f"""<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<html lang="en" data-theme="light"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Edge DFIR Toolkit</title>
 <meta name="description" content="Forensic triage for compromised VPN concentrators, firewalls and gateways: artifact library, collection plans, detections, threat intel and response playbooks.">
 <meta name="color-scheme" content="light dark">
@@ -2338,7 +2512,8 @@ def page(d: dict) -> tuple[str, dict]:
 <header class="hdr"><div class="hdr-in">
   <div class="hdr-top">
     <div class="hdr-id"><div class="h1row"><span class="dot"></span><h1>Edge DFIR Toolkit</h1><span class="pill">v{e(__version__)} &#183; Apache-2.0</span></div>
-      <p class="sub">What a compromised VPN concentrator, firewall or gateway leaves behind, what each trace proves, how long it lasts, and in what order to collect it.</p></div>
+      <p class="sub">What a compromised VPN concentrator, firewall or gateway leaves behind, what each trace proves, how long it lasts, and in what order to collect it.</p>
+      <p class="byline">By <a href="{AUTHOR_URL}" rel="noopener" target="_blank">{e(AUTHOR)}</a> &#183; <a href="{FIRM_URL}" rel="noopener" target="_blank">{e(FIRM)}</a></p></div>
     <div class="hdr-right">
       <a class="hbtn" href="{REPO_URL}" rel="noopener">GitHub &#8599;</a>
       <button type="button" class="hbtn" id="themeBtn">Theme</button>
@@ -2364,7 +2539,9 @@ def page(d: dict) -> tuple[str, dict]:
 <footer>
   {len(data['platforms'])} platforms &#183; {len(data['artifacts'])} artifacts &#183; {len(d['profiles'])} collection profiles &#183; {n_det} detections in {len(d['packs'])} packs &#183; {len(d['rules'])} rule files.
   Built from the repository on {built}; every figure is computed from the catalog, profiles, packs, rules and intel at build time.
-  Detection content is Sigma and YARA only. Independent project, not affiliated with any employer or with any vendor whose products it covers.
+  Detection content is Sigma and YARA only.<br>
+  Built and maintained by <a href="{AUTHOR_URL}" rel="noopener" target="_blank">{e(AUTHOR)}</a> (LinkedIn) &#183; published by <a href="{FIRM_URL}" rel="noopener" target="_blank">{e(FIRM)}</a> (LinkedIn) &#183; <a href="{REPO_URL}" rel="noopener">source on GitHub</a>.
+  Independent research, not affiliated with or endorsed by any former employer or by any vendor whose products it covers.
   Keyboard: <kbd>/</kbd> search, <kbd>&#8592;</kbd> <kbd>&#8594;</kbd> step through records, <kbd>Esc</kbd> close.
 </footer>
 <script type="application/json" id="data">{js_data(data)}</script>

@@ -8,7 +8,7 @@ confidence: medium
 preserve_first:
   - step: Collect memory-region state before anything that could reload the device
     detail: Run the cisco-asa profile. LINE DANCER was memory-only and hooked the dump routine, so the memory-region check runs first and the core dump is a deliberate, later break-glass step.
-  - step: On Firepower and Secure Firewall hardware, run show kernel process | include lina_cs before anyone pulls power
+  - step: On Firepower and Secure Firewall hardware, run `show kernel process | include lina_cs` before anyone pulls power
     detail: Cisco says a cold restart removes the 2026 FXOS implant while shutdown, reboot and reload do not, so a power cycle taken to "clean" the device also destroys the only on-box indicator. The profile collects it at V2.
   - step: Capture the syslog receiver's record, not just the device
     detail: ArcaneDoor disabled syslog; the gap at the collector dates the intrusion.

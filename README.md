@@ -2,6 +2,8 @@
 
 **Forensic triage for compromised VPN concentrators, firewalls and gateways.**
 
+By [Raymond DePalma](https://www.linkedin.com/in/raymond-depalma/) · published by [DePalma Research LLC](https://www.linkedin.com/company/depalma-research)
+
 A collector, an analyzer and a vendor-neutral detection pack for the edge
 devices that keep getting exploited: PAN-OS / GlobalProtect, FortiOS, Ivanti
 Connect Secure, Citrix NetScaler, Cisco ASA / FTD, Check Point, Juniper Junos,
@@ -40,9 +42,9 @@ License: Apache 2.0.
 
 ## Disclaimer
 
-This is an independent personal project. It is not affiliated with, endorsed
-by, or produced on behalf of any employer or any vendor whose products it
-covers. All content is derived from public sources: vendor advisories,
+This is independent research by Raymond DePalma, published by DePalma Research
+LLC. It is not affiliated with, endorsed by, or produced on behalf of any former
+employer or any vendor whose products it covers. All content is derived from public sources: vendor advisories,
 government advisories and published research. Product names are used only to
 identify the platforms covered.
 
@@ -210,5 +212,7 @@ its impact.
 
 ---
 
-**Maintainer:** Raymond DePalma - independent security researcher.
-This is a personal project and is not affiliated with any employer.
+**Maintainer:** [Raymond DePalma](https://www.linkedin.com/in/raymond-depalma/),
+Founder and President of [DePalma Research LLC](https://www.linkedin.com/company/depalma-research),
+a research and advisory firm for digital forensics and incident response.
+Not affiliated with any former employer.

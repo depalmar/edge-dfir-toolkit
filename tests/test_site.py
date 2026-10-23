@@ -191,3 +191,58 @@ def test_intel_indicators_and_charts(browser, tmp_path):
     inds = [o for o in bundle["objects"] if o["type"] == "indicator"]
     assert len(inds) == 60 and all(o["pattern"].startswith("[ipv4-addr:value = '") for o in inds)
     assert "[.]" not in inds[0]["pattern"]                     # exports carry the real value
+
+
+def test_response_verdict_lens_and_checklist(browser, tmp_path):
+    """The verdict lens hides steps the analyzer's verdict does not call for and
+    lives in the URL; ticks survive a reload; commands render as code."""
+    url = _build(tmp_path)
+    ctx = browser.new_context(viewport={"width": 1440, "height": 900})
+    page = ctx.new_page()
+    page.goto(f"{url}#response/cisco-asa")
+    art = page.locator('.resp[data-resp="cisco-asa"]')
+    art.wait_for(state="visible")
+    total = int(art.locator(".rall").inner_text())
+    page.locator('.vbtn[data-v="SUSPICIOUS"]').click()
+    assert page.url.endswith("#response/cisco-asa?verdict=SUSPICIOUS")
+    shown = int(art.locator(".rall").inner_text())
+    assert 0 < shown < total and art.locator(".rstep.off").count() == total - shown
+    assert art.locator("code", has_text="show kernel process").count() >= 1
+    art.locator(".rchk").first.check()
+    assert art.locator(".rdone").inner_text() == "1"
+    page.reload()
+    art.wait_for(state="visible")
+    assert art.locator(".rchk").first.is_checked()           # kept per viewer, per platform
+    assert page.locator('.vbtn[data-v="SUSPICIOUS"]').get_attribute("aria-pressed") == "true"
+    ctx.close()
+
+
+def test_light_theme_is_the_default(browser, tmp_path):
+    url = _build(tmp_path)
+    page = browser.new_page(color_scheme="dark")
+    page.goto(f"{url}#start")
+    assert page.evaluate("document.documentElement.getAttribute('data-theme')") == "light"
+
+
+def test_intel_drawer_jumps_and_indicator_filter(browser, tmp_path):
+    url = _build(tmp_path)
+    page = browser.new_page(viewport={"width": 1440, "height": 900})
+    page.goto(f"{url}#intel?iocs=yes")
+    page.wait_for_timeout(300)
+    shown, total = _counts(page, "intel")
+    assert 0 < shown < total
+    page.goto(f"{url}#intel/EDGE-TA-0003")
+    page.locator("#drawer").wait_for(state="visible")
+    jumps = page.locator("#dBody .djump a").all_inner_texts()
+    assert [j.split()[0] for j in jumps] == ["Indicators", "Hunts", "Response"]
+    assert page.locator('#dBody a[href="#response/cisco-asa"]').count() == 1
+    assert page.locator('#dBody a[href^="#hunts/EDGE-HUNT-"]').count() >= 3
+
+
+def test_byline_credits_the_author_and_firm(browser, tmp_path):
+    url = _build(tmp_path)
+    page = browser.new_page()
+    page.goto(f"{url}#start")
+    hrefs = page.locator(".byline a").evaluate_all("els => els.map(e => e.href)")
+    assert hrefs == ["https://www.linkedin.com/in/raymond-depalma/", "https://www.linkedin.com/company/depalma-research"]
+    assert "DePalma Research LLC" in page.locator("footer").inner_text()

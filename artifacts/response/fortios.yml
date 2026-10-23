@@ -43,14 +43,14 @@ recover:
   - step: Keep heightened monitoring and confirm filesystem hashes match the clean baseline
 
 verify:
-  - step: Re-run diagnose sys filesystem hash against the baseline; expect no deltas
+  - step: Re-run `diagnose sys filesystem hash` against the baseline; expect no deltas
   - step: Confirm no symlinks into the root filesystem from served directories
   - step: Hunt into the network for the dwell period
 
 do_not:
   - action: Rely on patching alone after suspected compromise
     because: The symlink persistence survived patching, and a bypass of the fix was later disclosed.
-  - action: Trust diagnose sys filesystem hash without a baseline
+  - action: Trust `diagnose sys filesystem hash` without a baseline
     because: A list of hashes with nothing to compare against proves nothing.
 
 vendor_guidance:

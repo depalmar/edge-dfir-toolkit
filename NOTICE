@@ -1,0 +1,7 @@
+Edge DFIR Toolkit
+Copyright 2026 Raymond DePalma and DePalma Research LLC
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+Detection content is derived from public vendor, government and researcher
+publications, cited where it is used. Indicator sets in artifacts/intel/iocs/
+keep the publisher's own licence, stated in each file.
