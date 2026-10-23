@@ -1,0 +1,49 @@
+# Off-box hunt EDGE-HUNT-0004
+# Schema: ../schema/hunt.schema.json
+
+id: EDGE-HUNT-0004
+title: On-box packet capture of AAA traffic followed by a file transfer
+platforms:
+- EDGE-0009
+- EDGE-0005
+- ALL
+actors:
+- EDGE-TA-0007
+- EDGE-TA-0003
+seen_in:
+- AA25-239A
+- ArcaneDoor (Talos)
+hypothesis: >-
+  The actor captured TACACS+ or RADIUS traffic to harvest keys and exported the capture.
+data:
+- aaa-accounting
+- syslog
+- netflow
+method:
+- >-
+  Look for monitor capture ... start, embedded packet capture, or monitor-session definitions;
+  on ASA, capture commands.
+- >-
+  Flag captures filtered on TCP/49 or RADIUS, and capture files named mycap.pcap, tac.pcap
+  or 1.pcap.
+- >-
+  Join to a device-originated FTP or TFTP flow within hours (see the device-originated transfer
+  hunt).
+normal: A TAC-led capture with a ticket.
+suspicious: A capture of AAA ports, or a capture followed by an export.
+attack:
+- T1040
+- T1048
+confidence: medium
+sources:
+- title: AA25-239A joint advisory (IC3 PDF v1.1)
+  url: https://www.ic3.gov/CSA/2025/250827.pdf
+  accessed: '2026-10-23'
+  quote: Alert on creation/start of any on-box packet capture
+  read: direct
+- title: Cisco Talos - ArcaneDoor
+  url: >-
+    https://blog.talosintelligence.com/arcanedoor-new-espionage-focused-campaign-found-targeting-perimeter-network-devices/
+  accessed: '2026-10-23'
+  quote: Create and exfiltrate packet captures
+  read: direct

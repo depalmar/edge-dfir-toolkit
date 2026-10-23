@@ -1,0 +1,42 @@
+# Off-box hunt EDGE-HUNT-0007
+# Schema: ../schema/hunt.schema.json
+
+id: EDGE-HUNT-0007
+title: One network device logging in to another
+platforms:
+- ALL
+actors:
+- EDGE-TA-0007
+seen_in:
+- AA25-239A
+- Salt Typhoon (Talos)
+hypothesis: The actor hops device to device inside trusted infrastructure.
+data:
+- netflow
+- aaa-accounting
+data_detail: >-
+  NetFlow on SSH and Telnet; TACACS+ authentication records, which carry the client address.
+method:
+- >-
+  Flag sessions whose source is another network device, including loopbacks, rather than a
+  jump host.
+- Watch for a loopback whose address changes and then sources SSH.
+normal: Administrator sessions only from jump hosts or the management network.
+suspicious: A device logging in to another device.
+attack:
+- T1021.004
+- T1078
+confidence: medium
+sources:
+- title: AA25-239A joint advisory (IC3 PDF v1.1)
+  url: https://www.ic3.gov/CSA/2025/250827.pdf
+  accessed: '2026-10-23'
+  quote: >-
+    Monitor network traffic for logons from one router to another router, as this should not
+    be typical of normal router administration processes.
+  read: direct
+- title: Cisco Talos - Salt Typhoon analysis
+  url: https://blog.talosintelligence.com/salt-typhoon-analysis/
+  accessed: '2026-10-23'
+  quote: modified the address of the loopback interface
+  read: direct

@@ -1,0 +1,41 @@
+# Off-box hunt EDGE-HUNT-0016
+# Schema: ../schema/hunt.schema.json
+
+id: EDGE-HUNT-0016
+title: >-
+  One NetScaler session used from two addresses, or one address using many accounts
+platforms:
+- EDGE-0004
+seen_in:
+- CitrixBleed (Mandiant)
+cves:
+- CVE-2023-4966
+hypothesis: A stolen session cookie was replayed.
+data:
+- syslog
+data_detail: ns.log forwarded by syslog; the local copy is small and rotates fast.
+method:
+- >-
+  In SSLVPN TCPCONNSTAT events, flag Client_ip differing from Source for the same SessionId,
+  then compare the two addresses' ASN and geography.
+- Separately, count distinct users per source address within hours.
+normal: Address changes on Wi-Fi or mobile networks; shared NAT.
+suspicious: A mismatch onto a low-reputation ASN, or one address using many accounts.
+attack:
+- T1550.004
+- T1539
+confidence: low
+unverified: true
+sources:
+- title: Mandiant - Session hijacking with Citrix CVE-2023-4966
+  url: >-
+    https://cloud.google.com/blog/topics/threat-intelligence/session-hijacking-citrix-cve-2023-4966/
+  accessed: '2026-10-23'
+  quote: mismatch between the Client_ip and Source fields
+  read: direct
+- title: Mandiant - Session hijacking with Citrix CVE-2023-4966
+  url: >-
+    https://cloud.google.com/blog/topics/threat-intelligence/session-hijacking-citrix-cve-2023-4966/
+  accessed: '2026-10-23'
+  quote: multiple accounts were accessed within hours from the same source IP address
+  read: direct

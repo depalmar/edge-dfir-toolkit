@@ -1,0 +1,45 @@
+# Off-box hunt EDGE-HUNT-0011
+# Schema: ../schema/hunt.schema.json
+
+id: EDGE-HUNT-0011
+title: Impossible travel for logons through the device
+platforms:
+- EDGE-0005
+- ALL
+actors:
+- EDGE-TA-0003
+seen_in:
+- ArcaneDoor 2025 (Cisco)
+hypothesis: Stolen VPN credentials or sessions are in use.
+data:
+- identity
+- syslog
+data_detail: >-
+  IdP and MFA sign-in logs, VPN authentication logs, domain controller logons from the VPN
+  pool.
+method:
+- >-
+  Per user, look for successful logons from distant source addresses within too short a time
+  to travel.
+- Treat every logon that passed through a suspect device as in scope.
+normal: Consistent geography and ASN per user.
+suspicious: Impossible velocity, or a hosting-provider ASN.
+attack:
+- T1078
+- T1133
+confidence: high
+sources:
+- title: Cisco - Detection guide for continued attacks against Cisco firewalls
+  url: >-
+    https://sec.cloudapps.cisco.com/security/center/resources/detection_guide_for_continued_attacks
+  accessed: '2026-10-23'
+  quote: >-
+    It is recommended that seemingly valid VPN connections have their source IP address profiled
+    to identify impossible travel
+  read: direct
+- title: CISA - ED 25-03 supplemental direction, core dump and hunt instructions
+  url: >-
+    https://cisa.gov/news-events/directives/supplemental-direction-ed-25-03-core-dump-and-hunt-instructions
+  accessed: '2026-10-23'
+  quote: all logins through the compromised device should be heavily scrutinized
+  read: summariser

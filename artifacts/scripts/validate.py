@@ -264,6 +264,33 @@ def main() -> int:
         if h and h not in hardening_stems:
             err(f"catalog {pid}: hardening '{h}' does not exist")
 
+    # ---- hunts: off-box hypotheses, each quoting the source it rests on
+    huv = schema("hunt.schema.json")
+    hunt_ids: set[str] = set()
+    for p in sorted((ROOT / "artifacts" / "hunts").glob("*.yml")):
+        doc = yaml.safe_load(p.read_text())
+        validate_doc(huv, doc, f"hunts/{p.name}")
+        hid = doc.get("id", "")
+        if not p.name.startswith(f"{hid}-"):
+            err(f"hunts/{p.name}: file must be named <id>-<slug>.yml")
+        if hid in hunt_ids:
+            err(f"hunts/{p.name}: duplicate id {hid}")
+        hunt_ids.add(hid)
+        for pid in doc.get("platforms", []):
+            if pid != "ALL" and pid not in platforms:
+                err(f"hunts/{p.name}: platform {pid} not in catalog")
+        for aid in doc.get("actors", []):
+            if aid not in actor_ids:
+                err(f"hunts/{p.name}: actor {aid} does not exist")
+        for rp in doc.get("sigma", []):
+            if not (ROOT / rp).is_file():
+                err(f"hunts/{p.name}: Sigma rule {rp} does not exist")
+        if doc.get("confidence") == "low" and not doc.get("unverified"):
+            err(f"hunts/{p.name}: low confidence without unverified: true")
+        # A quote that only came through a summariser is not a read of the source.
+        if all(s.get("read") == "summariser" for s in doc.get("sources", [])) and not doc.get("unverified"):
+            err(f"hunts/{p.name}: every source was read through a summariser; mark it unverified")
+
     # ---- rule directories
     for d in sorted(ROOT.glob("[0-9][0-9]-*")):
         if d.is_dir() and not (d / "README.md").is_file():
@@ -277,7 +304,7 @@ def main() -> int:
     n_det = len(det_ids)
     print(f"OK  {len(platforms)} platforms, {len(profiles)} profiles, {len(pack_ids)} packs, "
           f"{n_det} detections, {len(actor_ids)} actors, {len(implant_ids)} implants, "
-          f"{len(response_stems)} response playbooks, {n_controls} hardening controls")
+          f"{len(response_stems)} response playbooks, {n_controls} hardening controls, {len(hunt_ids)} hunts")
     return 0
 
 

@@ -1,0 +1,35 @@
+# Off-box hunt EDGE-HUNT-0013
+# Schema: ../schema/hunt.schema.json
+
+id: EDGE-HUNT-0013
+title: Certificate-based Mobile Access logons by unknown identities
+platforms:
+- EDGE-0007
+seen_in:
+- Check Point CVE-2026-85102
+cves:
+- CVE-2026-85102
+hypothesis: >-
+  An authentication bypass shows up as a certificate logon by an identity nobody enrolled.
+data:
+- syslog
+data_detail: Gateway logs on the log server or SIEM, off the gateway.
+method:
+- >-
+  Filter Mobile Access, action Log In, authentication by certificate, from 2026-09-12.
+- >-
+  Review user, client and source; flag subjects CN=vpn, CN=vpn-user or CN=vpnuser with OU=users,O=global,
+  and anything else not enrolled.
+- Pivot every hit into the internal-scanning hunt.
+normal: Only enrolled users and subjects issued by your CA.
+suspicious: Any subject you did not issue.
+attack:
+- T1078
+- T1133
+confidence: high
+sources:
+- title: Check Point sk1000117 - CVE-2026-85102
+  url: https://support.checkpoint.com/results/sk/sk1000117
+  accessed: '2026-10-23'
+  quote: Review your logs for anomalous certificate-based Mobile Access logins.
+  read: direct

@@ -1,0 +1,41 @@
+# Off-box hunt EDGE-HUNT-0006
+# Schema: ../schema/hunt.schema.json
+
+id: EDGE-HUNT-0006
+title: FTP or TFTP sourced by a network device, and internal FTP staging
+platforms:
+- ALL
+actors:
+- EDGE-TA-0007
+seen_in:
+- AA25-239A
+hypothesis: Configurations or captures were exported to the actor or to a staging server.
+data:
+- netflow
+- syslog
+data_detail: NetFlow where the device is the source; logs of internal FTP servers.
+method:
+- >-
+  Flag TCP/21 or UDP/69 flows sourced from device addresses to anything other than the approved
+  backup servers.
+- >-
+  Look for volume outliers into internal FTP servers and FTP logins from unexpected sources.
+normal: Scheduled transfers to a known archive host.
+suspicious: Ad-hoc transfers, new destinations, or a transfer soon after an on-box capture.
+attack:
+- T1048
+- T1074
+confidence: medium
+sources:
+- title: AA25-239A joint advisory (IC3 PDF v1.1)
+  url: https://www.ic3.gov/CSA/2025/250827.pdf
+  accessed: '2026-10-23'
+  quote: >-
+    FTP/TFTP flows originating from network devices to unapproved destinations, especially
+    when preceded by on-box PCAP collection activity.
+  read: direct
+- title: AA25-239A joint advisory (IC3 PDF v1.1)
+  url: https://www.ic3.gov/CSA/2025/250827.pdf
+  accessed: '2026-10-23'
+  quote: Analyze internal FTP Server logs for any logins from unexpected sources.
+  read: direct

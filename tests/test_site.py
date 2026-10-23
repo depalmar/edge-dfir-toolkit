@@ -64,7 +64,7 @@ def test_site_runs_without_errors(browser, tmp_path):
     shown, total = _counts(page, "artifacts")
     assert shown == total > 0
 
-    for lib in ("artifacts", "platforms", "detections", "intel", "hardening"):
+    for lib in ("artifacts", "platforms", "detections", "hunts", "intel", "hardening"):
         page.goto(f"{url}#{lib}")
         page.locator(f"#tab-{lib}").wait_for(state="visible")
         items = page.locator(f"#tab-{lib} .item")
@@ -101,7 +101,7 @@ def test_filters_live_in_the_url(browser, tmp_path):
 def test_phone_width_has_no_horizontal_scroll(browser, tmp_path):
     url = _build(tmp_path)
     page = browser.new_page(viewport={"width": 390, "height": 844})
-    for tab in ("start", "artifacts", "detections", "intel", "hardening", "plans", "response", "coverage", "guide"):
+    for tab in ("start", "artifacts", "detections", "hunts", "intel", "hardening", "plans", "response", "coverage", "guide"):
         page.goto(f"{url}#{tab}")
         page.locator(f"#tab-{tab}").wait_for(state="visible")
         assert not page.evaluate("document.documentElement.scrollWidth > window.innerWidth"), tab
@@ -145,3 +145,24 @@ def test_rules_live_inside_detections(browser, tmp_path):
     page.wait_for_url("**#detections/f5-46748-tomcat-shell*")
     page.locator("#drawer").wait_for(state="visible")
     assert "f5_cve_2023_46748_tomcat_shell.yml" in page.locator("#dBody").inner_text()
+
+
+def test_hunts_and_artifact_reading_guidance(browser, tmp_path):
+    """Hunts carry normal vs suspicious and flag quotes read through a
+    summariser; artifacts carry the same contrast and where it comes from."""
+    url = _build(tmp_path)
+    page = browser.new_page(viewport={"width": 1440, "height": 900})
+    page.goto(f"{url}#hunts/EDGE-HUNT-0010")
+    page.locator("#drawer").wait_for(state="visible")
+    body = page.locator("#dBody").inner_text()
+    assert "Normal" in body and "Suspicious" in body and "302013" in body
+    assert "read through a summariser" in body
+    page.goto(f"{url}#hunts?data=aaa-accounting")
+    page.wait_for_timeout(300)
+    shown, total = _counts(page, "hunts")
+    assert 0 < shown < total
+    page.goto(f"{url}#artifacts/EDGE-0005.09")
+    page.locator("#drawer").wait_for(state="visible")
+    body = page.locator("#dBody").inner_text()
+    assert "what it gives you" in body.lower() and "Criterion from: Vendor" in body
+    assert page.locator("#dBody code", has_text="disk0:/asdm.bin").count() >= 1

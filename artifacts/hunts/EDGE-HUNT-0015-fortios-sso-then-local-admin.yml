@@ -1,0 +1,46 @@
+# Off-box hunt EDGE-HUNT-0015
+# Schema: ../schema/hunt.schema.json
+
+id: EDGE-HUNT-0015
+title: FortiCloud SSO administrator logon followed by a new local administrator
+platforms:
+- EDGE-0002
+seen_in:
+- FortiCloud SSO abuse (Fortinet, 2026)
+cves:
+- CVE-2026-24858
+hypothesis: >-
+  SSO abuse, then a local administrator created to keep access if the SSO account is disabled.
+data:
+- syslog
+data_detail: FortiGate event logs forwarded to the SIEM or FortiAnalyzer.
+method:
+- >-
+  Event A: logid 0100032001 (administrator login successful) with method=sso and a user that
+  is an external email address.
+- >-
+  Event B: logid 0100044547 with cfgpath=system.admin and action=Add by the same user soon
+  after A.
+- >-
+  Also look for configuration downloads, and review every administrator - the account names
+  seen change.
+normal: SSO administrators from your own tenant; administrators created with a ticket.
+suspicious: A followed by B.
+attack:
+- T1136.001
+- T1078.004
+confidence: high
+sources:
+- title: Fortinet PSIRT - Analysis of SSO abuse on FortiOS
+  url: https://www.fortinet.com/blog/psirt-blogs/analysis-of-sso-abuse-on-fortios
+  accessed: '2026-10-23'
+  quote: >-
+    Creation of a local admin, presumably for persistence should the SSO account become disabled,
+    has been seen in almost all cases.
+  read: direct
+- title: Fortinet FG-IR-26-060
+  url: https://fortiguard.com/psirt/FG-IR-26-060
+  accessed: '2026-10-23'
+  quote: >-
+    Fortinet recommends reviewing all admin accounts to look for any unexpected entries.
+  read: direct

@@ -1,0 +1,49 @@
+# Off-box hunt EDGE-HUNT-0024
+# Schema: ../schema/hunt.schema.json
+
+id: EDGE-HUNT-0024
+title: Management-plane access from untrusted sources
+platforms:
+- EDGE-0001
+- EDGE-0007
+- EDGE-0002
+seen_in:
+- CVE-2024-0012 (Unit 42)
+- Check Point CVE-2026-93616
+cves:
+- CVE-2024-0012
+- CVE-2024-9474
+- CVE-2026-93616
+hypothesis: An exposed management interface is being exploited.
+data:
+- netflow
+- web-proxy
+data_detail: >-
+  NetFlow or upstream firewall logs for management addresses and ports, including Check Point
+  TCP/19009.
+method:
+- >-
+  Flag any source outside the administrator allow-list, and sources in anonymising-VPN ASNs.
+normal: Jump hosts only.
+suspicious: Any internet source.
+attack:
+- T1190
+- T1133
+inferred: >-
+  For FortiOS the vendor gives restriction, not a hunt; applying the same test there is the
+  toolkit's inference.
+confidence: medium
+sources:
+- title: Unit 42 - CVE-2024-0012 and CVE-2024-9474
+  url: https://unit42.paloaltonetworks.com/cve-2024-0012-cve-2024-9474/
+  accessed: '2026-10-23'
+  quote: >-
+    primarily originated from IP addresses known to proxy/tunnel traffic for anonymous VPN
+    services.
+  read: direct
+- title: Check Point sk1000171 - CVE-2026-93616
+  url: https://support.checkpoint.com/results/sk/sk1000171
+  accessed: '2026-10-23'
+  quote: >-
+    Make sure that access to port TCP/19009 is only possible from Trusted IP addresses.
+  read: direct

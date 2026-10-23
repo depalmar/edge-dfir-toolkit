@@ -1,0 +1,37 @@
+# Off-box hunt EDGE-HUNT-0023
+# Schema: ../schema/hunt.schema.json
+
+id: EDGE-HUNT-0023
+title: CVE-2024-3400 signatures followed by an unusual .css fetch
+platforms:
+- EDGE-0001
+actors:
+- EDGE-TA-0001
+seen_in:
+- CVE-2024-3400 (Unit 42)
+cves:
+- CVE-2024-3400
+hypothesis: >-
+  Exploit attempts, then a copy of the running configuration staged in the web folder and
+  downloaded.
+data:
+- syslog
+- web-proxy
+data_detail: PAN-OS threat logs forwarded to the SIEM; WAF or sensor logs for the portal.
+method:
+- Look for threat IDs 95187, 95189 and 95191 by source and target.
+- >-
+  Flag GET requests for a random-named .css under /global-protect/ from the same sources.
+normal: No signature hits.
+suspicious: A signature hit followed by a successful fetch of an unusual .css.
+attack:
+- T1190
+- T1005
+confidence: low
+unverified: true
+sources:
+- title: Unit 42 - Threat brief, CVE-2024-3400
+  url: https://unit42.paloaltonetworks.com/cve-2024-3400/
+  accessed: '2026-10-23'
+  quote: copying the running configuration to the web application folder for access.
+  read: direct

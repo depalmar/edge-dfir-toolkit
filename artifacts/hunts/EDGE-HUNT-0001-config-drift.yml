@@ -1,0 +1,37 @@
+# Off-box hunt EDGE-HUNT-0001
+# Schema: ../schema/hunt.schema.json
+
+id: EDGE-HUNT-0001
+title: Configuration drift against the last authorised configuration
+platforms:
+- ALL
+actors:
+- EDGE-TA-0007
+seen_in:
+- AA25-239A
+hypothesis: >-
+  The actor changed ACLs, local accounts, AAA servers, SNMP, routes or packet-capture settings
+  for persistence.
+data:
+- config-archive
+data_detail: Configurations pulled off the device into your configuration-management archive.
+method:
+- Diff each running configuration against the last authorised version.
+- >-
+  Review ACLs, local accounts and privilege levels, AAA server addresses, SNMP version and
+  communities, static routes, and capture or SPAN statements.
+normal: Every change maps to a change ticket.
+suspicious: >-
+  A change with no ticket, a new local administrator, or a downgrade to SNMP v1 or v2c.
+attack:
+- T1098
+- T1556
+confidence: medium
+sources:
+- title: AA25-239A joint advisory (IC3 PDF v1.1)
+  url: https://www.ic3.gov/CSA/2025/250827.pdf
+  accessed: '2026-10-23'
+  quote: >-
+    Pull all configurations for running networking equipment and check for differences with
+    latest authorized versions.
+  read: direct

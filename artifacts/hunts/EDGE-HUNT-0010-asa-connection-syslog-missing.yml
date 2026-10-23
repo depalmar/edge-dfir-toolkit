@@ -1,0 +1,47 @@
+# Off-box hunt EDGE-HUNT-0010
+# Schema: ../schema/hunt.schema.json
+
+id: EDGE-HUNT-0010
+title: ASA connection syslog IDs missing or falling in volume
+platforms:
+- EDGE-0005
+actors:
+- EDGE-TA-0003
+seen_in:
+- ArcaneDoor 2025 (Cisco)
+cves:
+- CVE-2025-20333
+- CVE-2025-20362
+hypothesis: The 2025 implant suppresses connection logging in memory.
+data:
+- syslog
+data_detail: >-
+  Forwarded ASA syslog. 609002 and 710005 are debug-level, so a gap there is meaningful only
+  if the device sent them before.
+method:
+- >-
+  Count IDs 302013, 302014, 609002 and 710005 per device per hour against that device's own
+  history.
+- Use the history to estimate when the drop began.
+normal: A continuous stream at the device's usual volume.
+suspicious: These IDs absent, or falling, while other messages and traffic continue.
+attack:
+- T1562.002
+inferred: CISA's '303013' is read as a typo for 302013; Cisco's guide lists 302013.
+confidence: high
+sources:
+- title: Cisco - Detection guide for continued attacks against Cisco firewalls
+  url: >-
+    https://sec.cloudapps.cisco.com/security/center/resources/detection_guide_for_continued_attacks
+  accessed: '2026-10-23'
+  quote: >-
+    The absence or volumetric shift (downward) of these messages in the logs serve as an indicator
+  read: direct
+- title: CISA - ED 25-03 supplemental direction, core dump and hunt instructions
+  url: >-
+    https://cisa.gov/news-events/directives/supplemental-direction-ed-25-03-core-dump-and-hunt-instructions
+  accessed: '2026-10-23'
+  quote: >-
+    If 303013 and 302014 are absent, it is an indicator that a device contains the threat
+    actor's malware.
+  read: summariser

@@ -1,0 +1,37 @@
+# Off-box hunt EDGE-HUNT-0008
+# Schema: ../schema/hunt.schema.json
+
+id: EDGE-HUNT-0008
+title: Tunnels nobody can account for
+platforms:
+- ALL
+actors:
+- EDGE-TA-0007
+seen_in:
+- AA25-239A
+hypothesis: GRE or IPsec tunnels, or mirroring, were added to move or copy traffic.
+data:
+- netflow
+- config-archive
+data_detail: >-
+  NetFlow at provider and peering edges (protocol 47, ESP, UDP 500 and 4500); configuration
+  diffs.
+method:
+- Inventory tunnel endpoints and peer ASNs and match each to an owner.
+- >-
+  Flag heavy SSH to a router followed within hours by a new inbound and a new outbound tunnel.
+normal: Every tunnel documented.
+suspicious: An unexplained tunnel between ASNs.
+attack:
+- T1572
+- T1090
+inferred: >-
+  The SSH-then-tunnel sequence is a correlation the toolkit suggests; the advisory lists the
+  indicator only.
+confidence: medium
+sources:
+- title: AA25-239A joint advisory (IC3 PDF v1.1)
+  url: https://www.ic3.gov/CSA/2025/250827.pdf
+  accessed: '2026-10-23'
+  quote: Unexplained or unexpected tunnels between Autonomous System Numbers (ASNs).
+  read: direct

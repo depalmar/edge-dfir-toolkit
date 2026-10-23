@@ -1,0 +1,45 @@
+# Off-box hunt EDGE-HUNT-0005
+# Schema: ../schema/hunt.schema.json
+
+id: EDGE-HUNT-0005
+title: Management services on non-standard ports
+platforms:
+- ALL
+actors:
+- EDGE-TA-0007
+seen_in:
+- AA25-239A
+- Salt Typhoon (Talos)
+hypothesis: An alternate SSH or web listener was opened for persistence.
+data:
+- netflow
+- scan
+data_detail: >-
+  NetFlow to and from device management addresses; periodic internal and external port scans
+  of the devices.
+method:
+- Compare today's listening ports and flows with a baseline.
+- >-
+  Flag SSH on high ports numbered like 22x22 or xxx22, HTTPS on 18xxx, and inbound TCP/57722.
+normal: A stable port set.
+suspicious: >-
+  A new listener, especially one reached from addresses that are not administrators'.
+attack:
+- T1133
+- T1571
+confidence: medium
+sources:
+- title: AA25-239A joint advisory (IC3 PDF v1.1)
+  url: https://www.ic3.gov/CSA/2025/250827.pdf
+  accessed: '2026-10-23'
+  quote: >-
+    SSH on high non-default ports with 22x22/xxx22 numbering patterns from non-admin source
+    IPs.
+  read: direct
+- title: Cisco Talos - Salt Typhoon analysis
+  url: https://blog.talosintelligence.com/salt-typhoon-analysis/
+  accessed: '2026-10-23'
+  quote: >-
+    Profile (fingerprint via NetFlow and port scanning) network devices for a shift in surface
+    view, including new ports opening/closing
+  read: direct

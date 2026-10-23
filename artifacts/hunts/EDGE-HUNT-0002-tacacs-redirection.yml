@@ -1,0 +1,59 @@
+# Off-box hunt EDGE-HUNT-0002
+# Schema: ../schema/hunt.schema.json
+
+id: EDGE-HUNT-0002
+title: TACACS+ traffic to unapproved servers, and attacks on the AAA tier
+platforms:
+- EDGE-0009
+- EDGE-0008
+- ALL
+actors:
+- EDGE-TA-0007
+- EDGE-TA-0006
+seen_in:
+- AA25-239A
+- Salt Typhoon (Talos)
+- UNC3886 (Mandiant)
+hypothesis: >-
+  AAA was pointed at actor infrastructure, or the TACACS+ and terminal servers were compromised
+  first.
+data:
+- netflow
+- identity
+- edr
+data_detail: >-
+  NetFlow for the management VRF; authentication logs and EDR on the TACACS+ servers and jump
+  or terminal servers.
+method:
+- >-
+  Flag TCP/49 flows to any destination outside the approved server list, and any TCP/49 leaving
+  the management VRF.
+- Correlate with AAA server changes from the configuration-drift hunt.
+- On the TACACS+ and terminal servers, look for logons from sources new to them.
+normal: TCP/49 only to the approved servers, inside the management VRF.
+suspicious: Any other destination, or a change to the AAA server address.
+attack:
+- T1556
+- T1040
+confidence: medium
+sources:
+- title: AA25-239A joint advisory (IC3 PDF v1.1)
+  url: https://www.ic3.gov/CSA/2025/250827.pdf
+  accessed: '2026-10-23'
+  quote: >-
+    TACACS+ (TCP/49) flows to non-approved IPs or any TACACS+ traffic leaving the management
+    VRF.
+  read: direct
+- title: Cisco Talos - Salt Typhoon analysis
+  url: https://blog.talosintelligence.com/salt-typhoon-analysis/
+  accessed: '2026-10-23'
+  quote: AAA/TACACS+ server modification (server IP address change)
+  read: direct
+- title: Mandiant - China-nexus espionage targets Juniper routers
+  url: >-
+    https://cloud.google.com/blog/topics/threat-intelligence/china-nexus-espionage-targets-juniper-routers
+  accessed: '2026-10-23'
+  quote: >-
+    targeting network authentication services, including the Terminal Access Controller Access-Control
+    System (TACACS+), and terminal servers
+  read: direct

@@ -1,0 +1,34 @@
+# Off-box hunt EDGE-HUNT-0018
+# Schema: ../schema/hunt.schema.json
+
+id: EDGE-HUNT-0018
+title: CitrixBleed probing visible only upstream
+platforms:
+- EDGE-0004
+seen_in:
+- CitrixBleed (Mandiant)
+cves:
+- CVE-2023-4966
+hypothesis: >-
+  Memory-disclosure requests were sent to the OAuth endpoint; the appliance does not log them.
+data:
+- web-proxy
+data_detail: WAF, reverse proxy or TLS-inspecting sensor in front of the gateway.
+method:
+- >-
+  Look for GET /oauth/idp/.well-known/openid-configuration with an abnormally long Host header.
+normal: Rare requests whose Host is the appliance's name.
+suspicious: An oversized Host header.
+attack:
+- T1190
+confidence: low
+unverified: true
+sources:
+- title: Mandiant - Session hijacking with Citrix CVE-2023-4966
+  url: >-
+    https://cloud.google.com/blog/topics/threat-intelligence/session-hijacking-citrix-cve-2023-4966/
+  accessed: '2026-10-23'
+  quote: >-
+    organizations will need to rely on web application firewalls (WAF) or other network appliances
+    that record HTTP/S requests
+  read: direct

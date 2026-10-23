@@ -1,0 +1,36 @@
+# Off-box hunt EDGE-HUNT-0014
+# Schema: ../schema/hunt.schema.json
+
+id: EDGE-HUNT-0014
+title: IKEv1 Quick Mode completions before the fix
+platforms:
+- EDGE-0007
+seen_in:
+- Check Point CVE-2026-50751
+cves:
+- CVE-2026-50751
+hypothesis: IKEv1 remote access was used to bypass the password.
+data:
+- syslog
+data_detail: Gateway VPN logs, off the gateway.
+method:
+- >-
+  Filter action Key Install with Quick Mode completion, 2026-05-07 to 2026-06-05 at minimum,
+  or the last 60 days.
+- Review user and source; match against Check Point's published addresses.
+normal: IKEv2 only, or known legacy IKEv1 clients.
+suspicious: Any completion dated before the fix or mitigation.
+attack:
+- T1133
+- T1556
+sigma:
+- 07-checkpoint-quantum/checkpoint_cve_2026_50751_ikev1_quick_mode.yml
+confidence: high
+sources:
+- title: Check Point sk185033 - CVE-2026-50751
+  url: https://support.checkpoint.com/results/sk/sk185033
+  accessed: '2026-10-23'
+  quote: >-
+    Any found events prior to the patch installation or mitigation implementation should be
+    treated as suspicious
+  read: direct

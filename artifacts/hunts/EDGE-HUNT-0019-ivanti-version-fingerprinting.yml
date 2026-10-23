@@ -1,0 +1,41 @@
+# Off-box hunt EDGE-HUNT-0019
+# Schema: ../schema/hunt.schema.json
+
+id: EDGE-HUNT-0019
+title: Ivanti version fingerprinting before exploitation
+platforms:
+- EDGE-0003
+actors:
+- EDGE-TA-0002
+seen_in:
+- UNC5221 Ivanti 2025 (Mandiant)
+cves:
+- CVE-2025-0282
+hypothesis: Reconnaissance to pick a version-specific exploit.
+data:
+- web-proxy
+- syslog
+data_detail: WAF or reverse-proxy logs in front of the appliance.
+method:
+- >-
+  Look for requests to /dana-cached/hc/hc_launcher.<version>.jar and client-installer paths.
+- >-
+  Group by source; flag several versions requested in sequence from VPS or Tor sources.
+normal: Clients fetching the one current version.
+suspicious: A sweep across versions.
+attack:
+- T1595.002
+inferred: >-
+  Whether the appliance's own access log records these requests is not confirmed; a proxy
+  in front of it does.
+confidence: low
+unverified: true
+sources:
+- title: Mandiant - Ivanti Connect Secure VPN zero-day (CVE-2025-0282)
+  url: >-
+    https://cloud.google.com/blog/topics/threat-intelligence/ivanti-connect-secure-vpn-zero-day
+  accessed: '2026-10-23'
+  quote: >-
+    HTTP requests from VPS providers or Tor networks to these URLs, especially in sequential
+    version order, may indicate pre-exploitation reconnaissance.
+  read: direct

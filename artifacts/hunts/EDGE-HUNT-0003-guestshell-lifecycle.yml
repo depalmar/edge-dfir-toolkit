@@ -1,0 +1,35 @@
+# Off-box hunt EDGE-HUNT-0003
+# Schema: ../schema/hunt.schema.json
+
+id: EDGE-HUNT-0003
+title: Guest Shell enabled, used and disabled, in AAA command accounting
+platforms:
+- EDGE-0009
+actors:
+- EDGE-TA-0007
+seen_in:
+- AA25-239A
+hypothesis: A Linux container was enabled, used and then disabled to hide it.
+data:
+- aaa-accounting
+data_detail: >-
+  TACACS+ or RADIUS command accounting records, which outlast the device's own logs.
+method:
+- >-
+  Match the command field against guestshell enable, guestshell run bash, guestshell disable
+  and chvrf.
+- Group by user and device; flag enable followed by disable inside one session.
+normal: No Guest Shell commands, or only named automation accounts.
+suspicious: Anyone else, and above all enable and disable in the same session.
+attack:
+- T1610
+- T1059.004
+- T1070
+confidence: medium
+sources:
+- title: AA25-239A joint advisory (IC3 PDF v1.1)
+  url: https://www.ic3.gov/CSA/2025/250827.pdf
+  accessed: '2026-10-23'
+  quote: >-
+    For IOS XE, hunt for guestshell enable, guestshell run bash, and guestshell disable.
+  read: direct

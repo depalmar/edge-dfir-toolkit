@@ -1,0 +1,55 @@
+# Off-box hunt EDGE-HUNT-0022
+# Schema: ../schema/hunt.schema.json
+
+id: EDGE-HUNT-0022
+title: The edge device itself acting as a client
+platforms:
+- ALL
+actors:
+- EDGE-TA-0004
+- EDGE-TA-0001
+- EDGE-TA-0006
+seen_in:
+- UNC6148 OVERSTEP (GTIG)
+- CVE-2024-3400 (Unit 42)
+- UNC3886 (Mandiant)
+hypothesis: An implant beacons out, fetches payloads, or moves laterally from the appliance.
+data:
+- netflow
+- dns
+data_detail: >-
+  Upstream firewall or NetFlow and DNS where the device's own interface or management address
+  is the source - not traffic passing through it.
+method:
+- >-
+  Allow-list each appliance's legitimate outbound peers: vendor updates, NTP, DNS, syslog,
+  AAA.
+- >-
+  Flag everything else: HTTP to raw addresses, SSH from the appliance to internal hosts, TCP/22
+  to the internet, and lookups of callback domains.
+normal: A short, stable list of peers.
+suspicious: Any new destination.
+attack:
+- T1071
+- T1105
+- T1021.004
+confidence: medium
+sources:
+- title: GTIG - SonicWall SMA exploitation and the OVERSTEP backdoor
+  url: >-
+    https://cloud.google.com/blog/topics/threat-intelligence/sonicwall-secure-mobile-access-exploitation-overstep-backdoor
+  accessed: '2026-10-23'
+  quote: Outbound HTTP network traffic from the appliance to external IP addresses.
+  read: direct
+- title: Unit 42 - Threat brief, CVE-2024-3400
+  url: https://unit42.paloaltonetworks.com/cve-2024-3400/
+  accessed: '2026-10-23'
+  quote: probing attempts that use either wget or curl to access remote servers
+  read: direct
+- title: ASD ACSC - Mitigation strategies for edge devices, practitioner guidance
+  url: >-
+    https://www.cyber.gov.au/business-government/protecting-devices-systems/hardening-systems-applications/network-hardening/securing-edge-devices/mitigation-strategies-for-edge-devices-practitioner-guidance
+  accessed: '2026-10-23'
+  quote: >-
+    network traffic directed at hosts that the edge device doesn't normally communicate with
+  read: summariser

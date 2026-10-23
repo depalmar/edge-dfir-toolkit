@@ -1,0 +1,52 @@
+# Off-box hunt EDGE-HUNT-0021
+# Schema: ../schema/hunt.schema.json
+
+id: EDGE-HUNT-0021
+title: SMA administrator VPN sessions and settings export or import
+platforms:
+- EDGE-0006
+actors:
+- EDGE-TA-0004
+seen_in:
+- UNC6148 OVERSTEP (GTIG)
+- SMA 100 credential access (Arctic Wolf)
+cves:
+- CVE-2021-20035
+hypothesis: >-
+  Stolen administrator credentials and OTP seeds are being reused, and the actor is staging
+  or wiping.
+data:
+- syslog
+- web-proxy
+data_detail: Forwarded SMA event logs; WAF or proxy URL logs.
+method:
+- >-
+  Administrator-account VPN sessions from external addresses, weighted toward low-reputation
+  networks; include admin@LocalDomain, whose default password is password.
+- >-
+  Current settings exported, Current settings imported, and Clear all logs outside maintenance
+  windows.
+- URL queries containing dobackshell or dopasswords.
+normal: Administrator access from management networks; exports only in change windows.
+suspicious: The opposite of either.
+attack:
+- T1078.001
+- T1070
+confidence: medium
+sources:
+- title: GTIG - SonicWall SMA exploitation and the OVERSTEP backdoor
+  url: >-
+    https://cloud.google.com/blog/topics/threat-intelligence/sonicwall-secure-mobile-access-exploitation-overstep-backdoor
+  accessed: '2026-10-23'
+  quote: >-
+    VPN sessions from external IP addresses (especially from low-reputation networks like
+    BLNWX) using administrator accounts.
+  read: direct
+- title: Arctic Wolf - Credential access campaign targeting SonicWall SMA devices
+  url: >-
+    https://arcticwolf.com/resources/blog/credential-access-campaign-targeting-sonicwall-sma-devices/
+  accessed: '2026-10-23'
+  quote: >-
+    use of a local super admin account (admin@LocalDomain) on these appliances, which has
+    an insecure default password of password
+  read: direct

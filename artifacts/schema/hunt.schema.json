@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/depalmar/edge-dfir-toolkit/artifacts/schema/hunt.schema.json",
+  "title": "Off-box hunt",
+  "description": "A hypothesis tested in data that lives off the device - NetFlow, SIEM, AAA accounting, identity logs, proxies. Hunts are guidance; the analyzer does not run them.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "title", "platforms", "hypothesis", "data", "method", "normal", "suspicious", "confidence", "sources"],
+  "properties": {
+    "id": {"type": "string", "pattern": "^EDGE-HUNT-[0-9]{4}$"},
+    "title": {"type": "string"},
+    "platforms": {
+      "type": "array", "minItems": 1,
+      "items": {"type": "string", "pattern": "^(EDGE-[0-9]{4}|ALL)$"}
+    },
+    "actors": {"type": "array", "items": {"type": "string", "pattern": "^EDGE-TA-[0-9]{4}$"}},
+    "seen_in": {"type": "array", "items": {"type": "string"}, "description": "campaigns or reports the behaviour comes from, as the reporter names them"},
+    "cves": {"type": "array", "items": {"type": "string", "pattern": "^CVE-[0-9]{4}-[0-9]{4,}$"}},
+    "hypothesis": {"type": "string"},
+    "data": {
+      "type": "array", "minItems": 1,
+      "items": {"enum": ["netflow", "syslog", "aaa-accounting", "identity", "web-proxy", "config-archive", "edr", "dns", "scan"]}
+    },
+    "data_detail": {"type": "string"},
+    "method": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+    "normal": {"type": "string"},
+    "suspicious": {"type": "string"},
+    "attack": {"type": "array", "items": {"type": "string", "pattern": "^T[0-9]{4}(\\.[0-9]{3})?$"}},
+    "sigma": {"type": "array", "items": {"type": "string", "pattern": "^[0-9]{2}-[a-z0-9-]+/[a-z0-9_]+\\.yml$"}},
+    "inferred": {"type": "string", "description": "the part of the method that is this toolkit's inference rather than the source's"},
+    "confidence": {"enum": ["high", "medium", "low"]},
+    "unverified": {"type": "boolean"},
+    "sources": {
+      "type": "array", "minItems": 1,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["title", "url", "accessed", "quote"],
+        "properties": {
+          "title": {"type": "string"},
+          "url": {"type": "string", "pattern": "^https://"},
+          "accessed": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"},
+          "quote": {"type": "string"},
+          "read": {"enum": ["direct", "summariser"], "description": "summariser: the quote came through a summarising fetch and must be checked against the page"}
+        }
+      }
+    }
+  }
+}

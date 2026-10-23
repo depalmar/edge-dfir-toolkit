@@ -1,0 +1,49 @@
+# Off-box hunt EDGE-HUNT-0012
+# Schema: ../schema/hunt.schema.json
+
+id: EDGE-HUNT-0012
+title: Internal scanning and certificate-service enumeration after a VPN logon
+platforms:
+- EDGE-0005
+- EDGE-0007
+- ALL
+actors:
+- EDGE-TA-0003
+seen_in:
+- ArcaneDoor 2025 (CISA)
+- Check Point CVE-2026-85102
+hypothesis: An actor holding a VPN session is mapping the internal network.
+data:
+- netflow
+- edr
+data_detail: >-
+  Internal firewall logs or NetFlow keyed on VPN-pool addresses; LDAP query logs on domain
+  controllers.
+method:
+- >-
+  From each VPN-pool source, count distinct internal destinations and ports per hour; flag
+  spikes, especially printers on TCP/443.
+- >-
+  On domain controllers, flag LDAP filters servicePrincipalName=*cert*, *pki*, *public* and
+  objectclass=* from VPN-pool hosts.
+normal: A few destinations per user.
+suspicious: Fan-out across many hosts, or certificate-service enumeration.
+attack:
+- T1046
+- T1087.002
+inferred: Capturing LDAP filters needs domain controller diagnostic logging or EDR.
+confidence: medium
+sources:
+- title: CISA - ED 25-03 supplemental direction, core dump and hunt instructions
+  url: >-
+    https://cisa.gov/news-events/directives/supplemental-direction-ed-25-03-core-dump-and-hunt-instructions
+  accessed: '2026-10-23'
+  quote: widespread scans of printers, largely across TCP port 443
+  read: summariser
+- title: Check Point sk1000117 - CVE-2026-85102
+  url: https://support.checkpoint.com/results/sk/sk1000117
+  accessed: '2026-10-23'
+  quote: >-
+    look for second-stage activity originating from suspicious users, such as scans of internal
+    ports and services.
+  read: direct

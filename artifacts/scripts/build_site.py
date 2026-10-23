@@ -66,6 +66,7 @@ FACET_KEYS = {
     "detections": ["platform", "runs", "pack", "tier", "evidence", "type", "attack", "cve", "actor"],
     "intel": ["kind", "platform", "motivation", "type", "resides", "reboot", "coverage", "reporter"],
     "hardening": ["platform", "category", "priority", "confidence"],
+    "hunts": ["platform", "data", "actor", "confidence"],
 }
 LIBS = list(FACET_KEYS)
 e = html.escape
@@ -120,8 +121,9 @@ def load() -> dict:
     implants = sorted((yaml.safe_load(f.read_text()) for f in (intel / "implants").glob("*.yml")), key=lambda i: i["id"])
     response = {f.stem: yaml.safe_load(f.read_text()) for f in sorted((ROOT / "artifacts" / "response").glob("*.yml"))}
     hardening = {f.stem: yaml.safe_load(f.read_text()) for f in sorted((ROOT / "artifacts" / "hardening").glob("*.yml"))}
+    hunts = [yaml.safe_load(f.read_text()) for f in sorted((ROOT / "artifacts" / "hunts").glob("*.yml"))]
     return {"catalog": catalog, "profiles": profiles, "packs": packs, "rules": rules, "guide": guide,
-            "actors": actors, "implants": implants, "response": response, "hardening": hardening}
+            "actors": actors, "implants": implants, "response": response, "hardening": hardening, "hunts": hunts}
 
 
 # --------------------------------------------------------------------------- data for the libraries
@@ -295,8 +297,20 @@ def build_data(d: dict) -> dict:
                 "stem": stem,
             })
 
+    actor_name = {a["id"]: a["name"] for a in d["actors"]}
+    hunts = [{
+        "id": h["id"], "title": h["title"], "platforms": h["platforms"], "actors": h.get("actors", []),
+        "actor_names": {x: actor_name.get(x, x) for x in h.get("actors", [])}, "seen_in": h.get("seen_in", []),
+        "cves": h.get("cves", []), "cve_links": blunt_links(h.get("cves")), "hypothesis": h["hypothesis"].strip(),
+        "data": h["data"], "data_detail": (h.get("data_detail") or "").strip(), "method": [m.strip() for m in h["method"]],
+        "normal": h["normal"].strip(), "suspicious": h["suspicious"].strip(), "attack": h.get("attack", []),
+        "sigma": [slug(r) for r in h.get("sigma", [])], "inferred": (h.get("inferred") or "").strip(),
+        "confidence": h["confidence"], "unv": bool(h.get("unverified")),
+        "sources": [{"title": x["title"], "url": x["url"], "quote": x["quote"].strip(), "read": x.get("read", "direct")} for x in h["sources"]],
+    } for h in d["hunts"]]
+
     return {"platforms": platforms, "artifacts": artifacts, "detections": dets, "packs": packs, "rules": rules,
-            "intel": intel, "hardening": hard, "facetKeys": FACET_KEYS, "repo": REPO_URL,
+            "intel": intel, "hardening": hard, "hunts": hunts, "facetKeys": FACET_KEYS, "repo": REPO_URL,
             "profiles": [{"name": p.name, "ssh": "ssh" in p.transports,
                           "vars": sorted({v for s in p.steps for v in s.requires_vars})} for p in d["profiles"]]}
 
@@ -471,6 +485,10 @@ LIB_COPY = {
                   "have seen - first among them, keeping management interfaces off the internet. The baseline applies to "
                   "every platform; each control cites the vendor or government source it comes from.",
                   "Search controls, CVEs, settings..."),
+    "hunts": ("Hunts", "Hypotheses to test in data that lives off the device - NetFlow, SIEM, AAA accounting, identity "
+              "and proxy logs - because the device's own record is the one an intruder edits. The analyzer does not run "
+              "these; each states what normal looks like, what would be a lead, and the source it rests on.",
+              "Search hunts, data sources, actors, CVEs..."),
     "intel": ("Threat intel", "Attribution is reported, never computed. Each actor carries our link confidence (how well "
               "sourced the link is) beside the reporting party's own words. Clusters are merged only where the reporters "
               "themselves equate them.", "Search actors, implants, aliases, reporters..."),
@@ -732,6 +750,7 @@ def render_start(d: dict, data: dict) -> str:
         '<h3 class="sect">What is here</h3><div class="tiles">',
         f'<a class="tile" href="#artifacts"><b>{n["artifacts"]}</b><span>artifacts - what each trace proves and how long it lasts</span></a>',
         f'<a class="tile" href="#detections"><b>{n["detections"]}</b><span>detections in {len(d["packs"])} packs, each able to say &quot;not evaluated&quot;</span></a>',
+        f'<a class="tile" href="#hunts"><b>{len(data["hunts"])}</b><span>off-box hunts for NetFlow, SIEM and AAA data the intruder could not edit</span></a>',
         f'<a class="tile" href="#intel"><b>{n["intel"]}</b><span>actors and implants, attribution quoted from the reporter</span></a>',
         f'<a class="tile" href="#hardening"><b>{len(data["hardening"])}</b><span>hardening controls, each with its vendor or government source</span></a>',
         f'<a class="tile" href="#detections?runs=siem"><b>{n["rules"]}</b><span>Sigma and YARA rule files, attached to the detections they express</span></a>',
@@ -1331,6 +1350,9 @@ details.fold{margin:8px 0 20px}details.fold summary{font-size:var(--fs-sm);color
 .pr{font-weight:600}.pr-critical{color:var(--on-accent);background:var(--crit);border-color:var(--crit)}
 .pr-high{color:var(--high);border-color:currentColor}.pr-medium{color:var(--med);border-color:currentColor}
 .lc.base{box-shadow:inset 3px 0 0 var(--low),0 1px 2px var(--shadow)}
+ol.steps{padding-left:20px;margin:0}ol.steps li{margin:6px 0;line-height:1.55}
+.dist .seg.hd:nth-child(odd){background:var(--conf-strong)}.dist .seg.hd:nth-child(even){background:var(--conf-mid)}
+.callout.inf{border-left-color:var(--med);margin:12px 0}
 .srcs{padding-left:18px}.srcs li{margin:6px 0}
 .srcs blockquote{margin:6px 0 0;padding:6px 10px;border-left:3px solid var(--line);color:var(--ink-2);font-size:var(--fs-sm);font-style:italic;background:var(--panel-2);border-radius:0 6px 6px 0}
 
@@ -1356,7 +1378,7 @@ function sec(title, h){ return h ? '<h4>' + esc(title) + '</h4>' + h : ''; }
 /* Prose stays in the sans face. Literal strings inside it - `quoted`, absolute
    paths and file names - are wrapped in <code>, so a sentence never switches
    font as a whole. */
-var CODE_RE = /(`[^`]+`|(?<![\w.\/])\/[\w.\-*{}]+(?:\/[\w.\-*{}]*)*|\b[\w.\-]+\.(?:bin|b64|gz|tar|log|conf|php|py|pth|sh|so|zip|pcap|elg|xml|json|lua|cgi|pl|db|pkg|yar|yml|html|txt|ko|cfg|dat|out|tgz|ucs|qkview|pcapng)\d?\b)/g;
+var CODE_RE = /(`[^`]+`|\b(?:disk\d|bootflash|flash|harddisk):[\w.\-\/]*|(?<![\w.\/])\/[\w.\-*{}]+(?:\/[\w.\-*{}]*)*|\b[\w.\-]+\.(?:bin|b64|gz|tar|log|conf|php|py|pth|sh|so|zip|pcap|elg|xml|json|lua|cgi|pl|db|pkg|yar|yml|html|txt|ko|cfg|dat|out|tgz|ucs|qkview|pcapng)\d?\b)/g;
 function rich(t){
   return String(t == null ? '' : t).split(CODE_RE).map(function(part, i){
     if (i % 2 === 0) return esc(part);
@@ -1399,6 +1421,10 @@ function F(k, label, get, name, order){ return {k:k, label:label, get:get, name:
 var ORD = {vol:['live','rotating','stable','off-box'], hml:['high','medium','low'], tier:['confirmed','likely','possible'],
            level:['critical','high','medium','low','informational','-'], yn:['yes','partial','no','unknown']};
 var KIND = {step:'Collection step', ingest:'Off-box export (ingest)', manual:'Manual'};
+var HDATA = {netflow:'NetFlow', syslog:'Forwarded syslog / SIEM', 'aaa-accounting':'AAA command accounting', identity:'Identity and VPN logons',
+  'web-proxy':'WAF or proxy in front', 'config-archive':'Configuration archive', edr:'EDR on adjacent hosts', dns:'DNS logs', scan:'Port scans of the device'};
+var HSHORT = {netflow:'NetFlow', syslog:'SIEM', 'aaa-accounting':'AAA', identity:'Identity', 'web-proxy':'WAF/proxy', 'config-archive':'Configs', edr:'EDR', dns:'DNS', scan:'Scans'};
+var ACTN = {}; D.hunts.forEach(function(h){ Object.keys(h.actor_names).forEach(function(k){ ACTN[k] = h.actor_names[k]; }); });
 var BASIS = {vendor:'Vendor', researcher:'Researcher', government:'Government agency', toolkit:'Toolkit inference (no published contrast)'};
 var HCAT = {exposure:'Internet exposure', access:'Management access', identity:'Accounts and MFA', services:'Unused services', logging:'Logging off-box', patching:'Patching and end of life', integrity:'Integrity and boot', recovery:'Backups and recovery'};
 
@@ -1666,6 +1692,55 @@ hardening: {
       '<div class="tile"><b>' + Object.keys(plats).length + '</b><span>platforms with their own controls</span></div></div>';
   }
 }
+};
+
+LIB.hunts = {
+  noun:'hunts', items:D.hunts, view:'cards',
+  facets:[
+    F('platform', 'Platform', function(h){ return h.platforms; }, function(v){ return v === 'ALL' ? 'Any edge device' : (PN[v] || v); }),
+    F('data', 'Data you need', function(h){ return h.data; }, function(v){ return HDATA[v] || v; }),
+    F('actor', 'Actor', function(h){ return h.actors; }, function(v){ return ACTN[v] || v; }),
+    F('confidence', 'Confidence', function(h){ return [h.confidence]; }, null, ORD.hml)
+  ],
+  text:function(h){ return [h.id, h.title, h.hypothesis, h.data_detail, h.method.join(' '), h.normal, h.suspicious, h.seen_in.join(' '),
+    h.cves.join(' '), h.attack.join(' '), h.data.map(function(x){ return HDATA[x] || x; }).join(' '),
+    h.platforms.map(function(x){ return PN[x] || 'any'; }).join(' '), h.sources.map(function(x){ return x.title; }).join(' ')].join(' '); },
+  card:function(h){
+    return hd(h.platforms.map(function(x){ return x === 'ALL' ? 'Any edge device' : PN[x]; }).join(' · '), h.title, '', conf(h.confidence, h.unv)) +
+      '<p class="clamp">' + rich(h.hypothesis) + '</p>' +
+      '<div class="lc-f">' + h.data.map(function(x){ return '<span class="chip">' + esc(HDATA[x] || x) + '</span>'; }).join('') +
+      chips(h.cves.slice(0, 2), 'cve') + '</div>';
+  },
+  title:function(h){ return h.title; },
+  label:function(h){ return h.id; },
+  drawer:function(h){
+    var x = '<div class="links" style="margin-top:14px">' + conf(h.confidence, h.unv) + h.data.map(function(d){ return '<span class="chip">' + esc(HDATA[d] || d) + '</span>'; }).join('') + '</div>';
+    x += sec('Hypothesis', para(h.hypothesis));
+    if (h.data_detail) x += sec('Data', para(h.data_detail));
+    x += sec('Method', '<ol class="steps">' + h.method.map(function(m){ return '<li>' + rich(m) + '</li>'; }).join('') + '</ol>');
+    x += sec('Normal or suspicious', '<div class="nvs"><div class="nvs-n"><b>Normal</b>' + para(h.normal) + '</div><div class="nvs-s"><b>Suspicious</b>' + para(h.suspicious) + '</div></div>');
+    if (h.inferred) x += '<div class="callout inf"><b>Toolkit inference.</b> ' + rich(h.inferred) + '</div>';
+    if (h.sigma.length) x += sec('Sigma rule', h.sigma.map(function(r){ return RULE[r] ? ruleBlock(RULE[r]) : ''; }).join(''));
+    x += sec('Sources', '<ul class="srcs">' + h.sources.map(function(s){ return '<li><a href="' + esc(s.url) + '" rel="noopener" target="_blank">' + esc(s.title) + '</a>' +
+      (s.read === 'summariser' ? ' <span class="chip ghost">read through a summariser - check the quote</span>' : '') +
+      '<blockquote>' + esc(s.quote) + '</blockquote></li>'; }).join('') + '</ul>');
+    var l = h.platforms.filter(function(p){ return p !== 'ALL'; }).map(function(p){ return lnk('#platforms/' + p, PN[p]); })
+      .concat(h.actors.map(function(a){ return lnk('#intel/' + a, h.actor_names[a] || a); }));
+    if (h.cve_links.length) l = l.concat(h.cve_links.filter(function(c){ return c.href; }).map(function(c){ return lnk(c.href, c.label, 'cve'); }));
+    if (h.seen_in.length) x += sec('Seen in', '<div class="links">' + chips(h.seen_in) + '</div>');
+    if (l.length) x += sec('Related', '<div class="links">' + l.join('') + '</div>');
+    return x;
+  },
+  exp:function(h){ return {id:h.id, title:h.title, platforms:h.platforms.map(function(p){ return p === 'ALL' ? 'any' : PN[p]; }),
+    hypothesis:h.hypothesis, data:h.data, data_detail:h.data_detail, method:h.method, normal:h.normal, suspicious:h.suspicious,
+    cves:h.cves, attack:h.attack, confidence:h.confidence, unverified:h.unv, sources:h.sources.map(function(s){ return s.url; })}; },
+  summary:function(shown){
+    var c = {}, sel = S.hunts.sel.data || [];
+    shown.forEach(function(h){ h.data.forEach(function(d){ c[d] = (c[d] || 0) + 1; }); });
+    var segs = Object.keys(HDATA).filter(function(k){ return c[k]; }).map(function(k){
+      return '<button type="button" class="seg hd' + (sel.indexOf(k) >= 0 ? ' on' : '') + '" style="flex:' + c[k] + '" data-f="data" data-v="' + k + '" title="' + esc(HDATA[k]) + ': ' + c[k] + ' - click to filter"><b>' + c[k] + '</b> <span>' + esc(HSHORT[k] || k) + '</span></button>'; });
+    return segs.length ? '<p class="muted small sumline">Data the hunts shown need (a hunt can need several):</p><div class="dist" role="group" aria-label="Data the hunts need">' + segs.join('') + '</div>' : '';
+  }
 };
 
 /* sanity: the facet keys here must match the ones the generator validates links against */
@@ -2067,7 +2142,7 @@ def page(d: dict) -> tuple[str, dict]:
     # material sit after the divider; Start links every platform's plan directly.
     tabs = [("start", "Start", None), ("artifacts", "Artifacts", len(data["artifacts"])),
             ("platforms", "Platforms", len(data["platforms"])), ("detections", "Detections", n_det),
-            ("intel", "Threat intel", len(data["intel"])), ("response", "Response", len(d["response"])),
+            ("hunts", "Hunts", len(data["hunts"])), ("intel", "Threat intel", len(data["intel"])), ("response", "Response", len(d["response"])),
             ("hardening", "Hardening", len(data["hardening"])), None,
             ("plans", "Collection plans", len(d["profiles"])), ("coverage", "Coverage", None), ("guide", "Guide", None)]
     tabbar = "".join('<span class="tabsep" aria-hidden="true"></span>' if t is None else

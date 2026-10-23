@@ -1,0 +1,65 @@
+# Off-box hunt EDGE-HUNT-0009
+# Schema: ../schema/hunt.schema.json
+
+id: EDGE-HUNT-0009
+title: Syslog stops while the device keeps passing traffic
+platforms:
+- ALL
+actors:
+- EDGE-TA-0007
+- EDGE-TA-0003
+- EDGE-TA-0006
+- EDGE-TA-0002
+seen_in:
+- Salt Typhoon (Talos)
+- ArcaneDoor (Talos)
+- UNC3886 (Mandiant)
+- UNC5221 Ivanti 2025 (Mandiant)
+hypothesis: An implant or operator suppressed logging during hands-on activity.
+data:
+- syslog
+- netflow
+data_detail: SIEM ingestion metrics per source; NetFlow for the device.
+method:
+- Compute each device's event rate and longest gap.
+- >-
+  Flag a drop or gap while NetFlow still shows the device passing traffic, or a device that
+  stops sending on 514 or 6514 but keeps sending other traffic.
+- Correlate with unexpected reboots and with the end of administrator sessions.
+normal: A steady rate, with gaps only in maintenance windows.
+suspicious: >-
+  Silence while the device is up, or a gap that ends exactly when an administrator session
+  ends.
+attack:
+- T1562.002
+- T1070
+inferred: >-
+  On Ivanti the syslog block was the operator's iptables command; SPAWNSLOTH's in-process
+  suppression is separate malware behaviour.
+confidence: medium
+sources:
+- title: Cisco Talos - Salt Typhoon analysis
+  url: https://blog.talosintelligence.com/salt-typhoon-analysis/
+  accessed: '2026-10-23'
+  quote: a decrease in normal logging events, or a gap in logged activity.
+  read: direct
+- title: Cisco Talos - ArcaneDoor
+  url: >-
+    https://blog.talosintelligence.com/arcanedoor-new-espionage-focused-campaign-found-targeting-perimeter-network-devices/
+  accessed: '2026-10-23'
+  quote: >-
+    if any gaps in logging or any recent unexpected reboots are observed, this should be treated
+    as suspicious
+  read: direct
+- title: Mandiant - China-nexus espionage targets Juniper routers
+  url: >-
+    https://cloud.google.com/blog/topics/threat-intelligence/china-nexus-espionage-targets-juniper-routers
+  accessed: '2026-10-23'
+  quote: disable all possible logging before the operator connects
+  read: direct
+- title: Mandiant - Ivanti Connect Secure VPN zero-day (CVE-2025-0282)
+  url: >-
+    https://cloud.google.com/blog/topics/threat-intelligence/ivanti-connect-secure-vpn-zero-day
+  accessed: '2026-10-23'
+  quote: the threat actor disables SELinux, uses iptables to block syslog forwarding
+  read: direct

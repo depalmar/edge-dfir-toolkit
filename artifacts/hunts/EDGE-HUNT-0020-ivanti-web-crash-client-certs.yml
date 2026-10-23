@@ -1,0 +1,36 @@
+# Off-box hunt EDGE-HUNT-0020
+# Schema: ../schema/hunt.schema.json
+
+id: EDGE-HUNT-0020
+title: Ivanti web-process crashes and unusual client certificates
+platforms:
+- EDGE-0003
+actors:
+- EDGE-TA-0002
+seen_in:
+- UNC5221 Ivanti 2025 (Mandiant)
+cves:
+- CVE-2025-22457
+hypothesis: Exploitation attempts crash the web process or carry odd client certificates.
+data:
+- syslog
+- web-proxy
+data_detail: >-
+  Forwarded appliance event logs; a TLS-terminating or inspecting sensor for client certificates.
+method:
+- Alert on web-process core dumps or crash events.
+- >-
+  Baseline client-certificate issuer, subject and size per gateway and flag outliers.
+normal: No web-process cores; certificates only from your enrolled CAs.
+suspicious: Crash clusters, or certificates that fit no baseline.
+attack:
+- T1190
+confidence: low
+unverified: true
+sources:
+- title: Mandiant - China-nexus exploiting critical Ivanti vulnerability (CVE-2025-22457)
+  url: >-
+    https://cloud.google.com/blog/topics/threat-intelligence/china-nexus-exploiting-critical-ivanti-vulnerability
+  accessed: '2026-10-23'
+  quote: monitor for core dumps related to the web process
+  read: direct
