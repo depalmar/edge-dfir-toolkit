@@ -97,6 +97,16 @@ PLATFORM_ABBR = {
 }
 
 
+def build_date() -> _dt.date:
+    return _dt.datetime.now(_dt.timezone.utc).date()
+
+
+def ymd(v) -> float | None:
+    """A date as a fractional year, for placing marks on a time axis."""
+    m = re.match(r"^(\d{4})(?:-(\d{2}))?(?:-(\d{2}))?", str(v or ""))
+    return int(m.group(1)) + (int(m.group(2) or 1) - 1) / 12 + (int(m.group(3) or 1) - 1) / 365 if m else None
+
+
 def refs_of(items) -> list[dict]:
     return [{"title": r["title"], "url": r["url"]} for r in items or []]
 
@@ -134,8 +144,12 @@ def load() -> dict:
     response = {f.stem: yaml.safe_load(f.read_text()) for f in sorted((ROOT / "artifacts" / "response").glob("*.yml"))}
     hardening = {f.stem: yaml.safe_load(f.read_text()) for f in sorted((ROOT / "artifacts" / "hardening").glob("*.yml"))}
     hunts = [yaml.safe_load(f.read_text()) for f in sorted((ROOT / "artifacts" / "hunts").glob("*.yml"))]
+    watch = yaml.safe_load((ROOT / "artifacts" / "watch" / "kev-watch.yml").read_text())
+    kev = {"since": str(watch["since"]), "triaged": [{**t, "date": str(t["date"]), "refs": t.get("refs") or []}
+                                                    for t in watch.get("triaged") or []]}
     return {"catalog": catalog, "profiles": profiles, "packs": packs, "rules": rules, "guide": guide,
-            "actors": actors, "implants": implants, "iocs": iocs, "response": response, "hardening": hardening, "hunts": hunts}
+            "actors": actors, "implants": implants, "iocs": iocs, "response": response, "hardening": hardening, "hunts": hunts,
+            "kev": kev}
 
 
 # --------------------------------------------------------------------------- data for the libraries
@@ -332,7 +346,8 @@ def build_data(d: dict) -> dict:
 
     return {"platforms": platforms, "artifacts": artifacts, "detections": dets, "packs": packs, "rules": rules,
             "intel": intel, "iocs": iocs, "hardening": hard, "hunts": hunts, "facetKeys": FACET_KEYS, "repo": REPO_URL,
-            "abbr": PLATFORM_ABBR,
+            "abbr": PLATFORM_ABBR, "kev": d["kev"], "built": build_date().isoformat(),
+            "guideMins": max(1, round(len(re.findall(r"\w+", d["guide"])) / 230)),
             "profiles": [{"name": p.name, "ssh": "ssh" in p.transports, "validated": bool(p.validated_on),
                           "vars": sorted({v for s in p.steps for v in s.requires_vars})} for p in d["profiles"]]}
 
@@ -495,47 +510,83 @@ def copyable(text: str) -> str:
 
 
 LIB_COPY = {
-    "artifacts": ("Artifacts", "Every artifact on every platform: what it proves, how long it lasts and the step that collects it. "
+    # title, one-line lede, the long text behind "About this library", filter placeholder
+    "artifacts": ("Artifacts", "What each trace proves, how long it lasts and the step that collects it.",
+                  "Every artifact on every platform: what it proves, how long it lasts and the step that collects it. "
                   "Filter, open a row for the full record, and export what you picked as a collection checklist.",
-                  "Search locators, descriptions, implants, CVEs..."),
-    "platforms": ("Platforms", "What a responder can reach on each platform, how, and what disappears if you wait.",
-                  "Search platforms, vendors, products..."),
-    "detections": ("Detections", "Every detection runs in the analyzer against evidence collected from the device, and "
+                  "Filter artifacts: locator, description, implant, CVE"),
+    "platforms": ("Platforms", "What a responder can reach on each platform, how, and what disappears if you wait.", "",
+                  "Filter platforms, vendors, products"),
+    "detections": ("Detections", "Each runs in the analyzer and reports hit, no hit or not evaluated, never a pass. "
+                   "{sigma} also carry a Sigma rule for your SIEM.",
+                   "Every detection runs in the analyzer against evidence collected from the device, and "
                    "reports hit, no hit or not evaluated - never a pass. Where the same indicator can be watched in your SIEM, "
                    "the detection carries its Sigma rule; YARA rules scan recovered files. Sigma rules convert with "
-                   "sigma convert -t <backend>; no vendor query dialect is shipped.", "Search detections, patterns, rules, CVEs, ATT&CK..."),
-    "rules": ("Rules", "Vendor-neutral Sigma and YARA. Convert Sigma for your SIEM with sigma convert -t <backend>; "
-              "no vendor query dialect is shipped.", "Search rules, files, tags..."),
-    "hardening": ("Hardening", "Controls that would have prevented or blunted the exploitation waves these platforms "
+                   "`sigma convert -t <backend>`; no vendor query dialect is shipped.", "Filter detections: pattern, rule, CVE, ATT&CK"),
+    "hardening": ("Hardening", "Controls that would have prevented or blunted the exploitation waves these platforms have seen.",
+                  "Controls that would have prevented or blunted the exploitation waves these platforms "
                   "have seen - first among them, keeping management interfaces off the internet. The baseline applies to "
                   "every platform; each control cites the vendor or government source it comes from.",
-                  "Search controls, CVEs, settings..."),
-    "hunts": ("Hunts", "Hypotheses to test in data that lives off the device - NetFlow, SIEM, AAA accounting, identity "
+                  "Filter controls, CVEs, settings"),
+    "hunts": ("Hunts", "Hypotheses for data the intruder could not edit: NetFlow, SIEM, AAA, identity and proxy logs.",
+              "Hypotheses to test in data that lives off the device - NetFlow, SIEM, AAA accounting, identity "
               "and proxy logs - because the device's own record is the one an intruder edits. The analyzer does not run "
               "these; each states what normal looks like, what would be a lead, and the source it rests on.",
-              "Search hunts, data sources, actors, CVEs..."),
-    "intel": ("Threat intel", "Attribution is reported, never computed. Each actor carries our link confidence (how well "
+              "Filter hunts: data source, actor, CVE"),
+    "intel": ("Threat intel", "Attribution is reported, never computed: our link confidence beside the reporter's own words.",
+              "Attribution is reported, never computed. Each actor carries our link confidence (how well "
               "sourced the link is) beside the reporting party's own words. Clusters are merged only where the reporters "
-              "themselves equate them.", "Search actors, implants, aliases, reporters..."),
+              "themselves equate them.", "Filter actors, implants, aliases, reporters, indicator values"),
 }
 
 
-def lib_panel(name: str, n_unv: int, rows: bool) -> str:
-    title, lede, ph = LIB_COPY[name]
+def lib_panel(name: str, n_unv: int, rows: bool, n_sigma: int = 0) -> str:
+    title, lede, about, ph = LIB_COPY[name]
     unv = (f'<button type="button" class="tgl unvT" aria-pressed="false" title="Only records nobody has confirmed on a device">'
            f'Unverified only <span class="n">{n_unv}</span></button>') if n_unv else ""
-    cmp_ = '<button type="button" class="tgl cmpT" aria-pressed="false">Compact rows</button>' if rows else ""
+    extra = ('<button type="button" class="tgl grpT" aria-pressed="true">Group by platform</button>'
+             '<button type="button" class="tgl cmpT" aria-pressed="false">Compact</button>') if rows else ""
+    more = f'<details class="about"><summary>About this library</summary><p class="rx">{e(about)}</p></details>' if about else ""
     return f'''<section class="panel lib" id="tab-{name}" data-lib="{name}" role="tabpanel" hidden>
-  <div class="lhead"><h2>{e(title)}</h2><p class="lede">{e(lede)}</p></div>
+  <div class="lhead"><h2>{e(title)}</h2><p class="lede">{e(lede.format(sigma=n_sigma))}</p>{more}</div>
   <div class="controls">
-    <label class="search"><span class="glyph" aria-hidden="true">&#8981;</span><input type="search" class="q" placeholder="{e(ph)}" aria-label="Search {e(title.lower())}" autocomplete="off"></label>
-    {unv}{cmp_}
-    <span class="exp"><span class="lbl">Export</span><button type="button" class="tgl" data-exp="csv">CSV</button><button type="button" class="tgl" data-exp="json">JSON</button></span>
+    <label class="search"><span class="glyph" aria-hidden="true">&#8981;</span><input type="search" class="q" placeholder="{e(ph)}" aria-label="Filter {e(title.lower())}" autocomplete="off"></label>
+    {unv}{extra}
+    <span class="exp"><button type="button" class="tgl" data-act="copyview" title="Copy a link to this filtered view">Copy link</button><button type="button" class="tgl" data-exp="csv">CSV</button><button type="button" class="tgl" data-exp="json">JSON</button></span>
   </div>
   <div class="meta"><span class="count"></span><span class="active"></span><span class="picked"></span></div>
   <div class="summary"></div>
   <div class="results"></div>
 </section>'''
+
+
+def conf_counts(items, conf=lambda x: x["confidence"], unv=lambda x: x.get("unv")) -> dict:
+    """high / medium / low, with anything unverified counted as low."""
+    c = {"high": 0, "medium": 0, "low": 0}
+    for x in items:
+        c["low" if unv(x) else conf(x)] += 1
+    return c
+
+
+def conf_bar(c: dict, cls: str = "", words=("high", "medium", "low")) -> str:
+    """A bar split high / medium / low. A segment is labelled when it is wide enough to hold the label."""
+    tot = sum(c.values()) or 1
+    segs = []
+    for k, w in zip(("high", "medium", "low"), words):
+        n = c.get(k, 0)
+        if not n:
+            continue
+        lbl = f"{n} {w}" if n / tot >= .14 else (str(n) if n / tot >= .05 else "")
+        segs.append(f'<span class="cs cs-{k}" style="flex:{n}" title="{n} {w}">{lbl}</span>')
+    label = ", ".join(f"{c.get(k, 0)} {w}" for k, w in zip(("high", "medium", "low"), words))
+    return f'<div class="cbar {cls}" role="img" aria-label="{e(label)}">{"".join(segs)}</div>'
+
+
+def steps_by_source(d: dict):
+    steps = [st for p in d["profiles"] for st in p.steps]
+    hi = sum(1 for st in steps if st.confidence == "high" and not st.unverified)
+    lo = sum(1 for st in steps if st.unverified)
+    return steps, hi, len(steps) - hi - lo, lo
 
 
 def validation_badge(p) -> str:
@@ -563,6 +614,29 @@ def unvalidated_banner(d: dict) -> str:
             'before it connects. Report what you find - <a href="#guide/unvalidated-profiles">how to record a run</a>.</div>')
 
 
+def _tier_kind(t: str) -> str:
+    return {"B": "b", "X": "x"}.get(t, t[0].lower())
+
+
+def plan_summary(p) -> str:
+    c = conf_counts(p.steps, conf=lambda st: st.confidence, unv=lambda st: st.unverified)
+    imp = {k: sum(1 for st in p.steps if st.impact == k) for k in ("none", "vendor-bundle", "break-glass")}
+    tc = {t: sum(1 for st in p.steps if st.tier == t) for t in TIER_ORDER}
+    mx = max(tc.values()) or 1
+    strip = []
+    for t in TIER_ORDER:
+        h = 8 + round(26 * tc[t] / mx) if tc[t] else 2
+        tip = f'{t} {TIER_LABEL[t]}: {tc[t]} step{"" if tc[t] == 1 else "s"}'
+        strip.append(f'<li title="{e(tip)}"><span class="tb tb-{_tier_kind(t)}{"" if tc[t] else " e"}" style="height:{h}px"></span>'
+                     f'<span class="tsl">{t}</span></li>')
+    return (f'<div class="psum"><div class="psum-l"><div class="psum-n"><b>{len(p.steps)}</b> steps</div>'
+            f'{conf_bar(c, "h18", ("high", "medium", "unverified"))}'
+            f'<div class="small muted">{c["high"]} vendor-documented &#183; {c["medium"]} multi-source &#183; {c["low"]} unverified</div>'
+            f'<div class="small muted">{imp["none"]} read-only &#183; {imp["vendor-bundle"]} write a bundle &#183; {imp["break-glass"]} break-glass</div></div>'
+            f'<div class="psum-r"><ol class="tstrip" aria-label="Steps per tier, in the order they run">{"".join(strip)}</ol>'
+            f'<div class="small muted">Steps per tier, in the order they run</div></div></div>')
+
+
 def render_plans(d: dict) -> str:
     picker, sections = [], []
     for i, p in enumerate(d["profiles"]):
@@ -570,25 +644,27 @@ def render_plans(d: dict) -> str:
                       f'title="{e(p.display)}">{e(PLATFORM_ABBR.get(p.platform_id, short(p.display)))}</button>')
         groups = []
         for tier in TIER_ORDER:
-            steps = [s for s in p.steps if s.tier == tier]
+            steps = [st for st in p.steps if st.tier == tier]
             if not steps:
                 continue
             rows = []
-            for s in steps:
-                cmd = s.cmd or s.list_cmd
+            for st in steps:
+                cmd = st.cmd or st.list_cmd
                 what = copyable(cmd) if cmd else '<span class="muted">manual</span>'
-                instr = (f'<details><summary>Instructions</summary><pre class="instr">{e(s.instructions.strip())}</pre></details>'
-                         if s.instructions else "")
-                needs = f'<div class="needs">needs <code>--var {e(", ".join(s.requires_vars))}</code></div>' if s.requires_vars else ""
-                rows.append(f'''<tr class="step imp-{e(s.impact)}{' unv' if s.unverified else ''}" data-impact="{e(s.impact)}">
-  <td class="id">{e(s.id)}</td><td>{impact_badge(s.impact)}<div class="kind">{e(s.kind)}</div></td>
-  <td>{what}{needs}<div class="purpose">{e(s.purpose)}</div>{instr}</td>
-  <td>{conf_badge(s.confidence, s.unverified)}</td></tr>''')
+                instr = (f'<details><summary>Instructions</summary><pre class="instr">{e(st.instructions.strip())}</pre></details>'
+                         if st.instructions else "")
+                needs = f'<div class="needs">needs <code>--var {e(", ".join(st.requires_vars))}</code></div>' if st.requires_vars else ""
+                held = '<div class="whld">Withheld until you allow it in the builder</div>' if st.impact != "none" else ""
+                rows.append(f'''<tr class="step imp-{e(st.impact)}{' unv' if st.unverified else ''}" data-impact="{e(st.impact)}">
+  <td class="id">{e(st.id)}</td><td>{impact_badge(st.impact)}<div class="kind">{e(st.kind)}</div></td>
+  <td>{what}{needs}<div class="purpose">{e(st.purpose)}</div>{held}{instr}</td>
+  <td>{conf_badge(st.confidence, st.unverified)}</td></tr>''')
             groups.append(f'<tr class="tierrow"><th colspan="4"><span class="tchip">{e(tier)}</span> {e(TIER_LABEL[tier])} <span class="muted">- {e(TIER_CLASS[tier])}</span></th></tr>' + "".join(rows))
         sections.append(f'''
 <section class="plan" data-profile="{e(p.name)}" id="plan-{e(p.name)}"{'' if i == 0 else ' hidden'}>
   <div class="plan-h"><div><span class="id">{e(p.platform_id)}</span> <h3>{e(p.display)}</h3> {validation_badge(p)}</div>
     <div class="links"><a class="chip link" href="#platforms/{e(p.platform_id)}">platform entry</a><a class="chip link" href="#artifacts?platform={e(p.platform_id)}">artifacts</a></div></div>
+  {plan_summary(p)}
   <details class="guard"><summary>Read-only guard</summary>
     <div class="cols"><div><h4>Allow</h4>{chips(p.allow, 'chip code')}</div><div><h4>Deny</h4>{chips(p.deny, 'chip code')}</div>
     <div><h4>Session setup</h4>{chips(p.session_setup, 'chip code') or '<span class="muted">none</span>'}</div>
@@ -600,15 +676,17 @@ def render_plans(d: dict) -> str:
 <aside class="builder">
   <h3>Build the command</h3>
   <p class="muted">Nothing here leaves your browser. The password is never part of the command; supply it at the prompt or through an environment variable.</p>
+  <div class="bwarn" id="b-warn" role="note"><b>Not yet run on a real device.</b> The collector will ask you to type <code>UNVALIDATED</code> before it connects.</div>
   <label>Case id<input id="b-case" value="IR-2026-001" autocomplete="off"></label>
   <label>Device address<input id="b-host" placeholder="192.0.2.10" autocomplete="off"></label>
   <label>Read-only user<input id="b-user" placeholder="ir-readonly" autocomplete="off"></label>
   <label>Operator<input id="b-op" placeholder="your name" autocomplete="off"></label>
   <div class="vars" id="b-vars"></div>
-  <label>Rebooted since incident<select id="b-reboot"><option>unknown</option><option>no</option><option>yes</option></select></label>
-  <label>Upgraded since incident<select id="b-patch"><option>unknown</option><option>no</option><option>yes</option></select></label>
+  <div class="b2"><label>Rebooted since incident<select id="b-reboot"><option>unknown</option><option>no</option><option>yes</option></select></label>
+  <label>Upgraded since incident<select id="b-patch"><option>unknown</option><option>no</option><option>yes</option></select></label></div>
   <label class="tog"><input type="checkbox" id="b-bundle"> Allow vendor bundles <span class="muted">(writes to the device)</span></label>
   <label class="tog"><input type="checkbox" id="b-bg"> Break-glass <span class="muted">(runs last, asks for confirmation)</span></label>
+  <label class="tog"><input type="checkbox" id="b-one"> One line, for pasting into a ticket</label>
   <div class="codewrap"><button class="copy" type="button" id="b-copy">Copy</button><pre><code id="b-out"></code></pre></div>
   <div class="muted" id="b-sum"></div>
 </aside>'''
@@ -630,6 +708,10 @@ RESP_PHASES = [("preserve_first", "Preserve first", "before anything changes the
                ("recover", "Recover", "return to service on a trusted build"),
                ("verify", "Verify", "prove it, and hunt for the dwell period")]
 RESP_VERDICTS = ("COMPROMISED", "LIKELY-COMPROMISED", "SUSPICIOUS", "NO-INDICATORS-FOUND")
+
+
+def resp_total(r: dict) -> int:
+    return sum(len(r.get(key, [])) for key, _, _ in RESP_PHASES)
 
 
 def render_response(d: dict) -> str:
@@ -660,13 +742,14 @@ def render_response(d: dict) -> str:
                     k = f"{key}:{j}"
                     items.append(f'<li class="rstep cred" data-k="{k}" data-when=""><label><input type="checkbox" class="rchk" data-k="{k}">'
                                  f'<span class="rbody"><b>{rich(c["what"])}</b><span class="cw"><span class="cl">Why</span>{rich(c["why"])}</span>'
-                                 f'<span class="ca"><span class="cl">Do</span>{rich(c["action"])}</span></span></label></li>')
+                                 f'<span class="ca"><span class="cl">Do</span>{rich(c["action"])}</span>'
+                                 f'<span class="rwhen"><span class="rtick"></span></span></span></label></li>')
             else:
                 for j, st in enumerate(r.get(key, [])):
                     k, w = f"{key}:{j}", when_attr(st)
                     detail = f'<span class="rdet">{rich(st["detail"])}</span>' if st.get("detail") else ""
                     items.append(f'<li class="rstep" data-k="{k}" data-when="{e(w)}"><label><input type="checkbox" class="rchk" data-k="{k}">'
-                                 f'<span class="rbody"><b>{rich(st["step"])}</b>{detail}<span class="rwhen">{when_badges(w)}</span></span></label>'
+                                 f'<span class="rbody"><b>{rich(st["step"])}</b>{detail}<span class="rwhen">{when_badges(w)}<span class="rtick"></span></span></span></label>'
                                  f'<span class="roff"><span class="rofft">{e(st["step"])}</span>{when_badges(w)}</span></li>')
             total += len(items)
             anchor = f"r-{stem}-{key.replace('_', '-')}"
@@ -675,6 +758,8 @@ def render_response(d: dict) -> str:
                           f'<div class="rcol"><h4>{e(title)} <span class="muted small">- {e(sub)}</span></h4>'
                           f'<ol class="rlist">{"".join(items) or "<li class=muted>Nothing specific to this platform.</li>"}</ol></div></section>')
         dont = "".join(f'<li><b>{rich(x["action"])}</b><span class="rdet">{rich(x["because"])}</span></li>' for x in r.get("do_not", []))
+        fold = ('<p class="rfold small muted">The rest of the list is folded now that you have read it. Untick to show it again.</p>'
+                if len(r.get("do_not", [])) > 3 else "")
         vg = "".join(f'<li><a href="{e(x["url"])}" rel="noopener" target="_blank">{e(x["title"])}</a></li>' for x in r.get("vendor_guidance", []))
         refs = "".join(f'<li><a href="{e(x["url"])}" rel="noopener" target="_blank">{e(x["title"])}</a></li>' for x in r["references"])
         prof = profile_of.get(pid)
@@ -687,23 +772,24 @@ def render_response(d: dict) -> str:
         conf = r.get("confidence", "medium")
         secs.append(f'''
 <article class="card resp" id="response-{e(stem)}" data-resp="{e(stem)}" data-name="{e(r['name'])}" data-total="{total}"{'' if n == 0 else ' hidden'}>
-  <header class="card-h"><div><span class="id">{e(pid)}</span><h3>{e(r['name'])}</h3></div>
-    <div class="badges"><span class="conf c-{e(conf)}" title="How well sourced this playbook is">playbook confidence: {e(conf)}</span></div></header>
+  <header class="card-h"><div><span class="id">{e(pid)} &#183; <span title="How well sourced this playbook is">playbook confidence: {e(conf)}</span></span><h3>{e(r['name'])}</h3></div>
+    <label class="rcase-l">Case <input class="rcase" type="text" autocomplete="off" spellcheck="false" placeholder="none" aria-label="Case id: ticks are kept per case"></label></header>
   <div class="links rlinks">{"".join(links)}</div>
-  <div class="dont top"><h4>Do not - read before touching the device</h4><ul class="plain">{dont}</ul></div>
-  <div class="rtool"><div class="rprog"><span class="rprog-t"><b class="rdone">0</b> of <b class="rall">{total}</b> steps done</span><span class="rbarw"><span class="rbar"></span></span></div>
+  <div class="dont top"><div class="dont-h"><h4>Do not - read before touching the device</h4><label class="rack-l"><input type="checkbox" class="rack"> I have read these</label></div><ul class="plain dgrid">{dont}</ul>{fold}</div>
+  <div class="rtool"><div class="rprog"><span class="rprog-t"><b class="rdone">0</b> of <b class="rall">{total}</b> steps done<span class="rfor"></span></span><span class="rbarw"><span class="rbar"></span></span></div>
     <div class="links"><button type="button" class="chip btnchip rcopy">Copy as checklist</button><button type="button" class="chip btnchip rprint">Print</button><button type="button" class="chip btnchip rreset">Clear ticks</button></div></div>
   <nav class="rnav" aria-label="Phases">{"".join(nav)}</nav>
   <div class="rtl">{"".join(phases)}</div>
   {f'<p class="note">{rich(r["notes"].strip())}</p>' if r.get('notes') else ''}
   <details class="rrefs"><summary>Vendor guidance and references ({len(r.get("vendor_guidance", [])) + len(r["references"])})</summary><ul>{vg}{refs}</ul></details>
 </article>''')
-    lens = "".join(f'<button type="button" class="vbtn" data-v="{v}" aria-pressed="false"><span class="verdict v-{v.lower()}">{v}</span></button>' for v in RESP_VERDICTS)
-    return f'''<div class="lhead"><h2>Response</h2><p class="lede">Containment and recovery for each platform, in the order that protects evidence: <b>preserve</b>, contain, rotate credentials, eradicate, recover, verify. The do-not list comes first because most evidence is destroyed by a well-meant action taken too early. Pick the verdict the analyzer gave to see only the steps it calls for, tick them off as you go, and copy the list into your case notes. Guidance a person acts on - the toolkit never contains or remediates on its own.</p></div>
+    lens = "".join(f'<button type="button" class="vbtn" data-v="{v}" aria-pressed="false"><span class="verdict v-{v.lower()}">{v}</span><span class="vn"></span></button>' for v in RESP_VERDICTS)
+    return f'''<div class="lhead"><h2>Response</h2><p class="lede">Containment and recovery in the order that protects evidence: <b>preserve</b>, contain, rotate credentials, eradicate, recover, verify. Guidance a person acts on; the toolkit never contains or remediates on its own.</p>
+<details class="about"><summary>How to use this page</summary><p>The do-not list comes first because most evidence is destroyed by a well-meant action taken too early. Pick the verdict the analyzer gave to see only the steps it calls for, enter the case id so the ticks are kept per case, tick steps off as you go - each tick records the time - and copy the list into your case notes.</p></details></div>
 <div class="rhead">
   <label class="rsel-l">Platform <select class="rsel" aria-label="Platform">{"".join(options)}</select></label>
   <div class="picker rpick">{"".join(picker)}</div>
-  <div class="vlens" role="group" aria-label="Show the steps for a verdict"><span class="vl">Analyzer verdict</span><button type="button" class="vbtn" data-v="" aria-pressed="true">All steps</button>{lens}</div>
+  <div class="vlens" role="group" aria-label="Show the steps for a verdict"><span class="vl">Analyzer verdict</span><button type="button" class="vbtn" data-v="" aria-pressed="true">All steps<span class="vn"></span></button>{lens}</div>
   <p class="vhint muted small" hidden>Steps without a verdict condition apply whatever the verdict. Hidden steps are still in the playbook - choose All steps to see them.</p>
 </div>
 {"".join(secs)}'''
@@ -749,84 +835,147 @@ FLOW = [
 ]
 
 
-def vol_bar(arts: list[dict]) -> str:
-    c = {v: sum(1 for a in arts if a["volatility"] == v) for v in VOL_ORDER}
-    n = sum(c.values()) or 1
-    segs = "".join(f'<span class="vb vb-{v}" style="flex:{c[v]}" title="{c[v]} {v}"></span>' for v in VOL_ORDER if c[v])
-    live = round(100 * c["live"] / n)
-    return (f'<div class="vbwrap" title="{c["live"]} live, {c["rotating"]} rotating, {c["stable"]} stable, {c["off-box"]} off-box">'
-            f'<div class="vbar2">{segs}</div><span class="vbl">{live}% of its artifacts are live - gone at reboot</span></div>')
+# How hits become a verdict. Each line is the copy on Start and the scenarios it
+# describes; test_verdict_ladder_matches_the_analyzer runs every scenario through
+# analyze.verdict(), so the page cannot drift from the code.
+LADDER = [
+    ("COMPROMISED", "A <b>confirmed</b> hit, or <b>likely</b> hits in two different evidence classes.",
+     [[("confirmed", "memory")], [("likely", "filesystem"), ("likely", "process")]]),
+    ("LIKELY-COMPROMISED", "One <b>likely</b> hit, or <b>possible</b> hits in two evidence classes.",
+     [[("likely", "web-logs")], [("likely", "web-logs"), ("likely", "web-logs")],
+      [("possible", "web-logs"), ("possible", "auth-logs")]]),
+    ("SUSPICIOUS", "A <b>possible</b> hit in one class: often an attempt, success not shown.",
+     [[("possible", "web-logs")], [("possible", "web-logs"), ("possible", "web-logs")]]),
+    ("NO-INDICATORS-FOUND", "Nothing fired. Not a finding that the device is clean: read the evidence gaps.", [[]]),
+]
+BEFORE_YOU_TOUCH = [
+    "<b>Do not reboot, upgrade, factory-reset or run the vendor&#39;s external integrity tool.</b> Each destroys "
+    "evidence - the red share of every bar above - and several implants were built to survive or fool exactly those.",
+    "<b>Pull the off-box copies first</b> - SIEM syslog, NetFlow for the management interface, IdP and MFA logs. "
+    "A gap in them is itself evidence.",
+    "<b>Record whether it has rebooted or been upgraded</b> since the suspected window. It changes what the report can claim.",
+    "<b>Use a read-only account</b> where the platform has one, and pin the host key.",
+]
+
+
+def plural(n: int, one: str, many: str | None = None) -> str:
+    return f"{n} {one if n == 1 else (many or one + 's')}"
+
+
+def sdot(state: str) -> str:
+    """A status dot. The word is there for screen readers and on hover; colour is never the only signal."""
+    word = {"ok": "in place", "thin": "thin", "none": "missing"}[state]
+    return f'<i class="sd sd-{state}" title="{word}"></i><span class="sr">{word}: </span>'
+
+
+def src_bar(parts) -> str:
+    """parts: (count, words, high|medium|low). A thin bar and a key, for the trust card."""
+    segs = "".join(f'<span class="cs cs-{k}" style="flex:{n}" title="{n} {t}"></span>' for n, t, k in parts if n)
+    key = "".join(f'<span><i class="sw cs-{k}"></i>{n} {e(t)}</span>' for n, t, k in parts if n)
+    label = ", ".join(f"{n} {t}" for n, t, _ in parts)
+    return f'<div class="sbar10" role="img" aria-label="{e(label)}">{segs}</div><div class="skey">{key}</div>'
+
+
+def platform_tile(p: dict, data: dict, prof: dict, resp: dict, d: dict) -> str:
+    pid = p["id"]
+    arts = [a for a in data["artifacts"] if a["platform"] == pid]
+    vc = {v: sum(1 for a in arts if a["volatility"] == v) for v in VOL_ORDER}
+    segs = "".join(f'<span class="vb vb-{v}" style="flex:{vc[v]}"></span>' for v in VOL_ORDER if vc[v])
+    vkey = "".join(f'<span><i class="vd vb-{v}"></i>{vc[v]} {v}</span>' for v in VOL_ORDER if vc[v])
+    vlabel = ", ".join(f"{vc[v]} {v}" for v in VOL_ORDER if vc[v])
+    pr = prof.get(p["profile"])
+    pd = [x for x in data["detections"] if pid in x["platforms"]]
+    nconf = sum(1 for x in pd if x["tier"] == "confirmed")
+    nh = sum(1 for h in data["hunts"] if pid in h["platforms"])
+    ready = []
+    if pr:
+        hi = sum(1 for st in pr.steps if st.confidence == "high" and not st.unverified)
+        ready.append(("Plan", f"{len(pr.steps)} steps, {hi} vendor-documented", "ok" if hi / len(pr.steps) >= .5 else "thin"))
+    else:
+        ready.append(("Plan", "none: exports and images only", "none"))
+    ready.append(("Detect", f'{len(pd)} in {plural(len(p["packs"]), "pack")}, '
+                  + (f"{nconf} confirmed-tier" if nconf else "none confirmed-tier"), "ok" if nconf else "thin"))
+    ready.append(("Respond", f"{resp[pid]}-step playbook" if pid in resp else "no playbook", "ok" if pid in resp else "none"))
+    ready.append(("Harden", f'{plural(p["n_hard"], "control")} &#183; {plural(nh, "hunt")}', "ok" if p["n_hard"] and nh else "thin"))
+    grid = "".join(f'<dt>{sdot(st)}<b>{k}</b></dt><dd>{v}</dd>' for k, v, st in ready)
+    acts = ""
+    if pr:
+        acts += f'<a class="btn-fill" href="#plans/{e(p["profile"])}">Collect</a>'
+    if p["response"]:
+        acts += f'<a class="btn-out" href="#response/{e(p["response"])}">Respond</a>'
+    acts += (f'<span class="pt-more"><a href="#artifacts?platform={pid}">Artifacts</a>'
+             f'<a href="#detections?platform={pid}">Detections</a></span>')
+    return (f'<div class="ptile"><a class="ptile-h" href="#platforms/{pid}"><span class="pt-id">{pid} &#183; {e(p["vendor"])}</span>'
+            f'<b>{e(p["short"])}</b></a>'
+            f'<div class="pt-vol"><div class="vbar2" role="img" aria-label="Artifacts by volatility: {vlabel}">{segs}</div>'
+            f'<div class="pt-vk">{vkey}</div></div>'
+            f'<dl class="pt-ready">{grid}</dl><div class="pt-act">{acts}</div></div>')
 
 
 def render_start(d: dict, data: dict) -> str:
-    """The landing page for someone who has never seen the site: which device
-    and how much of its evidence is volatile, what not to do first, how a
-    triage runs, the order the collector follows, and what the badges mean."""
-    tiles = []
-    for p in data["platforms"]:
-        links = []
-        links.append(f'<a href="#artifacts?platform={p["id"]}">Artifacts <span class="n">{p["n_art"]}</span></a>')
-        if p["n_det"]:
-            links.append(f'<a href="#detections?platform={p["id"]}">Detections <span class="n">{p["n_det"]}</span></a>')
-        if p["profile"]:
-            links.append(f'<a href="#plans/{e(p["profile"])}">Collect</a>')
-        if p["response"]:
-            links.append(f'<a href="#response/{e(p["response"])}">Respond</a>')
-        if p["n_hard"]:
-            links.append(f'<a href="#hardening?platform={p["id"]}">Harden</a>')
-        arts = [a for a in data["artifacts"] if a["platform"] == p["id"]]
-        tiles.append(
-            f'<div class="ptile"><a class="ptile-h" href="#platforms/{p["id"]}"><span class="id">{p["id"]}</span>'
-            f'<b>{e(p["short"])}</b><span class="muted small">{e(p["vendor"])}</span></a>'
-            f'{vol_bar(arts)}<div class="ptile-l">{"".join(links)}</div></div>')
-    vol_key = "".join(f'<span class="vk"><span class="vb vb-{v}"></span>{v}</span>' for v in VOL_ORDER)
+    """The landing page for someone with a device in front of them: how far to
+    trust the content, which device, what not to do first, how a triage runs,
+    how hits become a verdict, and the order the collector follows."""
+    plats, dets = data["platforms"], data["detections"]
+    prof = {p.name: p for p in d["profiles"]}
+    resp = {r["platform_id"]: resp_total(r) for r in d["response"].values()}
+    steps, hi, me, lo = steps_by_source(d)
+    nval, nprof = sum(1 for p in d["profiles"] if p.validated_on), len(d["profiles"])
+    nsig = sum(1 for x in dets if x["sigma"])
+    dunv = sum(1 for x in dets if x["unv"])
 
+    trust = ('<aside class="trust" aria-label="How far to trust it">'
+             '<div class="trust-h"><b>How far to trust it</b><a href="#coverage">Sourcing and gaps &#8594;</a></div>'
+             f'<div class="trust-fig"><b class="{"bad" if nval < nprof else "good"}">{nval} of {nprof}</b>'
+             '<span>collection profiles have run on a real device. Try one on a lab device or virtual edition before an incident.</span></div>'
+             f'<div class="trust-cap"><span>{len(steps)} collection steps by source</span><span>{hi} vendor-documented</span></div>'
+             + src_bar([(hi, "vendor-documented", "high"), (me, "multiple sources", "medium"), (lo, "unverified", "low")])
+             + f'<p class="trust-f">{len(dets)} detections: {nsig} carry a Sigma rule for your SIEM, {dunv} come from unverified packs.</p></aside>')
+    kpis = [(len(data["artifacts"]), "artifacts", "#artifacts"),
+            (len(dets), f'detections in {len(d["packs"])} packs', "#detections"),
+            (len(data["hunts"]), "off-box hunts", "#hunts"),
+            (len(data["intel"]), "actors and implants", "#intel"),
+            (len(data["hardening"]), "hardening controls", "#hardening"),
+            (len(data["rules"]), "Sigma and YARA files", "#detections?runs=siem,yara"),
+            (f'{sum(1 for p in plats if p["profile"])}/{len(plats)}', "platforms with a profile", "#coverage")]
+    kpi = "".join(f'<a class="kpi" href="{h}"><b>{n}</b> {e(t)}</a>' for n, t, h in kpis)
+    tiles = "".join(platform_tile(p, data, prof, resp, d) for p in plats)
+    vol_key = "".join(f'<span class="vk"><span class="vb vb-{v}"></span>{v}</span>' for v in VOL_ORDER)
+    bty = "".join(f'<li><span class="bn">{i}</span><div>{t}</div></li>' for i, t in enumerate(BEFORE_YOU_TOUCH, 1))
     flow = "".join(f'<li><a href="{href}"><span class="fn">{i}</span><b>{e(t)}</b><span>{e(txt)}</span></a></li>'
                    for i, (t, txt, href) in enumerate(FLOW, 1))
-
-    steps_per_tier = {t: sum(1 for pr in d["profiles"] for s in pr.steps if s.tier == t) for t in TIER_ORDER}
+    ladder = "".join(f'<div class="lcell"><span class="verdict v-{v.lower()}">{v}</span><p>{t}</p></div>' for v, t, _ in LADDER)
+    per = {t: sum(1 for st in steps if st.tier == t) for t in TIER_ORDER}
     groups = []
     for title, sub, cls, tiers in OOV_GROUPS:
-        chips_ = "".join(f'<li title="{steps_per_tier[t]} steps across all profiles"><span class="tc">{t}</span>{e(TIER_LABEL[t])}</li>'
-                         for t in tiers)
+        chips_ = "".join(f'<li title="{plural(per[t], "step")} across all profiles"><span class="tc">{t}</span>{e(TIER_LABEL[t])}'
+                         f'<span class="tn">{per[t]}</span></li>' for t in tiers)
         groups.append(f'<div class="oovg {cls}" style="flex:{len(tiers) + 1}"><div class="oovh"><b>{e(title)}</b>'
                       f'<span>{e(sub)}</span></div><ol>{chips_}</ol></div>')
-
     legend = "".join(
         f'<div class="lg"><h4>{e(title)}</h4><dl>'
         + "".join(f'<dt><span class="badge {c}">{e(t)}</span></dt><dd>{e(m)}</dd>' for c, t, m in rows)
         + "</dl></div>" for title, rows in LEGEND)
-    verdicts = "".join(f'<span class="verdict v-{v.lower()}">{v}</span>' for v in START_VERDICTS)
-    n = {k: len(data[k]) for k in ("artifacts", "detections", "intel", "rules")}
-    n_prof = sum(1 for p in data["platforms"] if p["profile"])
     return "".join([
         '<div class="start">',
-        '<div class="hero"><h2>Triage a compromised edge device</h2>',
-        '<p class="lede">For responders who know DFIR and need the parts that are different on a VPN concentrator, '
-        'firewall or gateway: what each trace proves and how long it lasts, what to collect and in what order, what '
-        'the detections look for, and how to contain and recover without destroying the evidence.</p></div>',
+        '<div class="hero1"><div class="hero-l"><h2>Triage a compromised edge device</h2>',
+        '<p class="lede">What a compromised VPN concentrator, firewall or gateway leaves behind, what each trace proves, '
+        'how long it lasts, and in what order to collect it. For responders who know DFIR and need the parts that are '
+        'different on these devices.</p>',
+        f'<p class="byline">By <a href="{AUTHOR_URL}" rel="noopener" target="_blank">{e(AUTHOR)}</a> &#183; '
+        f'<a href="{FIRM_URL}" rel="noopener" target="_blank">{e(FIRM)}</a></p></div>',
+        trust, '</div>',
+        f'<nav class="kpis" aria-label="What is here">{kpi}</nav>',
 
         '<div class="sechead"><h3 class="sect">1. Which device?</h3>',
-        f'<div class="vkey"><span class="muted small">Each bar is that platform&#39;s artifacts by how long they last:</span>{vol_key}</div></div>',
-        f'<div class="ptiles">{"".join(tiles)}</div>',
+        f'<div class="vkey"><span class="muted small">Artifacts by how long they last:</span>{vol_key}</div></div>',
+        f'<div class="ptiles">{tiles}</div>',
 
         '<h3 class="sect">2. Before you touch it</h3>',
-        '<div class="callout"><ol class="cols2">',
-        "<li><b>Do not reboot, upgrade, factory-reset or run the vendor&#39;s external integrity tool.</b> "
-        "Each destroys evidence - the red share of every bar above - and several implants were built to survive "
-        "or fool exactly those.</li>",
-        "<li><b>Pull the off-box copies first</b> - SIEM syslog, NetFlow for the management interface, IdP and "
-        "MFA logs. A gap in them is itself evidence.</li>",
-        "<li><b>Record whether it has rebooted or been upgraded</b> since the suspected window. It changes what "
-        "the report can claim.</li>",
-        "<li><b>Use a read-only account</b> where the platform has one, and pin the host key.</li>",
-        "</ol></div>",
-        unvalidated_banner(d),
+        f'<div class="callout btyt"><ol class="bty">{bty}</ol>{unvalidated_banner(d)}</div>',
 
         '<h3 class="sect">3. How a triage runs</h3>',
         f'<ol class="flowd" aria-label="Triage workflow">{flow}</ol>',
-        f'<p class="muted small verdline">The verdict is one of {verdicts} - there is no &quot;clean&quot;. '
-        'The <a href="#guide/analysis">guide</a> shows which hits produce which verdict.</p>',
         '<details class="fold"><summary>The commands</summary>',
         '<div class="codewrap"><button class="copy" type="button">Copy</button><pre><code>'
         'python -m edgetriage plan    --profile &lt;platform&gt;          # read it first\n'
@@ -834,85 +983,157 @@ def render_start(d: dict, data: dict) -> str:
         '                             --case-id IR-2026-001 --rebooted no --patched no\n'
         'python -m edgetriage ingest  cases/IR-2026-001 --label tsf --bundle &lt;file&gt;\n'
         'python -m edgetriage analyze cases/IR-2026-001</code></pre></div></details>',
+        '<section class="card ladder" aria-labelledby="ladder-h"><div class="ladder-h"><b id="ladder-h">How hits become a verdict</b>'
+        '<span class="muted small">Corroboration, not counting: repeated hits in one evidence class never raise the verdict. '
+        'There is no &quot;clean&quot;.</span></div>',
+        f'<div class="ladder-g">{ladder}</div></section>',
 
         '<h3 class="sect">4. The order the collector follows</h3>',
         '<p class="muted small">Every profile runs in this order and refuses to move a step that can reload the '
-        'device ahead of the memory steps. Hover a tier for how many steps use it.</p>',
+        'device ahead of the memory steps. The number on each tier is how many steps use it across all profiles.</p>',
         f'<div class="oov"><div class="oovarrow" aria-hidden="true"><span>collected first</span><span>last</span></div>'
         f'<div class="oovgs">{"".join(groups)}</div></div>',
 
-        '<h3 class="sect">Reading the badges</h3>',
-        f'<div class="legend-grid">{legend}</div>',
-        '<h3 class="sect">What is here</h3><div class="tiles">',
-        f'<a class="tile" href="#artifacts"><b>{n["artifacts"]}</b><span>artifacts - what each trace proves and how long it lasts</span></a>',
-        f'<a class="tile" href="#detections"><b>{n["detections"]}</b><span>detections in {len(d["packs"])} packs, each able to say &quot;not evaluated&quot;</span></a>',
-        f'<a class="tile" href="#hunts"><b>{len(data["hunts"])}</b><span>off-box hunts for NetFlow, SIEM and AAA data the intruder could not edit</span></a>',
-        f'<a class="tile" href="#intel"><b>{n["intel"]}</b><span>actors and implants, attribution quoted from the reporter</span></a>',
-        f'<a class="tile" href="#hardening"><b>{len(data["hardening"])}</b><span>hardening controls, each with its vendor or government source</span></a>',
-        f'<a class="tile" href="#detections?runs=siem"><b>{n["rules"]}</b><span>Sigma and YARA rule files, attached to the detections they express</span></a>',
-        f'<a class="tile" href="#coverage"><b>{n_prof}/{len(data["platforms"])}</b><span>platforms with a collection profile - coverage lists the gaps</span></a>',
-        "</div></div>",
+        f'<details class="fold badgesd"><summary>Reading the badges</summary><div class="legend-grid">{legend}</div></details>',
+        "</div>",
     ])
 
 
-def _ramp(n: int) -> str:
-    return "r4" if n >= 4 else f"r{n}"
+# --------------------------------------------------------------------------- coverage
+VOLG = [("Volatile", ["memory", "process", "sessions"]), ("Identity and state", ["identity", "integrity", "config"]),
+        ("Logs", ["auth-logs", "web-logs", "system-logs"]), ("On disk", ["filesystem", "persistence"])]
+# KEV decisions, in the schema's own words (artifacts/schema/watch.schema.json)
+DECISIONS = {"iocs": "indicators only, no on-box detection",
+             "no-indicators": "primary sources read, nothing usable published",
+             "lab-only": "signals only from lab reproduction",
+             "out-of-scope": "not the watched product",
+             "deferred": "not yet read"}
+READY_CAPS = ["Profile", "Run on a device", "Memory evidence", "Confirmed tier", "SIEM rules 25%+",
+              "Playbook", "Hardening 5+", "Hunts"]
+
+
+def _pip(tier: str) -> str:
+    return f'<i class="pip p-{tier}"></i>' if tier else ""
+
+
+def heatmap(plats: list[dict], groups, total, cell, mx: int, label: str, miss=()) -> str:
+    """A platform x class grid. cell(p, c) -> (count, href, strongest tier or "");
+    total(p) -> (count, href). Darker means more; the pip is the strongest tier."""
+    cols = [c for _, cs in groups for c in cs]
+    head1 = "<span></span>" + "".join(f'<span class="hg" style="grid-column:span {len(cs)}">{e(g)}</span>' for g, cs in groups) + "<span></span>"
+    head2 = "<span></span>" + "".join(f'<span class="hk">{e(c)}</span>' for c in cols) + '<span class="hk">total</span>'
+    tmax = max(total(p)[0] for p in plats) or 1
+    rows = []
+    for p in plats:
+        cells = []
+        for c in cols:
+            n, href, tier = cell(p, c)
+            if n:
+                tip = f'{PLATFORM_ABBR[p["id"]]}, {c}: {n}' + (f", strongest {tier}" if tier else "")
+                heat = round(10 + 50 * min(n, mx) / mx)
+                cells.append(f'<a class="hc{" dk" if n >= 4 else ""}" href="{href}" style="--h:{heat}%" title="{e(tip)}" '
+                             f'aria-label="{e(tip)}">{n}{_pip(tier)}</a>')
+            else:
+                cells.append(f'<span class="hc e{" miss" if c in miss else ""}" title="{e(PLATFORM_ABBR[p["id"]])}, {e(c)}: none"></span>')
+        tn, thref = total(p)
+        rows.append(f'<a class="hr" href="{thref}">{e(PLATFORM_ABBR[p["id"]])}</a>{"".join(cells)}'
+                    f'<span class="htot">{tn}<i class="hbar"><b style="width:{round(100 * tn / tmax)}%"></b></i></span>')
+    return (f'<div class="card hwrap"><div class="heat" style="--cols:{len(cols)}" role="group" aria-label="{e(label)}">'
+            f'{head1}{head2}{"".join(rows)}</div></div>')
 
 
 def render_coverage(d: dict, data: dict) -> str:
-    """Leads with the gaps, then the matrices. Count grids use one colour ramp;
-    only the detection grids use tier colours, because there the colour is the
-    tier. Every non-empty cell is a link into a filtered library."""
+    """Coverage and trust, option 2d: how far to trust the content, how ready
+    each platform is, where detections and artifacts sit, the gaps with what
+    would close them, and whether the packs keep up with exploited CVEs.
+    Every number is computed here and links into the filtered library."""
     plats, dets, arts = data["platforms"], data["detections"], data["artifacts"]
     prof = {p.name: p for p in d["profiles"]}
+    ab = PLATFORM_ABBR
+    steps, hi, me, lo = steps_by_source(d)
+    nval, nprof = sum(1 for p in d["profiles"] if p.validated_on), len(d["profiles"])
+    built = build_date()
+    now = ymd(built.isoformat())
 
-    gaps = []
-    nop = [p for p in plats if not p["profile"]]
-    if nop:
-        gaps.append(("No collection profile",
-                     ", ".join(f'<a href="#platforms/{p["id"]}">{e(p["short"])}</a>' for p in nop),
-                     "Collection is manual: exports and images only."))
-    noh = [p for p in plats if not p["n_hard"]]
-    if noh and data["hardening"]:
-        gaps.append(("No platform-specific hardening",
-                     ", ".join(f'<a href="#platforms/{p["id"]}">{e(p["short"])}</a>' for p in noh),
-                     "The cross-platform baseline still applies."))
-    gimp = [i for i in data["intel"] if i["kind"] == "implant" and i["coverage"] == "gap"]
-    if gimp:
-        gaps.append((f"{len(gimp)} implants with no detection",
-                     ", ".join(f'<a href="#intel/{i["id"]}">{e(i["name"])}</a>' for i in gimp),
-                     "Each record says why - usually that the evidence is not reachable from the CLI."))
-    mem = {a["platform"] for a in arts if a["class"] == "memory"}
-    nomem = [p for p in plats if p["id"] not in mem]
-    if nomem:
-        gaps.append((f"No memory evidence on {len(nomem)} of {len(plats)} platforms",
-                     ", ".join(f'<a href="#artifacts?platform={p["id"]}">{e(p["short"])}</a>' for p in nomem),
-                     "A memory-only implant there leaves nothing this toolkit can collect; the most volatile "
-                     "evidence it reaches is process and session state."))
-    noconf = [p for p in plats if p["n_det"] and not any(x["tier"] == "confirmed" for x in dets if p["id"] in x["platforms"])]
-    if noconf:
-        gaps.append((f"No confirmed-tier detection on {len(noconf)} platforms",
-                     ", ".join(f'<a href="#detections?platform={p["id"]}">{e(p["short"])}</a>' for p in noconf),
-                     "Hits there reach COMPROMISED only by corroborating across evidence classes."))
-    low = sum(1 for pr in d["profiles"] for st in pr.steps if st.unverified)
-    med = sum(1 for pr in d["profiles"] for st in pr.steps if st.confidence == "medium")
-    tot = sum(len(pr.steps) for pr in d["profiles"])
-    gaps.append((f"{med + low} of {tot} collection steps are not vendor-documented",
-                 f"{med} medium, {low} low and unverified",
-                 "No profile has run on a real device yet. Corrections from virtual editions or sanitized "
-                 "replay captures raise these."))
-    gap_html = "".join(f'<li><b>{t}</b><div>{w}</div><div class="muted small">{why}</div></li>' for t, w, why in gaps)
+    # 1. how far to trust it
+    dunv = sum(1 for x in dets if x["unv"])
+    ntool = sum(1 for a in arts if a["basis"] == "toolkit")
+    trust = [(f"{nval} of {nprof}", "collection profiles have run on a real device", nval < nprof, "#guide/unvalidated-profiles"),
+             (f"{len(steps) - hi} of {len(steps)}", f"collection steps are not vendor-documented; {lo} are unverified",
+              len(steps) - hi > 0, "#plans"),
+             (f"{dunv} of {len(dets)}", "detections come from packs marked unverified", False, "#detections?unv=1"),
+             (f"{ntool} of {len(arts)}", "artifacts' suspicious criterion is the toolkit's own inference", False, "#artifacts?basis=toolkit")]
+    trust_html = "".join(f'<a class="ttile" href="{h}"><b class="{"bad" if bad else ""}">{n}</b><span>{e(t)}</span></a>'
+                         for n, t, bad, h in trust)
 
-    vrows = []
+    # 2a. confidence, library by library
+    rows = [("Collection steps", conf_counts(steps, conf=lambda st: st.confidence, unv=lambda st: st.unverified), "#plans"),
+            ("Artifacts", conf_counts(arts), "#artifacts"), ("Hunts", conf_counts(data["hunts"]), "#hunts"),
+            ("Threat intel", conf_counts(data["intel"]), "#intel"), ("Hardening", conf_counts(data["hardening"]), "#hardening")]
+    conf_html = "".join(f'<a class="crow" href="{h}"><span>{e(n)}</span>{conf_bar(c)}<span class="ctot">{sum(c.values())}</span></a>'
+                        for n, c, h in rows)
+
+    # 2b. indicator freshness
+    sets = [(ymd(x["published"]), x) for x in data["iocs"]]
+    y0, y1 = int(min(t for t, _ in sets)), built.year + 1
+    span = y1 - y0
+    old = sum(1 for t, _ in sets if now - t > 1)
+    dots = "".join(f'<span class="fd{" old" if now - t > 1 else ""}" style="left:{(t - y0) / span * 100:.2f}%;top:{6 + i % 3 * 9}px" '
+                   f'title="{e(x["publisher"])}, {e(x["published"])} &#183; {plural(len(x["ind"]), "value")}"></span>'
+                   for i, (t, x) in enumerate(sets))
+    ticks = "".join(f'<span style="left:{(y - y0) / span * 100:.2f}%">{y}</span>' for y in range(y0, y1 + 1))
+    fresh_txt = f"{old} of {len(sets)} indicator sets were published more than a year ago (grey)."
+    fresh = (f'<div class="ftrack" role="img" aria-label="{e(fresh_txt)} Dashed line: the build date, {built.isoformat()}.">{dots}'
+             f'<span class="fnow" style="left:{(now - y0) / span * 100:.2f}%"></span></div>'
+             f'<div class="fticks" aria-hidden="true">{ticks}</div><p class="small muted">{e(fresh_txt)} Dashed line: '
+             f'the build date. Hover a dot for the publisher.</p>')
+
+    # 3. readiness scorecard
+    ready = []
     for p in plats:
-        if not p["profile"]:
-            continue
-        steps = prof[p["profile"]].steps
-        c = {k: sum(1 for st in steps if st.confidence == k) for k in ("high", "medium", "low")}
-        segs = "".join(f'<span class="vseg vs-{k}" style="flex:{c[k]}" title="{c[k]} {k}">{c[k]}</span>'
-                       for k in ("high", "medium", "low") if c[k])
-        vrows.append(f'<a class="vrow" href="#plans/{e(p["profile"])}"><span class="vname">{e(p["short"])}</span>'
-                     f'<span class="vbar">{segs}</span><span class="muted small">{len(steps)} steps</span></a>')
+        pid, pr = p["id"], prof.get(p["profile"])
+        pd = [x for x in dets if pid in x["platforms"]]
+        sig = sum(1 for x in pd if x["sigma"])
+        nh = sum(1 for h in data["hunts"] if pid in h["platforms"])
+        has = [bool(pr), bool(pr and pr.validated_on), any(a["class"] == "memory" for a in arts if a["platform"] == pid),
+               any(x["tier"] == "confirmed" for x in pd), bool(pd) and sig / len(pd) >= .25, bool(p["response"]),
+               p["n_hard"] >= 5, nh >= 1]
+        hrefs = [f'#plans/{e(p["profile"])}' if pr else f"#platforms/{pid}", "#guide/unvalidated-profiles",
+                 f"#artifacts?platform={pid}&amp;class=memory", f"#detections?platform={pid}&amp;tier=confirmed",
+                 f"#detections?platform={pid}&amp;runs=siem", f'#response/{e(p["response"])}' if p["response"] else "#response",
+                 f"#hardening?platform={pid}", f"#hunts?platform={pid}"]
+        ready.append((sum(has), p, has, hrefs))
+    ready.sort(key=lambda r: -r[0])
+    rhead = ('<div class="rrow rhead" role="row"><span role="columnheader">Platform</span>'
+             + "".join(f'<span role="columnheader">{e(c)}</span>' for c in READY_CAPS) + '<span role="columnheader">Has</span></div>')
+    rbody = []
+    for score, p, has, hrefs in ready:
+        cells = "".join(f'<span role="cell"><a class="rc{" y" if h else ""}" href="{hr}" aria-label="{e(c)}: {"yes" if h else "no"}" '
+                        f'title="{e(c)}: {"yes" if h else "no"}">{"&#10003;" if h else "&#183;"}</a></span>'
+                        for c, h, hr in zip(READY_CAPS, has, hrefs))
+        tone = "ok" if score >= 6 else ("thin" if score >= 4 else "none")
+        rbody.append(f'<div class="rrow" role="row"><span role="rowheader"><a href="#platforms/{p["id"]}">{e(p["short"])}</a></span>{cells}'
+                     f'<span role="cell" class="rhas"><b>{score} of {len(READY_CAPS)}</b><i class="rsc"><b class="s-{tone}" '
+                     f'style="width:{round(100 * score / len(READY_CAPS))}%"></b></i></span></div>')
+    none_ran = ("No platform has a validated run yet, so that column is empty for every row." if not nval else
+                f"{plural(nval, 'profile has', 'profiles have')} a recorded run on a device.")
+
+    # 4. heatmaps
+    tiers = ("possible", "likely", "confirmed")
+
+    def det_cell(p, c):
+        xs = [x["tier"] for x in dets if p["id"] in x["platforms"] and x["evidence"] == c]
+        return len(xs), f'#detections?platform={p["id"]}&amp;evidence={e(c)}', max(xs, key=tiers.index) if xs else ""
+
+    def art_cell(p, c):
+        n = sum(1 for a in arts if a["platform"] == p["id"] and a["class"] == c)
+        return n, f'#artifacts?platform={p["id"]}&amp;class={e(c)}', ""
+
+    det_heat = heatmap(plats, VOLG, lambda p: (p["n_det"], f'#detections?platform={p["id"]}'), det_cell, 6,
+                       "Detections by platform and evidence class")
+    art_heat = heatmap(plats, VOLG + [("Off-box", ["off-box"])], lambda p: (p["n_art"], f'#artifacts?platform={p["id"]}'),
+                       art_cell, 5, "Artifacts by platform and class", miss=("memory", "process"))
+    dhead = "".join(f'<th class="vert"><span>{e(c)}</span></th>' for c in CLASSES)
 
     def tier_cell(xs_tiers, href, label):
         if not xs_tiers:
@@ -920,26 +1141,6 @@ def render_coverage(d: dict, data: dict) -> str:
         t = max(xs_tiers, key=TIERS.index)
         return (f'<td class="cell t-{t}"><a href="{href}" title="{len(xs_tiers)} {label}, strongest {t}">'
                 f'{len(xs_tiers)}</a></td>')
-
-    dhead = "".join(f'<th class="vert"><span>{e(c)}</span></th>' for c in CLASSES)
-    drows = []
-    for p in plats:
-        cells = "".join(tier_cell([x["tier"] for x in dets if p["id"] in x["platforms"] and x["evidence"] == c],
-                                  f'#detections?platform={p["id"]}&amp;evidence={e(c)}', "detection(s)") for c in CLASSES)
-        drows.append(f'<tr><th class="rowh"><a href="#detections?platform={p["id"]}">{e(p["short"])}</a></th>'
-                     f'{cells}<td class="num">{p["n_det"] or ""}</td></tr>')
-
-    ahead = "".join(f'<th class="vert"><span>{e(c)}</span></th>' for c in ART_CLASSES)
-    arows = []
-    for p in plats:
-        cells = []
-        for c in ART_CLASSES:
-            xs = [a for a in arts if a["platform"] == p["id"] and a["class"] == c]
-            cells.append(f'<td class="cell {_ramp(len(xs))}"><a href="#artifacts?platform={p["id"]}&amp;class={e(c)}" '
-                         f'title="{len(xs)} artifact(s)">{len(xs)}</a></td>' if xs else '<td class="cell"></td>')
-        arows.append(f'<tr><th class="rowh"><a href="#artifacts?platform={p["id"]}">{e(p["short"])}</a></th>'
-                     f'{"".join(cells)}<td class="num">{p["n_art"]}</td></tr>')
-
     prows = []
     for pk in d["packs"]:
         cells = "".join(tier_cell([x["tier"] for x in pk["detect"] if x["evidence_class"] == c],
@@ -948,31 +1149,139 @@ def render_coverage(d: dict, data: dict) -> str:
         prows.append(f'<tr><th class="rowh"><a href="#detections?pack={e(pk["id"])}">{e(pk["id"])}</a> '
                      f'<span class="muted">{e(", ".join(cves[:2]))}{" ..." if len(cves) > 2 else ""}</span></th>{cells}</tr>')
 
-    total = '<th class="vert"><span>total</span></th>'
+    # 5. gap ledger
+    triaged = d["kev"]["triaged"]
+    dc = {k: sum(1 for t in triaged if t["decision"] == k) for k in DECISIONS}
+    mem_missing = [p["id"] for p in plats if not any(a["platform"] == p["id"] and a["class"] == "memory" for a in arts)]
+    no_conf = [p["id"] for p in plats if p["n_det"] and not any(x["tier"] == "confirmed" for x in dets if p["id"] in x["platforms"])]
+    log_dets = [x for x in dets if x["evidence"].endswith("logs")]
+    log_nosig = sum(1 for x in log_dets if not x["sigma"])
+    unrun = [p.platform_id for p in d["profiles"] if not p.validated_on]
+    noprof = [p["id"] for p in plats if not p["profile"]]
+    gimp = [i for i in data["intel"] if i["kind"] == "implant" and i["coverage"] == "gap"]
+    nimp = sum(1 for i in data["intel"] if i["kind"] == "implant")
+    nodet = sorted({t["platform"] for t in triaged if t["decision"] == "no-indicators"})
+    gaps = [
+        ("Profiles never run on a device", f"{len(unrun)} of {nprof}", "responders", unrun,
+         "A command can fail, prompt or page differently; the analyzer then reports not evaluated.",
+         "One run per profile on a vendor virtual edition, recorded in `validated_on`.", "#guide/unvalidated-profiles"),
+        ("No memory evidence reachable", f"{len(mem_missing)} of {len(plats)}", "responders", mem_missing,
+         "A memory-only implant there leaves nothing this toolkit can collect.",
+         "Process and session state is the most volatile evidence it reaches; say so in each platform entry.", "#coverage/art"),
+        ("No confirmed-tier detection", f"{len(no_conf)} of {len(plats)}", "detection engineers", no_conf,
+         "Hits reach COMPROMISED only by corroborating across evidence classes.",
+         "A host artifact with no legitimate reason to exist, once a vendor or researcher publishes one.", "#detections?tier=confirmed"),
+        ("Log detections without a Sigma rule", f"{log_nosig} of {len(log_dets)}", "detection engineers", [],
+         "The same pattern could be watched in the SIEM copy the intruder cannot edit.",
+         "Add a Sigma rule per log-pattern detection; the validator already links them.",
+         "#detections?evidence=auth-logs,web-logs,system-logs"),
+        ("Collection steps not vendor-documented", f"{len(steps) - hi} of {len(steps)}", "responders", [],
+         "Medium and low steps rest on several sources or one" + ("; none has run on hardware." if not nval else "."),
+         "Corrections from virtual editions or sanitized replay captures.", "#plans"),
+        ("No collection profile", f"{len(noprof)} of {len(plats)}", "responders", noprof,
+         "Collection is manual: exports and images only.", "A TSR and image-mode profile (roadmap phase 2).",
+         f"#platforms/{noprof[0]}" if len(noprof) == 1 else "#platforms?profile=no"),
+        ("Exploited CVEs with nothing to detect", f'{dc["no-indicators"]} of {plural(len(triaged), "decision")}',
+         "detection engineers", nodet,
+         "KEV lists them as exploited, but no vendor or researcher published an indicator.",
+         "Revisit each quarter; the advisory-watch job flags new publications.", "#coverage/kev"),
+        ("Implants with no detection", f"{len(gimp)} of {nimp}", "threat intel", [i["platforms"][0] for i in gimp],
+         "Each record says why." if gimp else "Closed: every implant record has at least one detection.",
+         "Each gap states what evidence would be needed." if gimp else
+         "Keep the validator rule that a detection-less implant must state its gap.",
+         "#intel?coverage=gap" if gimp else "#intel?kind=implant"),
+    ]
+    gap_html = []
+    for title, n, who, ids, why, close, href in gaps:
+        closed = n.startswith("0 of")
+        pchips = ("".join(f'<span class="gp{" on" if p["id"] in ids else ""}">{e(ab[p["id"]])}'
+                          f'{"<span class=sr> (affected)</span>" if p["id"] in ids else ""}</span>' for p in plats)
+                  if ids else "")
+        gap_html.append(f'<article class="gcard{" closed" if closed else ""}"><div class="gcard-h"><b>{e(title)}</b>'
+                        f'<span class="small muted">for {e(who)}</span></div><b class="gn">{e(n)}</b>'
+                        + (f'<div class="gps" aria-label="Platforms affected">{pchips}</div>' if pchips else "")
+                        + f'<p class="rx">{e(why)}</p><p><b class="gclose">Closes it:</b> <span class="rx">{e(close)}</span></p>'
+                        f'<a class="small" href="{href}">See the records &#8594;</a></article>')
+
+    # 6. keeping up with exploitation (KEV)
+    since = d["kev"]["since"]
+    pack_cves = sorted({c for pk in d["packs"] for c in pk.get("cves", [])})
+    yc: dict[str, int] = {}
+    for c in pack_cves:
+        yc[c[4:8]] = yc.get(c[4:8], 0) + 1
+    ymax = max(yc.values()) if yc else 1
+    years = "".join(f'<li title="{plural(n, "pack CVE")} from {y}"><span class="yn">{n}</span>'
+                    f'<span class="yb{" old" if y < since[:4] else ""}" style="height:{max(4, round(60 * n / ymax))}px"></span>'
+                    f'<span class="yy">{y}</span></li>' for y, n in sorted(yc.items()))
+    tot = sum(dc.values()) or 1
+    dsegs = "".join(f'<span class="dseg dec-{k}" style="flex:{n}" title="{n} {k}">'
+                    f'{f"{n} {k}" if n / tot >= .14 else (str(n) if n / tot >= .05 else "")}</span>' for k, n in dc.items() if n)
+    dkey = "".join(f'<li><i class="sw dec-{k}"></i><b{" class=bad" if k == "deferred" and n else ""}>{n}</b><span>{e(k)}: {e(m)}</span></li>'
+                   for k, m in DECISIONS.items() for n in [dc[k]])
+    latest = max((t["date"] for t in triaged), default="")
+    open_ = dc["deferred"]
+    ioc_owner = {x["id"]: (x["actors"] + x["implants"]) for x in data["iocs"]}
+
+    def ref_link(r: str) -> str:
+        if r.startswith("EDGE-IOC-"):
+            own = ioc_owner.get(r) or []
+            href = f"#intel/{own[0]}" if own else "#intel?iocs=yes"
+        elif r.startswith("EDGE-HUNT-"):
+            href = f"#hunts/{r}"
+        else:
+            href = f"#detections?pack={r}"
+        return f'<a class="chip link" href="{href}">{e(r)}</a>'
+    krows = "".join(f'<tr><td class="kc">{e(t["cve"])}</td><td>{e(ab.get(t["platform"], t["platform"]))}</td>'
+                    f'<td><span class="badge decb dec-{e(t["decision"])}">{e(t["decision"])}</span></td>'
+                    f'<td><span class="rx">{e(t["basis"])}</span>'
+                    + (f'<div class="links">{"".join(ref_link(r) for r in t["refs"])}</div>' if t["refs"] else "")
+                    + f'</td><td class="muted kd">{e(t["date"])}</td></tr>' for t in triaged)
+    kev = (f'<section id="cov-kev" class="covsec"><h3 class="sect">Keeping up with exploitation</h3>'
+           f'<p class="muted small lede2">Every CISA KEV entry added since {e(since)} on a watched platform is either in a pack or '
+           f'carries a recorded decision. The weekly advisory-watch job opens an issue for anything else and never commits. '
+           f'The decisions live in <code>artifacts/watch/kev-watch.yml</code>.</p>'
+           f'<div class="cov2"><div class="card"><div class="kpi3">'
+           f'<div><b>{len(pack_cves)}</b><span>CVEs with a detection pack</span></div>'
+           f'<div><b>{len(triaged)}</b><span>exploited CVEs with a decision instead</span></div>'
+           f'<div><b class="{"bad" if open_ else "good"}">{open_}</b><span>waiting to be read</span></div></div>'
+           f'<h4>Pack CVEs by the year of the CVE</h4><ol class="ychart" role="img" aria-label="'
+           + e(", ".join(f"{y}: {n}" for y, n in sorted(yc.items()))) + f'">{years}</ol></div>'
+           f'<div class="card"><b class="ch">Why an exploited CVE has no pack</b>'
+           f'<div class="dbar" role="img" aria-label="' + e(", ".join(f"{n} {k}" for k, n in dc.items())) + f'">{dsegs}</div>'
+           f'<ul class="dkey">{dkey}</ul><p class="small muted">Latest decision {e(latest)}. &quot;deferred&quot; would mean not yet '
+           f'read; {"none is open." if not open_ else plural(open_, "is", "are") + " open."}</p></div></div>'
+           f'<div class="card ktbl"><b class="ch">Exploited CVEs on watched platforms with no pack, and why</b>'
+           f'<div class="scroll"><table class="tbl kev"><thead><tr><th>CVE</th><th>Platform</th><th>Decision</th>'
+           f'<th>Basis, from the primary source</th><th>Decided</th></tr></thead><tbody>{krows}</tbody></table></div></div></section>')
+
     return "".join([
-        '<div class="lhead"><h2>Coverage</h2><p class="lede">Where the content is thin, computed from the repository '
-        'at build time. Every number links into the matching library, already filtered.</p></div>',
-        '<h3 class="sect">Gaps worth knowing before you rely on this</h3>',
-        f'<ul class="gaps">{gap_html}</ul>',
-        '<div class="covcols"><section>',
-        '<h3 class="sect">Detections by platform and evidence class</h3>',
-        '<p class="muted small">The number is how many detections; the colour is the strongest tier among them.</p>',
-        f'<div class="scroll"><table class="cov"><thead><tr><th></th>{dhead}{total}</tr></thead><tbody>{"".join(drows)}</tbody></table></div>',
-        f'<div class="legend">{tier_badge("possible")}{tier_badge("likely")}{tier_badge("confirmed")}</div>',
-        '</section><section>',
-        '<h3 class="sect">How each collection plan is sourced</h3>',
-        '<p class="muted small">Steps by confidence. Nothing has run on a real device yet, so this is the honest '
-        'measure of how far to trust a plan.</p>',
-        f'<div class="vrows">{"".join(vrows)}</div>',
-        '<div class="legend"><span class="badge conf c-high">high - vendor-documented</span>'
-        '<span class="badge conf c-medium">medium</span><span class="badge unv-b">low - unverified</span></div>',
-        '</section></div>',
-        '<h3 class="sect">Artifacts by platform and class</h3>',
-        '<p class="muted small">Darker means more artifacts. An empty memory or process column means the most '
-        'volatile evidence on that platform is out of reach.</p>',
-        f'<div class="scroll"><table class="cov"><thead><tr><th></th>{ahead}{total}</tr></thead><tbody>{"".join(arows)}</tbody></table></div>',
+        '<div class="lhead"><h2>Coverage and trust</h2><p class="lede">Where the content is thin, how far to trust it, and whether it '
+        'keeps up with exploitation. Computed from the repository at build time; every number opens the filtered library.</p></div>',
+        f'<section id="cov-trust" class="covsec"><h3 class="sect">How far to trust it</h3><div class="ttiles">{trust_html}</div>',
+        '<div class="cov2"><div class="card"><b class="ch">Confidence, library by library</b>'
+        f'<div class="crows">{conf_html}</div><div class="skey"><span><i class="sw cs-high"></i>high - vendor-documented or verified</span>'
+        '<span><i class="sw cs-medium"></i>medium - several sources</span><span><i class="sw cs-low"></i>low or unverified</span></div></div>',
+        f'<div class="card"><b class="ch">How fresh the indicator sets are</b>{fresh}</div></div></section>',
+        '<section id="cov-ready" class="covsec"><h3 class="sect">How ready is each platform</h3>',
+        '<p class="muted small">Eight things a responder relies on. Sorted by how many each platform has; every cell opens the '
+        'evidence behind it.</p>',
+        f'<div class="card scroll rwrap"><div class="ready" role="table" aria-label="Readiness by platform">{rhead}{"".join(rbody)}</div></div>',
+        f'<p class="muted small">{e(none_ran)}</p></section>',
+        '<section id="cov-det" class="covsec"><h3 class="sect">Detections by platform and evidence class</h3>',
+        '<p class="muted small">The number is how many detections; the darker the cell, the more. The pip is the strongest tier among them.</p>',
+        det_heat,
+        '<p class="small muted hlegend">Strongest tier: <i class="pip p-possible"></i> possible <i class="pip p-likely"></i> likely '
+        '<i class="pip p-confirmed"></i> confirmed. Darker cell: more detections.</p></section>',
+        '<section id="cov-art" class="covsec"><h3 class="sect">Artifacts by platform and class</h3>',
+        '<p class="muted small">A red outline marks an empty memory or process cell: there, the most volatile evidence is out of reach.</p>',
+        art_heat, '</section>',
         f'<details class="fold"><summary>Detections by pack and evidence class ({len(d["packs"])} packs)</summary>',
         f'<div class="scroll"><table class="cov"><thead><tr><th></th>{dhead}</tr></thead><tbody>{"".join(prows)}</tbody></table></div></details>',
+        '<section id="cov-gaps" class="covsec"><h3 class="sect">Gaps worth knowing before you rely on this</h3>',
+        '<p class="muted small">Each gap says who it affects, which platforms, and what would close it. A closed gap stays listed so '
+        'the rule that keeps it closed stays visible.</p>',
+        f'<div class="gcards">{"".join(gap_html)}</div></section>',
+        kev,
     ])
 
 
@@ -987,7 +1296,7 @@ CSS = r"""
   --code-bg:#f6f4f0;--shadow:rgba(28,27,25,.07);--shadow-lg:rgba(28,27,25,.16);--hdr:150px;--ink-2:#3d3a35;
   --sans:system-ui,"Segoe UI Variable Text","Segoe UI",-apple-system,BlinkMacSystemFont,Roboto,"Helvetica Neue",Arial,sans-serif;
   --mono:ui-monospace,"Cascadia Mono","Cascadia Code","SF Mono",SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
-  --fs-xs:12px;--fs-sm:13px;--fs-base:14.5px;--fs-md:16px;--fs-lg:20px}
+  --fs-xs:12px;--fs-sm:13px;--fs-base:14.5px;--fs-md:16px;--fs-lg:20px;--fs-xl:24px}
 :root[data-theme=dark]{
   --bg:#121110;--panel:#1a1917;--panel-2:#211f1c;--hover:#262320;
   --ink:#f1eee9;--muted:#a9a39a;--faint:#7c766e;--line:#302d29;--line-soft:#262320;--field:#3a3631;
@@ -1016,8 +1325,8 @@ p{text-wrap:pretty}
 
 /* ---- header ---- */
 .hdr{position:sticky;top:0;z-index:30;background:var(--bg);border-bottom:1px solid var(--line)}
-.hdr-in{max-width:1440px;margin:0 auto;padding:14px 28px 0}
-.hdr-top{display:flex;flex-wrap:wrap;gap:10px 24px;align-items:flex-start}
+.hdr-in{max-width:1440px;margin:0 auto;padding:10px 28px 0}
+.hdr-top{display:flex;flex-wrap:nowrap;gap:12px;align-items:center}
 .hdr-id{flex:1 1 340px;min-width:0}
 .h1row{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
 .dot{width:9px;height:9px;border-radius:50%;background:var(--accent);flex:none}
@@ -1025,7 +1334,7 @@ h1{margin:0;font-size:var(--fs-lg);font-weight:600;letter-spacing:-.01em}
 .pill{font-family:var(--mono);font-size:var(--fs-xs);color:var(--muted);background:var(--panel);border:1px solid var(--line);border-radius:20px;padding:2px 8px}
 .sub{margin:5px 0 0;font-size:var(--fs-sm);color:var(--muted);max-width:68ch}
 .byline{margin:4px 0 0;font-size:var(--fs-xs);color:var(--muted)}.byline a,footer a{color:var(--ink-2)}
-.hdr-right{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.hdr-right{display:flex;gap:8px;align-items:center;flex:none;margin-left:auto}
 .hbtn{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:7px 12px;font-size:var(--fs-sm);color:var(--ink);text-decoration:none;white-space:nowrap}
 .hbtn:hover{border-color:var(--accent)}
 .tabs{display:flex;gap:2px;overflow-x:auto;scrollbar-width:none;flex:1;min-width:0}
@@ -1087,7 +1396,7 @@ main{padding:20px 28px 60px;min-width:0}
 .summary{margin-bottom:14px}
 
 /* ---- distribution bar + tiles ---- */
-.dist{display:flex;gap:3px;height:34px;border-radius:9px;overflow:hidden}
+.dist{display:flex;gap:3px;height:30px;border-radius:9px;overflow:hidden}
 .seg{border:0;min-width:46px;display:flex;align-items:center;justify-content:center;gap:5px;font-size:var(--fs-xs);color:var(--on-accent);opacity:.88;white-space:nowrap;overflow:hidden;padding:0 8px}
 .seg:hover,.seg.on{opacity:1}
 .seg.on{box-shadow:inset 0 0 0 2px var(--ink)}
@@ -1103,15 +1412,13 @@ button.tile:hover{border-color:var(--accent)}
 .tile.ok b{color:var(--low)}
 
 /* ---- rows (table library) ---- */
-.rows{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden}
-.row{display:grid;grid-template-columns:30px 150px minmax(0,1fr) 96px 92px 74px 104px;gap:14px;padding:13px 16px;border-top:1px solid var(--line-soft);align-items:start}
+.rows{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;overflow:clip}
+.row{display:grid;grid-template-columns:24px 120px minmax(0,1fr) 92px 86px 64px 104px;gap:14px;padding:12px 16px;border-top:1px solid var(--line-soft);align-items:start}
 .row.head span{font-size:inherit;line-height:1.4}
 .row.head{border-top:0;padding-top:11px;padding-bottom:11px;font-size:var(--fs-xs);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600;background:var(--panel)}
 .row.item{cursor:pointer}
 .row.item:hover{background:var(--hover)}
 .row.item.sel{background:var(--accent-soft);box-shadow:inset 3px 0 0 var(--accent)}
-.row .unv-n{display:none}
-@media (max-width:1100px) and (min-width:641px){.row .unv-n{display:inline-block;margin-top:4px}}
 .c-plat{font-size:var(--fs-sm);line-height:1.35}
 .c-plat .id{display:block;margin-top:3px}
 .c-main{min-width:0}
@@ -1122,8 +1429,10 @@ code.loc{display:inline-block;max-width:100%;background:var(--code-bg);border:1p
 .c-main .lead{display:block;color:var(--ink-2);font-size:var(--fs-sm);margin-top:4px;line-height:1.45;max-width:75ch}
 .c-main .lead b{color:var(--high);font-weight:600}
 .nvs{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px}
-.nvs>div{border:1px solid var(--line-soft);border-radius:8px;padding:10px 12px;border-left-width:4px}
-.nvs-n{border-left-color:var(--low)!important}.nvs-s{border-left-color:var(--high)!important}
+.nvs>div{border:1px solid var(--line-soft);border-radius:10px;padding:10px 12px}
+.nvs-n{background:color-mix(in srgb,var(--low) 7%,var(--panel));border-color:color-mix(in srgb,var(--low) 28%,transparent)!important}
+.nvs-s{background:color-mix(in srgb,var(--high) 8%,var(--panel));border-color:color-mix(in srgb,var(--high) 28%,transparent)!important}
+.nvs-n>b{color:var(--low)}.nvs-s>b{color:var(--high)}
 .nvs b{display:block;font-size:var(--fs-sm);margin-bottom:4px}.nvs p{margin:0}
 @media (max-width:640px){.nvs{grid-template-columns:minmax(0,1fr)}}
 .rows.compact .row{padding-top:8px;padding-bottom:8px}
@@ -1215,7 +1524,7 @@ details summary{cursor:pointer;color:var(--muted);font-size:var(--fs-sm);margin-
 .tbl thead th{font-size:var(--fs-xs);letter-spacing:.05em;text-transform:uppercase;color:var(--muted);border-top:0}
 .tbl td.id{white-space:nowrap}
 .picker{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
-.pbtn,.rbtn{background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:6px 13px;font-size:var(--fs-sm);color:var(--muted)}
+.pbtn,.rbtn{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:7px 12px;min-height:38px;font-size:var(--fs-sm);color:var(--ink-2)}
 .pbtn:hover,.rbtn:hover{color:var(--ink);border-color:var(--accent-border)}
 .pbtn[aria-pressed=true],.rbtn[aria-pressed=true]{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
 .planwrap{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:18px;align-items:start}
@@ -1226,11 +1535,12 @@ details summary{cursor:pointer;color:var(--muted);font-size:var(--fs-sm);margin-
 .guard .chip{display:block;margin:3px 0}
 .tierrow th{background:var(--panel-2);font-size:var(--fs-sm);font-weight:600;padding:9px 8px}
 .tchip{font-family:var(--mono);font-size:var(--fs-xs);background:var(--accent);color:var(--on-accent);border-radius:5px;padding:1px 6px;margin-right:6px}
-.step.off{opacity:.38}
+.step.off{opacity:.42}
 .step .kind{font-size:var(--fs-xs);color:var(--muted);margin-top:3px}
 .purpose{color:var(--muted);font-size:var(--fs-sm);margin-top:4px}
 .needs{font-size:var(--fs-xs);color:var(--high);margin-top:3px}
-.cmd{display:inline-flex;gap:6px;align-items:flex-start;max-width:100%}
+.cmd{display:flex;gap:6px;align-items:flex-start;max-width:100%}
+.cmd code{flex:1;min-width:0}.cmd .copy{flex:none;min-height:26px}
 .cmd code{background:var(--code-bg);border:1px solid var(--line-soft);border-radius:6px;padding:2px 6px;font-size:var(--fs-xs);word-break:break-all}
 .copy{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:3px 8px;font-size:var(--fs-xs);color:var(--muted)}
 .copy:hover{color:var(--ink);border-color:var(--accent)}
@@ -1348,7 +1658,9 @@ footer{max-width:1440px;margin:0 auto;padding:22px 28px 40px;color:var(--muted);
 .rstep label{display:grid;grid-template-columns:22px minmax(0,1fr);gap:8px;padding:9px 12px;cursor:pointer;font-size:var(--fs-sm)}
 .rchk{width:16px;height:16px;margin:2px 0 0;accent-color:var(--low)}
 .rbody b{display:block;font-weight:600;color:var(--ink)}.rdet{display:block;color:var(--ink-2);margin-top:3px;line-height:1.5}
-.rwhen{display:flex;flex-wrap:wrap;gap:4px;align-items:center;margin-top:5px}.rwhen:empty{display:none}.rwhen .for{font-size:var(--fs-xs);color:var(--muted)}
+.rwhen{display:flex;flex-wrap:wrap;gap:4px;align-items:center;margin-top:5px}
+.rwhen:not(:has(.verdict,.rtick:not(:empty))){display:none}
+.rtick{margin-left:auto;font-size:var(--fs-xs);color:var(--low);white-space:nowrap}.rtick:empty{display:none}.rwhen .for{font-size:var(--fs-xs);color:var(--muted)}
 .rwhen .verdict{font-size:var(--fs-xs);margin:0}
 .rstep.done{background:var(--panel-2)}.rstep.done .rbody b{text-decoration:line-through;text-decoration-color:var(--faint);color:var(--muted)}
 .roff{display:none}
@@ -1379,8 +1691,7 @@ footer{max-width:1440px;margin:0 auto;padding:22px 28px 40px;color:var(--muted);
 .empty{color:var(--muted);padding:40px 0;text-align:center;background:var(--panel);border:1px dashed var(--line);border-radius:12px}
 kbd{font-family:var(--mono);font-size:var(--fs-xs);border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:0 4px;background:var(--panel)}
 
-@media (max-width:1100px){.row{grid-template-columns:28px 120px minmax(0,1fr) 92px 92px}.row .c-val,.row .c-conf{display:none}}
-@media (max-width:980px){.planwrap{grid-template-columns:1fr}.builder{position:static}}
+@media (max-width:980px){.planwrap{grid-template-columns:minmax(0,1fr)}.builder{position:static;order:-1}}
 @media (max-width:900px){
   .shell{grid-template-columns:1fr}
   .rail{position:static;max-height:none;border-right:0;border-bottom:1px solid var(--line);padding:10px 16px}
@@ -1392,20 +1703,12 @@ kbd{font-family:var(--mono);font-size:var(--fs-xs);border:1px solid var(--line);
   body.drawer-open{overflow:hidden}
 }
 @media (max-width:640px){
-  .hdr{position:static}html{scroll-padding-top:0}
   .rail{top:0}
   .hdr-in,main,footer{padding-left:16px;padding-right:16px}
   .tabs{mask-image:linear-gradient(90deg,#000 85%,transparent);-webkit-mask-image:linear-gradient(90deg,#000 85%,transparent)}
       .exp{margin-left:0}
-  .row.head{display:none}
   .seg span{display:none}
   .railhead b{display:none}
-  .row{display:flex;flex-wrap:wrap;gap:6px 8px;padding:13px 14px}
-  .row .c-pick{order:9;margin-left:auto}
-  .row .c-plat{flex:1 1 100%;display:flex;gap:8px;align-items:baseline;font-weight:600}
-  .row .c-plat .id{display:inline;margin:0;font-weight:400}
-  .row .c-main{flex:1 1 100%}
-  .row .c-val,.row .c-conf{display:block}
   .lgrid{grid-template-columns:minmax(0,1fr)}
   .card,.plan{padding:14px}.tbl{font-size:var(--fs-xs)}
   .steps thead{display:none}.steps tr.step td{display:block;border:0;padding:3px 0}
@@ -1432,10 +1735,10 @@ p code,li code,dd code,.desc code,td code{font-size:.9em;background:var(--code-b
 .start{max-width:1180px}
 .hero h2{margin:0 0 6px;font-size:var(--fs-lg);font-weight:600;letter-spacing:-.01em}
 .hero .lede{font-size:var(--fs-md);line-height:1.55;color:var(--ink-2);max-width:72ch}
-.ptiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px}
+.ptiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(232px,100%),1fr));gap:10px}
 .ptile{background:var(--panel);border:1px solid var(--line);border-radius:12px;display:flex;flex-direction:column;overflow:hidden}
 .ptile:hover{border-color:var(--accent-border);box-shadow:0 4px 14px var(--shadow)}
-.ptile-h{display:flex;flex-direction:column;gap:1px;padding:12px 14px 10px;text-decoration:none;color:var(--ink)}
+.ptile-h{display:flex;flex-direction:column;gap:1px;padding:12px 14px 8px;text-decoration:none;color:var(--ink)}
 .ptile-h b{font-size:var(--fs-md);font-weight:600}
 .ptile-l{display:flex;flex-wrap:wrap;gap:2px 12px;padding:8px 14px 11px;border-top:1px solid var(--line-soft);font-size:var(--fs-sm)}
 .ptile-l a{text-decoration:none}.ptile-l a:hover{text-decoration:underline}
@@ -1457,18 +1760,6 @@ a.tile{text-decoration:none;color:var(--ink)}a.tile:hover{border-color:var(--acc
 .v-likely-compromised{color:var(--high)}.v-suspicious{color:var(--med)}.v-no-indicators-found{color:var(--muted)}
 
 /* ---- coverage ---- */
-.gaps{list-style:none;padding:0;margin:0 0 8px;display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:10px}
-.gaps li{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--high);border-radius:10px;padding:10px 14px;display:flex;flex-direction:column;gap:3px}
-.covcols{display:grid;grid-template-columns:minmax(0,auto) minmax(300px,1fr);gap:8px 32px;align-items:start}
-.vrows{display:flex;flex-direction:column;gap:6px;margin-bottom:22px}
-.vrow{display:grid;grid-template-columns:150px 1fr 64px;gap:10px;align-items:center;text-decoration:none;color:var(--ink);font-size:var(--fs-sm)}
-.vrow:hover .vname{text-decoration:underline}
-.vbar{display:flex;gap:2px;height:20px;border-radius:5px;overflow:hidden}
-.vseg{display:flex;align-items:center;justify-content:center;font-size:var(--fs-xs);color:var(--on-accent);min-width:18px;font-variant-numeric:tabular-nums}
-.vs-high{background:var(--conf-strong)}.vs-medium{background:var(--conf-mid)}.vs-low{background:var(--crit)}
-.cell.r1{background:color-mix(in srgb,var(--accent) 12%,transparent)}.cell.r2{background:color-mix(in srgb,var(--accent) 26%,transparent)}
-.cell.r3{background:color-mix(in srgb,var(--accent) 42%,transparent)}.cell.r4{background:color-mix(in srgb,var(--accent) 60%,transparent)}
-.cell.r4 a{color:var(--on-accent)}
 details.fold{margin:8px 0 20px}details.fold summary{font-size:var(--fs-sm);color:var(--accent);font-weight:600}
 
 /* ---- guide ---- */
@@ -1483,13 +1774,11 @@ details.fold{margin:8px 0 20px}details.fold summary{font-size:var(--fs-sm);color
 .pnote p{margin:0 0 6px}.pnote .links{margin:4px 0 0}
 .guide .tbl td,.guide .tbl th{font-size:var(--fs-sm)}
 .toc{display:flex;flex-direction:column;gap:1px;margin-top:6px}
-.toc a{display:block;padding:5px 8px;border-radius:6px;color:var(--ink-2);text-decoration:none;font-size:var(--fs-sm);line-height:1.35;border-left:2px solid transparent}
+.toc a{display:flex;align-items:center;min-height:32px;padding:5px 8px;border-radius:6px;color:var(--ink-2);text-decoration:none;font-size:var(--fs-sm);line-height:1.35;border-left:2px solid transparent}
 .toc a.l3{padding-left:20px;color:var(--muted)}
 .toc a:hover{background:var(--hover)}
 .toc a.on{color:var(--accent);background:var(--accent-soft);border-left-color:var(--accent);font-weight:600}
-@media (max-width:640px){.ptiles{grid-template-columns:1fr 1fr;gap:8px}.ptile-h{padding:10px 11px 8px}.ptile-h .id,.ptile-h .muted{display:none}
-  .ptile-h b{font-size:var(--fs-base);line-height:1.3}.ptile-l{padding:7px 11px 9px;gap:2px 9px;font-size:var(--fs-xs)}
-  .covcols{grid-template-columns:minmax(0,1fr)}.vrow{grid-template-columns:110px 1fr 54px}.startcols{grid-template-columns:1fr}.tabsep{margin:8px 4px}}
+@media (max-width:640px){.startcols{grid-template-columns:1fr}.tabsep{margin:8px 4px}}
 
 /* ---- start visuals ---- */
 .sechead{display:flex;justify-content:space-between;align-items:baseline;gap:6px 16px;flex-wrap:wrap}
@@ -1500,9 +1789,8 @@ details.fold{margin:8px 0 20px}details.fold summary{font-size:var(--fs-sm);color
 .vb-live{background:var(--crit)}.vb-rotating{background:var(--high)}.vb-stable{background:var(--med)}.vb-off-box{background:var(--conf-strong)}
 .vbl{font-size:var(--fs-xs);color:var(--muted);font-variant-numeric:tabular-nums}
 .callout ol.cols2{columns:2 340px;column-gap:32px}.callout ol.cols2 li{break-inside:avoid}
-.flowd{list-style:none;padding:0;margin:0;display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:14px;counter-reset:f}
+.flowd{list-style:none;padding:0;margin:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(165px,100%),1fr));gap:12px;counter-reset:f}
 .flowd li{position:relative}
-.flowd li:not(:last-child)::after{content:"";position:absolute;top:50%;right:-12px;width:10px;height:10px;border-top:2px solid var(--accent-border);border-right:2px solid var(--accent-border);transform:translateY(-50%) rotate(45deg)}
 .flowd a{display:flex;flex-direction:column;gap:4px;height:100%;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px;text-decoration:none;color:var(--ink)}
 .flowd a:hover{border-color:var(--accent)}
 .flowd .fn{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--accent);color:var(--on-accent);font-size:var(--fs-xs);font-weight:600}
@@ -1527,7 +1815,7 @@ details.fold{margin:8px 0 20px}details.fold summary{font-size:var(--fs-sm);color
 .g-bg{background:color-mix(in srgb,var(--crit) 14%,transparent);border-style:dashed;border-color:var(--crit)}
 @media (max-width:1240px){.tabs button{padding:9px 9px}.tabsep{margin:8px 4px}}
 @media (max-width:1120px){.tabs .n{display:none}.tabs{mask-image:linear-gradient(90deg,#000 92%,transparent);-webkit-mask-image:linear-gradient(90deg,#000 92%,transparent)}}
-@media (max-width:1100px){.flowd{grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}.flowd li::after{display:none}.oovgs{flex-wrap:wrap}.oovg{flex:1 1 260px!important}}
+@media (max-width:1100px){.oovgs{flex-wrap:wrap}.oovg{flex:1 1 260px!important}}
 @media (max-width:640px){.flowd{grid-template-columns:1fr;gap:8px}.flowd a{flex-direction:row;flex-wrap:wrap;align-items:center;column-gap:10px}.flowd span:last-child{flex:1 1 100%}
   .oovarrow{display:none}.vbwrap{padding:0 11px 8px}.vbl{display:none}}
 
@@ -1542,6 +1830,254 @@ ol.steps{padding-left:20px;margin:0}ol.steps li{margin:6px 0;line-height:1.55}
 
 .stepbox.rule{margin:8px 0}.stepbox.rule b{font-size:var(--fs-sm)}
 .sumline{margin:8px 0 0}
+
+/* ==================================================================== UX v2 */
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+mark{background:color-mix(in srgb,var(--med) 30%,transparent);color:inherit;border-radius:2px;padding:0 1px}
+b.bad,.bad{color:var(--crit)}b.good,.good{color:var(--low)}
+.sw{display:inline-block;width:10px;height:8px;border-radius:2px;flex:none}
+.cs-high{background:var(--conf-strong)}.cs-medium{background:var(--conf-mid)}.cs-low{background:var(--crit)}
+.cbar{display:flex;gap:2px;height:20px;border-radius:5px;overflow:hidden;background:var(--line-soft)}.cbar.h18{height:18px}
+.cs{display:flex;align-items:center;padding:0 7px;font-size:var(--fs-xs);color:var(--on-accent);white-space:nowrap;overflow:hidden;min-width:4px;font-variant-numeric:tabular-nums}
+.skey{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:var(--fs-xs);color:var(--muted)}.skey span{display:inline-flex;align-items:center;gap:5px}
+.lhead .about{margin:-8px 0 14px}.lhead .about summary{margin:0;font-size:var(--fs-sm)}.lhead .about p{max-width:90ch;color:var(--ink-2);margin:6px 0 0}
+.lede{margin:0 0 12px}
+
+/* header: one row (F1, F32) */
+.brand{display:flex;align-items:center;gap:9px;text-decoration:none;color:var(--ink);flex:none}
+h1{white-space:nowrap}
+.hsearch{flex:1 1 auto;min-width:0;max-width:560px;min-height:38px;display:flex;align-items:center;gap:8px;background:var(--panel);border:1px solid var(--field);border-radius:9px;padding:7px 12px;font-size:var(--fs-sm);color:var(--muted);text-align:left;cursor:text}
+.hsearch:hover{border-color:var(--accent-border)}
+.hsearch .hs-l{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.hsearch .hs-s{display:none;flex:1}.hsearch kbd{flex:none}
+.tabs{margin-top:6px}.tabs button{min-height:40px}
+@media (max-width:760px){.wide-only{display:none!important}.hsearch .hs-l,.hsearch kbd{display:none}.hsearch .hs-s{display:inline}}
+@media (max-width:640px){h1{font-size:var(--fs-md)}.hdr-top{gap:8px}.hdr-in{padding-top:8px}}
+
+/* start, option 1a (F4, F5, F6) */
+.hero1{display:flex;flex-wrap:wrap;gap:18px 28px;align-items:flex-start;margin-bottom:16px}
+.hero-l{flex:1 1 420px;min-width:0}
+.hero-l h2{margin:0 0 6px;font-size:var(--fs-lg);font-weight:600;letter-spacing:-.01em}
+.hero-l .lede{font-size:var(--fs-md);line-height:1.55;color:var(--ink-2);max-width:62ch;margin:0 0 8px}
+.hero-l .byline{margin:0}
+.trust{flex:1 1 320px;max-width:460px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px;box-shadow:0 1px 2px var(--shadow);display:flex;flex-direction:column;gap:8px}
+.trust-h{display:flex;justify-content:space-between;align-items:baseline;gap:10px;font-size:var(--fs-sm)}.trust-h b{font-weight:600}
+.trust-fig{display:flex;gap:12px;align-items:flex-start;font-size:var(--fs-sm);color:var(--ink-2);line-height:1.4}
+.trust-fig b{font-size:var(--fs-xl);font-weight:600;line-height:1.05;white-space:nowrap;font-variant-numeric:tabular-nums}
+.trust-cap{display:flex;justify-content:space-between;gap:8px;font-size:var(--fs-xs);color:var(--muted)}
+.sbar10{display:flex;gap:2px;height:10px;border-radius:5px;overflow:hidden;background:var(--line-soft)}
+.trust-f{margin:0;padding-top:8px;border-top:1px solid var(--line-soft);font-size:var(--fs-sm);color:var(--ink-2)}
+.kpis{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 4px}
+.kpi{display:inline-flex;align-items:center;gap:6px;min-height:34px;padding:5px 12px;border:1px solid var(--line);border-radius:999px;background:var(--panel);color:var(--muted);text-decoration:none;font-size:var(--fs-sm)}
+.kpi b{font-size:var(--fs-md);color:var(--ink);font-variant-numeric:tabular-nums}.kpi:hover{border-color:var(--accent)}
+.pt-id{font-size:var(--fs-xs);color:var(--muted)}
+.ptile-h b{line-height:1.3}
+.pt-vol{padding:0 14px 10px}.pt-vol .vbar2{height:8px}
+.pt-vk{display:flex;flex-wrap:wrap;gap:2px 10px;margin-top:5px;font-size:var(--fs-xs);color:var(--muted)}.pt-vk span{display:inline-flex;align-items:center;gap:4px}
+.vd{display:inline-block;width:9px;height:9px;border-radius:2px}
+.pt-ready{display:grid;grid-template-columns:auto minmax(0,1fr);gap:3px 8px;margin:0;padding:10px 14px;border-top:1px solid var(--line-soft);font-size:var(--fs-xs);color:var(--ink-2);flex:1;align-content:start}
+.pt-ready dt{display:flex;align-items:center;gap:6px;margin:0}.pt-ready dt b{font-weight:600;color:var(--ink)}.pt-ready dd{margin:0}
+.sd{display:inline-block;width:8px;height:8px;border-radius:50%;flex:none}.sd-ok{background:var(--low)}.sd-thin{background:var(--med)}.sd-none{background:var(--crit)}
+.pt-act{display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center;padding:10px 14px 12px;border-top:1px solid var(--line-soft)}
+.btn-fill,.btn-out{display:inline-flex;align-items:center;min-height:30px;border-radius:7px;padding:4px 11px;font-size:var(--fs-sm);text-decoration:none}
+.btn-fill{background:var(--accent);color:var(--on-accent);font-weight:600;border:1px solid var(--accent)}.btn-fill:hover{background:var(--accent-hover)}
+.btn-out{border:1px solid var(--accent-border);color:var(--accent)}.btn-out:hover{border-color:var(--accent)}
+.pt-more{margin-left:auto;display:flex;gap:10px;font-size:var(--fs-xs)}
+.callout.btyt{padding:14px 16px}
+.btyt .bty{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(250px,100%),1fr));gap:12px 22px}
+.btyt .bty li{display:flex;gap:10px;align-items:flex-start;margin:0;line-height:1.55;font-size:var(--fs-sm)}
+.bn{flex:none;display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--crit);color:var(--on-accent);font-size:var(--fs-xs);font-weight:600;margin-top:1px}
+.btyt .warnbox{background:none;border:0;border-top:1px solid var(--line);border-radius:0;margin:14px 0 0;padding:12px 0 0}
+.card.ladder{margin:14px 0 4px}
+.ladder-h{display:flex;flex-wrap:wrap;justify-content:space-between;gap:4px 16px;align-items:baseline;margin-bottom:10px}.ladder-h b{font-size:var(--fs-md)}
+.ladder-g{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(200px,100%),1fr));gap:10px}
+.lcell{border:1px solid var(--line-soft);border-radius:10px;padding:10px 12px;background:var(--panel-2)}
+.lcell .verdict{margin:0}.card .lcell p{margin:8px 0 0;font-size:var(--fs-sm);line-height:1.5;color:var(--ink-2)}
+.oovg .tn{margin-left:2px;color:var(--muted);font-variant-numeric:tabular-nums}
+details.badgesd{margin-top:24px}details.badgesd>summary{font-size:var(--fs-md);font-weight:600;color:var(--ink)}
+details.badgesd .legend-grid{margin-top:10px}
+
+/* libraries (F7, F9, F10, F13) */
+.search{min-height:38px}.tgl{min-height:38px}
+.distcap{display:flex;justify-content:space-between;gap:10px;font-size:var(--fs-xs);color:var(--muted);margin:0 0 4px}
+.results{container-type:inline-size}
+.row .pl-line{display:none}
+a.locl{text-decoration:none;color:inherit;display:inline-block;max-width:100%;border-radius:5px}
+a.locl:hover code.loc{border-color:var(--accent-border)}
+.c-main .desc{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.c-main .lead{display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}
+.row.sel .c-main .desc,.row.sel .c-main .lead{display:block}
+.rows.compact .c-main .desc,.rows.compact .c-main .lead{display:none}
+.grp{position:sticky;top:var(--hdr);z-index:2;display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px;padding:8px 16px;background:var(--panel-2);border-top:1px solid var(--line);border-bottom:1px solid var(--line-soft)}
+.grp a{font-size:var(--fs-sm);font-weight:600;color:var(--ink);text-decoration:none}.grp a:hover{text-decoration:underline}
+.grp .gm{font-size:var(--fs-xs);color:var(--muted)}.grp .vbar2{width:110px;height:6px;margin-left:auto}
+@container (max-width:860px){
+  .row{grid-template-columns:24px minmax(0,1fr) 92px;gap:4px 12px}
+  .row .c-pick,.row .c-main{grid-row:1/span 3}
+  .row .c-plat,.row .c-val{display:none}
+  .row .c-vol{grid-column:3;grid-row:1}.row .c-cls{grid-column:3;grid-row:2}.row .c-conf{grid-column:3;grid-row:3}
+  .row .pl-line{display:block;font-size:var(--fs-xs);color:var(--muted);margin-bottom:4px}
+  .row.head .c-pick,.row.head .c-main{grid-row:1}.row.head .c-cls,.row.head .c-conf{display:none}
+}
+@container (max-width:560px){
+  .row{display:flex;flex-wrap:wrap;gap:6px 8px;padding:12px 14px}
+  .row.head{display:none}
+  .row .c-pick{order:9;margin-left:auto}
+  .row .c-main{flex:1 1 100%}
+  .row .c-val,.row .c-cls,.row .c-conf{display:block}
+}
+.runs{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center;font-size:var(--fs-xs);color:var(--muted)}
+.runs .rk{letter-spacing:.06em;text-transform:uppercase}
+.runs>span{display:inline-flex;align-items:center;gap:5px}
+.runs i{width:9px;height:9px;border-radius:50%;border:1.5px solid var(--field);display:inline-block}
+.runs .y{color:var(--ink-2)}.runs .y i{background:var(--conf-strong);border-color:var(--conf-strong)}
+
+/* record drawer (F15) */
+.dacts{align-items:center}.dacts button{height:34px;min-width:34px}
+.dpos{font-size:var(--fs-xs);color:var(--muted);white-space:nowrap;margin-right:2px;font-variant-numeric:tabular-nums}
+.dbody{position:relative}
+.dsecs{position:sticky;top:0;z-index:2;display:flex;flex-wrap:wrap;gap:6px;padding:10px 0;margin:0 0 2px;background:var(--panel);border-bottom:1px solid var(--line-soft)}
+.dsecs button{background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:3px 10px;font-size:var(--fs-sm);color:var(--ink-2);min-height:28px}
+.dsecs button:hover{border-color:var(--accent-border)}
+.dfacts{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px 14px;padding:12px;background:var(--panel-2);border:1px solid var(--line-soft);border-radius:10px;margin:14px 0 4px}
+.dfacts div{min-width:0}.dfacts dt{font-size:var(--fs-xs);color:var(--muted);margin:0 0 3px}.dfacts dd{margin:0;font-size:var(--fs-sm);overflow-wrap:anywhere}
+.dconn{border:1px dashed var(--line);border-radius:10px;padding:2px 12px 12px;margin:18px 0 6px}.dconn h4{margin:10px 0 8px}
+.dcg{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px 16px}.dcg .links{margin:0}
+.dck{display:block;font-size:var(--fs-xs);color:var(--muted);margin-bottom:4px}
+
+/* coverage and trust, option 2d (F17-F21) */
+.covsec{scroll-margin-top:8px}   /* html already pads by the header height */
+.ttiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(220px,100%),1fr));gap:10px}
+.ttile{display:flex;flex-direction:column;gap:4px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px;text-decoration:none;color:var(--ink-2);font-size:var(--fs-sm);line-height:1.4}
+.ttile:hover{border-color:var(--accent)}
+.ttile b{font-size:var(--fs-xl);font-weight:600;line-height:1.1;color:var(--ink);font-variant-numeric:tabular-nums}.ttile b.bad{color:var(--crit)}
+.cov2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(400px,100%),1fr));gap:12px;margin:12px 0}
+.cov2>.card{min-width:0}
+.ch{display:block;font-size:var(--fs-sm);font-weight:600;margin-bottom:10px}
+.crows{display:flex;flex-direction:column;gap:7px;margin-bottom:10px}
+.crow{display:grid;grid-template-columns:118px minmax(0,1fr) 36px;gap:10px;align-items:center;font-size:var(--fs-sm);color:var(--ink);text-decoration:none}
+.crow:hover>span:first-child{text-decoration:underline}
+.ctot{text-align:right;color:var(--muted);font-variant-numeric:tabular-nums}
+.ftrack{position:relative;height:38px;border-bottom:1px solid var(--line);margin:4px 8px 0}
+.fd{position:absolute;width:10px;height:10px;margin-left:-5px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 2px var(--panel)}.fd.old{background:var(--faint)}
+.fnow,.tlnow{position:absolute;top:0;bottom:0;width:0;border-left:1.5px dashed var(--crit)}
+.fticks{position:relative;height:18px;margin:2px 8px 8px}.fticks span{position:absolute;transform:translateX(-50%);font-size:var(--fs-xs);color:var(--muted)}
+.card.rwrap{padding:0;margin:10px 0 8px}
+.ready{min-width:780px}
+.rrow{display:grid;grid-template-columns:170px repeat(8,minmax(62px,1fr)) 104px;gap:6px;align-items:center;padding:6px 14px;border-top:1px solid var(--line-soft)}
+.rrow.rhead{border-top:0;font-size:var(--fs-xs);font-weight:600;color:var(--muted);align-items:end;text-align:center;padding-top:10px;line-height:1.25}
+.rrow.rhead span:first-child,.rrow.rhead span:last-child{text-align:left}
+.rrow [role=rowheader] a{color:var(--ink);text-decoration:none;font-size:var(--fs-sm);font-weight:600}.rrow [role=rowheader] a:hover{text-decoration:underline}
+.rc{display:grid;place-items:center;height:28px;border-radius:6px;border:1px solid var(--line);background:repeating-linear-gradient(135deg,var(--panel),var(--panel) 4px,var(--line-soft) 4px,var(--line-soft) 6px);color:var(--muted);font-weight:700;text-decoration:none}
+.rc.y{border-color:var(--low);background:color-mix(in srgb,var(--low) 16%,var(--panel));color:var(--low)}
+.rc:hover{box-shadow:0 0 0 2px var(--accent-border)}
+.rhas{display:flex;flex-direction:column;gap:4px;font-size:var(--fs-sm)}
+.rsc{display:block;height:6px;border-radius:3px;background:var(--line-soft);overflow:hidden}.rsc b{display:block;height:100%;border-radius:3px}
+.s-ok{background:var(--low)}.s-thin{background:var(--med)}.s-none{background:var(--crit)}
+.card.hwrap{overflow-x:auto;padding:12px 14px;margin:10px 0 8px}
+.heat{display:grid;grid-template-columns:92px repeat(var(--cols),minmax(38px,1fr)) 70px;gap:3px;align-items:center;min-width:calc(162px + var(--cols) * 44px)}
+.hg{font-size:var(--fs-xs);color:var(--muted);text-align:center;border-bottom:1px solid var(--line);padding-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hk{font-size:11px;color:var(--muted);text-align:center;line-height:1.2;align-self:end;overflow-wrap:anywhere;padding-top:4px}
+.hr{font-size:var(--fs-sm);color:var(--ink)}
+.hc{position:relative;display:grid;place-items:center;height:30px;border-radius:4px;font-size:var(--fs-sm);font-variant-numeric:tabular-nums;color:var(--ink);text-decoration:none;background:color-mix(in srgb,var(--accent) var(--h,0%),var(--panel))}
+.hc.dk{color:var(--on-accent)}.hc.e{background:transparent}
+.hc.e.miss{box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--crit) 45%,transparent)}
+a.hc:hover{box-shadow:inset 0 0 0 2px var(--accent)}
+.pip{display:inline-block;width:7px;height:7px;border-radius:50%;box-shadow:0 0 0 1.5px var(--panel)}
+.hc .pip{position:absolute;top:3px;right:3px}
+.p-possible{background:var(--med)}.p-likely{background:var(--high)}.p-confirmed{background:var(--crit)}
+.hlegend .pip{margin:0 2px 0 8px}
+.htot{display:flex;align-items:center;gap:6px;font-size:var(--fs-sm);font-variant-numeric:tabular-nums;padding-left:4px}
+.hbar{flex:1;height:6px;border-radius:3px;background:var(--line-soft);overflow:hidden;display:block}.hbar b{display:block;height:100%;background:var(--accent);border-radius:3px}
+.gcards{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(320px,100%),1fr));gap:12px}
+.gcard{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:7px;min-width:0}
+.gcard.closed{border-color:var(--low)}
+.gcard-h{display:flex;justify-content:space-between;gap:10px;align-items:baseline}.gcard-h b{font-size:var(--fs-sm);font-weight:600}
+.gn{font-size:var(--fs-xl);font-weight:600;line-height:1.1;color:var(--crit);font-variant-numeric:tabular-nums}.gcard.closed .gn{color:var(--low)}
+.gps{display:flex;flex-wrap:wrap;gap:4px}
+.gp{font-size:11px;padding:1px 5px;border-radius:4px;border:1px solid var(--line);color:var(--muted);white-space:nowrap}
+.gp.on{border-color:var(--crit);background:var(--alert-bg);color:var(--crit)}
+.gcard p{margin:0;font-size:var(--fs-sm);line-height:1.5;color:var(--ink-2)}
+.gclose{color:var(--low)}.gcard>a{margin-top:auto}
+.lede2{max-width:90ch;margin-top:0}
+.kpi3{display:flex;flex-wrap:wrap;gap:12px 28px;margin-bottom:6px}
+.kpi3 div{display:flex;flex-direction:column}
+.kpi3 b{font-size:var(--fs-xl);font-weight:600;line-height:1.1;font-variant-numeric:tabular-nums}.kpi3 span{font-size:var(--fs-xs);color:var(--muted)}
+.ychart{list-style:none;margin:0;padding:0;display:flex;align-items:flex-end;gap:6px;height:104px}
+.ychart li{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:3px;min-width:0}
+.yb{display:block;width:100%;background:var(--accent);border-radius:3px 3px 0 0}.yb.old{background:var(--accent-border)}
+.yn,.yy{font-size:var(--fs-xs);color:var(--muted);font-variant-numeric:tabular-nums}
+.dec-iocs{--dc:var(--high)}.dec-no-indicators{--dc:var(--conf-mid)}.dec-lab-only{--dc:var(--med)}.dec-out-of-scope{--dc:var(--muted)}.dec-deferred{--dc:var(--crit)}
+.dbar{display:flex;gap:2px;height:20px;border-radius:5px;overflow:hidden;margin-bottom:10px}
+.dseg{display:flex;align-items:center;padding:0 7px;font-size:var(--fs-xs);color:var(--on-accent);white-space:nowrap;overflow:hidden;min-width:4px;background:var(--dc)}
+.dkey{list-style:none;margin:0 0 8px;padding:0;display:flex;flex-direction:column;gap:5px;font-size:var(--fs-sm)}
+.dkey li{display:flex;gap:8px;align-items:baseline}.dkey .sw{width:10px;height:10px;align-self:center;background:var(--dc)}
+.dkey b{min-width:18px;font-variant-numeric:tabular-nums}
+.decb{color:var(--dc);border-color:currentColor;font-weight:600}
+.tbl.kev td.kc{font-weight:600;white-space:nowrap}.tbl.kev td.kd{white-space:nowrap}.tbl.kev .links{margin:6px 0 0}
+.ktbl .scroll{margin:0}
+
+/* threat intel charts (F22, F23) */
+.tl{gap:2px;padding-right:0}
+.tlr{grid-template-columns:150px minmax(0,1fr) 84px;min-height:22px}
+.tlrep{font-size:var(--fs-xs);color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tlk{height:22px}.tlh .tlk{height:18px}
+.tlb{top:9px}
+.tld{top:4px;width:13px;height:13px;margin-left:-6px;background:var(--accent);border:0;box-shadow:0 0 0 2px var(--panel)}
+.tld.first{background:var(--panel);border:2px solid var(--accent);box-shadow:none}
+.tld.inl{width:11px;height:11px;vertical-align:-1px}
+.tlr.lane .tlk{height:28px;background:var(--panel-2);border-radius:4px;border-bottom:0}
+.tlr.lane .tlrep{white-space:normal;line-height:1.2}
+.tlh .tlt:first-child{transform:none}.tlh .tlt:last-child{transform:translateX(-100%)}
+#dTitle:focus{outline:none}
+.tlq{position:absolute;width:9px;height:9px;margin-left:-4px;border-radius:2px;background:var(--accent)}.tlq.un{background:var(--faint)}
+.rolefig{display:flex;gap:14px;align-items:baseline;flex-wrap:wrap;margin-bottom:10px}
+.rolefig .big{font-size:var(--fs-xl);font-weight:600;color:var(--crit);line-height:1.1;white-space:nowrap;font-variant-numeric:tabular-nums}
+.rolefig .big span{font-size:var(--fs-md);color:var(--muted);font-weight:400}
+.rolefig p{margin:0;flex:1 1 300px;font-size:var(--fs-sm);color:var(--ink-2)}
+.rbar16{display:flex;gap:2px;height:16px;border-radius:5px;overflow:hidden;margin-bottom:10px}
+.rr{min-width:3px}
+.rr-actor-controlled{background:var(--crit)}.rr-compromised-infrastructure{background:var(--high)}.rr-anonymiser{background:var(--med)}
+.rr-multi-tenant{background:var(--conf-mid)}.rr-suspected{background:var(--faint)}.rr-unknown{background:color-mix(in srgb,var(--muted) 55%,var(--panel))}
+.rolel{list-style:none;margin:0 0 8px;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:5px 16px;font-size:var(--fs-sm)}
+.rolel li{display:flex;align-items:center;gap:7px}.rolel .sw{width:10px;height:10px}.rolel .pct{margin-left:auto;color:var(--muted);font-variant-numeric:tabular-nums}
+.attr2{display:flex;flex-wrap:wrap;gap:12px 24px;align-items:flex-start}
+.attr2 .scroll{margin:0;flex:0 1 auto;max-width:100%}
+.attr2 p{flex:1 1 220px;margin:0;font-size:var(--fs-sm);color:var(--ink-2)}
+@media (max-width:900px){.tlr{grid-template-columns:96px minmax(0,1fr) 64px}}
+
+/* response (F25, F26) */
+.vbtn{display:inline-flex;align-items:center;gap:6px;min-height:34px;padding:4px 10px 4px 6px}
+.vbtn[data-v=""]{padding:4px 10px}
+.vn{font-size:var(--fs-xs);color:var(--muted);font-variant-numeric:tabular-nums}
+.rcase-l{display:inline-flex;align-items:center;gap:8px;font-size:var(--fs-sm);color:var(--muted)}
+.rcase{width:140px;font-family:var(--mono);font-size:var(--fs-sm);padding:6px 9px;border:1px solid var(--field);border-radius:7px;background:var(--panel);color:var(--ink)}
+.rstep.cred .rwhen{grid-column:1/-1}
+.dont-h{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:0 16px}.dont-h h4{margin:12px 0 6px}
+.rack-l{display:inline-flex;align-items:center;gap:6px;font-size:var(--fs-sm);color:var(--ink-2);cursor:pointer}
+.rack{width:16px;height:16px;margin:0;accent-color:var(--crit)}
+.dont .dgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,max(300px,calc(50% - 11px))),1fr));gap:0 22px}
+.dont .dgrid li:first-child{border-top:0}
+.rfold{display:none;margin:4px 0 6px}
+.dont.acked .dgrid li:nth-child(n+4){display:none}.dont.acked .rfold{display:block}
+
+/* collection plans (F27, F28, F29) */
+.psum{display:flex;flex-wrap:wrap;gap:12px 24px;align-items:flex-end;justify-content:space-between;background:var(--panel-2);border:1px solid var(--line-soft);border-radius:10px;padding:12px;margin:12px 0}
+.psum-l{flex:1 1 280px;display:flex;flex-direction:column;gap:6px;min-width:0}
+.psum-n{font-size:var(--fs-sm);color:var(--muted)}.psum-n b{font-size:var(--fs-lg);color:var(--ink);font-weight:600;margin-right:2px}
+.psum-r{flex:0 1 auto;min-width:0;display:flex;flex-direction:column;gap:4px;max-width:100%;overflow-x:auto}
+.tstrip{list-style:none;margin:0;padding:0;display:flex;gap:3px;align-items:flex-end;height:52px}
+.tstrip li{display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:3px;width:22px;flex:none}
+.tb{display:block;width:100%;border-radius:3px 3px 0 0}
+.tb-v{background:var(--accent)}.tb-p{background:var(--accent-border)}.tb-b{background:var(--high)}.tb-x{background:var(--crit)}.tb.e{background:var(--line)}
+.tsl{font-family:var(--mono);font-size:11px;color:var(--muted)}
+.whld{display:none;font-size:var(--fs-xs);color:var(--high);margin-top:3px}.step.off .whld{display:block}
+.bwarn{background:var(--alert-bg);border:1px solid color-mix(in srgb,var(--crit) 35%,transparent);border-radius:9px;padding:8px 10px;font-size:var(--fs-sm);line-height:1.5}
+.bwarn b{color:var(--crit)}
+.b2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px}
+.b2 select{width:100%;min-width:0}
+
+/* guide (F30) */
+.rmin{text-transform:none;letter-spacing:0;font-weight:400;color:var(--muted);margin-left:6px}
 """
 
 JS = r"""
@@ -1563,18 +2099,38 @@ function sec(title, h){ return h ? '<h4>' + esc(title) + '</h4>' + h : ''; }
    paths and file names - are wrapped in <code>, so a sentence never switches
    font as a whole. */
 var CODE_RE = /(`[^`]+`|\b(?:disk\d|bootflash|flash|harddisk):[\w.\-\/]*|(?<![\w.\/])\/[\w.\-*{}]+(?:\/[\w.\-*{}]*)*|\b[\w.\-]+\.(?:bin|b64|gz|tar|log|conf|php|py|pth|sh|so|zip|pcap|elg|xml|json|lua|cgi|pl|db|pkg|yar|yml|html|txt|ko|cfg|dat|out|tgz|ucs|qkview|pcapng)\d?\b)/g;
-function rich(t){
+var TOKS = [];   // the current library's filter words, highlighted in rows and cards
+function hl(s, toks){
+  s = String(s == null ? '' : s);
+  if (!toks || !toks.length) return esc(s);
+  var re = new RegExp('(' + toks.map(function(t){ return t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }).join('|') + ')', 'gi');
+  return s.split(re).map(function(p, i){ return i % 2 ? '<mark>' + esc(p) + '</mark>' : esc(p); }).join('');
+}
+function rich(t, toks){
   return String(t == null ? '' : t).split(CODE_RE).map(function(part, i){
-    if (i % 2 === 0) return esc(part);
-    return '<code>' + esc(part.charAt(0) === '`' ? part.slice(1, -1) : part) + '</code>';
+    if (i % 2 === 0) return hl(part, toks);
+    return '<code>' + hl(part.charAt(0) === '`' ? part.slice(1, -1) : part, toks) + '</code>';
   }).join('');
 }
 function para(t){ return t ? '<p>' + rich(t) + '</p>' : ''; }
 function codeblk(t, wrap){ return '<div class="codewrap"><button class="copy" type="button">Copy</button><pre' + (wrap ? ' class="wrap"' : '') + '><code>' + esc(t) + '</code></pre></div>'; }
 function att(a){ return (a || []).map(function(t){ var p = t.split('.'); return '<a class="chip mono" href="https://attack.mitre.org/techniques/' + p[0] + '/' + (p[1] ? p[1] + '/' : '') + '" rel="noopener" target="_blank" title="MITRE ATT&CK">' + esc(t) + '</a>'; }).join(''); }
 function list(a){ return a && a.length ? '<ul>' + a.map(function(x){ return '<li>' + rich(x) + '</li>'; }).join('') + '</ul>' : ''; }
-function hd(id, title, sub, badges){ return '<div class="lc-h"><div class="lc-t"><span class="id">' + esc(id) + '</span><h3>' + esc(title) + '</h3>' + (sub ? '<div class="lc-sub">' + sub + '</div>' : '') + '</div><div class="badges">' + (badges || '') + '</div></div>'; }
+function hd(id, title, sub, badges){ return '<div class="lc-h"><div class="lc-t"><span class="id">' + esc(id) + '</span><h3>' + hl(title, TOKS) + '</h3>' + (sub ? '<div class="lc-sub">' + sub + '</div>' : '') + '</div><div class="badges">' + (badges || '') + '</div></div>'; }
 var IMP = {'none':'imp-none','vendor-bundle':'imp-bundle','break-glass':'imp-bg'};
+var TYPEN = {log_regex:'log pattern', check:'coded check', yara:'YARA', path_exists:'path exists'};
+function runsStrip(x){
+  return '<div class="runs"><span class="rk">Runs in</span>' + [['Analyzer', true], ['SIEM', x.sigma.length > 0], ['YARA', x.type === 'yara']].map(function(r){
+    return '<span class="' + (r[1] ? 'y' : 'n') + '"><i></i>' + r[0] + '<span class="sr">' + (r[1] ? ': yes' : ': no') + '</span></span>'; }).join('') + '</div>';
+}
+function facts(rows){ return '<dl class="dfacts">' + rows.filter(Boolean).map(function(r){ return '<div><dt>' + esc(r[0]) + '</dt><dd>' + r[1] + '</dd></div>'; }).join('') + '</dl>'; }
+function connects(cols, hunts){   // hunts: this box is where the intel drawer's Hunts jump lands
+  var hid = hunts ? ' id="dj-hunt"' : '';
+  cols = cols.filter(function(c){ return c[1] && c[1].filter(Boolean).length; });
+  if (!cols.length) return hid ? '<div' + hid + '></div>' : '';
+  return '<section class="dconn"' + hid + '><h4>How it connects</h4><div class="dcg">' + cols.map(function(c){
+    return '<div><span class="dck">' + esc(c[0]) + '</span><div class="links">' + c[1].filter(Boolean).join('') + '</div></div>'; }).join('') + '</div></section>';
+}
 var SHELL = {yes:'shell: yes', restricted:'shell: restricted', no:'shell: none'};
 var PN = {}, PLAT = {}; D.platforms.forEach(function(p){ PN[p.id] = p.short; PLAT[p.id] = p; });
 var PACK = {}; D.packs.forEach(function(p){ PACK[p.id] = p; });
@@ -1630,63 +2186,60 @@ function iocStix(sets){
 }
 function ymd(v){ var m = /^(\d{4})(?:-(\d{2}))?(?:-(\d{2}))?/.exec(v || ''); return m ? +m[1] + ((+(m[2] || 1)) - 1) / 12 + ((+(m[3] || 1)) - 1) / 365 : null; }
 function intelCharts(){
-  var actors = D.intel.filter(function(i){ return i.kind === 'actor'; }), imps = D.intel.filter(function(i){ return i.kind === 'implant'; });
-  /* 1. timeline: first seen (hollow) and each publication of indicators (filled) */
-  var rows = actors.map(function(a){
-    var pts = a.iocs.map(function(x){ return {t:ymd(IOC[x].published), l:IOC[x].publisher + ', ' + IOC[x].published}; });
-    return {label:a.name, href:'#intel/' + a.id, first:ymd(a.first_seen), firstl:a.first_seen, pts:pts};
-  });
-  D.iocs.filter(function(s){ return !s.actors.length; }).forEach(function(s){
-    rows.push({label:s.title.split(' - ')[0], href:s.implants.length ? '#intel/' + s.implants[0] : '', first:null, pts:[{t:ymd(s.published), l:s.publisher + ', ' + s.published}], un:true});
-  });
-  var all = []; rows.forEach(function(r){ if (r.first) all.push(r.first); r.pts.forEach(function(p){ all.push(p.t); }); });
-  var lo = Math.floor(Math.min.apply(null, all)), hi = Math.ceil(Math.max.apply(null, all.concat([2026.9]))), span = hi - lo;
+  var actors = D.intel.filter(function(i){ return i.kind === 'actor'; });
+  /* 1. timeline: one row per actor; every indicator set shares the last lane */
+  var now = ymd(D.built), lo = now;
+  actors.forEach(function(a){ var f = ymd(a.first_seen); if (f) lo = Math.min(lo, f); });
+  D.iocs.forEach(function(s){ lo = Math.min(lo, ymd(s.published)); });
+  lo = Math.floor(lo); var hi = Math.floor(now) + 1, span = hi - lo;
   function x(t){ return ((t - lo) / span * 100).toFixed(2) + '%'; }
   var ticks = ''; for (var y = lo; y <= hi; y++) ticks += '<span class="tlt" style="left:' + x(y) + '">' + y + '</span>';
-  var tl = '<div class="tl"><div class="tlr tlh"><span></span><div class="tlk">' + ticks + '</div></div>' + rows.map(function(r){
-    var ts = r.pts.map(function(p){ return p.t; }).concat(r.first ? [r.first] : []), a = Math.min.apply(null, ts), b = Math.max.apply(null, ts);
-    return '<div class="tlr' + (r.un ? ' un' : '') + '">' + (r.href ? '<a href="' + r.href + '">' + esc(r.label) + '</a>' : '<span>' + esc(r.label) + '</span>') + '<div class="tlk">' +
-      (b > a ? '<span class="tlb" style="left:' + x(a) + ';width:' + ((b - a) / span * 100).toFixed(2) + '%"></span>' : '') +
-      (r.first ? '<span class="tld first" style="left:' + x(r.first) + '" title="First seen: ' + esc(r.firstl) + '"></span>' : '') +
-      r.pts.map(function(p){ return '<span class="tld" style="left:' + x(p.t) + '" title="Indicators published: ' + esc(p.l) + '"></span>'; }).join('') + '</div></div>';
-  }).join('') + '</div><p class="muted small"><span class="tld first inl"></span> first seen, as the actor record states it · <span class="tld inl"></span> indicators published. Rows in grey have no actor record: the publisher named none, or the toolkit does not link it.</p>';
-  /* 2. attribution: reporters behind each actor, motivation, implants with an actor */
-  var one = actors.filter(function(a){ return a.reported_by.length === 1; }).length;
-  var mot = {}; actors.forEach(function(a){ mot[a.motivation] = (mot[a.motivation] || 0) + 1; });
-  var withA = imps.filter(function(i){ return i.actors.length; }).length;
-  function bar(parts){ var tot = parts.reduce(function(n, p){ return n + p[1]; }, 0);
-    return '<div class="sbar">' + parts.filter(function(p){ return p[1]; }).map(function(p){ var w = p[1] / tot;
-      return '<span class="' + p[2] + '" style="flex:' + p[1] + '" title="' + esc(p[0]) + ': ' + p[1] + '">' + (w >= .14 ? '<b>' + p[1] + '</b> ' + esc(p[0]) : (w >= .05 ? '<b>' + p[1] + '</b>' : '')) + '</span>'; }).join('') + '</div>'; }
-  var att = '<div class="attg"><div><h4>Reporting parties behind each actor</h4>' + bar([['one reporter', one, 'q1'], ['two or more', actors.length - one, 'q2']]) +
-    '<p class="muted small">Link confidence is ours and cannot exceed medium on one reporter, however authoritative.</p></div>' +
-    '<div><h4>Motivation, as the reporter states it</h4>' + bar(Object.keys(mot).sort().map(function(k, n){ return [k, mot[k], 'q' + (n % 2 + 1)]; })) +
-    '<p class="muted small">UTA0576\'s is Volexity\'s low-confidence assessment.</p></div>' +
-    '<div><h4>Implants tied to a named actor</h4>' + bar([['attributed by the reporter', withA, 'q2'], ['no actor named', imps.length - withA, 'q1']]) + '</div></div>';
-  /* 3. who touched which platform */
+  var nowL = '<span class="tlnow" style="left:' + x(now) + '"></span>';
+  var rows = actors.map(function(a){
+    var pts = a.iocs.map(function(id){ return {t:ymd(IOC[id].published), l:IOC[id].publisher + ', ' + IOC[id].published}; }), f = ymd(a.first_seen);
+    var ts = pts.map(function(p){ return p.t; }).concat(f ? [f] : []), mn = Math.min.apply(null, ts), mx = Math.max.apply(null, ts), nr = a.reported_by.length;
+    return '<div class="tlr"><a href="#intel/' + a.id + '">' + esc(a.name) + '</a><div class="tlk">' + nowL +
+      (mx > mn ? '<span class="tlb" style="left:' + x(mn) + ';width:' + ((mx - mn) / span * 100).toFixed(2) + '%"></span>' : '') +
+      (f ? '<span class="tld first" style="left:' + x(f) + '" title="First seen: ' + esc(a.first_seen) + '"></span>' : '') +
+      pts.map(function(p){ return '<span class="tld" style="left:' + x(p.t) + '" title="Indicators published: ' + esc(p.l) + '"></span>'; }).join('') +
+      '</div><span class="tlrep">' + (nr === 1 ? '1 reporter' : nr + ' reporters') + '</span></div>';
+  }).join('');
+  var lane = '<div class="tlr lane"><span>Every indicator set</span><div class="tlk">' + nowL + D.iocs.map(function(s, i){
+    return '<span class="tlq' + (s.actors.length ? '' : ' un') + '" style="left:' + x(ymd(s.published)) + ';top:' + (3 + (i % 3) * 8) + 'px" title="' +
+      esc(s.publisher + ', ' + s.published + ': ' + s.title) + '"></span>'; }).join('') + '</div><span class="tlrep">grey: no actor record</span></div>';
+  var tl = '<div class="tl"><div class="tlr tlh"><span></span><div class="tlk">' + ticks + '</div><span class="tlrep">reported by</span></div>' + rows + lane + '</div>' +
+    '<p class="muted small"><span class="tld first inl"></span> first seen, as the actor record states it &#183; <span class="tld inl"></span> indicators published &#183; ' +
+    'dashed line: the build date, ' + esc(D.built) + '. Actors get the rows; indicator sets share the last lane. Hover a mark for the publisher and date.</p>';
+  /* 2. attribution: who touched which platform, and how many reporters stand behind each actor */
+  var single = actors.filter(function(a){ return a.reported_by.length === 1; }).length;
   var plats = D.platforms.map(function(p){ return p.id; });
   var mx = '<div class="scroll"><table class="amx"><thead><tr><th></th>' + plats.map(function(p){ return '<th><a href="#platforms/' + p + '" title="' + esc(PN[p]) + '">' + esc(ABBR[p] || PLAT[p].short) + '</a></th>'; }).join('') + '</tr></thead><tbody>' +
     actors.map(function(a){ return '<tr><th><a href="#intel/' + a.id + '">' + esc(a.name) + '</a></th>' + plats.map(function(p){
-      var on = a.platforms.indexOf(p) >= 0, n = a.implants.filter(function(x){ return INTEL[x] && INTEL[x].platforms.indexOf(p) >= 0; }).length;
+      var on = a.platforms.indexOf(p) >= 0, n = a.implants.filter(function(z){ return INTEL[z] && INTEL[z].platforms.indexOf(p) >= 0; }).length;
       return '<td>' + (on ? '<span class="amd" title="' + esc(a.name + ' on ' + PN[p] + (n ? ': ' + n + ' implant record(s)' : '')) + '">' + (n || '') + '</span>' : '') + '</td>'; }).join('') + '</tr>'; }).join('') +
-    '</tbody></table></div><p class="muted small">A dot is a platform the actor record names; the number is implant records on it.</p>';
-  /* 4. what published indicators are */
+    '</tbody></table></div>';
+  var attr = '<h4>Actors by platform</h4><div class="attr2">' + mx + '<p>' + single + ' of ' + actors.length + ' actors rest on a single reporting party, so our link ' +
+    'confidence stays at medium however authoritative the reporter. A dot is a platform the actor record names; the number is implant records on it.</p></div>';
+  /* 3. what published indicators are, by the publisher's own label */
   var rc = {}, tot = 0; D.iocs.forEach(function(s){ s.ind.forEach(function(i){ if (i[0] === 'ipv4' || i[0] === 'ipv6' || i[0] === 'domain'){ rc[i[2]] = (rc[i[2]] || 0) + 1; tot++; } }); });
-  var own = rc['actor-controlled'] || 0;
-  var ioc = '<h4>Published addresses and domains, by the publisher\'s own label</h4>' + bar(Object.keys(ROLE).map(function(k){ return [ROLE[k], rc[k] || 0, 'role-' + k]; })) +
-    '<div class="links" style="margin:8px 0 0">' + Object.keys(ROLE).filter(function(k){ return rc[k]; }).map(function(k){ return '<span class="chip role role-' + k + '">' + rc[k] + ' ' + esc(ROLE[k]) + '</span>'; }).join('') + '</div>' +
-    '<p class="muted small">' + own + ' of ' + tot + ' are labelled actor-controlled. The rest are compromised routers and appliances, VPN exits, shared hosting or unlabelled - block them with care and never attribute on them alone. ' +
-    '<button type="button" class="chip btnchip" data-ioc="all" data-fmt="csv">All indicators, CSV</button> <button type="button" class="chip btnchip" data-ioc="all" data-fmt="stix">All indicators, STIX 2.1</button></p>';
+  var own = rc['actor-controlled'] || 0, keys = Object.keys(ROLE).filter(function(k){ return rc[k]; });
+  var ioc = '<h4>Published addresses and domains, by the publisher\'s own label</h4>' +
+    '<div class="rolefig"><b class="big">' + own + '<span> of ' + tot + '</span></b><p>published addresses and domains are labelled actor-controlled by their own publisher. ' +
+    'Block the rest with care and never attribute on them alone.</p></div>' +
+    '<div class="rbar16" role="img" aria-label="' + esc(keys.map(function(k){ return rc[k] + ' ' + ROLE[k]; }).join(', ')) + '">' +
+    keys.map(function(k){ return '<span class="rr rr-' + k + '" style="flex:' + rc[k] + '" title="' + esc(rc[k] + ' ' + ROLE[k]) + '"></span>'; }).join('') + '</div>' +
+    '<ul class="rolel">' + keys.map(function(k){ return '<li><i class="sw rr-' + k + '"></i><b>' + rc[k] + '</b> ' + esc(ROLE[k]) + '<span class="pct">' + Math.round(100 * rc[k] / tot) + '%</span></li>'; }).join('') + '</ul>' +
+    '<p class="muted small"><button type="button" class="chip btnchip" data-ioc="all" data-fmt="csv">All indicators, CSV</button> <button type="button" class="chip btnchip" data-ioc="all" data-fmt="stix">All indicators, STIX 2.1</button></p>';
   return '<details class="charts"' + (window.innerWidth > 760 ? ' open' : '') + '><summary>Timeline, attribution and indicators</summary><div class="chg">' +
     '<section class="chp wide"><h4>Reporting timeline</h4>' + tl + '</section>' +
-    '<section class="chp wide">' + att + '</section>' +
-    '<section class="chp wide"><h4>Actors by platform</h4>' + mx + '</section>' +
+    '<section class="chp wide">' + attr + '</section>' +
     '<section class="chp wide">' + ioc + '</section></div></details>';
 }
 function iocChip(i){ var n = i.iocs.reduce(function(t, x){ return t + IOC[x].ind.length; }, 0);
   return n ? '<span class="chip ioc-c" title="Indicators from the publishers\' own files">' + n + (n === 1 ? ' indicator' : ' indicators') + '</span>' : ''; }
 document.addEventListener('click', function(ev){
   var a = ev.target.closest('[data-dj]'); if (!a) return; ev.preventDefault();
-  var t = document.getElementById(a.dataset.dj); if (t) t.scrollIntoView({behavior:'smooth', block:'start'});
+  var t = document.getElementById(a.dataset.dj); if (t) scrollBody(t);
 });
 function iocBlock(ids){
   return ids.map(function(id){
@@ -1729,6 +2282,11 @@ function themeLabel(){ $('themeBtn').textContent = isDark() ? '☀ Light' : '☾
 var th = store('edt-theme'); root.setAttribute('data-theme', th === 'dark' ? 'dark' : 'light'); themeLabel();
 $('themeBtn').addEventListener('click', function(){ var n = isDark() ? 'light' : 'dark'; root.setAttribute('data-theme', n); store('edt-theme', n); themeLabel(); });
 function hdrH(){ root.style.setProperty('--hdr', document.querySelector('.hdr').offsetHeight + 'px'); }
+// Until the search palette ships, the header search filters the library in view (Artifacts from anywhere else).
+$('searchBtn').addEventListener('click', function(){
+  if (LIB[cur]){ $('tab-' + cur).querySelector('.q').focus(); return; }
+  location.hash = '#artifacts'; setTimeout(function(){ $('tab-artifacts').querySelector('.q').focus(); }, 0);
+});
 window.addEventListener('resize', hdrH); hdrH();
 var toastT; function toast(m){ var t = $('toast'); t.textContent = m; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(function(){ t.hidden = true; }, 1800); }
 
@@ -1762,25 +2320,26 @@ artifacts: {
   text:function(a){ return [a.id, PN[a.platform], a.locator, a.description, a['class'], a.volatility, a.collected_by, a.retention, a.seen_in.join(' '), a.evidence.join(' '), a.provides, a.normal, a.suspicious].join(' '); },
   row:function(a){
     return '<span class="c-pick"><input type="checkbox" class="pick" aria-label="Pick ' + esc(a.id) + '"' + (S.artifacts.picks[a.id] ? ' checked' : '') + '></span>' +
-      '<span class="c-plat">' + esc(PN[a.platform]) + '<span class="id">' + esc(a.id) + '</span>' + (a.unv ? b('unverified', 'unv-b unv-n') : '') + '</span>' +
-      '<span class="c-main"><code class="loc">' + esc(a.locator) + '</code><span class="desc">' + rich(a.description) + '</span>' +
-      (a.suspicious ? '<span class="lead"><b>Lead:</b> ' + rich(a.suspicious) + '</span>' : '') +
+      '<span class="c-plat">' + esc(PN[a.platform]) + '<span class="id">' + esc(a.id) + '</span></span>' +
+      '<span class="c-main"><span class="pl-line">' + esc(PN[a.platform]) + ' &#183; ' + esc(a.id) + '</span>' +
+      '<a class="locl" href="#artifacts/' + encodeURIComponent(a.id) + '"><code class="loc">' + hl(a.locator, TOKS) + '</code></a><span class="desc">' + rich(a.description, TOKS) + '</span>' +
+      (a.suspicious ? '<span class="lead"><b>Lead:</b> ' + rich(a.suspicious, TOKS) + '</span>' : '') +
       (a.seen_in.length ? '<span class="seen">' + chips(a.seen_in, 'implant') + '</span>' : '') + '</span>' +
       '<span class="c-cls">' + b(a['class'], 'cls') + '</span><span class="c-vol">' + b(a.volatility, 'vol vol-' + a.volatility) + '</span>' +
       '<span class="c-val">' + b(a.value, 'fv fv-' + a.value) + '</span><span class="c-conf">' + conf(a.confidence, a.unv) + '</span>';
   },
   title:function(a){ return PN[a.platform] + ' artifact'; },
   drawer:function(a){
-    var p = PLAT[a.platform], h = '<div class="links" style="margin-top:14px">' + b(a['class'], 'cls') + b(a.volatility, 'vol vol-' + a.volatility) + b('value: ' + a.value, 'fv fv-' + a.value) + conf(a.confidence, a.unv) + '</div>';
+    var p = PLAT[a.platform];
+    var h = facts([['Class', b(a['class'], 'cls')], ['Volatility', b(a.volatility, 'vol vol-' + a.volatility)], ['Forensic value', b(a.value, 'fv fv-' + a.value)],
+      ['Confidence', conf(a.confidence, a.unv)], ['Retention', esc(a.retention || 'not stated')],
+      ['Collected by', esc((KIND[a.kind] || a.kind) + (a.kind === 'step' ? ': ' + a.collected_by : ''))]]);
     h += '<div class="dloc"><code>' + esc(a.locator) + '</code><button class="copy" type="button" data-copy="' + esc(a.locator) + '">Copy</button></div>';
     if (a.provides) h += sec('What it gives you', para(a.provides));
     h += sec('What it proves', para(a.description));
     if (a.suspicious) h += sec('Normal or suspicious', '<div class="nvs"><div class="nvs-n"><b>Normal</b>' + para(a.normal) + '</div>' +
       '<div class="nvs-s"><b>Suspicious</b>' + para(a.suspicious) + '</div></div>' +
       '<p class="muted small">Criterion from: ' + esc(BASIS[a.basis] || a.basis) + '. A lead is a reason to look harder, not a verdict; the analyzer\'s detections decide tiers.</p>');
-    if (a.retention) h += sec('Retention', para(a.retention));
-    h += sec('Evidence type', '<div class="links">' + chips(a.evidence, 'mono') + '</div>');
-    if (a.seen.length) h += sec('Seen in', '<div class="links">' + lnks(a.seen, 'implant') + '</div>');
     var c;
     if (a.kind === 'step'){
       var s = a.step;
@@ -1791,9 +2350,13 @@ artifacts: {
       c = '<p>Not on the device, or not reachable from its CLI. Export it from where it lives - the syslog receiver, the SIEM, the management server - and add it to the case:</p>' + codeblk('edge-triage ingest <case> --label <name> --bundle <file>');
     } else c = '<p>Collected by hand. The platform entry lists the procedure and its impact.</p>';
     h += sec('How it is collected', c);
-    if (a.detections.length) h += sec('Detections that read it', '<div class="links">' + a.detections.map(function(id){ return lnk('#detections/' + id, id, 'mono'); }).join('') + '</div>');
-    h += sec('Platform', '<div class="links">' + lnk('#platforms/' + p.id, p.short) + lnk('#artifacts?platform=' + p.id, 'All ' + p.n_art + ' artifacts on this platform') +
-      (p.response ? lnk('#response/' + p.response, 'Containment and recovery') : '') + '</div>');
+    h += sec('Evidence type', '<div class="links">' + chips(a.evidence, 'mono') + '</div>');
+    h += connects([
+      ['Collected by', a.kind === 'step' && p.profile ? [lnk('#plans/' + p.profile, p.profile + ' · ' + a.collected_by, 'mono')] : []],
+      ['Read by detections', a.detections.map(function(id){ return lnk('#detections/' + id, id, 'mono'); })],
+      ['Seen in', a.seen.length ? [lnks(a.seen, 'implant')] : []],
+      ['Platform', [lnk('#platforms/' + p.id, p.short), lnk('#artifacts?platform=' + p.id, 'All ' + p.n_art + ' artifacts'),
+                    p.response ? lnk('#response/' + p.response, 'Containment and recovery') : '']]]);
     return h;
   },
   exp:function(a){ return {id:a.id, platform:PN[a.platform], locator:a.locator, 'class':a['class'], volatility:a.volatility, retention:a.retention,
@@ -1814,14 +2377,15 @@ platforms: {
   text:function(p){ return [p.id, p.name, p.vendor, p.os_base, p.products.join(' '), p.filesystem].join(' '); },
   card:function(p){
     return hd(p.id, p.short, esc(p.vendor), b(SHELL[p.shell], 'sh-' + p.shell) + conf(p.confidence, p.unv)) +
-      '<p class="clamp">' + esc(p.os_base) + '</p>' +
+      '<p class="clamp">' + hl(p.os_base, TOKS) + '</p>' +
       '<div class="stats"><span><b>' + p.n_art + '</b>artifacts</span><span><b>' + p.n_steps + '</b>steps</span><span><b>' + p.n_det + '</b>detections</span></div>' +
       '<div class="lc-f">' + b('memory: ' + p.memory, 'mem') + (p.profile ? '<span class="chip code">' + esc(p.profile) + '</span>' : '<span class="chip ghost">no profile yet</span>') + '</div>';
   },
   title:function(p){ return p.name; },
   drawer:function(p){
-    var h = '<div class="links" style="margin-top:14px">' + b(SHELL[p.shell], 'sh-' + p.shell) + b('memory: ' + p.memory, 'mem') + conf(p.confidence, p.unv) + '</div>';
-    h += para(p.vendor + ' - ' + p.os_base);
+    var h = facts([['Vendor', esc(p.vendor)], ['Customer shell', b(SHELL[p.shell], 'sh-' + p.shell)], ['Memory acquisition', b(p.memory, 'mem')],
+      ['Confidence', conf(p.confidence, p.unv)], ['Artifacts', esc(String(p.n_art))], ['Detections', esc(String(p.n_det))]]);
+    h += sec('Base', para(p.os_base));
     h += '<div class="links">' + lnk('#artifacts?platform=' + p.id, p.n_art + ' artifacts') +
       (p.profile ? lnk('#plans/' + p.profile, 'Collection plan: ' + p.profile + ' (' + p.n_steps + ' steps)') : '<span class="chip ghost">no profile yet</span>') +
       (p.n_det ? lnk('#detections?platform=' + p.id, p.n_det + ' detections') : '') +
@@ -1847,7 +2411,7 @@ detections: {
     F('runs', 'Runs in', function(x){ return x.runs; }, function(v){ return RUNS[v] || v; }, ['analyzer','siem','yara']),
     F('tier', 'Tier', function(x){ return [x.tier]; }, null, ORD.tier),
     F('evidence', 'Evidence class', function(x){ return [x.evidence]; }),
-    F('type', 'Type', function(x){ return [x.type]; }, function(v){ return {log_regex:'log pattern', check:'coded check', yara:'YARA'}[v] || v; }),
+    F('type', 'Type', function(x){ return [x.type]; }, function(v){ return TYPEN[v] || v; }),
     F('pack', 'Pack', function(x){ return [x.pack]; }, function(v){ return v.replace('EDGE-PACK-', '') + ' · ' + (PACK[v] ? PACK[v].name : ''); }),
     F('cve', 'CVE', function(x){ return x.cves; }),
     F('actor', 'Actor', function(x){ return x.actors; }),
@@ -1857,18 +2421,22 @@ detections: {
     x.sigma.map(function(r){ return RULE[r] ? RULE[r].file + ' ' + RULE[r].title : r; }).join(' ')].join(' '); },
   card:function(x){
     return hd(x.id, x.title, esc(x.pack + ' · ' + x.pack_name), b(x.tier, 'tier t-' + x.tier)) +
-      (x.notes ? '<p class="clamp">' + rich(x.notes) + '</p>' : '') +
-      '<div class="lc-f">' + '<span class="chip">' + esc(x.evidence) + '</span><span class="chip mono">' + esc(x.type === 'check' ? 'check:' + x.check : x.type) + '</span>' +
-      (x.sigma.length ? b('Sigma', 'fmt fmt-sigma') : '') + (x.type === 'yara' ? b('YARA', 'fmt fmt-yara') : '') + chips(x.attack.slice(0, 2), 'mono') +
+      (x.notes ? '<p class="clamp">' + rich(x.notes, TOKS) + '</p>' : '') + runsStrip(x) +
+      '<div class="lc-f">' + '<span class="chip">' + esc(x.evidence) + '</span><span class="chip mono">' + esc(x.type === 'check' ? 'check:' + x.check : (TYPEN[x.type] || x.type)) + '</span>' +
+      chips(x.attack.slice(0, 2), 'mono') +
       (x.unv ? b('unverified', 'unv-b') : '') + '</div>';
   },
   title:function(x){ return x.title; },
   drawer:function(x){
-    var p = PACK[x.pack], h = '<div class="links" style="margin-top:14px">' + b(x.tier, 'tier t-' + x.tier) + '<span class="chip">' + esc(x.evidence) + '</span><span class="chip mono">' + esc(x.type) + '</span>' + conf(p.confidence, p.unv) + '</div>';
-    if (x.notes) h += para(x.notes);
+    var p = PACK[x.pack];
+    var h = facts([['Tier', b(x.tier, 'tier t-' + x.tier)], ['Evidence class', esc(x.evidence)], ['Type', esc(TYPEN[x.type] || x.type)],
+      ['Pack confidence', conf(p.confidence, p.unv)],
+      ['Runs in', esc(x.runs.map(function(r){ return {analyzer:'analyzer', siem:'SIEM', yara:'YARA'}[r] || r; }).join(' · '))],
+      ['Platforms', esc(x.platforms.map(function(q){ return ABBR[q] || q; }).join(', '))]]);
+    if (x.notes) h += sec('What it means', para(x.notes));
     if (x.type === 'log_regex'){
       h += sec('Pattern' + (x.flags.length ? ' (' + x.flags.join(', ') + ')' : ''), codeblk(x.pattern, true));
-      if (x.exclude.length) h += sec('Excluded when the line also matches', x.exclude.map(function(p){ return codeblk(p, true); }).join(''));
+      if (x.exclude.length) h += sec('Excluded when the line also matches', x.exclude.map(function(q){ return codeblk(q, true); }).join(''));
     } else if (x.type === 'check'){
       h += sec('Coded check: ' + x.check, x.check_doc ? '<pre class="wrap">' + esc(x.check_doc) + '</pre>' : '');
     } else if (x.type === 'yara' && RULE[x.rule_id]){
@@ -1877,21 +2445,22 @@ detections: {
     if (x.sigma.length) h += sec(x.sigma.length > 1 ? 'Sigma rules for your SIEM' : 'Sigma rule for your SIEM', x.sigma.map(function(r){ return RULE[r] ? ruleBlock(RULE[r]) : ''; }).join(''));
     else if (x.evidence === 'web-logs' || x.evidence === 'auth-logs' || x.evidence === 'system-logs')
       h += sec('SIEM rule', '<p class="muted small">None yet. The pattern above can be watched in forwarded logs; a Sigma rule is welcome.</p>');
-    if (x.steps.length) h += sec('Reads these collection steps', '<ul class="plain">' + x.steps.map(function(s){
-      return '<li><div class="row2"><b class="mono">' + esc(s.id) + '</b>' + (s.tier ? '<span class="tchip">' + esc(s.tier) + '</span>' : '') + (s.profile ? lnk('#plans/' + s.profile, s.profile) : '') + '</div>' + (s.cmd ? '<code class="loc">' + esc(s.cmd) + '</code>' : '') + '</li>'; }).join('') + '</ul>');
     if (x.files.length) h += sec('Reads these files', '<div class="links">' + chips(x.files, 'code') + '</div>');
     if (x.attack.length) h += sec('ATT&CK', '<div class="links">' + att(x.attack) + '</div>');
-    if (x.cves.length) h += sec('CVEs', '<div class="links">' + x.cves.map(function(c){ return lnk('#detections?cve=' + c, c); }).join('') + '</div>');
-    if (x.actor_links.length || x.implant_links.length) h += sec('Actors and implants', '<div class="links">' + lnks(x.actor_links, 'actor') + lnks(x.implant_links, 'implant') + '</div>');
-    h += sec('Pack ' + p.id, '<p><b>' + esc(p.name) + '</b></p>' + para(p.summary) + '<div class="links">' + platLinks(p.platforms) + lnk('#detections?pack=' + p.id, 'All ' + p.n + ' detections in this pack') + '</div>');
+    h += connects([
+      ['Reads steps', x.steps.map(function(s){ return s.profile ? lnk('#plans/' + s.profile, s.profile + ' · ' + s.id, 'mono') : '<span class="chip mono">' + esc(s.id) + '</span>'; })],
+      ['CVEs', x.cves.map(function(c){ return lnk('#detections?cve=' + c, c); })],
+      ['Actors and implants', x.actor_links.length || x.implant_links.length ? [lnks(x.actor_links, 'actor') + lnks(x.implant_links, 'implant')] : []],
+      ['Pack', [lnk('#detections?pack=' + p.id, p.id + ' · ' + p.name)]]]);
+    h += sec('About pack ' + p.id, para(p.summary) + '<div class="links">' + platLinks(p.platforms) + lnk('#detections?pack=' + p.id, 'All ' + p.n + ' detections in this pack') + '</div>');
     return h + refs(p.references);
   },
   exp:function(x){ return {id:x.id, title:x.title, pack:x.pack, platforms:x.platforms.map(function(p){ return PN[p]; }), tier:x.tier, evidence_class:x.evidence,
     type:x.type, check:x.check, rule:x.rule, pattern:x.pattern, sigma_rules:x.sigma.map(function(r){ return RULE[r] ? RULE[r].file : r; }), cves:x.cves, attack:x.attack, notes:x.notes}; },
   summary:function(shown){
-    var n = shown.filter(function(x){ return x.sigma.length; }).length, st = S.detections.sel.runs || [];
+    var n = shown.filter(function(x){ return x.sigma.length; }).length, ny = shown.filter(function(x){ return x.type === 'yara'; }).length, st = S.detections.sel.runs || [];
     return dist('detections', 'tier', ORD.tier, 'Tiers of the detections shown', shown) +
-      '<p class="muted small sumline">' + n + ' of ' + shown.length + ' shown have a Sigma rule for your SIEM. ' +
+      '<p class="muted small sumline">' + n + ' of ' + shown.length + ' shown carry a Sigma rule for your SIEM; ' + ny + (ny === 1 ? ' is a YARA file scan. ' : ' are YARA file scans. ') +
       '<button type="button" class="lnkbtn" data-f="runs" data-v="siem">' + (st.indexOf('siem') >= 0 ? 'Show all' : 'Show only those') + '</button></p>';
   }
 },
@@ -1918,7 +2487,7 @@ intel: {
       (i.packs.length ? '<span class="chip">' + i.packs.length + (i.packs.length === 1 ? ' pack' : ' packs') + '</span>' : '<span class="chip ghost">no pack</span>') + iocChip(i) +
       (i.unv ? b('unverified', 'unv-b') : '') + '</div>';
     return hd(nid, i.name, i.aliases.length ? esc(i.aliases.join(', ')) : '', b('implant', 'kind-implant') + b(i.type, 'itype')) +
-      '<p class="clamp">' + rich(i.summary) + '</p>' +
+      '<p class="clamp">' + rich(i.summary, TOKS) + '</p>' +
       '<div class="lc-f">' + b('resides: ' + i.resides, 'res res-' + i.resides) + b('reboot: ' + i.reboot, 'surv surv-' + i.reboot) +
       (i.coverage === 'gap' ? b('coverage gap', 'gap-b') : '<span class="chip">' + i.detections.length + ' detections</span>') + iocChip(i) +
       (i.unv ? b('unverified', 'unv-b') : '') + '</div>';
@@ -1931,32 +2500,40 @@ intel: {
     var resp = i.platforms.filter(function(p){ return PLAT[p] && PLAT[p].response; });
     var jumps = [['dj-ind', 'Indicators', i.iocs.reduce(function(n, x){ return n + IOC[x].ind.length; }, 0)], ['dj-hunt', 'Hunts', hunts.length], ['dj-resp', 'Response', resp.length]];
     var jump = '<nav class="djump" aria-label="In this record">' + jumps.map(function(j){ return '<a href="#" data-dj="' + j[0] + '">' + j[1] + ' <span class="muted">' + j[2] + '</span></a>'; }).join('') + '</nav>';
+    var hl_ = hunts.length ? hunts.map(function(x){ return lnk('#hunts/' + x.id, x.title); })
+      : ['<span class="muted small">No hunt names this ' + (i.kind === 'actor' ? 'actor' : 'implant\'s actor') + '. The platform hunts still apply: ' +
+         i.platforms.map(function(p){ return '<a href="#hunts?platform=' + p + '">' + esc(ABBR[p] || PN[p]) + '</a>'; }).join(', ') + '.</span>'];
+    var plats = i.platforms.map(function(p){ return lnk('#platforms/' + p, PN[p] || p); });
     if (i.kind === 'actor'){
-      h = '<div class="links" style="margin-top:14px">' + b('actor', 'kind-actor') + b(i.motivation, 'mot mot-' + i.motivation) + b('link: ' + i.link_confidence, 'conf c-' + i.link_confidence) + '</div>';
+      h = facts([['Kind', b('actor', 'kind-actor')], ['Motivation', b(i.motivation, 'mot mot-' + i.motivation)], ['Link confidence', b(i.link_confidence, 'conf c-' + i.link_confidence)],
+        ['Reported by', esc(i.reported_by.join(', '))], ['First seen', esc(i.first_seen || 'not stated')], ['State nexus', esc(i.state_nexus || 'not stated')]]);
       if (i.aliases.length) h += '<p class="muted small">also: ' + esc(i.aliases.join(', ')) + '</p>';
-      h += '<div class="attrib"><div><span class="k">Reported by</span> ' + esc(i.reported_by.join(', ')) + '</div><div><span class="k">In their words</span> <q>' + esc(i.stated_confidence) + '</q></div>' +
-        (i.state_nexus ? '<div><span class="k">State nexus</span> ' + esc(i.state_nexus) + '</div>' : '') +
-        (i.first_seen ? '<div><span class="k">First seen</span> ' + esc(i.first_seen) + '</div>' : '') + '</div>';
+      h += '<div class="attrib"><div><span class="k">In their words</span> <q>' + esc(i.stated_confidence) + '</q></div></div>';
       h += para(i.summary);
-      h += '<div class="links">' + platLinks(i.platforms) + i.packs.map(function(x){ return lnk('#detections?pack=' + x, x); }).join('') +
-        (i.packs.length ? '' : '<span class="chip ghost">no detection pack yet</span>') + i.implants.map(function(x){ return lnk('#intel/' + x, INTEL[x] ? INTEL[x].name : x, 'implant'); }).join('') + '</div>';
       h += sec('Tradecraft', list(i.tradecraft)) + sec('Victimology', list(i.victimology));
+      h += connects([['Platforms', plats],
+        ['Implants', i.implants.map(function(x){ return lnk('#intel/' + x, INTEL[x] ? INTEL[x].name : x, 'implant'); })],
+        ['Detections', i.packs.length ? i.packs.map(function(x){ return lnk('#detections?pack=' + x, x, 'mono'); }) : ['<span class="chip ghost">no detection pack yet</span>']],
+        ['Hunts', hl_]], true);
     } else {
-      h = '<div class="links" style="margin-top:14px">' + b('implant', 'kind-implant') + b(i.type, 'itype') + b('resides: ' + i.resides, 'res res-' + i.resides) + conf(i.confidence, i.unv) + '</div>';
+      h = facts([['Kind', b('implant', 'kind-implant')], ['Type', b(i.type, 'itype')], ['Resides', b(i.resides, 'res res-' + i.resides)],
+        ['Survives reboot', b(i.reboot, 'surv surv-' + i.reboot)], ['Survives upgrade', b(i.upgrade, 'surv surv-' + i.upgrade)],
+        i.factory_reset ? ['Survives factory reset', b(i.factory_reset, 'surv surv-' + i.factory_reset)] : null,
+        ['Coverage', i.detections.length ? esc(i.detections.length + (i.detections.length === 1 ? ' detection' : ' detections')) : b('coverage gap', 'gap-b')],
+        ['Confidence', conf(i.confidence, i.unv)]]);
       if (i.aliases.length) h += '<p class="muted small">' + esc(i.aliases.join(', ')) + '</p>';
-      h += '<div class="links">' + b('reboot: ' + i.reboot, 'surv surv-' + i.reboot) + b('upgrade: ' + i.upgrade, 'surv surv-' + i.upgrade) + (i.factory_reset ? b('factory reset: ' + i.factory_reset, 'surv surv-' + i.factory_reset) : '') + '</div>';
       h += para(i.summary);
-      h += '<div class="links">' + platLinks(i.platforms) + i.actors.map(function(x){ return lnk('#intel/' + x, INTEL[x] ? INTEL[x].name : x, 'actor'); }).join('') + chips(i.cves, 'cve') + '</div>';
-      h += sec('Detection coverage', i.detections.length ? '<div class="links">' + i.detections.map(function(id){ return lnk('#detections/' + id, id, 'mono'); }).join('') + '</div>'
-        : '<div class="links">' + b('coverage gap', 'gap-b') + '</div>' + (i.gap ? '<p class="note">' + rich(i.gap) + '</p>' : ''));
+      if (i.cves.length) h += '<div class="links">' + chips(i.cves, 'cve') + '</div>';
+      if (!i.detections.length) h += sec('Detection coverage', '<div class="links">' + b('coverage gap', 'gap-b') + '</div>' + (i.gap ? '<p class="note">' + rich(i.gap) + '</p>' : ''));
       h += sec('Artifacts', list(i.artifacts));
       h += sec('Anti-forensics', list(i.anti_forensics));
+      h += connects([['Platforms', plats],
+        ['Actors', i.actors.map(function(x){ return lnk('#intel/' + x, INTEL[x] ? INTEL[x].name : x, 'actor'); })],
+        ['Detections', i.detections.map(function(id){ return lnk('#detections/' + id, id, 'mono'); })],
+        ['Hunts', hl_]], true);
     }
     if (i.notes) h += '<p class="note">' + rich(i.notes) + '</p>';
     h = jump + h;
-    h += '<div id="dj-hunt"></div>' + sec('Hunts' + (i.kind === 'implant' ? ' for its actors' : ''), hunts.length
-      ? '<div class="links">' + hunts.map(function(x){ return lnk('#hunts/' + x.id, x.title); }).join('') + '</div>'
-      : '<p class="muted small">No hunt names this ' + (i.kind === 'actor' ? 'actor' : 'implant\'s actor') + '. The platform hunts still apply: ' + i.platforms.map(function(p){ return '<a href="#hunts?platform=' + p + '">' + esc(PN[p]) + '</a>'; }).join(', ') + '.</p>');
     h += '<div id="dj-resp"></div>' + sec('Response', resp.length ? '<div class="links">' + resp.map(function(p){ return lnk('#response/' + PLAT[p].response, 'Contain and recover - ' + PN[p]); }).join('') + '</div>' : '<p class="muted small">No playbook for these platforms yet.</p>');
     h += '<div id="dj-ind"></div>';
     if (i.iocs.length) h += sec('Indicators', '<p class="muted small">Parsed from each publisher\'s own file or table, with the publisher\'s role for every value. Most published addresses are not the actor\'s own machines - read the roles before blocking or attributing.</p>' + iocBlock(i.iocs));
@@ -1996,7 +2573,7 @@ hardening: {
     c.sources.map(function(x){ return x.title; }).join(' ')].join(' '); },
   card:function(c){
     return hd(c.platform === 'ALL' ? 'Every platform' : PN[c.platform], c.control, '', b(c.priority, 'pr pr-' + c.priority)) +
-      '<p class="clamp">' + rich(c.why) + '</p>' +
+      '<p class="clamp">' + rich(c.why, TOKS) + '</p>' +
       '<div class="lc-f">' + (c.platform === 'ALL' ? b('baseline', 'imp-none') : '') + '<span class="chip">' + esc(HCAT[c.category] || c.category) + '</span>' + chips(c.blunts.slice(0, 3), 'cve') +
       (c.blunts.length > 3 ? '<span class="chip ghost">+' + (c.blunts.length - 3) + '</span>' : '') + (c.unv ? b('unverified', 'unv-b') : '') + '</div>';
   },
@@ -2004,7 +2581,8 @@ hardening: {
   title:function(c){ return c.control; },
   label:function(c){ return (c.platform === 'ALL' ? 'Baseline' : PN[c.platform]) + ' · ' + c.id; },
   drawer:function(c){
-    var h = '<div class="links" style="margin-top:14px">' + b(c.priority, 'pr pr-' + c.priority) + '<span class="chip">' + esc(HCAT[c.category] || c.category) + '</span>' + conf(c.confidence, c.unv) + '</div>';
+    var h = facts([['Priority', b(c.priority, 'pr pr-' + c.priority)], ['Category', esc(HCAT[c.category] || c.category)], ['Confidence', conf(c.confidence, c.unv)],
+      ['Applies to', esc(c.platform === 'ALL' ? 'every platform' : PN[c.platform])]]);
     h += sec('Why', para(c.why));
     h += sec('How', '<div class="stepbox">' + c.how.split(/\n{2,}/).map(function(x){ return '<p>' + rich(x) + '</p>'; }).join('') + '</div>');
     if (c.blunts.length) h += sec('Would have blunted', '<div class="links">' + lnks(c.blunt_links, 'cve') + '</div>');
@@ -2045,14 +2623,16 @@ LIB.hunts = {
     h.platforms.map(function(x){ return PN[x] || 'any'; }).join(' '), h.sources.map(function(x){ return x.title; }).join(' ')].join(' '); },
   card:function(h){
     return hd(h.platforms.map(function(x){ return x === 'ALL' ? 'Any edge device' : PN[x]; }).join(' · '), h.title, '', conf(h.confidence, h.unv)) +
-      '<p class="clamp">' + rich(h.hypothesis) + '</p>' +
+      '<p class="clamp">' + rich(h.hypothesis, TOKS) + '</p>' +
       '<div class="lc-f">' + h.data.map(function(x){ return '<span class="chip">' + esc(HDATA[x] || x) + '</span>'; }).join('') +
       chips(h.cves.slice(0, 2), 'cve') + '</div>';
   },
   title:function(h){ return h.title; },
   label:function(h){ return h.id; },
   drawer:function(h){
-    var x = '<div class="links" style="margin-top:14px">' + conf(h.confidence, h.unv) + h.data.map(function(d){ return '<span class="chip">' + esc(HDATA[d] || d) + '</span>'; }).join('') + '</div>';
+    var x = facts([['Confidence', conf(h.confidence, h.unv)], ['Data', esc(h.data.map(function(d){ return HSHORT[d] || d; }).join(', '))],
+      ['Platforms', esc(h.platforms.map(function(p){ return p === 'ALL' ? 'any edge device' : (ABBR[p] || p); }).join(', '))],
+      ['Sources', esc(h.sources.length + ' quoted')]]);
     x += sec('Hypothesis', para(h.hypothesis));
     if (h.data_detail) x += sec('Data', para(h.data_detail));
     x += sec('Method', '<ol class="steps">' + h.method.map(function(m){ return '<li>' + rich(m) + '</li>'; }).join('') + '</ol>');
@@ -2062,22 +2642,22 @@ LIB.hunts = {
     x += sec('Sources', '<ul class="srcs">' + h.sources.map(function(s){ return '<li><a href="' + esc(s.url) + '" rel="noopener" target="_blank">' + esc(s.title) + '</a>' +
       (s.read === 'summariser' ? ' <span class="chip ghost">read through a summariser - check the quote</span>' : '') +
       '<blockquote>' + esc(s.quote) + '</blockquote></li>'; }).join('') + '</ul>');
-    var l = h.platforms.filter(function(p){ return p !== 'ALL'; }).map(function(p){ return lnk('#platforms/' + p, PN[p]); })
-      .concat(h.actors.map(function(a){ return lnk('#intel/' + a, h.actor_names[a] || a); }));
-    if (h.cve_links.length) l = l.concat(h.cve_links.filter(function(c){ return c.href; }).map(function(c){ return lnk(c.href, c.label, 'cve'); }));
     if (h.seen_in.length) x += sec('Seen in', '<div class="links">' + chips(h.seen_in) + '</div>');
-    if (l.length) x += sec('Related', '<div class="links">' + l.join('') + '</div>');
+    x += connects([['Platforms', h.platforms.filter(function(p){ return p !== 'ALL'; }).map(function(p){ return lnk('#platforms/' + p, PN[p]); })],
+      ['Actors', h.actors.map(function(a){ return lnk('#intel/' + a, h.actor_names[a] || a); })],
+      ['CVEs', h.cve_links.filter(function(c){ return c.href; }).map(function(c){ return lnk(c.href, c.label, 'cve'); })]]);
     return x;
   },
   exp:function(h){ return {id:h.id, title:h.title, platforms:h.platforms.map(function(p){ return p === 'ALL' ? 'any' : PN[p]; }),
     hypothesis:h.hypothesis, data:h.data, data_detail:h.data_detail, method:h.method, normal:h.normal, suspicious:h.suspicious,
     cves:h.cves, attack:h.attack, confidence:h.confidence, unverified:h.unv, sources:h.sources.map(function(s){ return s.url; })}; },
   summary:function(shown){
-    var c = {}, sel = S.hunts.sel.data || [];
-    shown.forEach(function(h){ h.data.forEach(function(d){ c[d] = (c[d] || 0) + 1; }); });
+    var c = {}, sel = S.hunts.sel.data || [], tot = 0;
+    shown.forEach(function(h){ h.data.forEach(function(d){ c[d] = (c[d] || 0) + 1; tot++; }); });
     var segs = Object.keys(HDATA).filter(function(k){ return c[k]; }).map(function(k){
-      return '<button type="button" class="seg hd' + (sel.indexOf(k) >= 0 ? ' on' : '') + '" style="flex:' + c[k] + '" data-f="data" data-v="' + k + '" title="' + esc(HDATA[k]) + ': ' + c[k] + ' - click to filter"><b>' + c[k] + '</b> <span>' + esc(HSHORT[k] || k) + '</span></button>'; });
-    return segs.length ? '<p class="muted small sumline">Data the hunts shown need (a hunt can need several):</p><div class="dist" role="group" aria-label="Data the hunts need">' + segs.join('') + '</div>' : '';
+      return '<button type="button" class="seg hd' + (sel.indexOf(k) >= 0 ? ' on' : '') + '" style="flex:' + c[k] + '" data-f="data" data-v="' + k + '" title="' + esc(HDATA[k]) + ': ' + c[k] + ' - click to filter" aria-label="' + esc(HDATA[k]) + ': ' + c[k] + '"><b>' + c[k] + '</b>' +
+        (c[k] / tot >= .12 ? ' <span>' + esc(HSHORT[k] || k) + '</span>' : '') + '</button>'; });
+    return segs.length ? '<div class="distcap"><span>Data the hunts shown need (a hunt can need several)</span><span>Click a segment to filter</span></div><div class="dist" role="group" aria-label="Data the hunts need">' + segs.join('') + '</div>' : '';
   }
 };
 
@@ -2087,10 +2667,10 @@ Object.keys(LIB).forEach(function(n){ var a = LIB[n].facets.map(function(f){ ret
 
 var S = {}, LAST = {}, OPEN = {}, cur = null, openId = null, openLib = null;
 Object.keys(LIB).forEach(function(n){
-  S[n] = {q:'', sel:{}, unv:false, compact:false, picks:{}};
+  S[n] = {q:'', sel:{}, unv:false, compact:false, group:true, picks:{}};
   LIB[n].items.forEach(function(i){ i._t = LIB[n].text(i).toLowerCase(); });
 });
-try{ var cp = store('edt-compact'); if (cp === '1') S.artifacts.compact = true; }catch(_){}
+try{ if (store('edt-compact') === '1') S.artifacts.compact = true; if (store('edt-group') === '0') S.artifacts.group = false; }catch(_){}
 
 function pass(n, st, it, skip){
   if (st.unv && !it.unv) return false;
@@ -2108,11 +2688,12 @@ function pass(n, st, it, skip){
 function shown(n){ var st = S[n]; return LIB[n].items.filter(function(i){ return pass(n, st, i, null); }); }
 
 function dist(n, k, order, label, list_){
-  var c = {}; list_.forEach(function(i){ var v = i[k]; c[v] = (c[v] || 0) + 1; });
+  var c = {}, tot = list_.length || 1; list_.forEach(function(i){ var v = i[k]; c[v] = (c[v] || 0) + 1; });
   var sel = S[n].sel[k] || [];
   var segs = order.filter(function(v){ return c[v]; }).map(function(v){
-    return '<button type="button" class="seg seg-' + v + (sel.indexOf(v) >= 0 ? ' on' : '') + '" style="flex:' + c[v] + '" data-f="' + k + '" data-v="' + v + '" title="' + v + ': ' + c[v] + ' - click to filter"><b>' + c[v] + '</b> <span>' + esc(v) + '</span></button>'; });
-  return segs.length ? '<div class="dist" role="group" aria-label="' + esc(label) + '">' + segs.join('') + '</div>' : '';
+    return '<button type="button" class="seg seg-' + v + (sel.indexOf(v) >= 0 ? ' on' : '') + '" style="flex:' + c[v] + '" data-f="' + k + '" data-v="' + v + '" title="' + v + ': ' + c[v] + ' - click to filter" aria-label="' + v + ': ' + c[v] + '"><b>' + c[v] + '</b>' +
+      (c[v] / tot >= .12 ? ' <span>' + esc(v) + '</span>' : '') + '</button>'; });
+  return segs.length ? '<div class="distcap"><span>' + esc(label) + '</span><span>Click a segment to filter</span></div><div class="dist" role="group" aria-label="' + esc(label) + '">' + segs.join('') + '</div>' : '';
 }
 
 function renderRail(n){
@@ -2159,6 +2740,7 @@ function updatePicked(n){
 function renderLib(n){
   var L = LIB[n], st = S[n], P = $('tab-' + n), items = shown(n);
   LAST[n] = items;
+  TOKS = st.q ? st.q.toLowerCase().split(/\s+/).filter(Boolean).sort(function(a, c){ return c.length - a.length; }) : [];
   P.querySelector('.count').textContent = items.length + ' of ' + L.items.length + ' ' + L.noun + ' shown';
   P.querySelector('.active').innerHTML = activeChips(n);
   P.querySelector('.summary').innerHTML = L.summary ? L.summary(items) : '';
@@ -2169,7 +2751,7 @@ function renderLib(n){
     var allPicked = items.every(function(i){ return st.picks[i.id]; });
     res.innerHTML = '<div class="rows' + (st.compact ? ' compact' : '') + '"><div class="row head"><span><input type="checkbox" class="pickall" aria-label="Pick all shown"' + (allPicked ? ' checked' : '') + '></span>' +
       L.head.slice(1).map(function(x, ix){ return '<span class="' + ['c-plat','c-main','c-cls','c-vol','c-val','c-conf'][ix] + '">' + esc(x) + '</span>'; }).join('') + '</div>' +
-      items.map(function(i){ return '<div class="row item' + (i.unv ? ' unv' : '') + sel(i) + '" role="button" tabindex="0" data-id="' + esc(i.id) + '">' + L.row(i) + '</div>'; }).join('') + '</div>';
+      rowsHtml(L, st, items, sel) + '</div>';
   } else res.innerHTML = '<div class="lgrid">' + items.map(function(i){ return '<article class="lc item' + (i.unv ? ' unv' : '') + (L.cls ? L.cls(i) : '') + sel(i) + '" role="button" tabindex="0" data-id="' + esc(i.id) + '">' + L.card(i) + '</article>'; }).join('') + '</div>';
   renderRail(n);
   writeHash();
@@ -2177,11 +2759,29 @@ function renderLib(n){
 }
 
 function rerender(){ if (LIB[cur]) renderLib(cur); }
+/* Artifact rows, grouped by platform unless exactly one platform is filtered (F9). */
+function rowsHtml(L, st, items, sel){
+  var grp = st.group && !(st.sel.platform && st.sel.platform.length === 1), last = null, out = [];
+  items.forEach(function(i){
+    if (grp && i.platform !== last){ last = i.platform; out.push(groupHead(i.platform, items)); }
+    out.push('<div class="row item' + (i.unv ? ' unv' : '') + sel(i) + '" data-id="' + esc(i.id) + '">' + L.row(i) + '</div>');
+  });
+  return out.join('');
+}
+function groupHead(pid, items){
+  var g = items.filter(function(x){ return x.platform === pid; }), c = {};
+  g.forEach(function(x){ c[x.volatility] = (c[x.volatility] || 0) + 1; });
+  var vs = ORD.vol.filter(function(v){ return c[v]; });
+  return '<div class="grp"><a href="#platforms/' + pid + '">' + esc(PN[pid]) + '</a><span class="gm">' + g.length + (g.length === 1 ? ' artifact' : ' artifacts') + ' &#183; ' +
+    vs.map(function(v){ return c[v] + ' ' + v; }).join(', ') + '</span><span class="vbar2" aria-hidden="true">' +
+    vs.map(function(v){ return '<span class="vb vb-' + v + '" style="flex:' + c[v] + '"></span>'; }).join('') + '</span></div>';
+}
 function syncControls(n){
-  var P = $('tab-' + n), st = S[n], q = P.querySelector('.q'), u = P.querySelector('.unvT'), c = P.querySelector('.cmpT');
+  var P = $('tab-' + n), st = S[n], q = P.querySelector('.q'), u = P.querySelector('.unvT'), c = P.querySelector('.cmpT'), g = P.querySelector('.grpT');
   if (q.value !== st.q) q.value = st.q;
   if (u) u.setAttribute('aria-pressed', String(st.unv));
   if (c) c.setAttribute('aria-pressed', String(st.compact));
+  if (g) g.setAttribute('aria-pressed', String(st.group));
 }
 
 /* ---------------------------------------------------------------- URL state */
@@ -2217,6 +2817,8 @@ function show(tab, anchor){
   var changed = cur !== tab;
   cur = tab;
   tabs.forEach(function(b){ b.setAttribute('aria-selected', String(b.dataset.tab === tab)); });
+  var tb = document.querySelector('.tabs'), on = tb.querySelector('[aria-selected=true]');   // keep the current tab in view on phones
+  if (on){ var r = on.getBoundingClientRect(), t = tb.getBoundingClientRect(); if (r.left < t.left || r.right > t.right) tb.scrollLeft += r.left - t.left - 16; }
   document.querySelectorAll('.panel').forEach(function(p){ p.hidden = p.id !== 'tab-' + tab; });
   document.querySelector('.shell').classList.toggle('norail', !LIB[tab] && tab !== 'guide');
   $('railTitle').textContent = tab === 'guide' ? 'Contents' : 'Filters';
@@ -2238,11 +2840,16 @@ function show(tab, anchor){
     closeDrawer(false);
     if (tab === 'plans' && anchor) pickProfile(anchor);
     if (tab === 'response' && anchor) pickResp(anchor);
+    if (tab === 'coverage'){
+      pageAnchor.coverage = anchor || '';
+      var cv = anchor && document.getElementById('cov-' + anchor);
+      if (cv) setTimeout(function(){ cv.scrollIntoView({block:'start'}); }, 0);
+    }
     if (tab === 'guide'){
       pageAnchor.guide = anchor || '';
       document.querySelectorAll('.toc a').forEach(function(a){ a.classList.toggle('on', !!anchor && a.dataset.g === anchor); });
       var g = anchor && document.getElementById('g-' + anchor);
-      if (g) setTimeout(function(){ g.scrollIntoView({block:'start'}); }, 0);
+      if (g){ tocHold = Date.now() + 700; setTimeout(function(){ g.scrollIntoView({block:'start'}); }, 0); }
     }
     writeHash();
   }
@@ -2273,17 +2880,18 @@ document.querySelector('.tabs').addEventListener('keydown', function(ev){
 window.addEventListener('hashchange', route);
 
 /* ---------------------------------------------------------------- guide contents */
-var tocObs = null;
+var tocObs = null, tocHold = 0;   // a requested section stays marked while the page scrolls to it
 function renderToc(){
   var cur_ = pageAnchor.guide || '';
   $('rail').innerHTML = '<nav class="toc" aria-label="Guide contents">' + D.toc.map(function(t){
     var id = t.id.slice(2);
     return '<a class="l' + t.level + (id === cur_ ? ' on' : '') + '" href="#guide/' + id + '" data-g="' + id + '">' + esc(t.title) + '</a>'; }).join('') + '</nav>';
   $('railToggle').textContent = 'Contents';
+  $('railTitle').innerHTML = 'Contents<span class="rmin">about ' + D.guideMins + ' min</span>';
   if (tocObs || !('IntersectionObserver' in window)) return;
   tocObs = new IntersectionObserver(function(es){
     es.forEach(function(en){
-      if (!en.isIntersecting || cur !== 'guide') return;
+      if (!en.isIntersecting || cur !== 'guide' || Date.now() < tocHold) return;
       var id = en.target.id.slice(2);
       document.querySelectorAll('.toc a').forEach(function(a){ a.classList.toggle('on', a.dataset.g === id); });
     });
@@ -2302,6 +2910,7 @@ function navState(){
   var l = LAST[openLib] || [], i = -1;
   for (var k = 0; k < l.length; k++) if (l[k].id === openId){ i = k; break; }
   $('dPrev').disabled = i <= 0; $('dNext').disabled = i < 0 || i >= l.length - 1;
+  $('dPos').textContent = i >= 0 ? (i + 1) + ' of ' + l.length : '';
 }
 var dReturn = null;   // what had focus before the drawer opened; it gets focus back on close
 function cssId(v){ return window.CSS && CSS.escape ? CSS.escape(v) : v; }
@@ -2313,7 +2922,7 @@ function openDrawer(n, id){
   if (opening) dReturn = document.activeElement;
   openId = id; openLib = n;
   $('dId').textContent = L.label ? L.label(it) : it.id; $('dTitle').textContent = L.title(it);
-  $('dBody').innerHTML = L.drawer(it); $('dBody').scrollTop = 0;
+  $('dBody').innerHTML = L.drawer(it); $('dBody').scrollTop = 0; buildSecs();
   $('drawer').hidden = false; $('scrim').hidden = false; document.body.classList.add('drawer-open');
   markSel(); navState(); writeHash();
   if (opening) $('dTitle').focus({preventScroll:true});
@@ -2328,8 +2937,28 @@ function closeDrawer(write){
   var r = dReturn; dReturn = null;
   if (!(r && r.isConnected && r.offsetParent !== null))
     r = lastLib === cur && lastId ? document.querySelector('#tab-' + cur + ' .item[data-id="' + cssId(lastId) + '"]') : null;
+  if (r && !r.hasAttribute('tabindex')) r = r.querySelector('a.locl') || r;
   if (r && r.focus) r.focus({preventScroll:true});
 }
+/* One chip per section, pinned at the top of the record; on intel records the
+   Indicators / Hunts / Response jumps come first and are not repeated (F15). */
+function buildSecs(){
+  var body = $('dBody'), dj = body.querySelector('.djump'), chips = [];
+  Array.prototype.forEach.call(body.querySelectorAll('h4'), function(h, i){
+    var t = h.textContent.split(' · ')[0].replace(/ \(.*$/, '').replace(/^About pack .*/, 'About the pack').trim();
+    if ((dj && /^(Indicators|Hunts|Response)\b/.test(t)) || chips.length >= 8) return;
+    h.id = h.id || 'ds-' + i;
+    chips.push('<button type="button" data-ds="' + h.id + '">' + esc(t) + '</button>');
+  });
+  if (chips.length < 2) return;
+  var nav = document.createElement('nav'); nav.className = 'dsecs'; nav.setAttribute('aria-label', 'Sections in this record'); nav.innerHTML = chips.join('');
+  if (dj) dj.after(nav); else body.insertBefore(nav, body.firstChild);
+}
+function scrollBody(el){
+  var body = $('dBody'), nav = body.querySelector('.dsecs');
+  body.scrollTo({top:Math.max(0, el.offsetTop - (nav ? nav.offsetHeight : 0) - 8), behavior:'smooth'});
+}
+$('dBody').addEventListener('click', function(ev){ var c = ev.target.closest('[data-ds]'); if (c){ var el = $(c.dataset.ds); if (el) scrollBody(el); } });
 function stepDrawer(dir){
   var l = LAST[openLib] || [];
   for (var k = 0; k < l.length; k++) if (l[k].id === openId){ var n = l[k + dir]; if (n) openDrawer(openLib, n.id); return; }
@@ -2364,6 +2993,7 @@ document.querySelectorAll('.panel.lib').forEach(function(P){
   P.querySelector('.q').addEventListener('input', function(ev){ clearTimeout(qT); var v = ev.target.value; qT = setTimeout(function(){ S[n].q = v.trim(); renderLib(n); }, 90); });
   var u = P.querySelector('.unvT'); if (u) u.addEventListener('click', function(){ S[n].unv = !S[n].unv; syncControls(n); renderLib(n); });
   var c = P.querySelector('.cmpT'); if (c) c.addEventListener('click', function(){ S[n].compact = !S[n].compact; store('edt-compact', S[n].compact ? '1' : '0'); syncControls(n); renderLib(n); });
+  var g = P.querySelector('.grpT'); if (g) g.addEventListener('click', function(){ S[n].group = !S[n].group; store('edt-group', S[n].group ? '1' : '0'); syncControls(n); renderLib(n); });
   P.querySelectorAll('[data-exp]').forEach(function(x){ x.addEventListener('click', function(){ exportLib(n, x.dataset.exp); }); });
   P.addEventListener('change', function(ev){
     var t = ev.target;
@@ -2371,12 +3001,14 @@ document.querySelectorAll('.panel.lib').forEach(function(P){
     if (t.classList.contains('pickall')){ LAST[n].forEach(function(i){ if (t.checked) S[n].picks[i.id] = 1; else delete S[n].picks[i.id]; }); renderLib(n); }
   });
   P.addEventListener('click', function(ev){
-    var t = ev.target;
+    var t = ev.target, lk = t.closest('a.locl');
+    if (lk && ev.button === 0 && !ev.metaKey && !ev.ctrlKey && !ev.shiftKey && !ev.altKey){ ev.preventDefault(); openDrawer(n, lk.closest('.item').dataset.id); return; }
     if (t.closest('.pick,.pickall,a,.copy')) return;
     var rm = t.closest('[data-rm]');
     if (rm){ var k = rm.dataset.rm; if (k === 'q') S[n].q = ''; else if (k === 'unv') S[n].unv = false; else { var a = S[n].sel[k] || []; a.splice(a.indexOf(rm.dataset.v), 1); } syncControls(n); renderLib(n); return; }
     var act = t.closest('[data-act]');
-    if (act){ if (act.dataset.act === 'reset') resetLib(n); if (act.dataset.act === 'unpick'){ S[n].picks = {}; renderLib(n); } return; }
+    if (act){ if (act.dataset.act === 'reset') resetLib(n); if (act.dataset.act === 'unpick'){ S[n].picks = {}; renderLib(n); }
+      if (act.dataset.act === 'copyview') copyText(location.href, function(){ toast('Link to this view copied'); }); return; }
     var seg = t.closest('[data-f]'); if (seg){ toggleSel(n, seg.dataset.f, seg.dataset.v); return; }
     var only = t.closest('[data-only]'); if (only){ toggleSel(n, only.dataset.only, only.dataset.v, true); return; }
     var it = t.closest('.item'); if (it) openDrawer(n, it.dataset.id);
@@ -2428,27 +3060,40 @@ document.addEventListener('keydown', function(ev){
   if (!$('drawer').hidden && !typing && (ev.key === 'ArrowRight' || ev.key === 'j')){ stepDrawer(1); ev.preventDefault(); }
 });
 
-/* ---------------------------------------------------------------- response: picker, verdict lens, checklist */
+/* ---------------------------------------------------------------- response: picker, verdict lens, case, checklist */
 var RESP_V = ['COMPROMISED', 'LIKELY-COMPROMISED', 'SUSPICIOUS', 'NO-INDICATORS-FOUND'];
 var RV = '';   // analyzer verdict the responder picked; '' = all steps
-document.querySelectorAll('.resp .rx').forEach(function(el){ el.innerHTML = rich(el.textContent); });
-function respTicks(stem){ try{ return JSON.parse(store('edt-resp-' + stem) || '{}') || {}; }catch(_){ return {}; } }
-function applies(li){ var w = li.dataset.when; return !RV || !w || w.split(',').indexOf(RV) >= 0; }
+var CASE = (store('edt-case') || '').trim();   // ticks are kept per case; no case keeps the original per-platform key
+document.querySelectorAll('.rx').forEach(function(el){ el.innerHTML = rich(el.textContent); });
+function tkey(stem){ return 'edt-resp-' + (CASE ? CASE + '|' : '') + stem; }
+function respTicks(stem){ try{ return JSON.parse(store(tkey(stem)) || '{}') || {}; }catch(_){ return {}; } }
+function tickTime(v){ return typeof v === 'string' ? v : ''; }   // ticks saved before times were kept are stored as 1
+function appliesV(li, v){ var w = li.dataset.when; return !v || !w || w.split(',').indexOf(v) >= 0; }
+function applies(li){ return appliesV(li, RV); }
 function respRefresh(art){
   if (!art) return;
-  var ticks = respTicks(art.dataset.resp), done = 0, all = 0;
-  art.querySelectorAll('.rstep').forEach(function(li){
-    var on = applies(li), cb = li.querySelector('.rchk');
+  var ticks = respTicks(art.dataset.resp), done = 0, all = 0, steps = art.querySelectorAll('.rstep');
+  steps.forEach(function(li){
+    var on = applies(li), cb = li.querySelector('.rchk'), t = ticks[li.dataset.k], tk = li.querySelector('.rtick');
     li.classList.toggle('off', !on);
-    cb.checked = !!ticks[li.dataset.k]; li.classList.toggle('done', cb.checked);
+    cb.checked = !!t; li.classList.toggle('done', cb.checked);
+    if (tk) tk.textContent = tickTime(t) ? 'ticked ' + tickTime(t) : '';
     if (on){ all++; if (cb.checked) done++; }
   });
   art.querySelectorAll('.rnav .rc').forEach(function(c){
     var lis = art.querySelectorAll('.rphase[data-phase="' + c.dataset.phase + '"] .rstep');
     c.textContent = Array.prototype.filter.call(lis, applies).length;
   });
+  document.querySelectorAll('.vbtn').forEach(function(bn){
+    bn.querySelector('.vn').textContent = Array.prototype.filter.call(steps, function(li){ return appliesV(li, bn.dataset.v); }).length;
+  });
   art.querySelector('.rdone').textContent = done; art.querySelector('.rall').textContent = all;
+  art.querySelector('.rfor').textContent = CASE ? ' for ' + CASE : '';
   art.querySelector('.rbar').style.width = (all ? Math.round(done / all * 100) : 0) + '%';
+  var ack = !!ticks._ack, ab = art.querySelector('.rack');
+  if (ab) ab.checked = ack;
+  art.querySelector('.dont').classList.toggle('acked', ack);
+  document.querySelectorAll('.rcase').forEach(function(x){ if (document.activeElement !== x) x.value = CASE; });
 }
 function pickResp(stem){
   if (!document.querySelector('.resp[data-resp="' + stem + '"]')) return;
@@ -2470,23 +3115,34 @@ document.querySelectorAll('.rsel').forEach(function(x){ x.addEventListener('chan
 document.querySelectorAll('.vbtn').forEach(function(b){ b.addEventListener('click', function(){ setVerdict(b.dataset.v); writeHash(); }); });
 document.querySelectorAll('.resp').forEach(function(art){
   art.addEventListener('change', function(ev){
-    var cb = ev.target.closest('.rchk'); if (!cb) return;
-    var t = respTicks(art.dataset.resp); if (cb.checked) t[cb.dataset.k] = 1; else delete t[cb.dataset.k];
-    store('edt-resp-' + art.dataset.resp, JSON.stringify(t)); respRefresh(art);
+    var cb = ev.target.closest('.rchk'), ack = ev.target.closest('.rack');
+    if (!cb && !ack) return;
+    var t = respTicks(art.dataset.resp);
+    if (ack){ if (ack.checked) t._ack = 1; else delete t._ack; }
+    else if (cb.checked) t[cb.dataset.k] = new Date().toISOString().slice(11, 16) + ' UTC';
+    else delete t[cb.dataset.k];
+    store(tkey(art.dataset.resp), JSON.stringify(t)); respRefresh(art);
   });
-  art.querySelector('.rreset').addEventListener('click', function(){ store('edt-resp-' + art.dataset.resp, '{}'); respRefresh(art); toast('Ticks cleared'); });
+  art.querySelector('.rcase').addEventListener('input', function(ev){
+    CASE = ev.target.value.trim(); store('edt-case', CASE);
+    document.querySelectorAll('.rcase').forEach(function(x){ if (x !== ev.target) x.value = CASE; });
+    respRefresh(art);
+  });
+  art.querySelector('.rreset').addEventListener('click', function(){ store(tkey(art.dataset.resp), '{}'); respRefresh(art); toast('Ticks cleared' + (CASE ? ' for ' + CASE : '')); });
   art.querySelector('.rprint').addEventListener('click', function(){ window.print(); });
   art.querySelector('.rcopy').addEventListener('click', function(){
-    var md = ['# ' + art.dataset.name + ' - response checklist' + (RV ? ' (verdict: ' + RV + ')' : ''),
+    var ticks = respTicks(art.dataset.resp), stamp = new Date().toISOString().slice(0, 16).replace('T', ' ') + ' UTC';
+    var md = ['# ' + art.dataset.name + ' - response checklist',
+      [CASE ? 'Case ' + CASE : '', RV ? 'analyzer verdict ' + RV : '', 'exported ' + stamp].filter(Boolean).join(' · '),
       'From the edge-dfir-toolkit playbook: ' + location.href.split('#')[0] + '#response/' + art.dataset.resp, '', '## Do not'];
     art.querySelectorAll('.dont li').forEach(function(li){ md.push('- **' + li.querySelector('b').textContent.trim() + '** - ' + li.querySelector('.rdet').textContent.trim()); });
     art.querySelectorAll('.rphase').forEach(function(ph, i){
       var lis = Array.prototype.filter.call(ph.querySelectorAll('.rstep'), applies); if (!lis.length) return;
       md.push('', '## ' + (i + 1) + '. ' + ph.querySelector('h4').childNodes[0].textContent.trim());
       lis.forEach(function(li){
-        var box = li.querySelector('.rchk').checked ? '[x]' : '[ ]', title = li.querySelector('b').textContent.trim();
+        var t = tickTime(ticks[li.dataset.k]), box = li.querySelector('.rchk').checked ? '[x]' : '[ ]', title = li.querySelector('b').textContent.trim();
         var det = li.classList.contains('cred') ? ' - ' + li.querySelector('.ca').textContent.replace(/^Do/, '').trim() : (li.querySelector('.rdet') ? ' - ' + li.querySelector('.rdet').textContent.trim() : '');
-        md.push('- ' + box + ' ' + title + det);
+        md.push('- ' + box + ' ' + title + det + (t ? ' (' + t + ')' : ''));
       });
     });
     copyText(md.join('\n'), function(){ toast('Checklist copied as Markdown'); });
@@ -2518,24 +3174,25 @@ function sh(s){ return /^[\w@%+=:,./-]+$/.test(s) ? s : "'" + s.replace(/'/g, "'
 function val(id, dflt){ var v = $(id).value.trim(); return v || dflt; }
 function build(){
   var p = prof(); if (!p) return;
-  var bundle = $('b-bundle').checked, bg = $('b-bg').checked;
+  var bundle = $('b-bundle').checked, bg = $('b-bg').checked, one = $('b-one').checked;
   var parts = ['python -m edgetriage collect', '--profile ' + p.name, '--case-id ' + sh(val('b-case', 'IR-2026-001'))];
   if (p.ssh){ parts.push('--host ' + sh(val('b-host', '<device>'))); parts.push('--user ' + sh(val('b-user', '<readonly-user>'))); }
-  else parts.push('--replay ./' + p.name + '-checklist   # nothing to connect to; steps are recorded as manual');
+  else parts.push('--replay ./' + p.name + '-checklist');
   var op = $('b-op').value.trim(); if (op) parts.push('--operator ' + sh(op));
   parts.push('--rebooted ' + $('b-reboot').value, '--patched ' + $('b-patch').value);
   document.querySelectorAll('#b-vars input').forEach(function(i){ if (i.value.trim()) parts.push('--var ' + sh(i.dataset['var'] + '=' + i.value.trim())); });
   if (bundle || bg) parts.push('--allow-bundle'); if (bg) parts.push('--break-glass');
-  $('b-out').textContent = parts.join(' \\\n    ');
+  $('b-out').textContent = parts.join(one ? ' ' : ' \\\n    ');
   var n = 0, off = 0;
   document.querySelectorAll('.plan[data-profile="' + p.name + '"] .step').forEach(function(r){
     var imp = r.dataset.impact, on = imp === 'none' || (imp === 'vendor-bundle' && (bundle || bg)) || (imp === 'break-glass' && bg);
     r.classList.toggle('off', !on); if (on) n++; else off++;
   });
-  $('b-sum').textContent = n + ' step(s) will run' + (off ? ', ' + off + ' withheld' : '') + '.'
-    + (p.validated ? '' : ' This profile has not been run on a real device: the collector will ask you to type UNVALIDATED before it connects.');
+  $('b-warn').hidden = !!p.validated;
+  $('b-sum').textContent = n + ' step(s) will run' + (off ? ', ' + off + ' withheld until you allow them' : '') + '.'
+    + (p.ssh ? '' : ' There is nothing to connect to: the steps are recorded as manual.');
 }
-['b-case','b-host','b-user','b-op','b-reboot','b-patch','b-bundle','b-bg'].forEach(function(id){
+['b-case','b-host','b-user','b-op','b-reboot','b-patch','b-bundle','b-bg','b-one'].forEach(function(id){
   var el = $(id); el.addEventListener('input', build); el.addEventListener('change', build); });
 if (curP){ renderVars(); build(); }
 route();
@@ -2564,7 +3221,8 @@ def page(d: dict) -> tuple[str, dict]:
     data["guideNotes"] = sorted(ctx["notes_seen"])
     data["toc"] = guide_toc(d["guide"])
     panels = f'<section class="panel" id="tab-start" role="tabpanel" hidden>{render_start(d, data)}</section>'
-    panels += "".join(lib_panel(n, unv[n], n == "artifacts") for n in LIBS)
+    n_sig = sum(1 for x in data["detections"] if x["sigma"])
+    panels += "".join(lib_panel(n, unv[n], n == "artifacts", n_sig) for n in LIBS)
     panels += (f'<section class="panel" id="tab-plans" role="tabpanel" hidden>{render_plans(d)}</section>'
                f'<section class="panel" id="tab-response" role="tabpanel" hidden>{render_response(d)}</section>'
                f'<section class="panel" id="tab-coverage" role="tabpanel" hidden>{render_coverage(d, data)}</section>'
@@ -2585,13 +3243,10 @@ def page(d: dict) -> tuple[str, dict]:
 <a class="skip" href="#main">Skip to content</a>
 <header class="hdr"><div class="hdr-in">
   <div class="hdr-top">
-    <div class="hdr-id"><div class="h1row"><span class="dot"></span><h1>Edge DFIR Toolkit</h1><span class="pill">v{e(__version__)} &#183; Apache-2.0</span></div>
-      <p class="sub">What a compromised VPN concentrator, firewall or gateway leaves behind, what each trace proves, how long it lasts, and in what order to collect it.</p>
-      <p class="byline">By <a href="{AUTHOR_URL}" rel="noopener" target="_blank">{e(AUTHOR)}</a> &#183; <a href="{FIRM_URL}" rel="noopener" target="_blank">{e(FIRM)}</a></p></div>
-    <div class="hdr-right">
-      <a class="hbtn" href="{REPO_URL}" rel="noopener">GitHub &#8599;</a>
-      <button type="button" class="hbtn" id="themeBtn">Theme</button>
-    </div>
+    <a class="brand" href="#start" aria-label="Edge DFIR Toolkit: start"><span class="dot"></span><h1>Edge DFIR Toolkit</h1></a><span class="pill wide-only">v{e(__version__)} &#183; Apache-2.0</span>
+    <button type="button" class="hsearch" id="searchBtn" aria-keyshortcuts="/"><span class="glyph" aria-hidden="true">&#8981;</span><span class="hs-l">Search everything: a CVE, path, command, address or actor</span><span class="hs-s">Search</span><kbd aria-hidden="true">/</kbd></button>
+    <span class="hdr-right"><a class="hbtn wide-only" href="{REPO_URL}" rel="noopener">GitHub &#8599;</a>
+      <button type="button" class="hbtn" id="themeBtn">Theme</button></span>
   </div>
   <nav class="tabs" role="tablist" aria-label="Sections">{tabbar}</nav>
 </div></header>
@@ -2605,7 +3260,7 @@ def page(d: dict) -> tuple[str, dict]:
 <div class="scrim" id="scrim" hidden></div>
 <aside class="drawer" id="drawer" hidden role="dialog" aria-modal="true" aria-labelledby="dTitle">
   <div class="dhead"><div><span class="id" id="dId"></span><h2 id="dTitle" tabindex="-1"></h2></div>
-    <div class="dacts"><button type="button" id="dPrev" title="Previous (&#8592; or k)" aria-label="Previous record">&#8592;</button><button type="button" id="dNext" title="Next (&#8594; or j)" aria-label="Next record">&#8594;</button>
+    <div class="dacts"><span class="dpos" id="dPos"></span><button type="button" id="dPrev" title="Previous (&#8592; or k)" aria-label="Previous record">&#8592;</button><button type="button" id="dNext" title="Next (&#8594; or j)" aria-label="Next record">&#8594;</button>
       <button type="button" id="dLink">Copy link</button><button type="button" id="dWide">Wider</button><button type="button" id="dClose" aria-label="Close (Esc)">&#215;</button></div></div>
   <div class="dbody" id="dBody"></div>
 </aside>
@@ -2676,6 +3331,8 @@ def check(d: dict, doc: str, data: dict) -> list[str]:
                 problems.append(f"{where}: dangling link #{tab}/{anchor}")
             if tab == "guide" and f'id="g-{anchor}"' not in doc:
                 problems.append(f"{where}: dangling link #guide/{anchor}")
+            if tab == "coverage" and f'id="cov-{anchor}"' not in doc:   # #coverage/kev scrolls to #cov-kev
+                problems.append(f"{where}: dangling link #coverage/{anchor}")
         if query:
             if tab not in LIBS:
                 problems.append(f"{where}: query on non-library tab #{tab}")

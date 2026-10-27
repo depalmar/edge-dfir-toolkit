@@ -258,7 +258,7 @@ def test_drawer_is_a_dialog_and_focus_round_trips(browser, tmp_path):
     page.goto(f"{url}#artifacts")
     row = page.locator("#tab-artifacts .item").nth(2)
     rid = row.get_attribute("data-id")
-    row.focus()
+    row.locator("a.locl").focus()                              # the locator is the row's link (F34)
     page.keyboard.press("Enter")
     page.locator("#drawer").wait_for(state="visible")
     assert page.locator("#drawer").get_attribute("role") == "dialog"
@@ -269,7 +269,7 @@ def test_drawer_is_a_dialog_and_focus_round_trips(browser, tmp_path):
     page.keyboard.press("k")
     page.keyboard.press("Escape")
     page.locator("#drawer").wait_for(state="hidden")
-    assert page.evaluate("document.activeElement.dataset.id") == rid
+    assert page.evaluate("document.activeElement.closest('.item').dataset.id") == rid
 
 
 def test_text_is_never_the_faint_token(browser, tmp_path):
@@ -315,8 +315,100 @@ def test_unvalidated_collection_warning(browser, tmp_path):
     page.goto(f"{url}#plans/panos")
     assert page.locator("#tab-plans .warnbox").is_visible()
     assert "not yet run on a real device" in page.locator("#plan-panos .plan-h").inner_text()
-    assert "type UNVALIDATED" in page.locator("#b-sum").inner_text()
+    assert "type UNVALIDATED" in page.locator("#b-warn").inner_text()   # the builder's warning block (F29)
     page.locator("#tab-plans .warnbox a").click()
     page.wait_for_url("**#guide/unvalidated-profiles")
     page.locator("#tab-guide").wait_for(state="visible")
     page.locator("[id$='unvalidated-profiles']").first.wait_for(state="visible")
+
+
+def test_coverage_readiness_and_kev_ledger(browser, tmp_path):
+    """F17/F20: one readiness row per platform, one KEV ledger row per recorded
+    decision, and #coverage/kev lands on the section under the sticky header."""
+    import yaml
+    url = _build(tmp_path)
+    triaged = yaml.safe_load((ROOT / "artifacts" / "watch" / "kev-watch.yml").read_text())["triaged"]
+    page = browser.new_page(viewport={"width": 1440, "height": 900})
+    page.goto(f"{url}#coverage/kev")
+    page.locator("#tab-coverage").wait_for(state="visible")
+    assert page.locator("#cov-ready [role=table] .rrow:not(.rhead)").count() == 10
+    labels = page.locator("#cov-ready .rc").evaluate_all("els => els.map(e => e.getAttribute('aria-label'))")
+    assert len(labels) == 80 and all(lab.endswith((": yes", ": no")) for lab in labels)
+    assert page.locator("#cov-kev table.kev tbody tr").count() == len(triaged)
+    page.wait_for_function("() => window.scrollY > 0")
+    top = page.evaluate("document.getElementById('cov-kev').getBoundingClientRect().top")
+    hdr = page.evaluate("document.querySelector('.hdr').offsetHeight")
+    assert hdr <= top < hdr + 60
+
+
+def test_response_lens_counts_and_case_ticks(browser, tmp_path):
+    """F25/F26: each verdict button shows how many steps it keeps; a tick records
+    its time and belongs to the case id; the read do-not list folds to three."""
+    import re
+    url = _build(tmp_path)
+    ctx = browser.new_context(viewport={"width": 1440, "height": 900})
+    page = ctx.new_page()
+    page.goto(f"{url}#response/cisco-asa")
+    art = page.locator('.resp[data-resp="cisco-asa"]')
+    art.wait_for(state="visible")
+    for v in ("", "COMPROMISED", "LIKELY-COMPROMISED", "SUSPICIOUS", "NO-INDICATORS-FOUND"):
+        btn = page.locator(f'.vbtn[data-v="{v}"]')
+        n = int(btn.locator(".vn").inner_text())
+        btn.click()
+        assert int(art.locator(".rall").inner_text()) == n, v
+    page.locator('.vbtn[data-v=""]').click()
+    art.locator(".rcase").fill("IR-TEST-7")
+    first = art.locator(".rstep").first
+    first.locator(".rchk").check()
+    assert re.fullmatch(r"ticked \d\d:\d\d UTC", first.locator(".rtick").inner_text())
+    assert "for IR-TEST-7" in art.locator(".rprog-t").inner_text()
+    assert "edt-resp-IR-TEST-7|cisco-asa" in page.evaluate("Object.keys(localStorage)")
+    art.locator(".rcase").fill("")
+    assert not first.locator(".rchk").is_checked()            # no case id: the original per-platform list
+    art.locator(".rack").check()
+    assert art.locator(".dont .dgrid li:visible").count() == 3
+    assert art.locator(".rfold").is_visible()
+    ctx.close()
+
+
+def test_artifact_rows_group_highlight_and_link(browser, tmp_path):
+    """F9/F10/F13/F34: rows grouped by platform until one platform is filtered,
+    filter words marked, the locator is the row's link, detections show where they run."""
+    url = _build(tmp_path)
+    page = browser.new_page(viewport={"width": 1440, "height": 900})
+    page.goto(f"{url}#artifacts")
+    page.locator("#tab-artifacts .grp").first.wait_for(state="visible")
+    assert page.locator("#tab-artifacts .grp").count() == 10
+    assert page.locator("#tab-artifacts .row.item[role=button], #tab-artifacts .row.item[tabindex]").count() == 0
+    assert page.locator("#tab-artifacts .row.item a.locl").count() == page.locator("#tab-artifacts .row.item").count()
+    page.goto(f"{url}#artifacts?platform=EDGE-0005")
+    page.wait_for_timeout(200)
+    assert page.locator("#tab-artifacts .grp").count() == 0
+    page.goto(f"{url}#artifacts?q=lina")
+    page.wait_for_timeout(200)
+    marks = page.locator("#tab-artifacts .results mark").all_inner_texts()
+    assert marks and all(m.lower() == "lina" for m in marks)
+    page.goto(f"{url}#detections")
+    page.locator("#tab-detections .lc").first.wait_for(state="visible")
+    assert page.locator("#tab-detections .lc .runs").count() == page.locator("#tab-detections .lc").count()
+    page.locator("#searchBtn").click()                        # until the palette ships it filters the library in view
+    assert page.evaluate("document.activeElement.classList.contains('q')")
+
+
+def test_record_drawer_facts_sections_and_connections(browser, tmp_path):
+    """F15: quick facts first, a chip per section, position in the list, and
+    a How it connects box with links into the other libraries."""
+    url = _build(tmp_path)
+    page = browser.new_page(viewport={"width": 1440, "height": 900})
+    page.goto(f"{url}#artifacts/EDGE-0005.10")
+    page.locator("#drawer").wait_for(state="visible")
+    assert page.locator("#dBody .dfacts dt").all_inner_texts()[:3] == ["Class", "Volatility", "Forensic value"]
+    assert page.locator("#dPos").inner_text().endswith(" of 92")
+    assert "How it connects" in page.locator("#dBody .dsecs button").all_inner_texts()
+    page.locator("#dBody .dsecs button", has_text="How it connects").click()
+    page.wait_for_function("() => document.getElementById('dBody').scrollTop > 0")
+    assert page.locator("#dBody .dconn a[href^='#plans/']").count() == 1
+    page.goto(f"{url}#intel/EDGE-TA-0003")
+    page.locator("#drawer").wait_for(state="visible")
+    first_two = page.locator("#dBody > nav").evaluate_all("els => els.map(e => e.className)")
+    assert first_two[:2] == ["djump", "dsecs"]                 # the intel jumps stay first

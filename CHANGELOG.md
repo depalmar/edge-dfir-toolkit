@@ -23,6 +23,58 @@ steps. Step 1 holds the quick fixes:
 - Words instead of coloured inset bars (F11): "unverified", "coverage gap" and
   "baseline" badges. `stable` volatility is the same colour in badges and bars.
 
+Step 2 adds new views, built from data the repository already has:
+
+- Header (F1, F32): one row with a "Search everything" box, and it stays
+  sticky on phones. The subtitle and byline move to the Start hero.
+- Start (F4, F5, F6):
+  - A "How far to trust it" card: profiles run on a device, steps by source,
+    and detections with Sigma rules or from unverified packs.
+  - Count pills.
+  - Platform tiles with a Plan / Detect / Respond / Harden readiness grid and
+    Collect / Respond buttons.
+  - A numbered before-you-touch box that holds the unvalidated warning.
+  - A verdict ladder whose copy is tested against `analyze.verdict()`.
+  - Step counts on every collection tier. The legend folds.
+- Libraries (F7, F9, F10, F13, F34):
+  - One-line ledes, with "About this library" for the rest.
+  - Controls on one line, with Copy link.
+  - Artifact rows grouped by platform under sticky headers. Descriptions are
+    clamped, the locator is the row's link, and the columns follow the width
+    of the results.
+  - Filter words are marked.
+  - A "Runs in" strip on detection cards.
+- Record drawer (F15): quick facts, section chips, a "How it connects" box,
+  tinted normal/suspicious boxes and an "N of M" position.
+- Coverage and trust (F17-F21):
+  - Trust tiles.
+  - Confidence by library.
+  - Indicator-set freshness.
+  - A readiness scorecard with ten platforms and eight capabilities.
+  - CSS-grid heatmaps with tier pips.
+  - A gap ledger that says who each gap affects and what closes it.
+  - A KEV section (`#coverage/kev`) built from the advisory-watch ledger: pack
+    CVEs by year, why each exploited CVE has no pack, and the decisions table.
+- Threat intel (F22, F23):
+  - The timeline has one row per actor, with a reporter count and the build
+    date marked. Indicator sets share a final lane.
+  - The roles chart leads with how many published addresses are
+    actor-controlled.
+- Response (F25, F26):
+  - The verdict lens shows step counts.
+  - A case id keeps ticks per case. Each tick records its UTC time, which also
+    goes into the Markdown export.
+  - An "I have read these" box folds the do-not list.
+- Collection plans (F27-F29):
+  - A summary band with a confidence bar and a steps-per-tier strip.
+  - Withheld steps say why.
+  - The builder's unvalidated warning is `#b-warn`.
+  - There is a "One line, for pasting into a ticket" option.
+  - On narrow screens the builder comes first.
+  - Fixed: a profile without SSH put a `#` comment inside the backslash-
+    continued command, which cut it short.
+- Guide: reading time in the contents rail and 32 px contents links.
+
 ## 0.8.2 - 2026-10-27
 
 Follow-ups from the KEV triage.

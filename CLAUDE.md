@@ -226,7 +226,13 @@ Indicator values are defanged on screen and exported refanged. Type:
 one sans family, sizes only from the `--fs-*` tokens, monospace only for
 literal strings (commands, paths, file names, patterns); prose goes through
 `rich()` in the JS, which wraps the literals inline. Every platform needs a
-note in the guide's Platform notes section, keyed in `NOTE_PLATFORM`.
+note in the guide's Platform notes section, keyed in `NOTE_PLATFORM`, and a short
+name in `PLATFORM_ABBR` (pickers, facets, matrices; `--check` fails without one).
+Start's verdict ladder (`LADDER`) is run through `analyze.verdict()` by
+`tests/test_site_contract.py`: change the copy and the code together. Coverage
+reads the KEV ledger from `artifacts/watch/kev-watch.yml`; `#coverage/<anchor>`
+scrolls to `id="cov-<anchor>"` and `--check` validates it. `--faint` is for lines
+and decoration only, never text.
 Page changes go in the generator. `--check` fails on duplicate or non-URL-safe
 element ids, dangling `#tab/anchor` links and any external script or stylesheet.
 
