@@ -1262,3 +1262,26 @@ def test_ivanti_2024_mandiant_rules_and_bushwalk_request(tmp_path):
     p = _pats("EDGE-PACK-0007-ivanti-ics-2024-chain.yml")["ivanti-bushwalk-safariios-request"]
     assert p.search('"GET /querymanifest.cgi?platform=SafariiOS&command=AAAA HTTP/1.1"')
     assert not p.search('"GET /querymanifest.cgi?platform=WIN HTTP/1.1"')
+
+
+def test_report_html_is_self_contained_and_escaped(fx, tmp_path):
+    """report.html sits beside report.md (F38). Excerpts and sources come from a
+    compromised device, so every value is escaped; the page loads nothing and links
+    only back to the published toolkit."""
+    import re
+    from edgetriage.analyze import render_html
+    root = run(fx, tmp_path, "cisco-asa", "asa-compromised")
+    f = analyze(root)
+    doc = (root / "report.html").read_text()
+    assert f["verdict"]["level"] in doc and "How the verdict was reached" in doc
+    assert "<script" not in doc and not re.search(r"<link[^>]+stylesheet", doc)
+    urls = set(re.findall(r"https?://[^\"'<> ]+", doc))
+    assert urls and all(u.startswith("https://depalmar.github.io/edge-dfir-toolkit/") for u in urls)
+    m = json.loads((root / "manifest.json").read_text())
+    f2 = json.loads(json.dumps(f))
+    hit = next(r for r in f2["detections"] if r["status"] == "hit")
+    hit["hits"][0]["excerpt"] = "<script>alert(1)</script><img src=x onerror=alert(1)>"
+    hit["hits"][0]["source"] = '"><a href="https://evil.example/">x</a>'
+    doc2 = render_html(f2, m)
+    assert "<script>" not in doc2 and "<img" not in doc2 and "evil.example/\">" not in doc2
+    assert "&lt;script&gt;alert(1)&lt;/script&gt;" in doc2

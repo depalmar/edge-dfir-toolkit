@@ -75,6 +75,33 @@ Step 2 adds new views, built from data the repository already has:
     continued command, which cut it short.
 - Guide: reading time in the contents rail and 32 px contents links.
 
+Step 3 adds the larger pieces, and two fixes from review:
+
+- `edgetriage analyze` now also writes `report.html` beside `report.md`, verdict
+  first (F38). The page holds:
+  - the verdict card and its status bar;
+  - a grid showing each detection by evidence class and tier;
+  - the evidence gaps, each with how to close it;
+  - findings with their excerpts;
+  - a strip with one block per collection step.
+
+  It is one self-contained file: no script, no font, no request, and links
+  only back to the published toolkit. Every value is escaped, because
+  excerpts and sources come from a compromised device. Like `report.md`, it
+  stays in the case folder.
+- Dark mode is lifted off black. The page was `#121110`, and outlines were
+  1.3:1 against cards, so cards and inputs disappeared. Cards now stand off
+  the page, outlines are 2:1, and control borders are 3:1 (WCAG 1.4.11);
+  `test_dark_theme_outlines_are_visible` holds those floors. The report's dark
+  tokens match.
+- With a record open, the page behind it is locked under a scrim at every
+  width. There is one scroller, and the wheel no longer spills from the drawer
+  into the page.
+- Kept as they were, by the maintainer's choice:
+  - the record drawer stays an overlay (the handoff's docked panel would add
+    a second scroll region);
+  - the light theme stays the default.
+
 ## 0.8.2 - 2026-10-27
 
 Follow-ups from the KEV triage.
