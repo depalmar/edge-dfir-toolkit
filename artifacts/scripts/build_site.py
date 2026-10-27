@@ -66,6 +66,7 @@ RULE_DIR_PLATFORM = {
 FACET_KEYS = {
     "artifacts": ["platform", "class", "volatility", "value", "evidence", "kind", "confidence", "basis", "seen"],
     "platforms": ["vendor", "shell", "memory", "profile"],
+    "cves": ["platform", "triage", "ransomware", "coverage", "year"],
     "detections": ["platform", "runs", "pack", "tier", "evidence", "type", "attack", "cve", "actor"],
     "intel": ["kind", "platform", "motivation", "type", "resides", "reboot", "coverage", "iocs", "reporter"],
     "hardening": ["platform", "category", "priority", "confidence"],
@@ -136,6 +137,28 @@ def git_dates() -> dict[str, str]:
         elif ln.strip() and cur:
             dates.setdefault(ln.strip(), cur)
     return dates
+
+
+def cve_universe(d: dict) -> set[str]:
+    """Every CVE the site gives a record: each one in the KEV records file, and each
+    one a repository record names in a structured field (prose mentions do not count)."""
+    out = {r["cve"] for r in d["kev"].get("records", [])}
+
+    def take(vals) -> None:
+        out.update(str(v) for v in vals or [] if CVE_FULL.fullmatch(str(v)))
+    for p in d["packs"]:
+        take(p.get("cves"))
+    for c in d["catalog"]:
+        for a in c.get("artifacts", []):
+            take(a.get("seen_in"))
+    for h in d["hunts"]:
+        take(h.get("cves"))
+    for h in d["hardening"].values():
+        for c in h["controls"]:
+            take(c.get("blunts"))
+    for x in d["iocs"] + d["implants"] + d["actors"]:
+        take(x.get("cves"))
+    return out
 
 
 def platform_events(d: dict) -> dict[str, tuple[str, str]]:
@@ -217,9 +240,14 @@ def load() -> dict:
     hardening = {f.stem: _yml(f) for f in sorted((ROOT / "artifacts" / "hardening").glob("*.yml"))}
     hunts = [_yml(f) for f in sorted((ROOT / "artifacts" / "hunts").glob("*.yml"))]
     watch = yaml.safe_load((ROOT / "artifacts" / "watch" / "kev-watch.yml").read_text())
+    recs = yaml.safe_load((ROOT / "artifacts" / "watch" / "kev-records.yml").read_text())
     kev = {"since": str(watch["since"]), "triaged": [{**t, "date": str(t["date"]), "refs": t.get("refs") or []}
                                                     for t in watch.get("triaged") or []],
-           "added": {pid: {c: str(day) for c, day in cves.items()} for pid, cves in (watch.get("kev_added") or {}).items()}}
+           "catalog": str(recs["catalog"]), "released": str(recs["released"]),
+           "records": [{**r, "added": str(r["added"]), "due": str(r["due"])} for r in recs["records"]], "added": {}}
+    for r in kev["records"]:   # the re-read flag's KEV events, by the platform KEV's own product strings map to
+        if r["platform"]:
+            kev["added"].setdefault(r["platform"], {})[r["cve"]] = r["added"]
     return {"catalog": catalog, "profiles": profiles, "packs": packs, "rules": rules, "guide": guide,
             "actors": actors, "implants": implants, "iocs": iocs, "response": response, "hardening": hardening, "hunts": hunts,
             "kev": kev, "dates": git_dates()}
@@ -236,6 +264,7 @@ def build_data(d: dict) -> dict:
 
     def rr(x: dict) -> list[str]:
         return reread(x, dates, events)
+    cve_set = cve_universe(d)
     steps = {p.name: {s.id: {"tier": s.tier, "impact": s.impact, "kind": s.kind, "cmd": s.cmd or s.list_cmd or "",
                              "purpose": s.purpose, "instructions": (s.instructions or "").strip(),
                              "confidence": s.confidence, "unverified": s.unverified} for s in p.steps}
@@ -291,8 +320,8 @@ def build_data(d: dict) -> dict:
         out = []
         for n in names or []:
             lk = intel_links([n])[0]
-            if "href" not in lk and re.fullmatch(r"CVE-\d{4}-\d+", n) and n in det_cves:
-                lk = {"label": n, "href": f"#detections?cve={n}"}
+            if "href" not in lk and n in cve_set:
+                lk = {"label": n, "href": f"#cves/{n}"}
             out.append(lk)
         return out
 
@@ -391,7 +420,7 @@ def build_data(d: dict) -> dict:
         out = []
         for n in names or []:
             if re.fullmatch(r"CVE-\d{4}-\d+", n):
-                out.append({"label": n, "href": f"#detections?cve={n}"} if n in det_cves else {"label": n})
+                out.append({"label": n, "href": f"#cves/{n}"} if n in cve_set else {"label": n})
             else:
                 out.append(intel_links([n])[0])
         return out
@@ -429,9 +458,79 @@ def build_data(d: dict) -> dict:
         "changed": changed(h), "reread": rr(h),
     } for h in d["hunts"]]
 
+    # Exploited CVEs: CISA's KEV fields beside everything the toolkit has for each one.
+    rec_by = {r["cve"]: r for r in d["kev"].get("records", [])}
+    ledger = {t["cve"]: t for t in d["kev"]["triaged"]}
+    since = d["kev"]["since"]
+    actor_ids = {a["id"] for a in d["actors"]}
+    plat_order = [c["id"] for c in d["catalog"]]
+    plat_resp = {c["id"]: c.get("response") for c in d["catalog"]}
+    cves = []
+    for cid in sorted(cve_set, key=lambda c: (rec_by.get(c, {}).get("added", ""), c), reverse=True):
+        r = rec_by.get(cid) or {}
+        dl = [x for x in dets if cid in x["cves"]]
+        al = [a for a in artifacts if cid in a["seen_in"]]
+        hu = [h for h in hunts if cid in h["cves"]]
+        hc = [x for x in hard if cid in x["blunts"]]
+        il = [i for i in intel if i["kind"] == "implant" and cid in i["cves"]]
+        sl = [x for x in iocs if cid in x["cves"]]
+        acts: set[str] = set()
+        for x in dl:
+            acts.update(lk["href"].split("/", 1)[1] for lk in x["actor_links"] if lk.get("href", "").startswith("#intel/"))
+        for i in il:
+            acts.update(i["actors"])
+        for x in sl:
+            acts.update(x["actors"])
+        for h in hu:
+            acts.update(h["actors"])
+        # KEV's own product strings decide the platform when they map to one. Only when
+        # they do not (an Apache CVE exploited on SMA 100) do the records that name it.
+        plats = {r["platform"]} if r.get("platform") else set()
+        if not plats:
+            for x in dl:
+                plats.update(x["platforms"])
+            plats.update(a["platform"] for a in al)
+            for h in hu:
+                plats.update(h["platforms"])
+            plats.update(x["platform"] for x in hc)
+            for x in il + sl:
+                plats.update(x["platforms"])
+        plats_l = [p for p in plat_order if p in plats]
+        t = ledger.get(cid)
+        if dl:
+            cov = "detections"
+        elif t:
+            cov = t["decision"]
+        elif not r:
+            cov = "not-in-kev"
+        elif r["added"] < since:
+            cov = "before-watch"
+        elif not r.get("platform"):
+            cov = "other-product"
+        else:
+            cov = "untriaged"
+        cves.append({
+            "id": cid, "in_kev": bool(r), "kev_platform": r.get("platform"), "name": r.get("name", ""),
+            "vendor": r.get("vendor", ""), "product": r.get("product", ""), "added": r.get("added", ""),
+            "due": r.get("due", ""), "year": r.get("added", "")[:4], "ransomware": r.get("ransomware", ""),
+            "triage": r.get("forensic_triage", ""), "cwes": r.get("cwes", []), "action": r.get("action", ""),
+            "description": r.get("description", ""),
+            "links": [u.rstrip(";,.") for u in re.findall(r"https?://[^\s;]+", r.get("notes", ""))],
+            "platforms": plats_l, "coverage": cov,
+            "decision": {"decision": t["decision"], "date": t["date"], "basis": t["basis"].strip()} if t else None,
+            "detections": [x["id"] for x in dl], "artifacts": [a["id"] for a in al], "hunts": [h["id"] for h in hu],
+            "hardening": [x["id"] for x in hc], "implants": [i["id"] for i in il],
+            "actors": sorted(acts & actor_ids), "iocs": [x["id"] for x in sl],
+            "plans": [plat_profile[p] for p in plats_l if plat_profile.get(p)],
+            "playbooks": [plat_resp[p] for p in plats_l if plat_resp.get(p)],
+        })
+
     return {"platforms": platforms, "artifacts": artifacts, "detections": dets, "packs": packs, "rules": rules,
             "intel": intel, "iocs": iocs, "hardening": hard, "hunts": hunts, "facetKeys": FACET_KEYS, "repo": REPO_URL,
-            "abbr": PLATFORM_ABBR, "kev": {k: v for k, v in d["kev"].items() if k != "added"}, "built": build_date().isoformat(),
+            "cves": cves, "bod": {"url": BOD_URL, "steps": BOD_STEPS, "note": BOD_NOTE, "patch": BOD_PATCH,
+                                  "catalog": d["kev"].get("catalog", ""), "released": d["kev"].get("released", "")},
+            "abbr": PLATFORM_ABBR, "kev": {k: v for k, v in d["kev"].items() if k in ("since", "triaged")},
+            "built": build_date().isoformat(),
             "steps": [[p.name, st.id, st.tier, st.cmd or st.list_cmd or "", st.purpose] for p in d["profiles"] for st in p.steps],
             "guideMins": max(1, round(len(re.findall(r"\w+", d["guide"])) / 230)),
             "profiles": [{"name": p.name, "ssh": "ssh" in p.transports, "validated": bool(p.validated_on),
@@ -468,7 +567,7 @@ def guide_inline(s: str, ctx: dict) -> str:
     for t in TIERS:
         h = h.replace(f"<code>{t}</code>", f'<span class="badge tier t-{t}">{t}</span>')
     return re.sub(r"(?<![\w/=?-])(CVE-\d{4}-\d{4,})",
-                  lambda m: f'<a href="#detections?cve={m.group(1)}">{m.group(1)}</a>' if m.group(1) in ctx["cves"] else m.group(1), h)
+                  lambda m: f'<a href="#cves/{m.group(1)}">{m.group(1)}</a>' if m.group(1) in ctx["cves"] else m.group(1), h)
 
 
 def note_links(pid: str, ctx: dict) -> str:
@@ -595,6 +694,22 @@ def copyable(text: str) -> str:
     return f'<span class="cmd"><code>{e(text)}</code><button class="copy sm" type="button" data-copy="{e(text)}">Copy</button></span>'
 
 
+# BOD 26-04 forensic triage: CISA's step names and target timelines, verbatim from the
+# implementation guidance. A KEV entry whose forensicTriage is "Yes" carries them; the
+# link beside each step is this toolkit's suggestion for where it starts, not the directive.
+BOD_URL = ("https://www.cisa.gov/news-events/directives/"
+           "bod-26-04-implementation-guidance-prioritizing-security-updates-based-risk")
+BOD_STEPS = [("Scoping", "Target timeline: within first two hours of KEV addition"),
+             ("Preserve and Collect Evidence", "Target timeline: within 2-24 hours of KEV addition"),
+             ("Critical Patching and Stabilization", "Target timeline: within 2-24 hours of KEV addition"),
+             ("Contain and Control", "Target timeline: within 6-24 hours of KEV addition"),
+             ("Triage Analysis", "Target timeline: within 24-48 hours of KEV addition"),
+             ("Escalation Decision", "Target timeline: within 48-72 hours of KEV addition")]
+BOD_NOTE = ("The requirement of BOD 26-04 is that an adequate forensic triage analysis is performed; "
+            "the specific timeline below is not required.")
+BOD_PATCH = "Collect all required evidence prior to this step as patching may jeopardize the availability of artifacts."
+CVE_FULL = re.compile(r"CVE-\d{4}-\d{4,}")
+
 LIB_COPY = {
     # title, one-line lede, the long text behind "About this library", filter placeholder
     "artifacts": ("Artifacts", "What each trace proves, how long it lasts and the step that collects it.",
@@ -603,6 +718,13 @@ LIB_COPY = {
                   "Filter artifacts: locator, description, implant, CVE"),
     "platforms": ("Platforms", "What a responder can reach on each platform, how, and what disappears if you wait.", "",
                   "Filter platforms, vendors, products"),
+    "cves": ("CVEs", "One record per CVE: what CISA's catalog says about it, and everything the toolkit has for it.",
+             "Every CISA KEV entry on the ten platforms since 2024, and every CVE a record here names. CISA's own fields "
+             "(date added, due date, ransomware use, the BOD 26-04 forensic triage flag) are copied verbatim from the KEV "
+             "catalog by `advisory_watch.py --records`; the rest joins what the toolkit has: detections, the traces "
+             "artifacts record, hunts, hardening, playbooks, actors and indicator sets. A CVE CISA flags for forensic "
+             "triage carries the directive's six steps, each beside the place the toolkit starts it.",
+             "Filter CVEs: id, product, name, CWE"),
     "detections": ("Detections", "Each runs in the analyzer and reports hit, no hit or not evaluated, never a pass. "
                    "{sigma} also carry a Sigma rule for your SIEM.",
                    "Every detection runs in the analyzer against evidence collected from the device, and "
@@ -1022,6 +1144,8 @@ def render_start(d: dict, data: dict) -> str:
             (len(dets), f'detections in {len(d["packs"])} packs', "#detections"),
             (len(data["hunts"]), "off-box hunts", "#hunts"),
             (len(data["intel"]), "actors and implants", "#intel"),
+            (len(data["cves"]), "CVEs, with CISA's catalog entry where there is one", "#cves"),
+            (sum(1 for c in data["cves"] if c["triage"] == "Yes"), "flagged for forensic triage under BOD 26-04", "#cves?triage=Yes"),
             (len(data["hardening"]), "hardening controls", "#hardening"),
             (len(data["rules"]), "Sigma and YARA files", "#detections?runs=siem,yara"),
             (f'{sum(1 for p in plats if p["profile"])}/{len(plats)}', "platforms with a profile", "#coverage")]
@@ -1367,15 +1491,18 @@ def render_coverage(d: dict, data: dict) -> str:
         else:
             href = f"#detections?pack={r}"
         return f'<a class="chip link" href="{href}">{e(r)}</a>'
-    krows = "".join(f'<tr><td class="kc">{e(t["cve"])}</td><td>{e(ab.get(t["platform"], t["platform"]))}</td>'
+    krows = "".join(f'<tr><td class="kc"><a href="#cves/{e(t["cve"])}">{e(t["cve"])}</a></td><td>{e(ab.get(t["platform"], t["platform"]))}</td>'
                     f'<td><span class="badge decb dec-{e(t["decision"])}">{e(t["decision"])}</span></td>'
                     f'<td><span class="rx">{e(t["basis"])}</span>'
                     + (f'<div class="links">{"".join(ref_link(r) for r in t["refs"])}</div>' if t["refs"] else "")
                     + f'</td><td class="muted kd">{e(t["date"])}</td></tr>' for t in triaged)
+    in_watch = [c for c in data["cves"] if c["kev_platform"] and c["added"] >= since]
+    n_tri = sum(1 for c in in_watch if c["triage"] == "Yes")
     kev = (f'<section id="cov-kev" class="covsec"><h3 class="sect">Keeping up with exploitation</h3>'
            f'<p class="muted small lede2">Every CISA KEV entry added since {e(since)} on a watched platform is either in a pack or '
            f'carries a recorded decision. The weekly advisory-watch job opens an issue for anything else and never commits. '
-           f'The decisions live in <code>artifacts/watch/kev-watch.yml</code>.</p>'
+           f'The decisions live in <code>artifacts/watch/kev-watch.yml</code>. {n_tri} of those {len(in_watch)} entries are '
+           f'flagged for forensic triage under BOD 26-04: <a href="#cves?triage=Yes">see them, step by step</a>.</p>'
            f'<div class="cov2"><div class="card"><div class="kpi3">'
            f'<div><b>{len(pack_cves)}</b><span>CVEs with a detection pack</span></div>'
            f'<div><b>{len(triaged)}</b><span>exploited CVEs with a decision instead</span></div>'
@@ -2218,6 +2345,18 @@ a.hc:hover{box-shadow:inset 0 0 0 2px var(--accent)}
 .b2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px}
 .b2 select{width:100%;min-width:0}
 
+/* exploited CVEs */
+.bod-b{color:var(--ink);background:var(--alert-bg);border-color:var(--crit);font-weight:600}
+.rw-b{color:var(--crit);background:transparent;border-color:var(--crit)}
+ol.bod{list-style:none;margin:0 0 8px;padding:0;counter-reset:bod}
+ol.bod>li{counter-increment:bod;display:grid;grid-template-columns:26px minmax(0,1fr);column-gap:10px;padding:10px 0;border-top:1px solid var(--line-soft)}
+ol.bod>li::before{content:counter(bod);grid-row:span 3;width:24px;height:24px;border-radius:50%;background:var(--accent-soft);color:var(--ink);display:grid;place-items:center;font-size:var(--fs-xs);font-weight:600}
+ol.bod .bod-t{font-size:var(--fs-xs);color:var(--muted)}
+ol.bod .bod-go{display:flex;flex-wrap:wrap;gap:6px;margin-top:5px;align-items:center}
+.cve-name{font-weight:600;margin:0 0 6px}
+ul.arts>li{padding:7px 0;border-top:1px solid var(--line-soft)}
+ul.arts>li:first-child{border-top:0}
+
 /* search everything (F2) */
 .ps-scrim{position:fixed;inset:0;background:rgba(20,18,16,.38);z-index:65}
 .ps-box{position:fixed;top:min(10vh,80px);left:50%;transform:translateX(-50%);width:min(700px,94%);max-height:76vh;display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:0 18px 60px var(--shadow-lg);z-index:70;overflow:hidden}
@@ -2615,7 +2754,7 @@ detections: {
     if (x.attack.length) h += sec('ATT&CK', '<div class="links">' + att(x.attack) + '</div>');
     h += connects([
       ['Reads steps', x.steps.map(function(s){ return s.profile ? lnk('#plans/' + s.profile, s.profile + ' · ' + s.id, 'mono') : '<span class="chip mono">' + esc(s.id) + '</span>'; })],
-      ['CVEs', x.cves.map(function(c){ return lnk('#detections?cve=' + c, c); })],
+      ['CVEs', x.cves.map(function(c){ return lnk('#cves/' + c, c); })],
       ['Actors and implants', x.actor_links.length || x.implant_links.length ? [lnks(x.actor_links, 'actor') + lnks(x.implant_links, 'implant')] : []],
       ['Pack', [lnk('#detections?pack=' + p.id, p.id + ' · ' + p.name)]]]);
     h += sec('About pack ' + p.id, para(p.summary) + '<div class="links">' + platLinks(p.platforms) + lnk('#detections?pack=' + p.id, 'All ' + p.n + ' detections in this pack') + '</div>');
@@ -2773,6 +2912,100 @@ hardening: {
       '<div class="tile"><b>' + Object.keys(plats).length + '</b><span>platforms with their own controls</span></div></div>';
   }
 }
+};
+
+/* ---------------------------------------------------------------- exploited CVEs */
+var COVN = {detections:'Has detections', iocs:'Indicators, no on-box detection', 'no-indicators':'No indicators published',
+  'lab-only':'Lab reproduction only', 'out-of-scope':'Out of scope', deferred:'Not yet triaged',
+  'before-watch':'No detection; in KEV before 2024', 'other-product':'No detection; KEV files it under another product',
+  'not-in-kev':'No detection; not in KEV', untriaged:'No detection; not in the ledger yet'};
+var CX = {}; ['artifacts', 'detections', 'hunts', 'hardening', 'intel'].forEach(function(n){ D[n].forEach(function(i){ CX[n + ':' + i.id] = i; }); });
+var CYRS = []; D.cves.forEach(function(c){ if (c.year && CYRS.indexOf(c.year) < 0) CYRS.push(c.year); }); CYRS.sort().reverse();
+function cveCov(c){ var n = c.detections.length; return c.coverage === 'detections' ? n + (n === 1 ? ' detection' : ' detections') : (COVN[c.coverage] || c.coverage); }
+function cvePl(c){ return c.platforms.map(function(p){ return ABBR[p] || p; }).join(', '); }
+function bodSteps(c){
+  var p = c.kev_platform || c.platforms[0] || '', pl = PLAT[p] || {}, pa = ABBR[p] || p;
+  var go = [
+    p ? lnk('#platforms/' + p, 'What you can reach on ' + pa) : '',
+    pl.profile ? lnk('#plans/' + pl.profile, pa + ' collection plan, most volatile first') :
+      '<span class="small">No collection profile for ' + esc(pa) + ' yet; collect by hand from the platform record.</span>',
+    '<span class="small">CISA: &quot;' + esc(D.bod.patch) + '&quot;</span>' + (pl.response ? lnk('#response/' + pl.response, pa + ' playbook: what not to do first') : ''),
+    pl.response ? lnk('#response/' + pl.response, pa + ' response playbook') : '',
+    (c.detections.length ? lnk('#detections?cve=' + c.id, cveCov(c)) : '<span class="chip">' + esc(cveCov(c)) + '</span>') +
+      c.hunts.map(function(h){ var x = CX['hunts:' + h]; return lnk('#hunts/' + h, x ? x.title : h); }).join('') +
+      '<span class="small">then <code>edgetriage analyze</code> on the case</span>',
+    '<span class="small"><code>edgetriage analyze</code> writes <code>report.html</code> and <code>report.md</code> (verdict, evidence gaps, findings); ' +
+      '<code>edgetriage timeline</code> adds the incident timeline. CISA\'s report also needs the timeline of actions taken.</span>'];
+  return '<ol class="bod">' + D.bod.steps.map(function(st, i){ return '<li><b>' + esc(st[0]) + '</b><span class="bod-t">' + esc(st[1]) + '</span>' +
+      '<div class="bod-go">' + go[i] + '</div></li>'; }).join('') + '</ol>' +
+    '<p class="small muted">Step names and target timelines are quoted from <a href="' + esc(D.bod.url) + '" rel="noopener" target="_blank">CISA\'s BOD 26-04 implementation guidance</a>, ' +
+    'which also says: &quot;' + esc(D.bod.note) + '&quot; The links are this toolkit\'s suggestion for where each step starts, not part of the directive. ' +
+    'Where the playbook\'s order and CISA\'s steps differ, an agency bound by the directive follows the directive.</p>';
+}
+LIB.cves = {
+  noun:'CVEs', items:D.cves, view:'cards',
+  facets:[
+    F('platform', 'Platform', function(c){ return c.platforms; }, pab, PORDER, pfull),
+    F('triage', 'Forensic triage (BOD 26-04)', function(c){ return [c.triage || 'none']; },
+      function(v){ return v === 'Yes' ? 'Required' : v === 'No' ? 'Not required' : 'Not in KEV'; }, ['Yes', 'No', 'none']),
+    F('ransomware', 'Ransomware use (KEV)', function(c){ return c.in_kev ? [c.ransomware] : []; }, null, ['Known', 'Unknown']),
+    F('coverage', 'What the toolkit has', function(c){ return [c.coverage]; }, function(v){ return COVN[v] || v; }, Object.keys(COVN)),
+    F('year', 'Added to KEV', function(c){ return c.year ? [c.year] : []; }, null, CYRS)
+  ],
+  text:function(c){ return [c.id, c.name, c.vendor, c.product, c.description, c.action, c.cwes.join(' '), cvePl(c),
+    c.platforms.map(function(p){ return PN[p] || ''; }).join(' '), COVN[c.coverage] || '', c.decision ? c.decision.basis : '',
+    c.triage === 'Yes' ? 'forensic triage BOD 26-04' : '', c.ransomware === 'Known' ? 'ransomware' : ''].join(' '); },
+  card:function(c){
+    return hd((cvePl(c) || c.vendor || 'no platform') + (c.in_kev ? ' · added ' + c.added : ' · not in KEV'), c.id, '',
+        (c.triage === 'Yes' ? b('forensic triage', 'bod-b') : '') + (c.ransomware === 'Known' ? b('ransomware', 'rw-b') : '')) +
+      (c.name ? '<p class="clamp">' + esc(c.name) + '</p>' : '') +
+      '<div class="lc-f"><span class="chip">' + esc(cveCov(c)) + '</span>' + chips(c.cwes.slice(0, 2)) + '</div>';
+  },
+  title:function(c){ return c.name || c.id; },
+  label:function(c){ return c.id; },
+  drawer:function(c){
+    var x = facts([['Platforms', esc(cvePl(c) || 'none')],
+      c.in_kev ? ['Added to KEV', esc(c.added)] : ['KEV', 'not in the catalog'],
+      c.in_kev && c.due ? ['CISA due date', esc(c.due)] : null,
+      c.in_kev ? ['Forensic triage', c.triage === 'Yes' ? b('required by BOD 26-04', 'bod-b') : 'not required'] : null,
+      c.in_kev ? ['Ransomware use', c.ransomware === 'Known' ? b('known', 'rw-b') : esc(c.ransomware.toLowerCase())] : null,
+      c.cwes.length ? ['CWE', esc(c.cwes.join(', '))] : null,
+      ['The toolkit has', esc(cveCov(c))]]);
+    if (c.in_kev) x += sec('What CISA\'s catalog says', '<p class="cve-name">' + esc(c.name) + '</p><blockquote>' + esc(c.description) + '</blockquote>' +
+      '<p><b>Required action.</b> ' + esc(c.action) + '</p>' +
+      (c.links.length ? '<ul class="srcs">' + c.links.map(function(u){ return '<li><a href="' + esc(u) + '" rel="noopener" target="_blank">' + esc(u.replace(/^https?:\/\//, '')) + '</a></li>'; }).join('') + '</ul>' : '') +
+      '<p class="small muted">Copied from KEV catalog ' + esc(D.bod.catalog) + ' (released ' + esc(D.bod.released) + ').' +
+      (c.kev_platform ? '' : ' KEV files it under ' + esc(c.vendor + ' ' + c.product) + ', which the watch does not map to a platform; the records here tie it to ' + esc(cvePl(c) || 'no platform') + '.') + '</p>');
+    else x += sec('Not in KEV', '<p>CISA\'s catalog ' + esc(D.bod.catalog) + ' has no entry for this CVE. It is here because a record below names it.</p>');
+    if (c.triage === 'Yes') x += sec('Forensic triage under BOD 26-04', bodSteps(c));
+    if (c.decision) x += sec('Why there is no detection', '<p><span class="badge decb dec-' + esc(c.decision.decision) + '">' + esc(c.decision.decision) + '</span> ' +
+      '<span class="small muted">decided ' + esc(c.decision.date) + '</span></p><blockquote>' + esc(c.decision.basis) + '</blockquote>');
+    if (c.detections.length) x += sec('Detections', '<ul class="plain arts">' + c.detections.map(function(id){ var dd = CX['detections:' + id];
+      return '<li><a href="#detections/' + esc(id) + '">' + esc(dd.title) + '</a> ' + b(dd.tier, 'tier t-' + dd.tier) + ' <span class="small muted">' + esc(dd.evidence) + '</span></li>'; }).join('') + '</ul>');
+    if (c.artifacts.length) x += sec('Traces on the device', '<ul class="plain arts">' + c.artifacts.map(function(id){ var a = CX['artifacts:' + id];
+      return '<li><a href="#artifacts/' + esc(id) + '"><code>' + esc(a.locator) + '</code></a> <span class="small muted">' + esc(PN[a.platform] || a.platform) + '</span>' +
+        (a.suspicious ? '<div class="small">' + rich(a.suspicious) + '</div>' : '') + '</li>'; }).join('') +
+      '</ul><p class="small muted">The artifact records that name this CVE, with what each calls suspicious. Each cites its own source.</p>');
+    x += connects([['Platforms', c.platforms.map(function(p){ return lnk('#platforms/' + p, PN[p] || p); })],
+      ['Collection plans', c.plans.map(function(p){ return lnk('#plans/' + p, p, 'mono'); })],
+      ['Playbooks', c.playbooks.map(function(st){ return lnk('#response/' + st, st); })],
+      ['Hunts', c.hunts.map(function(h){ var y = CX['hunts:' + h]; return lnk('#hunts/' + h, y ? y.title : h); })],
+      ['Hardening', c.hardening.map(function(h){ var y = CX['hardening:' + h]; return lnk('#hardening/' + h, y ? y.control : h); })],
+      ['Actors and implants', c.actors.concat(c.implants).map(function(i){ var y = CX['intel:' + i]; return lnk('#intel/' + i, y ? y.name : i); })],
+      ['Indicator sets', c.iocs.map(function(sid){ var y = IOC[sid], own = y ? (y.actors[0] || y.implants[0]) : '';
+        return lnk(own ? '#intel/' + own : '#intel?iocs=yes', y ? y.publisher + ', ' + y.published : sid); })]]);
+    return x;
+  },
+  exp:function(c){ return {id:c.id, name:c.name, platforms:c.platforms.map(function(p){ return PN[p] || p; }), in_kev:c.in_kev,
+    kev:c.in_kev ? {vendor:c.vendor, product:c.product, added:c.added, due:c.due, ransomware:c.ransomware, forensic_triage:c.triage,
+      cwes:c.cwes, required_action:c.action, description:c.description, links:c.links, catalog:D.bod.catalog} : null,
+    toolkit:cveCov(c), decision:c.decision, detections:c.detections, artifacts:c.artifacts, hunts:c.hunts, hardening:c.hardening,
+    playbooks:c.playbooks, plans:c.plans, actors:c.actors, implants:c.implants, indicator_sets:c.iocs}; },
+  summary:function(shown){
+    var tri = shown.filter(function(c){ return c.triage === 'Yes'; }).length, rw = shown.filter(function(c){ return c.ransomware === 'Known'; }).length,
+      det = shown.filter(function(c){ return c.coverage === 'detections'; }).length;
+    return shown.length ? '<p class="small muted">Of these, ' + det + ' have detections here, ' + tri + ' are flagged for forensic triage under BOD 26-04 and ' + rw + ' have known ransomware use (both per KEV).</p>' : '';
+  }
 };
 
 LIB.hunts = {
@@ -3230,8 +3463,8 @@ document.addEventListener('keydown', function(ev){
 
 /* ---------------------------------------------------------------- search everything (F2) */
 var PAL = null, palI = 0, palFlat = [], palReturn = null;
-var PAL_ORDER = ['Artifacts', 'Detections', 'Collection steps', 'Hunts', 'Threat intel', 'Indicators', 'Hardening', 'Platforms', 'Exploited CVEs', 'Guide'];
-var PAL_LIB = {'Artifacts':'artifacts', 'Detections':'detections', 'Hunts':'hunts', 'Threat intel':'intel', 'Indicators':'intel', 'Hardening':'hardening', 'Platforms':'platforms'};
+var PAL_ORDER = ['CVEs', 'Artifacts', 'Detections', 'Collection steps', 'Hunts', 'Threat intel', 'Indicators', 'Hardening', 'Platforms', 'Guide'];
+var PAL_LIB = {'CVEs':'cves', 'Artifacts':'artifacts', 'Detections':'detections', 'Hunts':'hunts', 'Threat intel':'intel', 'Indicators':'intel', 'Hardening':'hardening', 'Platforms':'platforms'};
 function palIndex(){
   if (PAL) return PAL;
   PAL = [];
@@ -3246,8 +3479,8 @@ function palIndex(){
       v[1] + ' ' + v[0] + ' ' + v[3] + ' ' + set.id, to ? '#intel/' + to : '#intel?iocs=yes', true); }); });
   D.hardening.forEach(function(c){ add('Hardening', c.control, (c.platform === 'ALL' ? 'Baseline' : PN[c.platform]) + ' · ' + c.id, c._t, '#hardening/' + c.id); });
   D.platforms.forEach(function(p){ add('Platforms', p.name, p.vendor + ' · ' + p.id, p._t, '#platforms/' + p.id); });
-  D.kev.triaged.forEach(function(k){ add('Exploited CVEs', k.cve, (ABBR[k.platform] || k.platform) + ' · ' + k.decision,
-    [k.cve, k.decision, k.basis, k.platform, ABBR[k.platform] || ''].join(' '), '#coverage/kev'); });
+  D.cves.forEach(function(c){ add('CVEs', c.id, (cvePl(c) || c.vendor || 'no platform') + ' · ' + (c.name || 'not in KEV') +
+    (c.triage === 'Yes' ? ' · forensic triage (BOD 26-04)' : ''), c._t, '#cves/' + c.id); });
   D.toc.forEach(function(t){ add('Guide', t.title, 'Guide section', t.title, '#guide/' + t.id.slice(2)); });
   return PAL;
 }
@@ -3462,14 +3695,15 @@ def page(d: dict) -> tuple[str, dict]:
     # to respond. How to operate the toolkit (plans, rules) and the reference
     # material sit after the divider; Start links every platform's plan directly.
     tabs = [("start", "Start", None), ("artifacts", "Artifacts", len(data["artifacts"])),
-            ("platforms", "Platforms", len(data["platforms"])), ("detections", "Detections", n_det),
+            ("platforms", "Platforms", len(data["platforms"])), ("cves", "CVEs", len(data["cves"])),
+            ("detections", "Detections", n_det),
             ("hunts", "Hunts", len(data["hunts"])), ("intel", "Threat intel", len(data["intel"])), ("response", "Response", len(d["response"])),
             ("hardening", "Hardening", len(data["hardening"])), None,
             ("plans", "Collection plans", len(d["profiles"])), ("coverage", "Coverage", None), ("guide", "Guide", None)]
     tabbar = "".join('<span class="tabsep" aria-hidden="true"></span>' if t is None else
                      f'<button type="button" role="tab" data-tab="{t[0]}" aria-selected="false">{t[1]}'
                      + (f'<span class="n">{t[2]}</span>' if t[2] is not None else "") + "</button>" for t in tabs)
-    ctx = {"cves": {c for x in data["detections"] for c in x["cves"]},
+    ctx = {"cves": {x["id"] for x in data["cves"]},
            "platforms": {p["id"]: p for p in data["platforms"]}, "notes_seen": set()}
     guide_html = markdown(d["guide"], ctx)
     data["guideNotes"] = sorted(ctx["notes_seen"])

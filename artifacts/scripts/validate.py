@@ -365,24 +365,28 @@ def main() -> int:
         for iid in (w.get("upstream") or {}):
             if not ioc_docs.get(iid, {}).get("file_url"):
                 err(f"watch: upstream {iid} is not an indicator set with a file_url")
-        added_at: dict[str, str] = {}   # CVE -> the platform its KEV dateAdded is filed under
-        for pid, cves in (w.get("kev_added") or {}).items():
-            if pid not in (w.get("platforms") or {}):
-                err(f"watch: kev_added names unwatched platform {pid}")
-            for c, day in cves.items():
+        rf = ROOT / "artifacts" / "watch" / "kev-records.yml"
+        recs = (yaml.safe_load(rf.read_text()) or {}) if rf.is_file() else None
+        added_at: dict[str, str | None] = {}   # CVE -> the platform KEV's own product strings map it to
+        if recs is None:
+            err("artifacts/watch/kev-records.yml is missing; run advisory_watch.py --records")
+        else:
+            validate_doc(schema("kev-records.schema.json"), recs, "watch/kev-records.yml")
+            for r in recs.get("records") or []:
+                c = r.get("cve", "")
                 if c in added_at:
-                    err(f"watch: kev_added files {c} under both {added_at[c]} and {pid}")
-                added_at[c] = pid
-                if str(day) < str(w.get("since", "")):
-                    err(f"watch: kev_added {c} {day} is before since {w.get('since')}")
+                    err(f"kev-records: {c} appears twice")
+                added_at[c] = r.get("platform")
+                if r.get("platform") and r["platform"] not in (w.get("platforms") or {}):
+                    err(f"kev-records: {c} names unwatched platform {r['platform']}")
         seen_cve: set[str] = set()
         for t in w.get("triaged") or []:
             c, refs = t.get("cve", ""), t.get("refs", [])
             if c in seen_cve:
                 err(f"watch: {c} triaged twice")
             seen_cve.add(c)
-            if added_at.get(c) != t.get("platform"):
-                err(f"watch: {c} has no kev_added date under {t.get('platform')}; run advisory_watch.py --dates")
+            if recs is not None and added_at.get(c) != t.get("platform"):
+                err(f"watch: {c} has no KEV record under {t.get('platform')}; run advisory_watch.py --records")
             if t.get("platform") not in platforms:
                 err(f"watch: {c} names unknown platform {t.get('platform')}")
             if c in pack_cves:

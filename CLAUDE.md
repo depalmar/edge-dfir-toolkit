@@ -133,10 +133,31 @@ platform since `since` is in a pack's `cves` or has a decision (`iocs`,
 `advisory-watch` workflow opens an issue for anything else and for changed
 upstream indicator files; it never commits. `deferred` means not yet read -
 never use it for a decision you made. A CVE that gains a pack leaves the ledger.
-`kev_added` holds CISA's `dateAdded` for every one of those entries, packed or
-not, filed by platform. It is pasted from `advisory_watch.py --dates`, never
-typed. The watch reports drift; the validator fails when a triaged CVE has no
-date under its platform.
+`artifacts/watch/kev-records.yml` holds CISA's own KEV fields, verbatim, for
+every one of those entries and every KEV entry a record names in a structured
+field. That means date added, due date, ransomware use, `forensicTriage` (BOD
+26-04), CWEs, required action and notes. It is written only by
+`advisory_watch.py --records > artifacts/watch/kev-records.yml`, never typed or
+edited. The watch reports drift, and the validator fails when a triaged CVE has
+no record under its platform. `platform` there is the watch rule KEV's own
+product strings match, or null.
+
+**A CVE record is a join, not a claim.** The CVEs library has one record per CVE
+in `kev-records.yml` or in a structured field (a pack's `cves`, an artifact's
+`seen_in`, a hunt's `cves`, a control's `blunts`, an indicator set's or
+implant's `cves`). It adds no prose of its own:
+- KEV's text is shown as CISA's, with the catalog version.
+- What exploitation leaves behind comes from the artifact records that cite the
+  CVE.
+- KEV's platform wins; linked records decide only when KEV's product maps to no
+  watched platform.
+- The BOD 26-04 step names and target timelines are quoted from CISA's
+  implementation guidance (`BOD_STEPS`). The links beside them are labelled as
+  the toolkit's suggestion.
+- Never say a playbook contains something it does not. The patching step quotes
+  CISA instead.
+
+CVE mentions anywhere on the site link to `#cves/<id>`.
 
 ## Threat intel and response rules
 
@@ -212,7 +233,7 @@ correction in `docs/VERIFICATION.md`.
 ## Site generation
 
 `artifacts/scripts/build_site.py` emits one self-contained vanilla-JS HTML file.
-Artifacts, platforms, detections, hunts, intel and hardening are client-side libraries
+Artifacts, platforms, CVEs, detections, hunts, intel and hardening are client-side libraries
 built from one JSON block (facet rail, search, drawer, export); filter state is
 in the URL (`#artifacts?platform=EDGE-0003&volatility=live`). `FACET_KEYS` in the
 generator must match the facets the JS defines - the page logs an error if they
@@ -222,7 +243,7 @@ without an entry fails `--check`. `tests/test_site.py` drives the page in
 Chromium and skips when Playwright is not installed. No framework, no CDN, no
 build step; never hand-edited, never committed. The Pages workflow builds it at deploy time. Every embedded data blob goes through
 `js_data()`, which escapes `</` so a rule body cannot close the script element.
-Tab order puts knowledge first (Start, Artifacts, Platforms, Detections, Hunts,
+Tab order puts knowledge first (Start, Artifacts, Platforms, CVEs, Detections, Hunts,
 Threat intel, Response, Hardening) and toolkit operation plus reference after
 the divider (Collection plans, Coverage, Guide); Start is the default route.
 Rules live inside Detections (`#rules` redirects to `#detections?runs=siem`).

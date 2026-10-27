@@ -14,15 +14,18 @@ report to an issue.
     python artifacts/scripts/advisory_watch.py --kev kev.json  # offline
     python artifacts/scripts/advisory_watch.py --upstream      # also re-hash indicator files
     python artifacts/scripts/advisory_watch.py --draft         # ledger stubs for new entries
-    python artifacts/scripts/advisory_watch.py --dates         # the kev_added block, from the feed
+    python artifacts/scripts/advisory_watch.py --records > artifacts/watch/kev-records.yml
 
-`kev_added` in the ledger holds CISA's dateAdded for every KEV entry on a
-watched platform since `since`. The site flags records whose file was last
-changed before their platform's newest entry. When the feed and the block
-differ, the report says so and --dates prints the replacement; a person
-pastes it, as with every other ledger change.
+artifacts/watch/kev-records.yml is CISA's own fields for every KEV entry the
+site shows: each one on a watched platform since `since`, and each one a
+record in the repository names in a structured field (a pack's `cves`, an
+artifact's, a hunt's, a hardening control's `blunts`...). It is printed by
+--records and written by the person who runs it, never by this script. The
+site builds one CVE record from each, and flags a record file changed before
+its platform's newest entry. When the feed and the file differ, the report
+says so.
 
-Exit status: 0 nothing new, 10 something needs triage or the dates are out of step, 1 error.
+Exit status: 0 nothing new, 10 something needs triage or the records are out of step, 1 error.
 """
 from __future__ import annotations
 
@@ -38,7 +41,13 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
 WATCH = ROOT / "artifacts" / "watch" / "kev-watch.yml"
+RECORDS = ROOT / "artifacts" / "watch" / "kev-records.yml"
 NEEDS_TRIAGE = 10
+CVE_RE = re.compile(r"CVE-\d{4}-\d{4,}")
+# KEV's field names, and what the records file calls them. Kept verbatim.
+KEV_FIELDS = {"vendorProject": "vendor", "product": "product", "vulnerabilityName": "name", "dateAdded": "added",
+              "dueDate": "due", "knownRansomwareCampaignUse": "ransomware", "forensicTriage": "forensic_triage",
+              "cwes": "cwes", "requiredAction": "action", "shortDescription": "description", "notes": "notes"}
 
 
 def load_watch(path: Path = WATCH) -> dict:
@@ -100,23 +109,69 @@ def triage(kev: dict, watch: dict, covered: dict[str, list[str]]) -> dict[str, l
     return res
 
 
-def kev_dates(kev: dict, watch: dict) -> dict[str, dict[str, str]]:
-    """CISA's dateAdded for each KEV entry on a watched platform since `since`,
-    by platform, oldest first. Parsed from the feed, never typed in."""
-    out: dict[str, dict[str, str]] = {}
-    for v in sorted(kev.get("vulnerabilities", []), key=lambda v: (v.get("dateAdded", ""), v.get("cveID", ""))):
+def structured_refs(root: Path = ROOT) -> set[str]:
+    """Every CVE id a repository record names in a structured field. Prose
+    mentions do not count: a CVE the repo only talks about is not a record."""
+    out: set[str] = set()
+
+    def take(vals) -> None:
+        out.update(str(v) for v in vals or [] if CVE_RE.fullmatch(str(v)))
+    a = root / "artifacts"
+    for p in sorted((a / "packs").glob("*.yml")):
+        take(yaml.safe_load(p.read_text()).get("cves"))
+    for p in sorted((a / "catalog").glob("*.yml")):
+        for art in yaml.safe_load(p.read_text()).get("artifacts", []):
+            take(art.get("seen_in"))   # CVE ids and actor names; only the CVE-shaped ones count
+    for p in sorted((a / "hunts").glob("*.yml")):
+        take(yaml.safe_load(p.read_text()).get("cves"))
+    for p in sorted((a / "hardening").glob("*.yml")):
+        for c in yaml.safe_load(p.read_text()).get("controls", []):
+            take(c.get("blunts"))
+    for sub in ("iocs", "implants", "actors"):
+        for p in sorted((a / "intel" / sub).glob("*.yml")):
+            take(yaml.safe_load(p.read_text()).get("cves"))
+    return out
+
+
+def kev_records(kev: dict, watch: dict, refs: set[str]) -> list[dict]:
+    """CISA's fields, verbatim, for each KEV entry on a watched platform since
+    `since` and each one the repository names. `platform` is the watch rule the
+    entry matches, or null when KEV files it under a product nobody watches."""
+    out = []
+    for v in kev.get("vulnerabilities", []):
         pid = platform_of(v, watch["platforms"])
-        if pid and v.get("dateAdded", "") >= watch["since"]:
-            out.setdefault(pid, {})[v["cveID"]] = v["dateAdded"]
-    return dict(sorted(out.items()))
+        if not ((pid and v.get("dateAdded", "") >= watch["since"]) or v.get("cveID") in refs):
+            continue
+        rec = {"cve": v["cveID"], "platform": pid}
+        for src, dst in KEV_FIELDS.items():
+            val = v.get(src, [] if src == "cwes" else "")
+            rec[dst] = [str(x) for x in val] if src == "cwes" else str(val).strip()
+        out.append(rec)
+    return sorted(out, key=lambda r: r["cve"])
 
 
-def date_drift(watch: dict, dates: dict[str, dict[str, str]]) -> list[dict]:
-    """Where the ledger's kev_added and the feed disagree: missing, changed, or gone from KEV."""
-    have = {(pid, c): d for pid, cs in (watch.get("kev_added") or {}).items() for c, d in cs.items()}
-    want = {(pid, c): d for pid, cs in dates.items() for c, d in cs.items()}
-    out = [{"platform": p, "cve": c, "ledger": have.get((p, c), "missing"), "feed": want.get((p, c), "not in KEV")}
-           for (p, c) in sorted(set(have) | set(want)) if have.get((p, c)) != want.get((p, c))]
+def records_text(kev: dict, recs: list[dict]) -> str:
+    head = ("# CISA's Known Exploited Vulnerabilities fields, verbatim, for every CVE the\n"
+            "# site shows. Generated - do not edit by hand:\n"
+            "#   python artifacts/scripts/advisory_watch.py --records > artifacts/watch/kev-records.yml\n"
+            "# Schema: ../schema/kev-records.schema.json. The weekly watch reports drift.\n")
+    body = {"catalog": str(kev.get("catalogVersion", "")), "released": str(kev.get("dateReleased", ""))[:10], "records": recs}
+    return head + yaml.safe_dump(body, sort_keys=False, allow_unicode=True, width=120)
+
+
+def records_drift(have: list[dict], want: list[dict]) -> list[dict]:
+    """Where the records file and the feed disagree: missing, changed, or gone from KEV."""
+    h, w = {r["cve"]: r for r in have}, {r["cve"]: r for r in want}
+    out = []
+    for c in sorted(set(h) | set(w)):
+        if c not in h:
+            out.append({"cve": c, "change": "missing from the file"})
+        elif c not in w:
+            out.append({"cve": c, "change": "no longer selected or not in KEV"})
+        else:
+            diff = sorted(k for k in set(h[c]) | set(w[c]) if h[c].get(k) != w[c].get(k))
+            if diff:
+                out.append({"cve": c, "change": "changed: " + ", ".join(diff)})
     return out
 
 
@@ -151,12 +206,11 @@ def report(kev: dict, res: dict, changes: list[dict] | None, drift: list[dict] |
         L += [f"- {c['id']}: {c['url']} - was `{c['was'][:12]}`, now `{c['now'][:40]}`. Re-parse, diff, "
               "re-validate." for c in changes] or ["None."]
     if drift is not None:
-        L += ["", f"## KEV dates out of step with the ledger ({len(drift)})", ""]
+        L += ["", f"## KEV records out of step with the feed ({len(drift)})", ""]
         if drift:
-            L.append("The site compares each record's last change with these dates. Run with `--dates` and replace "
-                     "`kev_added` in `artifacts/watch/kev-watch.yml` with the block it prints.")
-            L += ["", "| Platform | CVE | Ledger | Feed |", "|---|---|---|---|"]
-            L += [f"| {r['platform']} | {r['cve']} | {r['ledger']} | {r['feed']} |" for r in drift]
+            L.append("The site's CVE records and its re-read flag read `artifacts/watch/kev-records.yml`. Regenerate it "
+                     "with `--records`, read the diff, and commit it.")
+            L += ["", "| CVE | Change |", "|---|---|"] + [f"| {r['cve']} | {r['change']} |" for r in drift]
         else:
             L.append("None.")
     L += ["", f"## Deferred - still to triage ({len(res['deferred'])})", ""]
@@ -178,7 +232,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--watch", type=Path, default=WATCH)
     ap.add_argument("--upstream", action="store_true", help="re-hash the publisher files behind indicator sets")
     ap.add_argument("--draft", action="store_true", help="print ledger stubs for new entries")
-    ap.add_argument("--dates", action="store_true", help="print the kev_added block for the ledger, from the feed")
+    ap.add_argument("--records", action="store_true", help="print kev-records.yml, from the feed")
+    ap.add_argument("--records-file", type=Path, default=RECORDS, help="the records file to compare with the feed")
     ap.add_argument("--out", type=Path, help="write the Markdown report here")
     a = ap.parse_args(argv)
     watch = load_watch(a.watch)
@@ -188,11 +243,12 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     res = triage(kev, watch, pack_cves())
     changes = upstream_changes(watch, ioc_files()) if a.upstream else None
-    dates = kev_dates(kev, watch)
-    drift = date_drift(watch, dates)
-    if a.dates:   # the block alone, so it can be pasted over kev_added
-        print(yaml.safe_dump({"kev_added": dates}, sort_keys=False), end="")
+    want = kev_records(kev, watch, structured_refs())
+    if a.records:   # the file alone, for the person to redirect and commit
+        print(records_text(kev, want), end="")
         return 0
+    have = (yaml.safe_load(a.records_file.read_text()) or {}).get("records") or [] if a.records_file.is_file() else []
+    drift = records_drift(have, want)
     text = report(kev, res, changes, drift)
     if a.out:
         a.out.write_text(text)

@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/depalmar/edge-dfir-toolkit/artifacts/schema/kev-records.schema.json",
+  "title": "KEV records",
+  "description": "CISA's Known Exploited Vulnerabilities fields, verbatim, for every CVE the site shows: each KEV entry on a watched platform since the ledger's `since`, and each one a repository record names in a structured field. Printed by advisory_watch.py --records; never edited by hand.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "catalog",
+    "released",
+    "records"
+  ],
+  "properties": {
+    "catalog": {
+      "type": "string",
+      "description": "KEV catalogVersion the file was generated from"
+    },
+    "released": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+    },
+    "records": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "cve",
+          "platform",
+          "vendor",
+          "product",
+          "name",
+          "added",
+          "due",
+          "ransomware",
+          "forensic_triage",
+          "cwes",
+          "action",
+          "description",
+          "notes"
+        ],
+        "properties": {
+          "cve": {
+            "type": "string",
+            "pattern": "^CVE-[0-9]{4}-[0-9]{4,}$"
+          },
+          "platform": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^EDGE-[0-9]{4}$",
+            "description": "the watch rule KEV's vendorProject and product match; null when KEV files the CVE under a product nobody watches"
+          },
+          "vendor": {
+            "type": "string"
+          },
+          "product": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "added": {
+            "type": "string",
+            "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+          },
+          "due": {
+            "type": "string",
+            "pattern": "^([0-9]{4}-[0-9]{2}-[0-9]{2})?$"
+          },
+          "ransomware": {
+            "type": "string",
+            "description": "knownRansomwareCampaignUse: Known or Unknown"
+          },
+          "forensic_triage": {
+            "type": "string",
+            "description": "'Yes' if this vulnerability requires forensic triage per BOD 26-04 (CISA's schema)"
+          },
+          "cwes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "action": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "notes": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,5 +1,44 @@
 # Changelog
 
+## 0.10.0 - 2026-10-27 - CVE records and BOD 26-04
+
+- **A CVEs library.** It has one record per CVE: all 55 KEV entries on the ten
+  platforms since 2024, 19 older or adjacent ones the repository cites, and 3
+  the repository cites that KEV does not list. 77 in all.
+  - Each record puts CISA's own fields beside everything the toolkit has for
+    the CVE.
+  - CISA's fields: date added, due date, ransomware use, CWEs, required action
+    and the advisory links in KEV's notes.
+  - What the toolkit has: detections with their tiers; the traces the artifact
+    records call suspicious; collection plans, playbooks, hunts and hardening;
+    and actors, implants and indicator sets.
+  - A CVE with no detection says why, quoting the ledger decision.
+  - Facets: platform, forensic triage, ransomware use, coverage and year added.
+- **BOD 26-04 forensic triage.** CISA's KEV feed now carries `forensicTriage`,
+  defined in CISA's schema as "'Yes' if this vulnerability requires forensic
+  triage per BOD 26-04". 11 records are flagged; 10 of them are on watched
+  platforms.
+  - A flagged record lists the directive's six steps, from Scoping to
+    Escalation Decision. Step names and target timelines are quoted from CISA's
+    implementation guidance.
+  - Beside each step is where the toolkit starts it: the platform record, the
+    collection plan, the playbook, the CVE's detections and `edgetriage
+    analyze`, then `report.html`.
+  - The page says the links are the toolkit's suggestion, not the directive,
+    and that the directive wins where the two differ.
+- `artifacts/watch/kev-records.yml` replaces `kev_added` from 0.9.1. It holds
+  CISA's fields, verbatim, written only by `advisory_watch.py --records` from
+  catalog 2026.10.26.
+  - The weekly watch reports any field that drifts.
+  - The validator checks it against its new schema and against the ledger.
+  - The re-read flag reads its dates.
+- CVE mentions across the site (detections, hardening, hunts, artifacts, the
+  guide, Coverage's KEV table, the search) open the CVE record. The search
+  lists CVE records first.
+- Start shows the CVE count and the count flagged for forensic triage.
+- Fixed: the watcher's reference scan read artifacts' `cves`, which artifacts
+  do not have; it now reads `seen_in`.
+
 ## 0.9.1 - 2026-10-27
 
 A file ages when the world moves, not when the calendar does.

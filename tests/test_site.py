@@ -457,7 +457,7 @@ def test_search_everything_palette(browser, tmp_path):
     assert page.locator("#palList [data-pq]").count() == 6          # an empty box offers examples
     page.fill("#palQ", "CVE-2024-3400")
     groups = [g.split("\n")[0].title() for g in page.locator("#palList .ps-gh").all_inner_texts()]
-    assert groups[:2] == ["Artifacts", "Detections"] and "Collection Steps" in groups
+    assert groups[:3] == ["Cves", "Artifacts", "Detections"] and "Collection Steps" in groups   # the CVE record first
     assert page.get_attribute("#palQ", "aria-activedescendant") == "pal-r0"
     page.keyboard.press("ArrowUp")                                  # wraps to the last result
     assert page.locator("#palList .ps-r.on").get_attribute("id") == f"pal-r{page.locator('#palList .ps-r').count() - 1}"
@@ -518,3 +518,26 @@ def test_record_changed_before_the_newest_advisory_says_so(browser, tmp_path):
     page.locator("#drawer").wait_for(state="visible")
     fact = page.locator("#dBody .dfacts div", has_text="Last changed").inner_text()
     assert "2000-01-01" in fact and "may need a re-read" in fact and what in fact
+
+
+def test_cve_library_kev_fields_and_bod_steps(browser, tmp_path):
+    """One record per CVE: the forensic triage facet matches the data, a flagged CVE
+    carries CISA's six steps beside toolkit links, and a CVE outside KEV says so."""
+    url = _build(tmp_path)
+    data = sys.modules["build_site"].page(sys.modules["build_site"].load())[1]
+    flagged = [c for c in data["cves"] if c["triage"] == "Yes"]
+    outside = next(c for c in data["cves"] if not c["in_kev"])
+    page = browser.new_page(viewport={"width": 1440, "height": 900})
+    page.goto(f"{url}#cves?triage=Yes")
+    page.locator("#tab-cves .lc").first.wait_for(state="visible")
+    assert _counts(page, "cves") == (len(flagged), len(data["cves"]))
+    page.goto(f"{url}#cves/{flagged[0]['id']}")
+    page.locator("#drawer").wait_for(state="visible")
+    steps = page.locator("#dBody ol.bod > li b").all_inner_texts()
+    assert steps == [s[0] for s in data["bod"]["steps"]]
+    assert page.locator("#dBody ol.bod a[href^='#plans/'], #dBody ol.bod a[href^='#platforms/']").count() >= 1
+    assert "required by BOD 26-04" in page.locator("#dBody .dfacts").inner_text()
+    page.goto(f"{url}#cves/{outside['id']}")
+    page.locator("#drawer").wait_for(state="visible")
+    assert page.locator("#dBody h4").all_inner_texts()[0].upper() == "NOT IN KEV"   # headings are uppercased in CSS
+    assert page.locator("#dBody ol.bod").count() == 0

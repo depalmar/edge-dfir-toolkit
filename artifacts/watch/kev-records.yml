@@ -1,0 +1,1341 @@
+# CISA's Known Exploited Vulnerabilities fields, verbatim, for every CVE the
+# site shows. Generated - do not edit by hand:
+#   python artifacts/scripts/advisory_watch.py --records > artifacts/watch/kev-records.yml
+# Schema: ../schema/kev-records.schema.json. The weekly watch reports drift.
+catalog: 2026.10.26
+released: '2026-10-26'
+records:
+- cve: CVE-2014-2120
+  platform: EDGE-0005
+  vendor: Cisco
+  product: Adaptive Security Appliance (ASA)
+  name: Cisco Adaptive Security Appliance (ASA) Cross-Site Scripting (XSS) Vulnerability
+  added: '2024-11-12'
+  due: '2024-12-03'
+  ransomware: Unknown
+  forensic_triage: 'No'
+  cwes:
+  - CWE-79
+  action: Apply mitigations per vendor instructions or discontinue use of the product if mitigations are unavailable.
+  description: Cisco Adaptive Security Appliance (ASA) contains a cross-site scripting (XSS) vulnerability in the WebVPN login
+    page. This vulnerability allows remote attackers to inject arbitrary web script or HTML via an unspecified parameter.
+  notes: https://sec.cloudapps.cisco.com/security/center/content/CiscoSecurityAdvisory/cisco-sa-CVE-2014-2120 ; https://nvd.nist.gov/vuln/detail/CVE-2014-2120
+- cve: CVE-2018-0171
+  platform: EDGE-0009
+  vendor: Cisco
+  product: IOS and IOS XE
+  name: Cisco IOS and IOS XE Software Smart Install Remote Code Execution Vulnerability
+  added: '2021-11-03'
+  due: '2022-05-03'
+  ransomware: Unknown
+  forensic_triage: 'No'
+  cwes:
+  - CWE-20
+  action: Apply updates per vendor instructions.
+  description: Cisco IOS and IOS XE Software improperly validates packet data, allowing an unauthenticated, remote attacker
+    to trigger a reload of an affected device, cause a denial-of-service (DoS) condition, or perform code execution on the
+    affected device.
+  notes: https://nvd.nist.gov/vuln/detail/CVE-2018-0171
+- cve: CVE-2019-6693
+  platform: EDGE-0002
+  vendor: Fortinet
+  product: FortiOS
+  name: Fortinet FortiOS Use of Hard-Coded Credentials Vulnerability
+  added: '2025-06-25'
+  due: '2025-07-16'
+  ransomware: Known
+  forensic_triage: 'No'
+  cwes:
+  - CWE-798
+  action: Apply mitigations per vendor instructions, follow applicable BOD 22-01 guidance for cloud services, or discontinue
+    use of the product if mitigations are unavailable.
+  description: Fortinet FortiOS contains a use of hard-coded credentials vulnerability that could allow an attacker to cipher
+    sensitive data in FortiOS configuration backup file via knowledge of the hard-coded key.
+  notes: https://fortiguard.com/advisory/FG-IR-19-007 ; https://nvd.nist.gov/vuln/detail/CVE-2019-6693
+- cve: CVE-2020-3259
+  platform: EDGE-0005
+  vendor: Cisco
+  product: Adaptive Security Appliance (ASA) and Firepower Threat Defense (FTD)
+  name: Cisco ASA and FTD Information Disclosure Vulnerability
+  added: '2024-02-15'
+  due: '2024-03-07'
+  ransomware: Known
+  forensic_triage: 'No'
+  cwes:
+  - CWE-200
+  action: Apply mitigations per vendor instructions or discontinue use of the product if mitigations are unavailable.
+  description: Cisco Adaptive Security Appliance (ASA) and Firepower Threat Defense (FTD) contain an information disclosure
+    vulnerability. An attacker could retrieve memory contents on an affected device, which could lead to the disclosure of
+    confidential information due to a buffer tracking issue when the software parses invalid URLs that are requested from
+    the web services interface. This vulnerability affects only specific AnyConnect and WebVPN configurations.
+  notes: https://tools.cisco.com/security/center/content/CiscoSecurityAdvisory/cisco-sa-asaftd-info-disclose-9eJtycMB; https://nvd.nist.gov/vuln/detail/CVE-2020-3259
+- cve: CVE-2021-20035
+  platform: EDGE-0006
+  vendor: SonicWall
+  product: SMA100 Appliances
+  name: SonicWall SMA100 Appliances OS Command Injection Vulnerability
+  added: '2025-04-16'
+  due: '2025-05-07'
+  ransomware: Unknown
+  forensic_triage: 'No'
+  cwes:
+  - CWE-78
+  action: Apply mitigations per vendor instructions, follow applicable BOD 22-01 guidance for cloud services, or discontinue
+    use of the product if mitigations are unavailable.
+  description: SonicWall SMA100 appliances contain an OS command injection vulnerability in the management interface that
+    allows a remote authenticated attacker to inject arbitrary commands as a 'nobody' user, which could potentially lead to
+    code execution.
+  notes: https://psirt.global.sonicwall.com/vuln-detail/SNWLID-2021-0022 ; https://nvd.nist.gov/vuln/detail/CVE-2021-20035
+- cve: CVE-2022-1388
+  platform: EDGE-0010
+  vendor: F5
+  product: BIG-IP
+  name: F5 BIG-IP Missing Authentication Vulnerability
+  added: '2022-05-10'
+  due: '2022-05-31'
+  ransomware: Known
+  forensic_triage: 'No'
+  cwes:
+  - CWE-306
+  action: Apply updates per vendor instructions.
+  description: F5 BIG-IP contains a missing authentication in critical function vulnerability which can allow for remote code
+    execution, creation or deletion of files, or disabling services.
+  notes: https://nvd.nist.gov/vuln/detail/CVE-2022-1388
+- cve: CVE-2022-41328
+  platform: EDGE-0002
+  vendor: Fortinet
+  product: FortiOS
+  name: Fortinet FortiOS Path Traversal Vulnerability
+  added: '2023-03-14'
+  due: '2023-04-04'
+  ransomware: Unknown
+  forensic_triage: 'No'
+  cwes:
+  - CWE-22
+  action: Apply updates per vendor instructions.
+  description: Fortinet FortiOS contains a path traversal vulnerability that may allow a local privileged attacker to read
+    and write files via crafted CLI commands.
+  notes: https://www.fortiguard.com/psirt/FG-IR-22-369;  https://nvd.nist.gov/vuln/detail/CVE-2022-41328
+- cve: CVE-2022-42475
+  platform: EDGE-0002
+  vendor: Fortinet
+  product: FortiOS
+  name: Fortinet FortiOS Heap-Based Buffer Overflow Vulnerability
+  added: '2022-12-13'
+  due: '2023-01-03'
+  ransomware: Known
+  forensic_triage: 'No'
+  cwes:
+  - CWE-197
+  action: Apply updates per vendor instructions.
+  description: Multiple versions of Fortinet FortiOS SSL-VPN contain a heap-based buffer overflow vulnerability which can
+    allow an unauthenticated, remote attacker to execute arbitrary code or commands via specifically crafted requests.
+  notes: https://www.fortiguard.com/psirt/FG-IR-22-398;  https://nvd.nist.gov/vuln/detail/CVE-2022-42475
+- cve: CVE-2023-20198
+  platform: EDGE-0009
+  vendor: Cisco
+  product: IOS XE Web UI
+  name: Cisco IOS XE Web UI Privilege Escalation Vulnerability
+  added: '2023-10-16'
+  due: '2023-10-20'
+  ransomware: Unknown
+  forensic_triage: 'No'
+  cwes:
+  - CWE-420
+  action: Verify that instances of Cisco IOS XE Web UI are in compliance with BOD 23-02 and apply mitigations per vendor instructions.
+    For affected products (Cisco IOS XE Web UI exposed to the internet or to untrusted networks), follow vendor instructions
+    to determine if a system may have been compromised and immediately report positive findings to CISA.
+  description: Cisco IOS XE Web UI contains a privilege escalation vulnerability in the web user interface that could allow
+    a remote, unauthenticated attacker to create an account with privilege level 15 access. The attacker can then use that
+    account to gain control of the affected device.
+  notes: https://www.cisco.com/c/en/us/support/docs/ios-nx-os-software/ios-xe-dublin-17121/221128-software-fix-availability-for-cisco-ios.html;  https://nvd.nist.gov/vuln/detail/CVE-2023-20198
+- cve: CVE-2023-20269
+  platform: EDGE-0005
+  vendor: Cisco
+  product: Adaptive Security Appliance and Firepower Threat Defense
+  name: Cisco Adaptive Security Appliance and Firepower Threat Defense Unauthorized Access Vulnerability
+  added: '2023-09-13'
+  due: '2023-10-04'
+  ransomware: Known
+  forensic_triage: 'No'
+  cwes:
+  - CWE-288
+  action: Apply mitigations per vendor instructions for group-lock and vpn-simultaneous-logins or discontinue use of the product
+    for unsupported devices.
+  description: Cisco Adaptive Security Appliance and Firepower Threat Defense contain an unauthorized access vulnerability
+    that could allow an unauthenticated, remote attacker to conduct a brute force attack in an attempt to identify valid username
+    and password combinations or establish a clientless SSL VPN session with an unauthorized user.
+  notes: https://sec.cloudapps.cisco.com/security/center/content/CiscoSecurityAdvisory/cisco-sa-asaftd-ravpn-auth-8LyfCkeC;  https://nvd.nist.gov/vuln/detail/CVE-2023-20269
+- cve: CVE-2023-20273
+  platform: EDGE-0009
+  vendor: Cisco
+  product: Cisco IOS XE Web UI
+  name: Cisco IOS XE Web UI Command Injection Vulnerability
+  added: '2023-10-23'
+  due: '2023-10-27'
+  ransomware: Unknown
+  forensic_triage: 'No'
+  cwes:
+  - CWE-78
+  action: Verify that instances of Cisco IOS XE Web UI are in compliance with BOD 23-02 and apply mitigations per vendor instructions.
+    For affected products (Cisco IOS XE Web UI exposed to the internet or to untrusted networks), follow vendor instructions
+    to determine if a system may have been compromised and immediately report positive findings to CISA.
+  description: Cisco IOS XE contains a command injection vulnerability in the web user interface. When chained with CVE-2023-20198,
+    the attacker can leverage the new local user to elevate privilege to root and write the implant to the file system. Cisco
+    identified CVE-2023-20273 as the vulnerability exploited to deploy the implant. CVE-2021-1435, previously associated with
+    the exploitation events, is no longer believed to be related to this activity.
+  notes: https://sec.cloudapps.cisco.com/security/center/content/CiscoSecurityAdvisory/cisco-sa-iosxe-webui-privesc-j22SaA4z;  https://nvd.nist.gov/vuln/detail/CVE-2023-20273
+- cve: CVE-2023-27997
+  platform: EDGE-0002
+  vendor: Fortinet
+  product: FortiOS and FortiProxy SSL-VPN
+  name: Fortinet FortiOS and FortiProxy SSL-VPN Heap-Based Buffer Overflow Vulnerability
+  added: '2023-06-13'
+  due: '2023-07-04'
+  ransomware: Known
+  forensic_triage: 'No'
+  cwes:
+  - CWE-122
+  action: Apply updates per vendor instructions.
+  description: Fortinet FortiOS and FortiProxy SSL-VPN contain a heap-based buffer overflow vulnerability which can allow
+    an unauthenticated, remote attacker to execute code or commands via specifically crafted requests.
+  notes: https://www.fortiguard.com/psirt/FG-IR-23-097;  https://nvd.nist.gov/vuln/detail/CVE-2023-27997
+- cve: CVE-2023-3519
+  platform: EDGE-0004
+  vendor: Citrix
+  product: NetScaler ADC and NetScaler Gateway
+  name: Citrix NetScaler ADC and NetScaler Gateway Code Injection Vulnerability
+  added: '2023-07-19'
+  due: '2023-08-09'
+  ransomware: Known
+  forensic_triage: 'No'
+  cwes:
+  - CWE-94
+  action: Apply mitigations per vendor instructions or discontinue use of the product if mitigations are unavailable.
+  description: Citrix NetScaler ADC and NetScaler Gateway contains a code injection vulnerability that allows for unauthenticated
+    remote code execution.
+  notes: https://support.citrix.com/article/CTX561482/citrix-adc-and-citrix-gateway-security-bulletin-for-cve20233519-cve20233466-cve20233467;  https://nvd.nist.gov/vuln/detail/CVE-2023-3519
+- cve: CVE-2023-36844
+  platform: EDGE-0008
+  vendor: Juniper
+  product: Junos OS
+  name: Juniper Junos OS EX Series PHP External Variable Modification Vulnerability
+  added: '2023-11-13'
+  due: '2023-11-17'
+  ransomware: Unknown
+  forensic_triage: 'No'
+  cwes:
+  - CWE-473
+  action: Apply mitigations per vendor instructions or discontinue use of the product if mitigations are unavailable.
+  description: Juniper Junos OS on EX Series contains a PHP external variable modification vulnerability that allows an unauthenticated,
+    network-based attacker to control certain, important environment variables. Using a crafted request an attacker is able
+    to modify certain PHP environment variables, leading to partial loss of integrity, which may allow chaining to other vulnerabilities.
+  notes: https://supportportal.juniper.net/s/article/2023-08-Out-of-Cycle-Security-Bulletin-Junos-OS-SRX-Series-and-EX-Series-Multiple-vulnerabilities-in-J-Web-can-be-combined-to-allow-a-preAuth-Remote-Code-Execution?language=en_US
+    ;  https://nvd.nist.gov/vuln/detail/CVE-2023-36844
+- cve: CVE-2023-36845
+  platform: EDGE-0008
+  vendor: Juniper
+  product: Junos OS
+  name: Juniper Junos OS EX Series and SRX Series PHP External Variable Modification Vulnerability
+  added: '2023-11-13'
+  due: '2023-11-17'
+  ransomware: Unknown
+  forensic_triage: 'No'
+  cwes:
+  - CWE-473
+  action: Apply mitigations per vendor instructions or discontinue use of the product if mitigations are unavailable.
+  description: Juniper Junos OS on EX Series and SRX Series contains a PHP external variable modification vulnerability that
+    allows an unauthenticated, network-based attacker to control an important environment variable. Using a crafted request,
+    which sets the variable PHPRC, an attacker is able to modify the PHP execution environment allowing the injection und
+    execution of code.
+  notes: https://supportportal.juniper.net/s/article/2023-08-Out-of-Cycle-Security-Bulletin-Junos-OS-SRX-Series-and-EX-Series-Multiple-vulnerabilities-in-J-Web-can-be-combined-to-allow-a-preAuth-Remote-Code-Execution?language=en_US
+    ;  https://nvd.nist.gov/vuln/detail/CVE-2023-36845
+- cve: CVE-2023-36846
+  platform: EDGE-0008
+  vendor: Juniper
+  product: Junos OS
+  name: Juniper Junos OS SRX Series Missing Authentication for Critical Function Vulnerability
+  added: '2023-11-13'
+  due: '2023-11-17'
+  ransomware: Unknown
+  forensic_triage: 'No'
+  cwes:
+  - CWE-306
+  action: Apply mitigations per vendor instructions or discontinue use of the product if mitigations are unavailable.
+  description: Juniper Junos OS on SRX Series contains a missing authentication for critical function vulnerability that allows
+    an unauthenticated, network-based attacker to cause limited impact to the file system integrity. With a specific request
+    to user.php that doesn't require authentication, an attacker is able to upload arbitrary files via J-Web, leading to a
+    loss of integrity for a certain part of the file system, which may allow chaining to other vulnerabilities.
+  notes: https://supportportal.juniper.net/s/article/2023-08-Out-of-Cycle-Security-Bulletin-Junos-OS-SRX-Series-and-EX-Series-Multiple-vulnerabilities-in-J-Web-can-be-combined-to-allow-a-preAuth-Remote-Code-Execution?language=en_US
+    ;  https://nvd.nist.gov/vuln/detail/CVE-2023-36846
+- cve: CVE-2023-36847
+  platform: EDGE-0008
+  vendor: Juniper
+  product: Junos OS
+  name: Juniper Junos OS EX Series Missing Authentication for Critical Function Vulnerability
+  added: '2023-11-13'
+  due: '2023-11-17'
+  ransomware: Unknown
+  forensic_triage: 'No'
+  cwes:
+  - CWE-306
+  action: Apply mitigations per vendor instructions or discontinue use of the product if mitigations are unavailable.
+  description: Juniper Junos OS on EX Series contains a missing authentication for critical function vulnerability that allows
+    an unauthenticated, network-based attacker to cause limited impact to the file system integrity. With a specific request
+    to installAppPackage.php that doesn't require authentication, an attacker is able to upload arbitrary files via J-Web,
+    leading to a loss of integrity for a certain part of the file system, which may allow chaining to other vulnerabilities.
+  notes: https://supportportal.juniper.net/s/article/2023-08-Out-of-Cycle-Security-Bulletin-Junos-OS-SRX-Series-and-EX-Series-Multiple-vulnerabilities-in-J-Web-can-be-combined-to-allow-a-preAuth-Remote-Code-Execution?language=en_US;  https://nvd.nist.gov/vuln/detail/CVE-2023-36847
+- cve: CVE-2023-36851
+  platform: EDGE-0008
+  vendor: Juniper
+  product: Junos OS
+  name: Juniper Junos OS SRX Series Missing Authentication for Critical Function Vulnerability
+  added: '2023-11-13'
+  due: '2023-11-17'
+  ransomware: Unknown
+  forensic_triage: 'No'
+  cwes:
+  - CWE-306
+  action: Apply mitigations per vendor instructions or discontinue use of the product if mitigations are unavailable.
+  description: Juniper Junos OS on SRX Series contains a missing authentication for critical function vulnerability that allows
+    an unauthenticated, network-based attacker to cause limited impact to the file system integrity. With a specific request
+    to webauth_operation.php that doesn't require authentication, an attacker is able to upload arbitrary files via J-Web,
+    leading to a loss of integrity for a certain part of the file system, which may allow chaining to other vulnerabilities.
+  notes: https://supportportal.juniper.net/s/article/2023-08-Out-of-Cycle-Security-Bulletin-Junos-OS-SRX-Series-and-EX-Series-Multiple-vulnerabilities-in-J-Web-can-be-combined-to-allow-a-preAuth-Remote-Code-Execution?language=en_US
+    ;  https://nvd.nist.gov/vuln/detail/CVE-2023-36851
+- cve: CVE-2023-44221
+  platform: EDGE-0006
+  vendor: SonicWall
+  product: SMA100 Appliances
+  name: SonicWall SMA100 Appliances OS Command Injection Vulnerability
+  added: '2025-05-01'
+  due: '2025-05-22'
+  ransomware: Unknown
+  forensic_triage: 'No'
+  cwes:
+  - CWE-78
+  action: Apply mitigations per vendor instructions, follow applicable BOD 22-01 guidance for cloud services, or discontinue
+    use of the product if mitigations are unavailable.
+  description: SonicWall SMA100 appliances contain an OS command injection vulnerability in the SSL-VPN management interface
+    that allows a remote, authenticated attacker with administrative privilege to inject arbitrary commands as a 'nobody'
+    user.
+  notes: https://psirt.global.sonicwall.com/vuln-detail/SNWLID-2023-0018 ; https://nvd.nist.gov/vuln/detail/CVE-2023-44221
+- cve: CVE-2023-46747
+  platform: EDGE-0010
+  vendor: F5
+  product: BIG-IP Configuration Utility
+  name: F5 BIG-IP Configuration Utility Authentication Bypass Vulnerability
+  added: '2023-10-31'
+  due: '2023-11-21'
+  ransomware: Known
+  forensic_triage: 'No'
+  cwes:
+  - CWE-288
+  action: Apply mitigations per vendor instructions or discontinue use of the product if mitigations are unavailable.
+  description: F5 BIG-IP Configuration utility contains an authentication bypass using an alternate path or channel vulnerability
+    due to undisclosed requests that may allow an unauthenticated attacker with network access to the BIG-IP system through
+    the management port and/or self IP addresses to execute system commands. This vulnerability can be used in conjunction
+    with CVE-2023-46748.
+  notes: https://my.f5.com/manage/s/article/K000137353;   https://nvd.nist.gov/vuln/detail/CVE-2023-46747
+- cve: CVE-2023-46748
+  platform: EDGE-0010
+  vendor: F5
+  product: BIG-IP Configuration Utility
+  name: F5 BIG-IP Configuration Utility SQL Injection Vulnerability
+  added: '2023-10-31'
+  due: '2023-11-21'
+  ransomware: Unknown
+  forensic_triage: 'No'
+  cwes:
+  - CWE-89
+  action: Apply mitigations per vendor instructions or discontinue use of the product if mitigations are unavailable.
+  description: F5 BIG-IP Configuration utility contains an SQL injection vulnerability that may allow an authenticated attacker
+    with network access through the BIG-IP management port and/or self IP addresses to execute system commands. This vulnerability
+    can be used in conjunction with CVE-2023-46747.
+  notes: https://my.f5.com/manage/s/article/K000137365 ;  https://nvd.nist.gov/vuln/detail/CVE-2023-46748
+- cve: CVE-2023-46805
+  platform: EDGE-0003
+  vendor: Ivanti
+  product: Connect Secure and Policy Secure
+  name: Ivanti Connect Secure and Policy Secure Authentication Bypass Vulnerability
+  added: '2024-01-10'
+  due: '2024-01-22'
+  ransomware: Known
+  forensic_triage: 'No'
+  cwes:
+  - CWE-287
+  action: Apply mitigations per vendor instructions or discontinue use of the product if mitigations are unavailable.
+  description: Ivanti Connect Secure (ICS, formerly known as Pulse Connect Secure) and Ivanti Policy Secure gateways contain
+    an authentication bypass vulnerability in the web component that allows an attacker to access restricted resources by
+    bypassing control checks. This vulnerability can be leveraged in conjunction with CVE-2024-21887, a command injection
+    vulnerability.
+  notes: 'Please apply mitigations per vendor instructions. For more information, please see: https://forums.ivanti.com/s/article/KB-CVE-2023-46805-Authentication-Bypass-CVE-2024-21887-Command-Injection-for-Ivanti-Connect-Secure-and-Ivanti-Policy-Secure-Gateways?language=en_US
+    ;  https://nvd.nist.gov/vuln/detail/CVE-2023-46805'
+- cve: CVE-2023-4966
+  platform: EDGE-0004
+  vendor: Citrix
+  product: NetScaler ADC and NetScaler Gateway
+  name: Citrix NetScaler ADC and NetScaler Gateway Buffer Overflow Vulnerability
+  added: '2023-10-18'
+  due: '2023-11-08'
+  ransomware: Known
+  forensic_triage: 'No'
+  cwes:
+  - CWE-119
+  action: Apply mitigations and kill all active and persistent sessions per vendor instructions [https://www.netscaler.com/blog/news/cve-2023-4966-critical-security-update-now-available-for-netscaler-adc-and-netscaler-gateway/]
+    OR discontinue use of the product if mitigations are unavailable.
+  description: Citrix NetScaler ADC and NetScaler Gateway contain a buffer overflow vulnerability that allows for sensitive
+    information disclosure when configured as a Gateway (VPN virtual server, ICA Proxy, CVPN, RDP Proxy) or AAA virtual server.
+  notes: https://www.netscaler.com/blog/news/cve-2023-4966-critical-security-update-now-available-for-netscaler-adc-and-netscaler-gateway/,
+    https://support.citrix.com/article/CTX579459/netscaler-adc-and-netscaler-gateway-security-bulletin-for-cve20234966-and-cve20234967
+    ;  https://nvd.nist.gov/vuln/detail/CVE-2023-4966
+- cve: CVE-2023-6548
+  platform: EDGE-0004
+  vendor: Citrix
+  product: NetScaler ADC and NetScaler Gateway
+  name: Citrix NetScaler ADC and NetScaler Gateway Code Injection Vulnerability
+  added: '2024-01-17'
+  due: '2024-01-24'
+  ransomware: Unknown
+  forensic_triage: 'No'
+  cwes:
+  - CWE-94
+  action: Apply mitigations per vendor instructions or discontinue use of the product if mitigations are unavailable.
+  description: Citrix NetScaler ADC and NetScaler Gateway contain a code injection vulnerability that allows for authenticated
+    remote code execution on the management interface with access to NSIP, CLIP, or SNIP.
+  notes: https://support.citrix.com/article/CTX584986/netscaler-adc-and-netscaler-gateway-security-bulletin-for-cve20236548-and-cve20236549;   https://nvd.nist.gov/vuln/detail/CVE-2023-6548
+- cve: CVE-2023-6549
+  platform: EDGE-0004
+  vendor: Citrix
+  product: NetScaler ADC and NetScaler Gateway
+  name: Citrix NetScaler ADC and NetScaler Gateway Buffer Overflow Vulnerability
+  added: '2024-01-17'
+  due: '2024-02-07'
+  ransomware: Unknown
+  forensic_triage: 'No'
+  cwes:
+  - CWE-119
+  action: Apply mitigations per vendor instructions or discontinue use of the product if mitigations are unavailable.
+  description: Citrix NetScaler ADC and NetScaler Gateway contain a buffer overflow vulnerability that allows for a denial-of-service
+    when configured as a Gateway (VPN virtual server, ICA Proxy, CVPN, RDP Proxy) or AAA virtual server.
+  notes: https://support.citrix.com/article/CTX584986/netscaler-adc-and-netscaler-gateway-security-bulletin-for-cve20236548-and-cve20236549;   https://nvd.nist.gov/vuln/detail/CVE-2023-6549
+- cve: CVE-2024-0012
+  platform: EDGE-0001
+  vendor: Palo Alto Networks
+  product: PAN-OS
+  name: Palo Alto Networks PAN-OS Management Interface Authentication Bypass Vulnerability
+  added: '2024-11-18'
+  due: '2024-12-09'
+  ransomware: Known
+  forensic_triage: 'No'
+  cwes:
+  - CWE-306
+  action: Apply mitigations per vendor instructions or discontinue use of the product if mitigations are unavailable. Additionally,
+    management interface for affected devices should not be exposed to untrusted networks, including the internet.
+  description: Palo Alto Networks PAN-OS contains an authentication bypass vulnerability in the web-based management interface
+    for several PAN-OS products, including firewalls and VPN concentrators.
+  notes: https://security.paloaltonetworks.com/CVE-2024-0012 ; https://nvd.nist.gov/vuln/detail/CVE-2024-0012
+- cve: CVE-2024-20353
+  platform: EDGE-0005
+  vendor: Cisco
+  product: Adaptive Security Appliance (ASA) and Firepower Threat Defense (FTD)
+  name: Cisco ASA and FTD Denial of Service Vulnerability
+  added: '2024-04-24'
+  due: '2024-05-01'
+  ransomware: Unknown
+  forensic_triage: 'No'
+  cwes:
+  - CWE-835
+  action: Apply mitigations per vendor instructions or discontinue use of the product if mitigations are unavailable.
+  description: Cisco Adaptive Security Appliance (ASA) and Firepower Threat Defense (FTD) contain an infinite loop vulnerability
+    that can lead to remote denial of service condition.
+  notes: https://sec.cloudapps.cisco.com/security/center/content/CiscoSecurityAdvisory/cisco-sa-asaftd-websrvs-dos-X8gNucD2;   https://nvd.nist.gov/vuln/detail/CVE-2024-20353
+- cve: CVE-2024-20359
+  platform: EDGE-0005
+  vendor: Cisco
+  product: Adaptive Security Appliance (ASA) and Firepower Threat Defense (FTD)
+  name: Cisco ASA and FTD Privilege Escalation Vulnerability
+  added: '2024-04-24'
+  due: '2024-05-01'
+  ransomware: Unknown
+  forensic_triage: 'No'
+  cwes:
+  - CWE-94
+  action: Apply mitigations per vendor instructions or discontinue use of the product if mitigations are unavailable.
+  description: Cisco Adaptive Security Appliance (ASA) and Firepower Threat Defense (FTD) contain a privilege escalation vulnerability
+    that can allow local privilege escalation from Administrator to root.
+  notes: https://sec.cloudapps.cisco.com/security/center/content/CiscoSecurityAdvisory/cisco-sa-asaftd-persist-rce-FLsNXF4h;  https://nvd.nist.gov/vuln/detail/CVE-2024-20359
+- cve: CVE-2024-20481
+  platform: EDGE-0005
+  vendor: Cisco
+  product: Adaptive Security Appliance (ASA) and Firepower Threat Defense (FTD)
+  name: Cisco ASA and FTD Denial-of-Service Vulnerability
+  added: '2024-10-24'
+  due: '2024-11-14'
+  ransomware: Unknown
+  forensic_triage: 'No'
+  cwes:
+  - CWE-772
+  action: Apply mitigations per vendor instructions or discontinue use of the product if mitigations are unavailable.
+  description: Cisco Adaptive Security Appliance (ASA) and Firepower Threat Defense (FTD) contain a missing release of resource
+    after effective lifetime vulnerability that could allow an unauthenticated, remote attacker to cause a denial-of-service
+    (DoS) of the RAVPN service.
+  notes: https://sec.cloudapps.cisco.com/security/center/content/CiscoSecurityAdvisory/cisco-sa-asaftd-bf-dos-vDZhLqrW ; https://nvd.nist.gov/vuln/detail/CVE-2024-20481
+- cve: CVE-2024-21762
+  platform: EDGE-0002
+  vendor: Fortinet
+  product: FortiOS
+  name: Fortinet FortiOS Out-of-Bound Write Vulnerability
+  added: '2024-02-09'
+  due: '2024-02-16'
+  ransomware: Known
+  forensic_triage: 'No'
+  cwes:
+  - CWE-787
+  action: Apply mitigations per vendor instructions or discontinue use of the product if mitigations are unavailable.
+  description: Fortinet FortiOS contains an out-of-bound write vulnerability that allows a remote unauthenticated attacker
+    to execute code or commands via specially crafted HTTP requests.
+  notes: https://fortiguard.fortinet.com/psirt/FG-IR-24-015 ;   https://nvd.nist.gov/vuln/detail/CVE-2024-21762
+- cve: CVE-2024-21887
+  platform: EDGE-0003
+  vendor: Ivanti
+  product: Connect Secure and Policy Secure
+  name: Ivanti Connect Secure and Policy Secure Command Injection Vulnerability
+  added: '2024-01-10'
+  due: '2024-01-22'
+  ransomware: Known
+  forensic_triage: 'No'
+  cwes:
+  - CWE-77
+  action: Apply mitigations per vendor instructions or discontinue use of the product if mitigations are unavailable.
+  description: Ivanti Connect Secure (ICS, formerly known as Pulse Connect Secure) and Ivanti Policy Secure contain a command
+    injection vulnerability in the web components of these products, which can allow an authenticated administrator to send
+    crafted requests to execute code on affected appliances. This vulnerability can be leveraged in conjunction with CVE-2023-46805,
+    an authenticated bypass issue.
+  notes: 'Please apply mitigations per vendor instructions. For more information, please see: https://forums.ivanti.com/s/article/KB-CVE-2023-46805-Authentication-Bypass-CVE-2024-21887-Command-Injection-for-Ivanti-Connect-Secure-and-Ivanti-Policy-Secure-Gateways?language=en_US
+    ; https://nvd.nist.gov/vuln/detail/CVE-2024-21887'
+- cve: CVE-2024-21893
+  platform: EDGE-0003
+  vendor: Ivanti
+  product: Connect Secure, Policy Secure, and Neurons
+  name: Ivanti Connect Secure, Policy Secure, and Neurons Server-Side Request Forgery (SSRF) Vulnerability
+  added: '2024-01-31'
+  due: '2024-02-02'
+  ransomware: Known
+  forensic_triage: 'No'
+  cwes:
+  - CWE-918
+  action: Apply mitigations per vendor instructions or discontinue use of the product if mitigations are unavailable.
+  description: Ivanti Connect Secure (ICS, formerly known as Pulse Connect Secure), Ivanti Policy Secure, and Ivanti Neurons
+    contain a server-side request forgery (SSRF) vulnerability in the SAML component that allows an attacker to access certain
+    restricted resources without authentication.
+  notes: https://forums.ivanti.com/s/article/KB-CVE-2023-46805-Authentication-Bypass-CVE-2024-21887-Command-Injection-for-Ivanti-Connect-Secure-and-Ivanti-Policy-Secure-Gateways?language=en_US
+    ; https://nvd.nist.gov/vuln/detail/CVE-2024-21893
+- cve: CVE-2024-23113
+  platform: EDGE-0002
+  vendor: Fortinet
+  product: Multiple Products
+  name: Fortinet Multiple Products Format String Vulnerability
+  added: '2024-10-09'
+  due: '2024-10-30'
+  ransomware: Unknown
+  forensic_triage: 'No'
+  cwes:
+  - CWE-134
+  action: Apply mitigations per vendor instructions or discontinue use of the product if mitigations are unavailable.
+  description: Fortinet FortiOS, FortiPAM, FortiProxy, and FortiWeb contain a format string vulnerability that allows a remote,
+    unauthenticated attacker to execute arbitrary code or commands via specially crafted requests.
+  notes: https://www.fortiguard.com/psirt/FG-IR-24-029 ; https://nvd.nist.gov/vuln/detail/CVE-2024-23113
+- cve: CVE-2024-24919
+  platform: EDGE-0007
+  vendor: Check Point
+  product: Quantum Security Gateways
+  name: Check Point Quantum Security Gateways Information Disclosure Vulnerability
+  added: '2024-05-30'
+  due: '2024-06-20'
+  ransomware: Known
+  forensic_triage: 'No'
+  cwes:
+  - CWE-200
+  action: Apply mitigations per vendor instructions or discontinue use of the product if mitigations are unavailable.
+  description: Check Point Quantum Security Gateways contain an unspecified information disclosure vulnerability. The vulnerability
+    potentially allows an attacker to access information on Gateways connected to the internet, with IPSec VPN, Remote Access
+    VPN or Mobile Access enabled. This issue affects several product lines from Check Point, including CloudGuard Network,
+    Quantum Scalable Chassis, Quantum Security Gateways, and Quantum Spark Appliances.
+  notes: https://support.checkpoint.com/results/sk/sk182336 ; https://nvd.nist.gov/vuln/detail/CVE-2024-24919
+- cve: CVE-2024-3393
+  platform: EDGE-0001
+  vendor: Palo Alto Networks
+  product: PAN-OS
+  name: Palo Alto Networks PAN-OS Malicious DNS Packet Vulnerability
+  added: '2024-12-30'
+  due: '2025-01-20'
+  ransomware: Unknown
+  forensic_triage: 'No'
+  cwes:
+  - CWE-754
+  action: Apply mitigations per vendor instructions or discontinue use of the product if mitigations are unavailable.
+  description: Palo Alto Networks PAN-OS contains a vulnerability in parsing and logging malicious DNS packets in the DNS
+    Security feature that, when exploited, allows an unauthenticated attacker to remotely reboot the firewall. Repeated attempts
+    to trigger this condition will cause the firewall to enter maintenance mode.
+  notes: https://security.paloaltonetworks.com/CVE-2024-3393 ; https://nvd.nist.gov/vuln/detail/CVE-2024-3393
+- cve: CVE-2024-3400
+  platform: EDGE-0001
+  vendor: Palo Alto Networks
+  product: PAN-OS
+  name: Palo Alto Networks PAN-OS Command Injection Vulnerability
+  added: '2024-04-12'
+  due: '2024-04-19'
+  ransomware: Known
+  forensic_triage: 'No'
+  cwes:
+  - CWE-20
+  - CWE-77
+  action: Apply mitigations per vendor instructions as they become available. Otherwise, users with vulnerable versions of
+    affected devices should enable Threat Prevention IDs available from the vendor. See the vendor bulletin for more details
+    and a patch release schedule.
+  description: Palo Alto Networks PAN-OS GlobalProtect feature contains a command injection vulnerability that allows an unauthenticated
+    attacker to execute commands with root privileges on the firewall.
+  notes: https://security.paloaltonetworks.com/CVE-2024-3400 ;   https://nvd.nist.gov/vuln/detail/CVE-2024-3400
+- cve: CVE-2024-38475
+  platform: null
+  vendor: Apache
+  product: HTTP Server
+  name: Apache HTTP Server Improper Escaping of Output Vulnerability
+  added: '2025-05-01'
+  due: '2025-05-22'
+  ransomware: Unknown
+  forensic_triage: 'No'
+  cwes:
+  - CWE-116
+  action: Apply mitigations per vendor instructions, follow applicable BOD 22-01 guidance for cloud services, or discontinue
+    use of the product if mitigations are unavailable.
+  description: Apache HTTP Server contains an improper escaping of output vulnerability in mod_rewrite that allows an attacker
+    to map URLs to filesystem locations that are permitted to be served by the server but are not intentionally/directly reachable
+    by any URL, resulting in code execution or source code disclosure.
+  notes: 'This vulnerability affects a common open-source component, third-party library, or a protocol used by different
+    products. Please check with specific vendors for information on patching status. For more information, please see: https://httpd.apache.org/security/vulnerabilities_24.html
+    ; https://nvd.nist.gov/vuln/detail/CVE-2024-38475'
+- cve: CVE-2024-55591
+  platform: EDGE-0002
+  vendor: Fortinet
+  product: FortiOS and FortiProxy
+  name: Fortinet FortiOS and FortiProxy Authentication Bypass Vulnerability
+  added: '2025-01-14'
+  due: '2025-01-21'
+  ransomware: Known
+  forensic_triage: 'No'
+  cwes:
+  - CWE-288
+  action: Apply mitigations per vendor instructions or discontinue use of the product if mitigations are unavailable.
+  description: Fortinet FortiOS and FortiProxy contain an authentication bypass vulnerability that may allow an unauthenticated,
+    remote attacker to gain super-admin privileges via crafted requests to Node.js websocket module.
+  notes: https://fortiguard.fortinet.com/psirt/FG-IR-24-535 ; https://nvd.nist.gov/vuln/detail/CVE-2024-55591
+- cve: CVE-2024-9474
+  platform: EDGE-0001
+  vendor: Palo Alto Networks
+  product: PAN-OS
+  name: Palo Alto Networks PAN-OS Management Interface OS Command Injection Vulnerability
+  added: '2024-11-18'
+  due: '2024-12-09'
+  ransomware: Known
+  forensic_triage: 'No'
+  cwes:
+  - CWE-77
+  action: Apply mitigations per vendor instructions or discontinue use of the product if mitigations are unavailable. Additionally,
+    the management interfaces for affected devices should not be exposed to untrusted networks, including the internet.
+  description: Palo Alto Networks PAN-OS contains an OS command injection vulnerability that allows for privilege escalation
+    through the web-based management interface for several PAN products, including firewalls and VPN concentrators.
+  notes: https://security.paloaltonetworks.com/CVE-2024-9474 ; https://nvd.nist.gov/vuln/detail/CVE-2024-9474
+- cve: CVE-2025-0108
+  platform: EDGE-0001
+  vendor: Palo Alto Networks
+  product: PAN-OS
+  name: Palo Alto Networks PAN-OS Authentication Bypass Vulnerability
+  added: '2025-02-18'
+  due: '2025-03-11'
+  ransomware: Unknown
+  forensic_triage: 'No'
+  cwes:
+  - CWE-306
+  action: Apply mitigations per vendor instructions or discontinue use of the product if mitigations are unavailable.
+  description: Palo Alto Networks PAN-OS contains an authentication bypass vulnerability in its management web interface.
+    This vulnerability allows an unauthenticated attacker with network access to the management web interface to bypass the
+    authentication normally required and invoke certain PHP scripts.
+  notes: https://security.paloaltonetworks.com/CVE-2025-0108 ; https://nvd.nist.gov/vuln/detail/CVE-2025-0108
+- cve: CVE-2025-0111
+  platform: EDGE-0001
+  vendor: Palo Alto Networks
+  product: PAN-OS
+  name: Palo Alto Networks PAN-OS File Read Vulnerability
+  added: '2025-02-20'
+  due: '2025-03-13'
+  ransomware: Unknown
+  forensic_triage: 'No'
+  cwes:
+  - CWE-73
+  action: Apply mitigations per vendor instructions or discontinue use of the product if mitigations are unavailable.
+  description: Palo Alto Networks PAN-OS contains an external control of file name or path vulnerability. Successful exploitation
+    enables an authenticated attacker with network access to the management web interface to read files on the PAN-OS filesystem
+    that are readable by the “nobody” user.
+  notes: https://security.paloaltonetworks.com/CVE-2025-0111 ; https://nvd.nist.gov/vuln/detail/CVE-2025-0111
+- cve: CVE-2025-0282
+  platform: EDGE-0003
+  vendor: Ivanti
+  product: Connect Secure, Policy Secure, and ZTA Gateways
+  name: Ivanti Connect Secure, Policy Secure, and ZTA Gateways Stack-Based Buffer Overflow Vulnerability
+  added: '2025-01-08'
+  due: '2025-01-15'
+  ransomware: Known
+  forensic_triage: 'No'
+  cwes:
+  - CWE-121
+  action: Apply mitigations as set forth in the CISA instructions linked below to include conducting hunt activities, taking
+    remediation actions if applicable, and applying updates prior to returning a device to service.
+  description: Ivanti Connect Secure, Policy Secure, and ZTA Gateways contain a stack-based buffer overflow which can lead
+    to unauthenticated remote code execution.
+  notes: 'CISA Mitigation Instructions: https://www.cisa.gov/cisa-mitigation-instructions-CVE-2025-0282 Additional References:
+    https://forums.ivanti.com/s/article/Security-Advisory-Ivanti-Connect-Secure-Policy-Secure-ZTA-Gateways-CVE-2025-0282-CVE-2025-0283
+    ; https://nvd.nist.gov/vuln/detail/CVE-2025-0282'
+- cve: CVE-2025-20333
+  platform: EDGE-0005
+  vendor: Cisco
+  product: Secure Firewall Adaptive Security Appliance and Secure Firewall Threat Defense
+  name: Cisco Secure Firewall Adaptive Security Appliance (ASA) and Secure Firewall Threat Defense (FTD) Buffer Overflow Vulnerability
+  added: '2025-09-25'
+  due: '2025-09-26'
+  ransomware: Unknown
+  forensic_triage: 'No'
+  cwes:
+  - CWE-120
+  action: The KEV due date refers to the deadline by which FCEB agencies are expected to review and begin implementing the
+    guidance outlined in Emergency Directive (ED) 25-03 (URL listed below in Notes). Agencies must follow the mitigation steps
+    provided by CISA (URL listed below in Notes) and vendor’s instructions (URL listed below in Notes). Adhere to the applicable
+    BOD 22-01 guidance for cloud services or discontinue use of the product if mitigations are not available.
+  description: Cisco Secure Firewall Adaptive Security (ASA) Appliance and Secure Firewall Threat Defense (FTD) Software VPN
+    Web Server contain a buffer overflow vulnerability that allows for remote code execution. This vulnerability could be
+    chained with CVE-2025-20362.
+  notes: 'CISA Mitigation Instructions: https://www.cisa.gov/news-events/directives/ed-25-03-identify-and-mitigate-potential-compromise-cisco-devices
+    ; https://www.cisa.gov/news-events/directives/supplemental-direction-ed-25-03-core-dump-and-hunt-instructions ; https://www.cisa.gov/eviction-strategies-tool/create-from-template
+    ; https://sec.cloudapps.cisco.com/security/center/resources/asa_ftd_continued_attacks ;    https://sec.cloudapps.cisco.com/security/center/private/resources/asa_ftd_continued_attacks#Details
+    ; https://sec.cloudapps.cisco.com/security/center/content/CiscoSecurityAdvisory/cisco-sa-asaftd-webvpn-z5xP8EUB ; https://nvd.nist.gov/vuln/detail/CVE-2025-20333'
+- cve: CVE-2025-20352
+  platform: EDGE-0009
+  vendor: Cisco
+  product: IOS and IOS XE
+  name: Cisco IOS and IOS XE Software SNMP Denial of Service and Remote Code Execution Vulnerability
+  added: '2025-09-29'
+  due: '2025-10-20'
+  ransomware: Unknown
+  forensic_triage: 'No'
+  cwes:
+  - CWE-121
+  action: Apply mitigations per vendor instructions, follow applicable BOD 22-01 guidance for cloud services, or discontinue
+    use of the product if mitigations are unavailable.
+  description: Cisco IOS and IOS XE contains a stack-based buffer overflow vulnerability in the Simple Network Management
+    Protocol (SNMP) subsystem that could allow for denial of service or remote code execution. A successful exploit could
+    allow a low-privileged attacker to cause the affected system to reload, resulting in a DoS condition, or allow a high-privileged
+    attacker to execute arbitrary code as the root user and obtain full control of the affected system.
+  notes: https://sec.cloudapps.cisco.com/security/center/content/CiscoSecurityAdvisory/cisco-sa-snmp-x4LPhte ; https://nvd.nist.gov/vuln/detail/CVE-2025-20352
+- cve: CVE-2025-20362
+  platform: EDGE-0005
+  vendor: Cisco
+  product: Secure Firewall Adaptive Security Appliance and Secure Firewall Threat Defense
+  name: Cisco Secure Firewall Adaptive Security (ASA) Appliance and Secure Firewall Threat Defense (FTD) Missing Authorization
+    Vulnerability
+  added: '2025-09-25'
+  due: '2025-09-26'
+  ransomware: Unknown
+  forensic_triage: 'No'
+  cwes:
+  - CWE-862
+  action: The KEV due date refers to the deadline by which FCEB agencies are expected to review and begin implementing the
+    guidance outlined in Emergency Directive (ED) 25-03 (URL listed below in Notes). Agencies must follow the mitigation steps
+    provided by CISA (URL listed below in Notes) and vendor’s instructions (URL listed below in Notes). Adhere to the applicable
+    BOD 22-01 guidance for cloud services or discontinue use of the product if mitigations are not available.
+  description: Cisco Secure Firewall Adaptive Security (ASA) Appliance and Secure Firewall Threat Defense (FTD) Software VPN
+    Web Server contain a missing authorization vulnerability. This vulnerability could be chained with CVE-2025-20333.
+  notes: 'CISA Mitigation Instructions: https://www.cisa.gov/news-events/directives/ed-25-03-identify-and-mitigate-potential-compromise-cisco-devices
+    ; https://www.cisa.gov/news-events/directives/supplemental-direction-ed-25-03-core-dump-and-hunt-instructions ; https://www.cisa.gov/eviction-strategies-tool/create-from-template
+    ; https://sec.cloudapps.cisco.com/security/center/resources/asa_ftd_continued_attacks ;   https://sec.cloudapps.cisco.com/security/center/private/resources/asa_ftd_continued_attacks#Details
+    ; https://sec.cloudapps.cisco.com/security/center/content/CiscoSecurityAdvisory/cisco-sa-asaftd-webvpn-YROOTUW ; https://nvd.nist.gov/vuln/detail/CVE-2025-20362'
+- cve: CVE-2025-21590
+  platform: EDGE-0008
+  vendor: Juniper
+  product: Junos OS
+  name: Juniper Junos OS Improper Isolation or Compartmentalization Vulnerability
+  added: '2025-03-13'
+  due: '2025-04-03'
+  ransomware: Unknown
+  forensic_triage: 'No'
+  cwes:
+  - CWE-653
+  action: Apply mitigations per vendor instructions, follow applicable BOD 22-01 guidance for cloud services, or discontinue
+    use of the product if mitigations are unavailable.
+  description: Juniper Junos OS contains an improper isolation or compartmentalization vulnerability. This vulnerability could
+    allows a local attacker with high privileges to inject arbitrary code.
+  notes: https://supportportal.juniper.net/s/article/2025-03-Out-of-Cycle-Security-Bulletin-Junos-OS-A-local-attacker-with-shell-access-can-execute-arbitrary-code-CVE-2025-21590?language=en_US
+    ; https://nvd.nist.gov/vuln/detail/CVE-2025-21590
+- cve: CVE-2025-22457
+  platform: EDGE-0003
+  vendor: Ivanti
+  product: Connect Secure, Policy Secure, and ZTA Gateways
+  name: Ivanti Connect Secure, Policy Secure, and ZTA Gateways Stack-Based Buffer Overflow Vulnerability
+  added: '2025-04-04'
+  due: '2025-04-11'
+  ransomware: Known
+  forensic_triage: 'No'
+  cwes:
+  - CWE-121
+  action: Apply mitigations as set forth in the CISA instructions linked below.
+  description: Ivanti Connect Secure, Policy Secure, and ZTA Gateways contains a stack-based buffer overflow vulnerability
+    that allows a remote unauthenticated attacker to achieve remote code execution.
+  notes: 'CISA Mitigation Instructions: https://www.cisa.gov/cisa-mitigation-instructions-cve-2025-22457 ; Additional References:
+    https://forums.ivanti.com/s/article/April-Security-Advisory-Ivanti-Connect-Secure-Policy-Secure-ZTA-Gateways-CVE-2025-22457
+    ; https://nvd.nist.gov/vuln/detail/CVE-2025-22457'
+- cve: CVE-2025-24472
+  platform: EDGE-0002
+  vendor: Fortinet
+  product: FortiOS and FortiProxy
+  name: Fortinet FortiOS and FortiProxy Authentication Bypass Vulnerability
+  added: '2025-03-18'
+  due: '2025-04-08'
+  ransomware: Known
+  forensic_triage: 'No'
+  cwes:
+  - CWE-288
+  action: Apply mitigations per vendor instructions, follow applicable BOD 22-01 guidance for cloud services, or discontinue
+    use of the product if mitigations are unavailable.
+  description: Fortinet FortiOS and FortiProxy contain an authentication bypass vulnerability that allows a remote attacker
+    to gain super-admin privileges via crafted CSF proxy requests.
+  notes: https://fortiguard.fortinet.com/psirt/FG-IR-24-535 ; https://nvd.nist.gov/vuln/detail/CVE-2025-24472
+- cve: CVE-2025-25249
+  platform: EDGE-0002
+  vendor: Fortinet
+  product: Multiple Products
+  name: Fortinet Multiple Products Heap-based Buffer Overflow Vulnerability
+  added: '2026-09-09'
+  due: '2026-09-12'
+  ransomware: Unknown
+  forensic_triage: 'Yes'
+  cwes:
+  - CWE-122
+  - CWE-787
+  action: Apply mitigations in accordance with vendor instructions, ensuring compliance with CISA’s BOD 26-04 Prioritizing
+    Security Updates Based on Risk (see URL in Notes) guidance and CISA’s “Forensics Triage Requirements” (see URL in Notes).
+    Follow applicable BOD 26-04 guidance for cloud services or discontinue use of the product if mitigations are unavailable.
+    Stakeholders are responsible for evaluating each asset's internet exposure and ensuring adherence to BOD 26-04 patching
+    guidelines.
+  description: Fortinet FortiOS, FortiSwitchManager, and FortiSASE contain a heap-based buffer overflow vulnerability that
+    allows an attacker to execute unauthorized code or commands via specially crafted packets.
+  notes: 'https://fortiguard.fortinet.com/psirt/FG-IR-25-084 ; BOD 26-04: https://www.cisa.gov/news-events/directives/bod-26-04-prioritizing-security-updates-based-risk
+    ; Forensics Triage Requirements: https://www.cisa.gov/news-events/directives/bod-26-04-implementation-guidance-prioritizing-security-updates-based-risk
+    ; https://nvd.nist.gov/vuln/detail/CVE-2025-25249'
+- cve: CVE-2025-32756
+  platform: EDGE-0002
+  vendor: Fortinet
+  product: Multiple Products
+  name: Fortinet Multiple Products Stack-Based Buffer Overflow Vulnerability
+  added: '2025-05-14'
+  due: '2025-06-04'
+  ransomware: Unknown
+  forensic_triage: 'No'
+  cwes:
+  - CWE-124
+  action: Apply mitigations per vendor instructions, follow applicable BOD 22-01 guidance for cloud services, or discontinue
+    use of the product if mitigations are unavailable.
+  description: Fortinet FortiFone, FortiVoice, FortiNDR and FortiMail contain a stack-based overflow vulnerability that may
+    allow a remote unauthenticated attacker to execute arbitrary code or commands via crafted HTTP requests.
+  notes: https://fortiguard.fortinet.com/psirt/FG-IR-25-254 ; https://nvd.nist.gov/vuln/detail/CVE-2025-32756
+- cve: CVE-2025-53521
+  platform: EDGE-0010
+  vendor: F5
+  product: BIG-IP
+  name: F5 BIG-IP Stack-Based Buffer Overflow Vulnerability
+  added: '2026-03-27'
+  due: '2026-03-30'
+  ransomware: Unknown
+  forensic_triage: 'No'
+  cwes:
+  - CWE-121
+  action: Apply mitigations per vendor instructions, follow applicable BOD 22-01 guidance for cloud services, or discontinue
+    use of the product if mitigations are unavailable.
+  description: F5 BIG-IP APM contains a stack-based buffer overflow vulnerability that could allow a threat actor to achieve
+    remote code execution.
+  notes: 'Please adhere to F5’s guidelines to assess exposure and mitigate risks. Check for signs of potential compromise
+    on all internet accessible F5 products affected by this vulnerability. For more information please see: https://my.f5.com/manage/s/article/K000156741
+    ; https://my.f5.com/manage/s/article/K000160486 ; https://my.f5.com/manage/s/article/K11438344 ; https://nvd.nist.gov/vuln/detail/CVE-2025-53521'
+- cve: CVE-2025-5777
+  platform: EDGE-0004
+  vendor: Citrix
+  product: NetScaler ADC and Gateway
+  name: Citrix NetScaler ADC and Gateway Out-of-Bounds Read Vulnerability
+  added: '2025-07-10'
+  due: '2025-07-11'
+  ransomware: Known
+  forensic_triage: 'No'
+  cwes:
+  - CWE-125
+  action: Apply mitigations per vendor instructions, follow applicable BOD 22-01 guidance for cloud services, or discontinue
+    use of the product if mitigations are unavailable.
+  description: Citrix NetScaler ADC and Gateway contain an out-of-bounds read vulnerability due to insufficient input validation.
+    This vulnerability can lead to memory overread when the NetScaler is configured as a Gateway (VPN virtual server, ICA
+    Proxy, CVPN, RDP Proxy) OR AAA virtual server.
+  notes: https://support.citrix.com/support-home/kbsearch/article?articleNumber=CTX693420 ; https://nvd.nist.gov/vuln/detail/CVE-2025-5777
+- cve: CVE-2025-59718
+  platform: EDGE-0002
+  vendor: Fortinet
+  product: Multiple Products
+  name: Fortinet Multiple Products Improper Verification of Cryptographic Signature Vulnerability
+  added: '2025-12-16'
+  due: '2025-12-23'
+  ransomware: Unknown
+  forensic_triage: 'No'
+  cwes:
+  - CWE-347
+  action: Apply mitigations per vendor instructions, follow applicable BOD 22-01 guidance for cloud services, or discontinue
+    use of the product if mitigations are unavailable.
+  description: Fortinet FortiOS, FortiSwitchMaster, FortiProxy, and FortiWeb contain an improper verification of cryptographic
+    signature vulnerability that may allow an unauthenticated attacker to bypass the FortiCloud SSO login authentication via
+    a crafted SAML message. Please be aware that CVE-2025-59719 pertains to the same problem and is mentioned in the same
+    vendor advisory. Ensure to apply all patches mentioned in the advisory.
+  notes: https://fortiguard.fortinet.com/psirt/FG-IR-25-647 ; https://docs.fortinet.com/upgrade-tool/fortigate ; https://nvd.nist.gov/vuln/detail/CVE-2025-59718
+- cve: CVE-2025-61624
+  platform: EDGE-0002
+  vendor: Fortinet
+  product: Multiple Products
+  name: Fortinet Multiple Products Path Traversal Vulnerability
+  added: '2026-10-16'
+  due: '2026-10-19'
+  ransomware: Unknown
+  forensic_triage: 'Yes'
+  cwes:
+  - CWE-22
+  action: Apply mitigations in accordance with vendor instructions, ensuring compliance with CISA’s BOD 26-04 Prioritizing
+    Security Updates Based on Risk (see URL in Notes) guidance and CISA’s “Forensics Triage Requirements” (see URL in Notes).
+    Follow applicable BOD 26-04 guidance for cloud services or discontinue use of the product if mitigations are unavailable.
+    Stakeholders are responsible for evaluating each asset's internet exposure and ensuring adherence to BOD 26-04 patching
+    guidelines.
+  description: FortiOS, FortiPAM, FortiProxy, and FortiSwitchManager contain a path traversal vulnerability that may allow
+    an authenticated attacker with admin profile and at least read-write permissions to write or delete arbitrary files via
+    specific CLI commands.
+  notes: 'https://fortiguard.fortinet.com/psirt/FG-IR-26-122 ; ; BOD 26-04: https://www.cisa.gov/news-events/directives/bod-26-04-prioritizing-security-updates-based-risk
+    ; Forensics Triage Requirements: https://www.cisa.gov/news-events/directives/bod-26-04-implementation-guidance-prioritizing-security-updates-based-risk
+    ; https://nvd.nist.gov/vuln/detail/CVE-2025-61624'
+- cve: CVE-2025-6543
+  platform: EDGE-0004
+  vendor: Citrix
+  product: NetScaler ADC and Gateway
+  name: Citrix NetScaler ADC and Gateway Buffer Overflow Vulnerability
+  added: '2025-06-30'
+  due: '2025-07-21'
+  ransomware: Unknown
+  forensic_triage: 'No'
+  cwes:
+  - CWE-119
+  action: Apply mitigations per vendor instructions, follow applicable BOD 22-01 guidance for cloud services, or discontinue
+    use of the product if mitigations are unavailable.
+  description: Citrix NetScaler ADC and Gateway contain a buffer overflow vulnerability leading to unintended control flow
+    and Denial of Service. NetScaler must be configured as Gateway (VPN virtual server, ICA Proxy, CVPN, RDP Proxy) OR AAA
+    virtual server.
+  notes: https://support.citrix.com/support-home/kbsearch/article?articleNumber=CTX694788 ; https://www.netscaler.com/blog/news/netscaler-critical-security-updates-for-cve-2025-6543-and-cve-2025-5777/
+    ;   https://nvd.nist.gov/vuln/detail/CVE-2025-6543
+- cve: CVE-2025-68686
+  platform: EDGE-0002
+  vendor: Fortinet
+  product: FortiOS
+  name: Fortinet FortiOS Exposure of Sensitive Information to an Unauthorized Actor Vulnerability
+  added: '2026-07-27'
+  due: '2026-08-10'
+  ransomware: Unknown
+  forensic_triage: 'No'
+  cwes:
+  - CWE-200
+  action: Apply mitigations in accordance with vendor instructions, ensuring compliance with CISA’s BOD 26-04 Prioritizing
+    Security Updates Based on Risk (see URL in Notes) guidance and CISA’s “Forensics Triage Requirements” (see URL in Notes).
+    Follow applicable BOD 26-04 guidance for cloud services or discontinue use of the product if mitigations are unavailable.
+    Stakeholders are responsible for evaluating each asset's internet exposure and ensuring adherence to BOD 26-04 patching
+    guidelines.
+  description: Fortinet FortiOS contains an exposure of sensitive information to an unauthorized actor vulnerability. This
+    may allow a remote unauthenticated attacker to bypass the patch developed for the symbolic link persistency mechanism
+    observed in some post-exploit cases, via crafted HTTP requests. An attacker would need first to have compromised the product
+    via another vulnerability, at filesystem level.
+  notes: 'https://fortiguard.fortinet.com/psirt/FG-IR-25-934 ; BOD 26-04: https://www.cisa.gov/news-events/directives/bod-26-04-prioritizing-security-updates-based-risk
+    ; Forensics Triage Requirements: https://www.cisa.gov/news-events/directives/bod-26-04-implementation-guidance-prioritizing-security-updates-based-risk
+    ; https://nvd.nist.gov/vuln/detail/CVE-2025-68686'
+- cve: CVE-2025-7775
+  platform: EDGE-0004
+  vendor: Citrix
+  product: NetScaler
+  name: Citrix NetScaler Memory Overflow Vulnerability
+  added: '2025-08-26'
+  due: '2025-08-28'
+  ransomware: Unknown
+  forensic_triage: 'No'
+  cwes:
+  - CWE-119
+  action: Apply mitigations per vendor instructions, follow applicable BOD 22-01 guidance for cloud services, or discontinue
+    use of the product if mitigations are unavailable.
+  description: Citrix NetScaler ADC and NetScaler Gateway contain a memory overflow vulnerability that could allow for remote
+    code execution and/or denial of service.
+  notes: https://support.citrix.com/support-home/kbsearch/article?articleNumber=CTX694938 ; https://nvd.nist.gov/vuln/detail/CVE-2025-7775
+- cve: CVE-2026-0257
+  platform: EDGE-0001
+  vendor: Palo Alto Networks
+  product: PAN-OS
+  name: Palo Alto Networks PAN-OS Authentication Bypass Vulnerability
+  added: '2026-05-29'
+  due: '2026-06-01'
+  ransomware: Known
+  forensic_triage: 'No'
+  cwes:
+  - CWE-565
+  action: Apply mitigations per vendor instructions, follow applicable BOD 22-01 guidance for cloud services, or discontinue
+    use of the product if mitigations are unavailable.
+  description: Palo Alto Networks PAN-OS contains an authentication bypass vulnerability that allows attackers to bypass security
+    restrictions and establish an unauthorized VPN connection.
+  notes: https://security.paloaltonetworks.com/CVE-2026-0257 ; https://nvd.nist.gov/vuln/detail/CVE-2026-0257
+- cve: CVE-2026-0300
+  platform: EDGE-0001
+  vendor: Palo Alto Networks
+  product: PAN-OS
+  name: Palo Alto Networks PAN-OS Out-of-bounds Write Vulnerability
+  added: '2026-05-06'
+  due: '2026-05-09'
+  ransomware: Unknown
+  forensic_triage: 'No'
+  cwes:
+  - CWE-787
+  action: 'Apply mitigations per vendor instructions, follow applicable BOD 22-01 guidance for cloud services, or discontinue
+    use of the product if mitigations are unavailable. Until the vendor releases an official fix, the following workaround
+    should be implemented:  - Restrict User-ID Authentication Portal access to only trusted zones.  - Disable User-ID Authentication
+    Portal if not required. 5/13/2026: Palo Alto has released a variety of patches. If these are relevant to your environment,
+    please apply the designated patch.'
+  description: Palo Alto Networks PAN-OS contains an out-of-bounds write vulnerability in the User-ID Authentication Portal
+    (aka Captive Portal) service that can allow an unauthenticated attacker to execute arbitrary code with root privileges
+    on the PA-Series and VM-Series firewalls by sending specially crafted packets.
+  notes: https://security.paloaltonetworks.com/CVE-2026-0300 ; https://nvd.nist.gov/vuln/detail/CVE-2026-0300
+- cve: CVE-2026-0322
+  platform: EDGE-0001
+  vendor: Palo Alto Networks
+  product: PAN-OS
+  name: Palo Alto Networks PAN-OS Code Injection Vulnerability
+  added: '2026-10-14'
+  due: '2026-10-17'
+  ransomware: Unknown
+  forensic_triage: 'Yes'
+  cwes:
+  - CWE-94
+  action: Apply mitigations in accordance with vendor instructions, ensuring compliance with CISA’s BOD 26-04 Prioritizing
+    Security Updates Based on Risk (see URL in Notes) guidance and CISA’s “Forensics Triage Requirements” (see URL in Notes).
+    Follow applicable BOD 26-04 guidance for cloud services or discontinue use of the product if mitigations are unavailable.
+    Stakeholders are responsible for evaluating each asset's internet exposure and ensuring adherence to BOD 26-04 patching
+    guidelines.
+  description: Palo Alto Networks PAN-OS contains a code injection vulnerability that could allow an authenticated attacker
+    with network access to execute arbitrary code with root privileges on the firewall.
+  notes: 'https://security.paloaltonetworks.com/CVE-2026-0322 ; ; BOD 26-04: https://www.cisa.gov/news-events/directives/bod-26-04-prioritizing-security-updates-based-risk
+    ; Forensics Triage Requirements: https://www.cisa.gov/news-events/directives/bod-26-04-implementation-guidance-prioritizing-security-updates-based-risk
+    ; https://nvd.nist.gov/vuln/detail/CVE-2026-0322'
+- cve: CVE-2026-104935
+  platform: EDGE-0003
+  vendor: Ivanti
+  product: Connect Secure
+  name: Ivanti Connect Secure Authentication Bypass by Spoofing Vulnerability
+  added: '2026-10-13'
+  due: '2026-10-16'
+  ransomware: Unknown
+  forensic_triage: 'Yes'
+  cwes:
+  - CWE-290
+  action: Apply mitigations in accordance with vendor instructions, ensuring compliance with CISA’s BOD 26-04 Prioritizing
+    Security Updates Based on Risk (see URL in Notes) guidance and CISA’s “Forensics Triage Requirements” (see URL in Notes).
+    Follow applicable BOD 26-04 guidance for cloud services or discontinue use of the product if mitigations are unavailable.
+    Stakeholders are responsible for evaluating each asset's internet exposure and ensuring adherence to BOD 26-04 patching
+    guidelines.
+  description: Ivanti Connect Secure contains an authentication bypass by spoofing vulnerability that allows a remote unauthenticated
+    attacker to execute arbitrary commands.
+  notes: https:/forums.ivanti.com/s/article/Security-Advisory-Ivanti-Connect-Secure-CVE-2026-104935 ; https://nvd.nist.gov/vuln/detail/CVE-2026-104935
+- cve: CVE-2026-16232
+  platform: null
+  vendor: Check Point
+  product: SmartConsole
+  name: Check Point SmartConsole Improper Authentication Vulnerability
+  added: '2026-07-22'
+  due: '2026-07-25'
+  ransomware: Unknown
+  forensic_triage: 'Yes'
+  cwes:
+  - CWE-287
+  action: Apply mitigations in accordance with vendor instructions, ensuring compliance with CISA’s BOD 26-04 Prioritizing
+    Security Updates Based on Risk (see URL in Notes) guidance and CISA’s “Forensics Triage Requirements” (see URL in Notes).
+    Follow applicable BOD 26-04 guidance for cloud services or discontinue use of the product if mitigations are unavailable.
+    Stakeholders are responsible for evaluating each asset's internet exposure and ensuring adherence to BOD 26-04 patching
+    guidelines.
+  description: Check Point SmartConsole contains an improper authentication vulnerability which could allow an unauthenticated
+    remote attacker to obtain an application login token and use it to authenticate with full administrative privileges.
+  notes: 'https://support.checkpoint.com/results/sk/sk185169/ ; BOD 26-04: https://www.cisa.gov/news-events/directives/bod-26-04-prioritizing-security-updates-based-risk
+    ; Forensics Triage Requirements: https://www.cisa.gov/news-events/directives/bod-26-04-implementation-guidance-prioritizing-security-updates-based-risk
+    ; https://nvd.nist.gov/vuln/detail/CVE-2026-16232'
+- cve: CVE-2026-19490
+  platform: EDGE-0004
+  vendor: Citrix
+  product: NetScaler
+  name: Citrix NetScaler Authentication Bypass Using an Alternate Path or Channel Vulnerability
+  added: '2026-09-09'
+  due: '2026-09-12'
+  ransomware: Unknown
+  forensic_triage: 'Yes'
+  cwes:
+  - CWE-288
+  action: Apply mitigations in accordance with vendor instructions, ensuring compliance with CISA’s BOD 26-04 Prioritizing
+    Security Updates Based on Risk (see URL in Notes) guidance and CISA’s “Forensics Triage Requirements” (see URL in Notes).
+    Follow applicable BOD 26-04 guidance for cloud services or discontinue use of the product if mitigations are unavailable.
+    Stakeholders are responsible for evaluating each asset's internet exposure and ensuring adherence to BOD 26-04 patching
+    guidelines.
+  description: Citrix NetScaler ADC and NetScaler Gateway contain an authentication-bypass vulnerability involving an alternate
+    path or channel. When the NetScaler appliance is configured as an AAA virtual server or as a Gateway (SSL VPN, ICA Proxy,
+    CVPN, or RDP Proxy), an unauthenticated remote threat actor may be able to bypass authentication.
+  notes: 'https://support.citrix.com/external/article/CTX696939/netscaler-adc-and-netscaler-gateway-secu.html ; BOD 26-04:
+    https://www.cisa.gov/news-events/directives/bod-26-04-prioritizing-security-updates-based-risk ; Forensics Triage Requirements:
+    https://www.cisa.gov/news-events/directives/bod-26-04-implementation-guidance-prioritizing-security-updates-based-risk
+    ; https://nvd.nist.gov/vuln/detail/CVE-2026-19490'
+- cve: CVE-2026-20349
+  platform: EDGE-0005
+  vendor: Cisco
+  product: Secure Firewall Adaptive Security Appliance (ASA) and Secure Firewall Threat Defense (FTD)
+  name: Cisco Secure Firewall Adaptive Security Appliance (ASA) and Secure Firewall Threat Defense (FTD) Heap Inspection Vulnerability
+  added: '2026-08-11'
+  due: '2026-08-14'
+  ransomware: Unknown
+  forensic_triage: 'No'
+  cwes:
+  - CWE-244
+  action: Apply mitigations in accordance with vendor instructions, ensuring compliance with CISA’s BOD 26-04 Prioritizing
+    Security Updates Based on Risk (see URL in Notes) guidance and CISA’s “Forensics Triage Requirements” (see URL in Notes).
+    Follow applicable BOD 26-04 guidance for cloud services or discontinue use of the product if mitigations are unavailable.
+    Stakeholders are responsible for evaluating each asset's internet exposure and ensuring adherence to BOD 26-04 patching
+    guidelines.
+  description: Cisco Secure Firewall Adaptive Security Appliance (ASA) and Secure Firewall Threat Defense (FTD) contain a
+    heap inspection vulnerability that could allow an unauthenticated, remote attacker to cause the device to reload unexpectedly,
+    resulting in a denial of service (DoS) condition.
+  notes: 'https://sec.cloudapps.cisco.com/security/center/content/CiscoSecurityAdvisory/cisco-sa-asaftd-vpn-dos-dzv4mQFF ;
+    BOD 26-04: https://www.cisa.gov/news-events/directives/bod-26-04-prioritizing-security-updates-based-risk ; Forensics
+    Triage Requirements: https://www.cisa.gov/news-events/directives/bod-26-04-implementation-guidance-prioritizing-security-updates-based-risk
+    ; https://nvd.nist.gov/vuln/detail/CVE-2026-20349'
+- cve: CVE-2026-24858
+  platform: EDGE-0002
+  vendor: Fortinet
+  product: Multiple Products
+  name: Fortinet Multiple Products Authentication Bypass Using an Alternate Path or Channel Vulnerability
+  added: '2026-01-27'
+  due: '2026-01-30'
+  ransomware: Unknown
+  forensic_triage: 'No'
+  cwes:
+  - CWE-288
+  action: Apply mitigations per vendor instructions, follow applicable BOD 22-01 guidance for cloud services, or discontinue
+    use of the product if mitigations are unavailable.
+  description: Fortinet FortiAnalyzer, FortiManager, FortiOS, and FortiProxy contain an authentication bypass using an alternate
+    path or channel that could allow an attacker with a FortiCloud account and a registered device to log into other devices
+    registered to other accounts, if FortiCloud SSO authentication is enabled on those devices.
+  notes: 'Please adhere to Fortinet''s guidelines to assess exposure and mitigate risks. Check for signs of potential compromise
+    on all internet accessible Fortinet products affected by this vulnerability. Apply any final mitigations provided by the
+    vendor as soon as they become available. For more information please see: https://fortiguard.fortinet.com/psirt/FG-IR-26-060
+    ; https://www.fortinet.com/blog/psirt-blogs/analysis-of-sso-abuse-on-fortios ; https://nvd.nist.gov/vuln/detail/CVE-2026-24858'
+- cve: CVE-2026-3055
+  platform: EDGE-0004
+  vendor: Citrix
+  product: NetScaler
+  name: Citrix NetScaler Out-of-Bounds Read Vulnerability
+  added: '2026-03-30'
+  due: '2026-04-02'
+  ransomware: Unknown
+  forensic_triage: 'No'
+  cwes:
+  - CWE-125
+  action: Apply mitigations per vendor instructions, follow applicable BOD 22-01 guidance for cloud services, or discontinue
+    use of the product if mitigations are unavailable.
+  description: Citrix NetScaler ADC (formerly Citrix ADC), NetScaler Gateway (formerly Citrix Gateway) and NetScaler ADC FIPS
+    and NDcPP contain an out-of-bounds reads vulnerability when configured as a SAML IDP leading to memory overread.
+  notes: https://support.citrix.com/support-home/kbsearch/article?articleNumber=CTX696300&articleURL=NetScaler_ADC_and_NetScaler_Gateway_Security_Bulletin_for_CVE_2026_3055_and_CVE_2026_4368
+    ; https://nvd.nist.gov/vuln/detail/CVE-2026-3055
+- cve: CVE-2026-50751
+  platform: EDGE-0007
+  vendor: Check Point
+  product: Security Gateway
+  name: Check Point Security Gateway Improper Authentication Vulnerability
+  added: '2026-06-08'
+  due: '2026-06-11'
+  ransomware: Known
+  forensic_triage: 'No'
+  cwes:
+  - CWE-287
+  action: Apply mitigations per vendor instructions, follow applicable BOD 22-01 guidance for cloud services, or discontinue
+    use of the product if mitigations are unavailable.
+  description: Check Point Security Gateway contains an improper authentication vulnerability in IKEv1 key exchange that could
+    allow an unauthenticated remote attacker to bypass user authentication and establish a remote access VPN connection without
+    a valid user password.
+  notes: https://blog.checkpoint.com/security/check-point-releases-important-hotfix-for-vulnerabilities-in-deprecated-ikev1-vpn-protocol/
+    ; https://support.checkpoint.com/results/sk/sk185033?_gl=1*1wqeqhc*_gcl_au*MTI1MzE5MjI2LjE3ODA5MzQ1NTM. ; https://nvd.nist.gov/vuln/detail/CVE-2026-50751
+- cve: CVE-2026-8452
+  platform: EDGE-0004
+  vendor: Citrix
+  product: NetScaler ADC and NetScaler Gateway
+  name: Citrix NetScaler ADC and NetScaler Gateway Improper Restriction of Operations within the Bounds of a Memory Buffer
+    Vulnerability
+  added: '2026-08-26'
+  due: '2026-08-29'
+  ransomware: Unknown
+  forensic_triage: 'No'
+  cwes:
+  - CWE-119
+  action: Apply mitigations in accordance with vendor instructions, ensuring compliance with CISA’s BOD 26-04 Prioritizing
+    Security Updates Based on Risk (see URL in Notes) guidance and CISA’s “Forensics Triage Requirements” (see URL in Notes).
+    Follow applicable BOD 26-04 guidance for cloud services or discontinue use of the product if mitigations are unavailable.
+    Stakeholders are responsible for evaluating each asset's internet exposure and ensuring adherence to BOD 26-04 patching
+    guidelines.
+  description: Citrix NetScaler ADC and NetScaler Gateway contain an improper restriction of operations within the bounds
+    of a memory buffer vulnerability which could lead to denial of service.
+  notes: 'https://support.citrix.com/support-home/kbsearch/article?articleNumber=CTX696604 ; BOD 26-04: https://www.cisa.gov/news-events/directives/bod-26-04-prioritizing-security-updates-based-risk
+    ; Forensics Triage Requirements: https://www.cisa.gov/news-events/directives/bod-26-04-implementation-guidance-prioritizing-security-updates-based-risk
+    ; https://nvd.nist.gov/vuln/detail/CVE-2026-8452'
+- cve: CVE-2026-85102
+  platform: EDGE-0007
+  vendor: Check Point
+  product: Multiple Products
+  name: Check Point Multiple Products Improper Certificate Validation Vulnerability
+  added: '2026-09-22'
+  due: '2026-09-25'
+  ransomware: Unknown
+  forensic_triage: 'Yes'
+  cwes:
+  - CWE-295
+  action: Apply mitigations in accordance with vendor instructions, ensuring compliance with CISA’s BOD 26-04 Prioritizing
+    Security Updates Based on Risk (see URL in Notes) guidance and CISA’s “Forensics Triage Requirements” (see URL in Notes).
+    Follow applicable BOD 26-04 guidance for cloud services or discontinue use of the product if mitigations are unavailable.
+    Stakeholders are responsible for evaluating each asset's internet exposure and ensuring adherence to BOD 26-04 patching
+    guidelines.
+  description: Check Point Security Gateway and Check Point Spark Firewall using Site to Site VPN or Remote Access VPN contain
+    an improper certificate validation vulnerability which could allow an unauthenticated remote attacker to execute arbitrary
+    code on the Gateway.
+  notes: 'https://support.checkpoint.com/results/sk/sk1000117 ; ; BOD 26-04: https://www.cisa.gov/news-events/directives/bod-26-04-prioritizing-security-updates-based-risk
+    ; Forensics Triage Requirements: https://www.cisa.gov/news-events/directives/bod-26-04-implementation-guidance-prioritizing-security-updates-based-risk
+    ; https://nvd.nist.gov/vuln/detail/CVE-2026-85102'
+- cve: CVE-2026-88771
+  platform: EDGE-0004
+  vendor: Citrix
+  product: NetScaler
+  name: Citrix NetScaler Improper Input Validation Vulnerability
+  added: '2026-09-27'
+  due: '2026-09-30'
+  ransomware: Unknown
+  forensic_triage: 'Yes'
+  cwes:
+  - CWE-119
+  action: Apply mitigations in accordance with vendor instructions, ensuring compliance with CISA’s BOD 26-04 Prioritizing
+    Security Updates Based on Risk (see URL in Notes) guidance and CISA’s “Forensics Triage Requirements” (see URL in Notes).
+    Follow applicable BOD 26-04 guidance for cloud services or discontinue use of the product if mitigations are unavailable.
+    Stakeholders are responsible for evaluating each asset's internet exposure and ensuring adherence to BOD 26-04 patching
+    guidelines.
+  description: Citrix NetScaler ADC and NetScaler Gateway contain an improper input validation vulnerability that could allow
+    an unauthenticated attacker to execute arbitrary commands.
+  notes: 'Running the provided IOCs in the NetScaler console may help identify indicators of exploitation. Customers must
+    conduct forensic triage as directed by BOD 26‑04 and follow Citrix’s published guidance for mitigations. For more information,
+    please see: https://community.citrix.com/techzone-blogs/110_security-updates/netscaler-adc-and-netscaler-gateway-security-bulletin-for-cve-2026-88771-through-cve-2026-88778
+    ; https://support.citrix.com/support-home/kbsearch/article?articleNumber=CTX697096 ; https://support.citrix.com/external/article/CTX694799/steps-to-take-if-netscaler-adc-is-suspec.html
+    ; BOD 26-04: https://www.cisa.gov/news-events/directives/bod-26-04-prioritizing-security-updates-based-risk ; Forensics
+    Triage Requirements: https://www.cisa.gov/news-events/directives/bod-26-04-implementation-guidance-prioritizing-security-updates-based-risk
+    ; https://nvd.nist.gov/vuln/detail/CVE-2026-88772'
+- cve: CVE-2026-88772
+  platform: EDGE-0004
+  vendor: Citrix
+  product: NetScaler
+  name: Citrix NetScaler Improper Restriction of Operations within the Bounds of a Memory Buffer Vulnerability
+  added: '2026-09-27'
+  due: '2026-09-30'
+  ransomware: Unknown
+  forensic_triage: 'Yes'
+  cwes:
+  - CWE-119
+  action: Apply mitigations in accordance with vendor instructions, ensuring compliance with CISA’s BOD 26-04 Prioritizing
+    Security Updates Based on Risk (see URL in Notes) guidance and CISA’s “Forensics Triage Requirements” (see URL in Notes).
+    Follow applicable BOD 26-04 guidance for cloud services or discontinue use of the product if mitigations are unavailable.
+    Stakeholders are responsible for evaluating each asset's internet exposure and ensuring adherence to BOD 26-04 patching
+    guidelines.
+  description: Citrix NetScaler ADC and NetScaler Gateway contain an improper restriction of operations within the bounds
+    of a memory buffer vulnerability that could allow for remote code execution or denial of service
+  notes: 'Running the provided IOCs in the NetScaler console may help identify indicators of exploitation. Customers must
+    conduct forensic triage as directed by BOD 26‑04 and follow Citrix’s published guidance for mitigations. For more information,
+    please see: https://community.citrix.com/techzone-blogs/110_security-updates/netscaler-adc-and-netscaler-gateway-security-bulletin-for-cve-2026-88771-through-cve-2026-88778
+    ; https://support.citrix.com/support-home/kbsearch/article?articleNumber=CTX697096 ; https://support.citrix.com/external/article/CTX694799/steps-to-take-if-netscaler-adc-is-suspec.html
+    ; BOD 26-04: https://www.cisa.gov/news-events/directives/bod-26-04-prioritizing-security-updates-based-risk ; Forensics
+    Triage Requirements: https://www.cisa.gov/news-events/directives/bod-26-04-implementation-guidance-prioritizing-security-updates-based-risk
+    ; https://nvd.nist.gov/vuln/detail/CVE-2026-88772'
+- cve: CVE-2026-88779
+  platform: EDGE-0004
+  vendor: Citrix
+  product: NetScaler
+  name: Citrix NetScaler Improper Restriction of Operations within the Bounds of a Memory Buffer Vulnerability
+  added: '2026-10-04'
+  due: '2026-10-07'
+  ransomware: Unknown
+  forensic_triage: 'No'
+  cwes:
+  - CWE-119
+  action: Apply mitigations in accordance with vendor instructions, ensuring compliance with CISA’s BOD 26-04 Prioritizing
+    Security Updates Based on Risk (see URL in Notes) guidance and CISA’s “Forensics Triage Requirements” (see URL in Notes).
+    Follow applicable BOD 26-04 guidance for cloud services or discontinue use of the product if mitigations are unavailable.
+    Stakeholders are responsible for evaluating each asset's internet exposure and ensuring adherence to BOD 26-04 patching
+    guidelines.
+  description: Citrix NetScaler ADC (formerly Citrix ADC) and Citrix NetScaler Gateway (formerly Citrix Gateway) contain an
+    improper restriction of operations within the bounds of a memory buffer vulnerability that could allow for a denial of
+    service.
+  notes: 'https://support.citrix.com/support-home/kbsearch/article?articleNumber=CTX697174 ; https://community.citrix.com/techzone-blogs/110_security-updates/understanding-and-addressing-cve-2026-88779-in-citrix-netscaler-adc-and-citrix-netscaler-gateway/
+    ; BOD 26-04: https://www.cisa.gov/news-events/directives/bod-26-04-prioritizing-security-updates-based-risk ; Forensics
+    Triage Requirements: https://www.cisa.gov/news-events/directives/bod-26-04-implementation-guidance-prioritizing-security-updates-based-risk
+    ; https://nvd.nist.gov/vuln/detail/CVE-2026-88779'
+- cve: CVE-2026-93616
+  platform: EDGE-0007
+  vendor: Check Point
+  product: Multiple Products
+  name: Check Point Multiple Products Path Traversal Vulnerability
+  added: '2026-09-22'
+  due: '2026-09-25'
+  ransomware: Unknown
+  forensic_triage: 'Yes'
+  cwes:
+  - CWE-22
+  action: Apply mitigations in accordance with vendor instructions, ensuring compliance with CISA’s BOD 26-04 Prioritizing
+    Security Updates Based on Risk (see URL in Notes) guidance and CISA’s “Forensics Triage Requirements” (see URL in Notes).
+    Follow applicable BOD 26-04 guidance for cloud services or discontinue use of the product if mitigations are unavailable.
+    Stakeholders are responsible for evaluating each asset's internet exposure and ensuring adherence to BOD 26-04 patching
+    guidelines.
+  description: Check Point Security Management Server, Multi-Domain Security Management Server, Log Server, Multi-Domain Log
+    Server, and SmartEvent contain a path traversal vulnerability that allows an unauthenticated attacker to upload and execute
+    arbitrary scripts.
+  notes: 'https://support.checkpoint.com/results/sk/sk1000171/ ; ; BOD 26-04: https://www.cisa.gov/news-events/directives/bod-26-04-prioritizing-security-updates-based-risk
+    ; Forensics Triage Requirements: https://www.cisa.gov/news-events/directives/bod-26-04-implementation-guidance-prioritizing-security-updates-based-risk
+    ; https://nvd.nist.gov/vuln/detail/CVE-2026-93616'
+- cve: CVE-2026-94127
+  platform: EDGE-0010
+  vendor: F5
+  product: BIG-IP APM
+  name: F5 BIG-IP APM Heap-based Buffer Overflow Vulnerability
+  added: '2026-09-22'
+  due: '2026-09-25'
+  ransomware: Unknown
+  forensic_triage: 'Yes'
+  cwes:
+  - CWE-122
+  action: Apply mitigations in accordance with vendor instructions, ensuring compliance with CISA’s BOD 26-04 Prioritizing
+    Security Updates Based on Risk (see URL in Notes) guidance and CISA’s “Forensics Triage Requirements” (see URL in Notes).
+    Follow applicable BOD 26-04 guidance for cloud services or discontinue use of the product if mitigations are unavailable.
+    Stakeholders are responsible for evaluating each asset's internet exposure and ensuring adherence to BOD 26-04 patching
+    guidelines.
+  description: F5 BIG-IP APM contains a heap-based buffer overflow vulnerability when access policy and an OAuth profile are
+    configured on a virtual server. This vulnerability could allow an unauthenticated attacker to perform remote code execution.
+  notes: 'For temporary mitigation to allow for proactive forensic triage, apply the vendor-provided iRule. Once completed,
+    install the final vendor patch as soon as possible. For more information please see: https://my.f5.com/manage/s/article/K000162605
+    ; BOD 26-04: https://www.cisa.gov/news-events/directives/bod-26-04-prioritizing-security-updates-based-risk ; Forensics
+    Triage Requirements: https://www.cisa.gov/news-events/directives/bod-26-04-implementation-guidance-prioritizing-security-updates-based-risk
+    ; https://nvd.nist.gov/vuln/detail/CVE-2026-94127'

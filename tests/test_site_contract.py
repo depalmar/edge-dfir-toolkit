@@ -162,3 +162,30 @@ def test_git_dates_skip_the_ignored_revisions(tmp_path, monkeypatch):
     assert bs.git_dates() == {"artifacts/x.yml": "2026-03-04"}
     (tmp_path / ".git-blame-ignore-revs").write_text(f"# reformat\n{sweep}\n")
     assert bs.git_dates() == {"artifacts/x.yml": "2026-01-02"}
+
+
+def test_cve_records_join_kev_and_the_repository():
+    """One record per CVE: every KEV record the watcher wrote, plus every CVE a record
+    names in a structured field. KEV's own platform wins; the BOD 26-04 steps are CISA's."""
+    import yaml as _yaml
+    bs = _site()
+    d = bs.load()
+    doc, data = bs.page(d)
+    recs = _yaml.safe_load((ROOT / "artifacts" / "watch" / "kev-records.yml").read_text())["records"]
+    by = {c["id"]: c for c in data["cves"]}
+    assert set(by) == {r["cve"] for r in recs} | bs.cve_universe(d)
+    for r in recs:
+        c = by[r["cve"]]
+        assert c["in_kev"] and c["triage"] == r["forensic_triage"] and c["added"] == str(r["added"])
+        if r["platform"]:
+            assert c["platforms"] == [r["platform"]]
+    for c in data["cves"]:
+        assert c["platforms"], c["id"]
+        assert (c["coverage"] == "detections") == bool(c["detections"])
+        if not c["in_kev"]:
+            assert c["coverage"] == "not-in-kev" and not c["triage"]
+    assert sum(c["triage"] == "Yes" for c in data["cves"]) == sum(r["forensic_triage"] == "Yes" for r in recs)
+    assert [s[0] for s in bs.BOD_STEPS] == ["Scoping", "Preserve and Collect Evidence", "Critical Patching and Stabilization",
+                                           "Contain and Control", "Triage Analysis", "Escalation Decision"]
+    assert all(st[1].startswith("Target timeline: within ") for st in bs.BOD_STEPS)
+    assert "#detections?cve=" not in doc.split('<script type="application/json"')[0]   # CVE mentions open the record
