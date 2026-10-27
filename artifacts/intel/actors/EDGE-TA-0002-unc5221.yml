@@ -21,7 +21,7 @@ summary: >-
   neither Mandiant nor Volexity does in the posts read, so UTA0178 is not
   listed as an alias and the toolkit does not merge the two.
 platforms: [EDGE-0003]
-packs: [EDGE-PACK-0007]
+packs: [EDGE-PACK-0007, EDGE-PACK-0029]
 implants: [EDGE-IMP-0005, EDGE-IMP-0006]
 tradecraft:
   - Authentication bypass chained with command injection

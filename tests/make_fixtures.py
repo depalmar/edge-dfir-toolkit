@@ -495,8 +495,40 @@ def sma_image(path: Path, preload: bytes | None, cf_files: bool) -> None:
             tf.addfile(info, io.BytesIO(raw))
 
 
+def ivanti_image(path: Path, compromised: bool) -> None:
+    """Root-filesystem files as a VM snapshot or external ICT snapshot would yield them.
+    Benign members are placeholders. The compromised SPAWNSLOTH stand-in is an ELF
+    magic number plus the four strings Mandiant's hunting rule looks for - enough
+    to exercise the rule, nothing executable."""
+    members: dict[str, bytes] = {
+        "home/webserver/htdocs/dana-na/jam/getComponent.cgi": b"#!/usr/bin/perl\n# fixture-only placeholder\n",
+        "home/perl/DSUpgrade.pm": b"package DSUpgrade;\n# fixture-only placeholder\n1;\n",
+        "home/lib/libdsplaceholder.so": b"fixture-only placeholder\n",
+        "lib/libplaceholder.so": b"fixture-only placeholder\n",
+        "tmp/placeholder.tmp": b"fixture-only\n",
+    }
+    if compromised:
+        members["tmp/.liblogblock.so"] = (b"\x7fELF" + b"\x00" * 12 + b"dslogserver\x00g_do_syslog_servers_exist\x00"
+                                          b"ZN5DSLog4File3addEPKci\x00funchook\x00")
+        members["home/bin/remotedebug.bak"] = b"fixture-only placeholder\n"
+        members["home/lib/libsshd.so"] = b"fixture-only placeholder\n"
+    with tarfile.open(path, "w:gz") as tf:
+        for name, raw in members.items():
+            info = tarfile.TarInfo(name)
+            info.size = len(raw)
+            tf.addfile(info, io.BytesIO(raw))
+
+
 def main(out: Path) -> None:
     out.mkdir(parents=True, exist_ok=True)
+    ivanti_image(out / "ivanti-image-spawn.tgz", True)
+    ivanti_image(out / "ivanti-image-clean.tgz", False)
+    # Ivanti KB44859's ICT event, in an Events-log export.
+    (out / "ivanti-events-ict.txt").write_text(
+        "2026-09-02 03:14:07 - ivs - [127.0.0.1] System()[] - Critical SYS32040 - Integrity Scan Completed: "
+        "Detected 1 mismatched files\n")
+    (out / "ivanti-events-clean.txt").write_text(
+        "2026-09-02 03:14:07 - ivs - [127.0.0.1] System()[] - Info SYS10000 - fixture placeholder event\n")
     panos(out / "panos-compromised", True)
     panos(out / "panos-benign", False)
     panos_tsf(out / "panos-tsf.tgz")

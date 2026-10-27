@@ -113,12 +113,6 @@ triaged:
     date: '2026-10-27'
     basis: KEV-listed with no pack; not yet triaged against the vendor advisory and the publications it cites (seeded
       by the first sweep).
-  - cve: CVE-2025-22457
-    platform: EDGE-0003
-    decision: deferred
-    date: '2026-10-27'
-    basis: KEV-listed with no pack; not yet triaged against the vendor advisory and the publications it cites (seeded
-      by the first sweep).
   - cve: CVE-2025-0111
     platform: EDGE-0001
     decision: deferred
@@ -127,12 +121,6 @@ triaged:
       by the first sweep).
   - cve: CVE-2025-0108
     platform: EDGE-0001
-    decision: deferred
-    date: '2026-10-27'
-    basis: KEV-listed with no pack; not yet triaged against the vendor advisory and the publications it cites (seeded
-      by the first sweep).
-  - cve: CVE-2025-0282
-    platform: EDGE-0003
     decision: deferred
     date: '2026-10-27'
     basis: KEV-listed with no pack; not yet triaged against the vendor advisory and the publications it cites (seeded

@@ -1,0 +1,134 @@
+# Detection pack EDGE-PACK-0029
+
+id: EDGE-PACK-0029
+name: Ivanti Connect Secure 2025 - CVE-2025-0282 and CVE-2025-22457, SPAWN family
+platforms: [EDGE-0003]
+cves: [CVE-2025-0282, CVE-2025-22457]
+actors: [UNC5221]
+implants: [SPAWNANT, SPAWNMOLE, SPAWNSNAIL, SPAWNSLOTH, SPAWNWAVE, SPAWNSNARE, PHASEJAM, DRYHOOK, TRAILBLAZE, BRUSHFIRE]
+summary: >-
+  Two stack buffer overflows giving unauthenticated code execution. Ivanti:
+  "Exploitation of CVE-2025-0282 can be identified by the Integrity Checker Tool
+  (ICT)", and for CVE-2025-22457 "Customers should monitor their external ICT and
+  look for web server crashes." GTIG attributes the exploitation of both to
+  UNC5221. After CVE-2025-0282 the actor ran PHASEJAM, which planted web shells
+  in getComponent.cgi and restAuth.cgi, hooked remotedebug and faked system
+  upgrades through DSUpgrade.pm, recalculating each file's hash in the ICT
+  manifest; SPAWNANT carried the SPAWN family across upgrades and re-signed the
+  manifest. After CVE-2025-22457 a shell script ran the in-memory TRAILBLAZE
+  dropper, which injected the BRUSHFIRE backdoor into the web process. The
+  actor cleared dmesg, debuglog entries, state dumps, core dumps, Events-log
+  entries and the SELinux audit log. Every detection here except the Events-log
+  one needs files a customer cannot read on the running appliance - a VM
+  snapshot, the external ICT's snapshot or a vendor-assisted image; without
+  them it reports not evaluated. Ivanti: "The ICT does not scan for malware or
+  other Indicators of Compromise", and it "cannot necessarily detect threat
+  actor activity if they have returned the appliance to a clean state".
+confidence: medium
+references:
+  - title: Ivanti - security advisory, Connect Secure, Policy Secure and ZTA gateways (CVE-2025-0282, CVE-2025-0283)
+    url: https://forums.ivanti.com/s/article/Security-Advisory-Ivanti-Connect-Secure-Policy-Secure-ZTA-Gateways-CVE-2025-0282-CVE-2025-0283
+    accessed: "2026-10-27"
+  - title: Ivanti - April security advisory, Connect Secure, Policy Secure and ZTA gateways (CVE-2025-22457)
+    url: https://forums.ivanti.com/s/article/April-Security-Advisory-Ivanti-Connect-Secure-Policy-Secure-ZTA-Gateways-CVE-2025-22457
+    accessed: "2026-10-27"
+  - title: GTIG - Ivanti Connect Secure VPN targeted in new zero-day exploitation (CVE-2025-0282, January 2025)
+    url: https://cloud.google.com/blog/topics/threat-intelligence/ivanti-connect-secure-vpn-zero-day
+    accessed: "2026-10-27"
+  - title: GTIG - suspected China-nexus actor exploiting CVE-2025-22457 (April 2025)
+    url: https://cloud.google.com/blog/topics/threat-intelligence/china-nexus-exploiting-critical-ivanti-vulnerability
+    accessed: "2026-10-27"
+  - title: Ivanti KB44859 - how to use the built-in Integrity Checker Tool
+    url: https://hub.ivanti.com/s/article/KB44859?language=en_US
+    accessed: "2026-10-27"
+
+detect:
+  - id: ivanti-spawn-family-yara
+    title: Mandiant's SPAWN, PHASEJAM or DRYHOOK YARA rule matches a file from the appliance
+    type: yara
+    tier: likely
+    evidence_class: persistence
+    rule: 03-ivanti-connect-secure/ivanti_spawn_family_mandiant_2025.yar
+    sources:
+      files: ["**/lib/**", "**/home/lib/**", "**/bin/**", "**/tmp/**", "**/home/perl/**"]
+    attack: [T1554, T1505.003, T1556, T1070]
+    notes: >-
+      Mandiant's own rules from both GTIG posts (SPAWNSNAIL, SPAWNANT, SPAWNMOLE,
+      PHASEJAM, DRYHOOK, SPAWNSNARE, SPAWNSLOTH). Several are labelled "Hunting
+      rule" by Mandiant, so a match is held at likely and the matched file goes
+      to Ivanti support. Evaluated only against files from a VM snapshot, an
+      external ICT snapshot or an image.
+
+  - id: ivanti-2025-dropper-files-in-tmp
+    title: Files GTIG names for the 2025 droppers and tooling, in /tmp
+    type: path_exists
+    tier: likely
+    evidence_class: filesystem
+    scope: ["**/tmp/**"]
+    paths: ["**/tmp/.liblogblock.so", "**/tmp/s", "**/tmp/.t", "**/tmp/svb", "**/tmp/kN",
+            "**/tmp/lmdbcerr", "**/tmp/cmdmmap.kuwMW",
+            "**/tmp/.p", "**/tmp/.m", "**/tmp/.w", "**/tmp/.s", "**/tmp/.r", "**/tmp/.i"]
+    attack: [T1059.004, T1027, T1556, T1087.002]
+    notes: >-
+      GTIG: SPAWNSLOTH at /tmp/.liblogblock.so; PHASEJAM dropped as /tmp/s from
+      a script echoed into /tmp/.t, with /tmp/svb and output in /tmp/kN; LDAP
+      queries "executed using /tmp/lmdbcerr"; DRYHOOK appends stolen credentials
+      to /tmp/cmdmmap.kuwMW. For CVE-2025-22457 the dropper script wrote /tmp/.p,
+      .m, .w, .s, .r (BRUSHFIRE) and .i (TRAILBLAZE) and then deleted them, so a
+      leftover means an interrupted run and absence means nothing. GTIG reports
+      the actor overwrote /tmp/svb with zeros and removed /tmp/.t.
+
+  - id: ivanti-phasejam-backup-copies
+    title: Backup copies PHASEJAM makes before patching system files
+    type: path_exists
+    tier: likely
+    evidence_class: persistence
+    scope: ["**/home/**"]
+    paths: ["**/home/webserver/htdocs/dana-na/jam/getComponent.cgi.bak",
+            "**/home/webserver/htdocs/dana-na/auth/restAuth.cgi.bak",
+            "**/home/bin/remotedebug.bak", "**/home/perl/DSUpgrade.pm.bak"]
+    attack: [T1505.003, T1554]
+    notes: >-
+      GTIG prints the commands: cp of getComponent.cgi and restAuth.cgi to .bak
+      before inserting the web shell, "PHASEJAM renames the file
+      /home/bin/remotedebug to remotedebug.bak", and cp -f of DSUpgrade.pm to
+      DSUpgrade.pm.bak before inserting processUpgradeDisplay(). The original
+      files themselves are what the YARA rules and the ICT examine.
+
+  - id: ivanti-spawn-library-names
+    title: Library file names GTIG lists for SPAWNANT, SPAWNWAVE, SPAWNMOLE and SPAWNSNAIL
+    type: path_exists
+    tier: possible
+    evidence_class: persistence
+    scope: ["**/lib/**"]
+    paths: ["**/lib/libupgrade.so", "**/lib/libdsupgrade.so", "**/home/lib/libsocks5.so", "**/home/lib/libsshd.so"]
+    attack: [T1574.006, T1554]
+    notes: >-
+      GTIG's indicator tables: SPAWNANT /root/lib/libupgrade.so, SPAWNMOLE
+      /root/home/lib/libsocks5.so, SPAWNSNAIL /root/home/lib/libsshd.so,
+      SPAWNWAVE /lib/libdsupgrade.so. GTIG does not say whether a clean
+      appliance ships a file with any of these names, so a name alone is
+      possible; corroborate with the YARA rules, the MD5 values in EDGE-IOC-0014
+      or Ivanti support. SPAWNSNARE's /bin/dsmain is left out for the same
+      reason and is covered by the YARA rule and the hash.
+
+  - id: ivanti-ict-integrity-events
+    title: Integrity Checker Tool reported new or mismatched files (SYS32039, SYS32040)
+    type: log_regex
+    tier: possible
+    evidence_class: integrity
+    sources:
+      files: ["**/*.log*", "**/*.csv", "**/*.txt"]
+    pattern: '\bSYS3(2039|2040)\b'
+    attack: [T1554]
+    notes: >-
+      Ivanti KB44859 shows the Events-log entries "id=' SYS32039' - Integrity
+      Checker Failed: Detection 1 new files!" and "id=' SYS32040' - Integrity
+      Checker Failed: Detected 1 mismatched files!" (and "Critical SYS32040 -
+      Integrity Scan Completed" forms). Ivanti says exploitation of
+      CVE-2025-0282 "can be identified by the Integrity Checker Tool (ICT)",
+      but it also publishes guidance for identifying false positives in the
+      external scan, so an event is a reason to pull the ICT result and call
+      Ivanti, not a verdict. GTIG reports the actor recalculated hashes in the
+      ICT manifest, so no event is not a clean result; the off-box copy of the
+      Events log is the one the actor could not edit.

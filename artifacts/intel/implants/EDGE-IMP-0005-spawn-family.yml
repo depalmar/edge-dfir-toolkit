@@ -29,12 +29,15 @@ artifacts:
 anti_forensics:
   - Re-signed the ICT manifest (SPAWNANT)
   - Disabled local logging and remote syslog forwarding by targeting dslogserver (SPAWNSLOTH)
-detections: []
+detections: [ivanti-spawn-family-yara, ivanti-spawn-library-names, ivanti-2025-dropper-files-in-tmp, ivanti-phasejam-backup-copies, ivanti-ict-integrity-events]
 gap: >-
-  The indicators sit on the root filesystem and inside ICT internals a customer
-  cannot read. Coverage needs a vendor-assisted image or snapshot parser; the
-  off-box syslog gap is the only customer-visible signal today, and SPAWNSLOTH
-  disabling remote forwarding is why it is one.
+  Every file-based detection needs the root filesystem, which a customer
+  reaches only through a VM snapshot, the external ICT's snapshot or a
+  vendor-assisted image; on a physical appliance without Ivanti's help they
+  report not evaluated. The ICT events are the only on-box log signal, and the
+  actor re-hashed the ICT manifest to keep them quiet. The off-box syslog gap
+  remains the customer-visible signal SPAWNSLOTH creates by disabling remote
+  forwarding.
 confidence: medium
 references:
   - title: GTIG - Ivanti Connect Secure VPN targeted in new zero-day exploitation (CVE-2025-0282, January 2025)

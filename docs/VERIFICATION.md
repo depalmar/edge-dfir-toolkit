@@ -618,6 +618,22 @@ before restoring:
 The other seven baseline controls stay medium; they were not re-scored under
 the new rule in this pass.
 
+## 2026-10-27 - Ivanti CVE-2025-0282 and CVE-2025-22457 (EDGE-PACK-0029)
+
+Read on the live pages: both GTIG posts (saved copies, parsed in code), Ivanti's two
+advisories and KB44859 (Firecrawl).
+
+| Item | Decision | Basis |
+|---|---|---|
+| Mandiant YARA rules (7) | Copied in code from the posts' code blocks; wrapped meta descriptions joined; compile | GTIG January and April 2025 posts |
+| /tmp dropper and tooling files | path_exists, likely | GTIG: "/tmp/.liblogblock.so", "/tmp/s", "/tmp/svb", "LDAP queries were executed using /tmp/lmdbcerr", "/tmp/cmdmmap.kuwMW", "/tmp/.p ... /tmp/.i" |
+| PHASEJAM .bak copies | path_exists, likely | GTIG: "PHASEJAM renames the file /home/bin/remotedebug to remotedebug.bak"; printed cp commands for getComponent.cgi, restAuth.cgi, DSUpgrade.pm |
+| SPAWN library names | path_exists, possible | GTIG lists the names; it does not say a clean appliance lacks them |
+| `/bin/dsmain` (SPAWNSNARE) | Left out of the name check | Same reason; YARA rule and MD5 cover it |
+| SYS32039 / SYS32040 | log_regex, possible | KB44859: "id=' SYS32040' - Integrity Checker Failed: Detected 1 mismatched files!"; Ivanti publishes false-positive guidance for the external scan |
+| EDGE-IOC-0014 | 5 MD5 from GTIG's April table + 4 from rule md5 fields | GTIG keeps the rest in a GTI Collection "for registered users" |
+| Ledger | CVE-2025-0282 and CVE-2025-22457 removed (now in a pack) | - |
+
 ## Device verification
 
 | Date | Platform / release | Step | Change | Basis |

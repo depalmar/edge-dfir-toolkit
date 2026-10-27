@@ -1,0 +1,64 @@
+# Indicators EDGE-IOC-0014 - parsed from GTIG's own posts, not retyped.
+# Values are live: do not paste them into a browser. Roles and context are the publisher's.
+# Schema: ../../schema/ioc.schema.json
+
+id: EDGE-IOC-0014
+title: Ivanti Connect Secure 2025 - SPAWN family, PHASEJAM, DRYHOOK, TRAILBLAZE, BRUSHFIRE
+publisher: Google Threat Intelligence Group (Mandiant)
+published: '2025-04-03'
+page_url: https://cloud.google.com/blog/topics/threat-intelligence/china-nexus-exploiting-critical-ivanti-vulnerability
+file_format: html-table
+license: publisher's terms
+accessed: '2026-10-27'
+actors:
+- EDGE-TA-0002
+implants:
+- EDGE-IMP-0005
+cves:
+- CVE-2025-0282
+- CVE-2025-22457
+platforms:
+- EDGE-0003
+staleness: >-
+  File hashes from intrusions GTIG dates from mid-December 2024 (CVE-2025-0282) and mid-March 2025
+  (CVE-2025-22457). The MD5 table is from the April 2025 post;
+  the remaining values are the md5 fields of Mandiant's YARA rules in the January and April 2025 posts. GTIG
+  keeps its full indicator list in a GTI Collection "for registered users", so this set is partial. Hashes of
+  rebuilt or re-packed samples will differ; the YARA rules in 03-ivanti-connect-secure/ travel further.
+indicators:
+- type: md5
+  value: 4628a501088c31f53b5c9ddf6788e835
+  role: actor-controlled
+  context: TRAILBLAZE - In-memory dropper (/tmp/.i); GTIG CVE-2025-22457 indicator table
+- type: md5
+  value: e5192258c27e712c7acf80303e68980b
+  role: actor-controlled
+  context: BRUSHFIRE - Passive backdoor (/tmp/.r); GTIG CVE-2025-22457 indicator table
+- type: md5
+  value: 6e01ef1367ea81994578526b3bd331d6
+  role: actor-controlled
+  context: SPAWNSNARE - Kernel extractor & encryptor (/bin/dsmain); GTIG CVE-2025-22457 indicator table
+- type: md5
+  value: ce2b6a554ae46b5eb7d79ca5e7f440da
+  role: actor-controlled
+  context: SPAWNWAVE - Implant utility (/lib/libdsupgrade.so); GTIG CVE-2025-22457 indicator table
+- type: md5
+  value: 10659b392e7f5b30b375b94cae4fdca0
+  role: actor-controlled
+  context: SPAWNSLOTH - Log tampering utility (/tmp/.liblogblock.so); GTIG CVE-2025-22457 indicator table
+- type: md5
+  value: e7d24813535f74187db31d4114f607a1
+  role: actor-controlled
+  context: sample named in the md5 field of Mandiant's YARA rule M_APT_Installer_SPAWNSNAIL_1
+- type: md5
+  value: a638fd203ddb540d0484d8e00490df06
+  role: actor-controlled
+  context: sample named in the md5 field of Mandiant's YARA rule M_Tunneler_SPAWNMOLE_3
+- type: md5
+  value: d18e5425ecd9608ecb992606b974e15d
+  role: actor-controlled
+  context: sample named in the md5 field of Mandiant's YARA rule M_Dropper_PHASEJAM_1
+- type: md5
+  value: 61bb586dc4e047ab081ef6ca65684e48
+  role: actor-controlled
+  context: sample named in the md5 field of Mandiant's YARA rule M_Credtheft_DRYHOOK_1

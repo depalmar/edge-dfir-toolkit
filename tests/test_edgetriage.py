@@ -1062,3 +1062,48 @@ def test_plan_warns_about_unvalidated_profile(capsys):
     from edgetriage.cli import main
     assert main(["plan", "--profile", "panos"]) == 0
     assert "UNVALIDATED COLLECTION PROFILE" in capsys.readouterr().err
+
+
+# ------------------------------------------------------------------ Ivanti 2025 (SPAWN family)
+def _ivanti_case(fx: Path, tmp: Path, *items: tuple[str, str]) -> dict:
+    case = Case(tmp / ("IV25-" + "-".join(i[1] for i in items)))
+    m = Case.new_manifest(case.root.name, "tester", "EDGE-0003", None)
+    m["expected_evidence"] = []
+    for name, label in items:
+        m["ingested"].append(case.ingest(fx / name, label))
+    case.save(m)
+    return analyze(case.root)
+
+
+def test_ivanti_2025_spawn_detections_fire_on_snapshot_files(fx, tmp_path):
+    pytest.importorskip("yara")
+    hit = _ivanti_case(fx, tmp_path, ("ivanti-image-spawn.tgz", "snapshot"), ("ivanti-events-ict.txt", "ui-logs"))
+    for did in ("ivanti-spawn-family-yara", "ivanti-2025-dropper-files-in-tmp",
+                "ivanti-phasejam-backup-copies", "ivanti-spawn-library-names", "ivanti-ict-integrity-events"):
+        assert det(hit, did)["status"] == "hit", did
+    assert hit["verdict"] != "NO-INDICATORS-FOUND"
+
+
+def test_ivanti_2025_clean_snapshot_is_evaluated_and_quiet(fx, tmp_path):
+    pytest.importorskip("yara")
+    clean = _ivanti_case(fx, tmp_path, ("ivanti-image-clean.tgz", "snapshot"), ("ivanti-events-clean.txt", "ui-logs"))
+    for did in ("ivanti-spawn-family-yara", "ivanti-2025-dropper-files-in-tmp",
+                "ivanti-phasejam-backup-copies", "ivanti-spawn-library-names", "ivanti-ict-integrity-events"):
+        assert det(clean, did)["status"] == "no-hit", did
+
+
+def test_ivanti_2025_without_a_snapshot_is_not_evaluated(fx, tmp_path):
+    only_logs = _ivanti_case(fx, tmp_path, ("ivanti-events-clean.txt", "ui-logs"))
+    for did in ("ivanti-2025-dropper-files-in-tmp", "ivanti-phasejam-backup-copies", "ivanti-spawn-library-names"):
+        assert det(only_logs, did)["status"] == "not-evaluated", did
+
+
+def test_ivanti_spawn_yara_is_mandiants_and_compiles():
+    yara = pytest.importorskip("yara")
+    path = ROOT / "03-ivanti-connect-secure/ivanti_spawn_family_mandiant_2025.yar"
+    rules = yara.compile(filepath=str(path))
+    names = {r.identifier for r in rules}
+    assert names == {"M_APT_Installer_SPAWNSNAIL_1", "M_APT_Installer_SPAWNANT_1", "M_Tunneler_SPAWNMOLE_3",
+                     "M_Dropper_PHASEJAM_1", "M_Credtheft_DRYHOOK_1", "M_Utility_SPAWNSNARE_1",
+                     "M_APT_Utility_SPAWNSLOTH_2"}
+    assert path.read_text().count('author = "Mandiant"') == 7

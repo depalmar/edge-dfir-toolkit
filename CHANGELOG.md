@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+- EDGE-PACK-0029: Ivanti Connect Secure CVE-2025-0282 and CVE-2025-22457 (UNC5221,
+  SPAWN family, PHASEJAM, DRYHOOK, TRAILBLAZE, BRUSHFIRE). It has five
+  detections: Mandiant's seven YARA rules, GTIG's /tmp and .bak file
+  indicators, the SPAWN library names (possible), and the ICT events
+  SYS32039/SYS32040. File detections need a VM snapshot, external ICT
+  snapshot or image, and otherwise report not evaluated.
+- EDGE-IOC-0014: nine MD5 values from GTIG's posts.
+- The SPAWN implant record now lists its detections. Its gap now says what
+  evidence is still needed.
+
 ## 0.8.0 - 2026-10-27
 
 ### Unvalidated collection profiles are flagged everywhere

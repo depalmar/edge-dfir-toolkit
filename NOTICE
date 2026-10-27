@@ -10,4 +10,6 @@ The UPSTYLE YARA rule (01-panos-globalprotect/panos_upstyle_backdoor.yar) uses
 the strings and logic of Volexity's rule apt_malware_py_upstyle, published under
 the BSD 2-Clause licence in github.com/volexity/threat-intel. The TINYSHELL
 hunting rules credit Mandiant; the OVERSTEP hash rule uses the SHA-256 values
-GTIG published.
+GTIG published. The Ivanti SPAWN-family, PHASEJAM and DRYHOOK rules
+(03-ivanti-connect-secure/ivanti_spawn_family_mandiant_2025.yar) are Mandiant's,
+as published by Google Threat Intelligence Group in 2025.
