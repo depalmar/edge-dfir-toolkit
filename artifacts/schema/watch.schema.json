@@ -5,7 +5,7 @@
   "description": "What advisory_watch.py compares CISA's KEV catalog and the publishers' indicator files against. A KEV entry on a watched platform is either covered by a pack or carries a human triage decision here; nothing lands in the repository without one.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["kev_url", "since", "platforms", "upstream", "triaged"],
+  "required": ["kev_url", "since", "platforms", "upstream", "kev_added", "triaged"],
   "properties": {
     "kev_url": {"type": "string", "pattern": "^https://"},
     "since": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
@@ -27,6 +27,16 @@
       "propertyNames": {"pattern": "^EDGE-IOC-[0-9]{4}$"},
       "additionalProperties": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
       "description": "sha256 of each publisher file as last parsed; a change means re-parse and re-validate"
+    },
+    "kev_added": {
+      "type": "object",
+      "propertyNames": {"pattern": "^EDGE-[0-9]{4}$"},
+      "additionalProperties": {
+        "type": "object",
+        "propertyNames": {"pattern": "^CVE-[0-9]{4}-[0-9]{4,}$"},
+        "additionalProperties": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"}
+      },
+      "description": "CISA's dateAdded for each KEV entry on a watched platform since `since`, parsed from the feed by advisory_watch.py --dates; the site flags records changed before their platform's newest entry"
     },
     "triaged": {
       "type": "array",

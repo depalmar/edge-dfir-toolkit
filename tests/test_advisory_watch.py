@@ -3,6 +3,8 @@ import importlib.util
 import json
 from pathlib import Path
 
+import yaml
+
 ROOT = Path(__file__).resolve().parents[1]
 spec = importlib.util.spec_from_file_location("advisory_watch", ROOT / "artifacts/scripts/advisory_watch.py")
 aw = importlib.util.module_from_spec(spec)
@@ -50,9 +52,28 @@ def test_exit_codes_and_empty_catalog_refused(tmp_path):
     empty = tmp_path / "kev.json"
     empty.write_text(json.dumps({"vulnerabilities": []}))
     assert aw.main(["--kev", str(empty)]) == 1
+    watch = tmp_path / "watch.yml"
+    watch.write_text(yaml.safe_dump({**WATCH, "kev_added": {}}))
     one = tmp_path / "kev1.json"
     one.write_text(json.dumps(kev(("CVE-2099-0001", "NobodyWatched", "x", "2099-01-02"))))
-    assert aw.main(["--kev", str(one)]) == 0
+    assert aw.main(["--kev", str(one), "--watch", str(watch)]) == 0
+    watched = tmp_path / "kev2.json"   # a watched entry with no date in the ledger is drift
+    watched.write_text(json.dumps(kev(("CVE-2099-0003", "ExampleVendor", "ExampleOS", "2099-01-02"))))
+    assert aw.main(["--kev", str(watched), "--watch", str(watch)]) == aw.NEEDS_TRIAGE
+
+
+def test_kev_dates_and_drift_come_from_the_feed():
+    k = kev(("CVE-2099-0001", "ExampleVendor", "ExampleOS", "2099-01-05"),
+            ("CVE-2099-0002", "ExampleVendor", "ExampleOS", "2099-01-02"),
+            ("CVE-2099-0004", "ExampleVendor", "ExampleOS", "2023-12-31"))   # before `since`
+    dates = aw.kev_dates(k, WATCH)
+    assert dates == {"EDGE-0001": {"CVE-2099-0002": "2099-01-02", "CVE-2099-0001": "2099-01-05"}}
+    assert aw.date_drift({**WATCH, "kev_added": dates}, dates) == []
+    ledger = {"EDGE-0001": {"CVE-2099-0002": "2099-01-01", "CVE-2099-0009": "2099-01-01"}}
+    drift = {r["cve"]: (r["ledger"], r["feed"]) for r in aw.date_drift({**WATCH, "kev_added": ledger}, dates)}
+    assert drift == {"CVE-2099-0001": ("missing", "2099-01-05"), "CVE-2099-0002": ("2099-01-01", "2099-01-02"),
+                     "CVE-2099-0009": ("2099-01-01", "not in KEV")}
+    assert "KEV dates out of step" in aw.report(k, aw.triage(k, WATCH, {}), None, aw.date_drift(WATCH, dates))
 
 
 def test_the_repository_ledger_matches_the_shipped_watch_config():

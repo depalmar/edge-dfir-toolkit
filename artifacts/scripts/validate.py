@@ -365,12 +365,24 @@ def main() -> int:
         for iid in (w.get("upstream") or {}):
             if not ioc_docs.get(iid, {}).get("file_url"):
                 err(f"watch: upstream {iid} is not an indicator set with a file_url")
+        added_at: dict[str, str] = {}   # CVE -> the platform its KEV dateAdded is filed under
+        for pid, cves in (w.get("kev_added") or {}).items():
+            if pid not in (w.get("platforms") or {}):
+                err(f"watch: kev_added names unwatched platform {pid}")
+            for c, day in cves.items():
+                if c in added_at:
+                    err(f"watch: kev_added files {c} under both {added_at[c]} and {pid}")
+                added_at[c] = pid
+                if str(day) < str(w.get("since", "")):
+                    err(f"watch: kev_added {c} {day} is before since {w.get('since')}")
         seen_cve: set[str] = set()
         for t in w.get("triaged") or []:
             c, refs = t.get("cve", ""), t.get("refs", [])
             if c in seen_cve:
                 err(f"watch: {c} triaged twice")
             seen_cve.add(c)
+            if added_at.get(c) != t.get("platform"):
+                err(f"watch: {c} has no kev_added date under {t.get('platform')}; run advisory_watch.py --dates")
             if t.get("platform") not in platforms:
                 err(f"watch: {c} names unknown platform {t.get('platform')}")
             if c in pack_cves:

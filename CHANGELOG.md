@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.9.1 - 2026-10-27
+
+A file ages when the world moves, not when the calendar does.
+
+- **Re-read flag.** A record now says "may need a re-read" when its file was
+  last committed before the newest advisory on a platform it covers. An
+  advisory here is either a KEV entry (CISA's date added) or an indicator set.
+  - The flag appears under "Last changed" in the record's quick facts.
+  - Coverage replaces the "changed in 90 days" column with a count per
+    library, a table of each platform's newest advisory, and the list of files
+    to re-read.
+  - Files that apply to every device are not compared.
+  - Nothing is flagged today: every record file is newer than the newest
+    advisory, CVE-2025-61624 for FortiOS, added 2026-10-16.
+- **KEV dates in the ledger.** `kev_added` in `artifacts/watch/kev-watch.yml`
+  holds CISA's date added for all 55 KEV entries on watched platforms since
+  2024. They were parsed from catalog 2026.10.26 by the new
+  `advisory_watch.py --dates`.
+  - The weekly watch reports any drift between the feed and the ledger, and
+    exits 10 so the issue opens.
+  - The validator fails when a triaged CVE has no date under its platform.
+- `.git-blame-ignore-revs` is honoured. A commit listed there (a reformat, a
+  field rename) does not reset any file's date.
+- Known limit: a commit is not a review. An unrelated edit after an advisory
+  also clears the flag. The full answer is a `reviewed:` date per record,
+  which waits until there are outside contributors.
+
 ## 0.9.0 - 2026-10-27 - site UX v2
 
 The Claude Design handoff (UX assessment findings F1 to F38), built in three

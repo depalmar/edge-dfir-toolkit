@@ -110,3 +110,55 @@ def test_records_carry_their_last_changed_date():
     doc, data = bs.page(d)
     assert not any(p["changed"] for p in data["platforms"])
     assert "which this build did not have" in doc
+
+
+def test_records_changed_before_their_platforms_newest_advisory_are_flagged():
+    """A record whose file was last committed before its platform's newest KEV
+    entry or indicator set says it may need a re-read. Same day is not before,
+    and a file for every device (ALL) is compared with nothing."""
+    import datetime as dt
+    bs = _site()
+    d = bs.load()
+    ev = bs.platform_events(d)
+    for pid, cves in d["kev"]["added"].items():
+        assert ev[pid][0] >= max(cves.values())
+    day, what = ev["EDGE-0001"]
+    before = (dt.date.fromisoformat(day) - dt.timedelta(days=1)).isoformat()
+    pack = next(p for p in d["packs"] if p["platforms"] == ["EDGE-0001"])
+    cat = next(c for c in d["catalog"] if c["id"] == "EDGE-0001")
+    base = next(h for h in d["hardening"].values() if h["platform_id"] == "ALL")
+    d["dates"] = {pack["_file"]: before, cat["_file"]: day, base["_file"]: "2000-01-01"}
+    doc, data = bs.page(d)
+    assert {tuple(x["reread"]) for x in data["detections"] if x["pack"] == pack["id"]} == {(day, what)}
+    assert next(p for p in data["platforms"] if p["id"] == "EDGE-0001")["reread"] == []
+    assert not any(c["reread"] for c in data["hardening"] if c["platform"] == "ALL")
+    assert "1 file to re-read" in doc and pack["_file"] in doc
+    d["dates"] = {}                                   # no history: no date, so nothing to compare
+    doc, data = bs.page(d)
+    assert not any(x["reread"] for x in data["detections"])
+
+
+def test_git_dates_skip_the_ignored_revisions(tmp_path, monkeypatch):
+    """A commit listed in .git-blame-ignore-revs (a reformat) does not make a file look newly read."""
+    import os
+    import subprocess
+    bs = _site()
+    (tmp_path / "artifacts").mkdir()
+    f = tmp_path / "artifacts" / "x.yml"
+
+    def commit(text, when):
+        f.write_text(text)
+        env = {**os.environ, "GIT_AUTHOR_DATE": when, "GIT_COMMITTER_DATE": when,
+               "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@example.invalid",
+               "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@example.invalid"}
+        subprocess.run(["git", "-C", str(tmp_path), "add", "-A"], check=True, env=env)
+        subprocess.run(["git", "-C", str(tmp_path), "commit", "-qm", "c"], check=True, env=env)
+        return subprocess.run(["git", "-C", str(tmp_path), "rev-parse", "HEAD"], capture_output=True, text=True,
+                              check=True).stdout.strip()
+    subprocess.run(["git", "-C", str(tmp_path), "init", "-q"], check=True)
+    commit("a: 1\n", "2026-01-02T12:00:00Z")
+    sweep = commit("a:   1\n", "2026-03-04T12:00:00Z")
+    monkeypatch.setattr(bs, "ROOT", tmp_path)
+    assert bs.git_dates() == {"artifacts/x.yml": "2026-03-04"}
+    (tmp_path / ".git-blame-ignore-revs").write_text(f"# reformat\n{sweep}\n")
+    assert bs.git_dates() == {"artifacts/x.yml": "2026-01-02"}

@@ -499,3 +499,22 @@ def test_charts_have_text_alternatives(browser, tmp_path):
     page.locator("#tab-coverage .heat").first.wait_for(state="visible")
     assert page.locator("#tab-coverage .heat[role=table]").count() == 2
     assert page.get_by_role("table", name="Artifacts by platform and class").count() == 1
+
+
+def test_record_changed_before_the_newest_advisory_says_so(browser, tmp_path):
+    """The drawer's Last changed fact carries the re-read badge and names the advisory."""
+    _build(tmp_path)
+    bs = sys.modules["build_site"]
+    d = bs.load()
+    day, what = bs.platform_events(d)["EDGE-0001"]
+    pack = next(p for p in d["packs"] if p["platforms"] == ["EDGE-0001"])
+    d["dates"] = {**(d.get("dates") or {}), pack["_file"]: "2000-01-01"}
+    doc, data = bs.page(d)
+    out = tmp_path / "flagged.html"
+    out.write_text(doc, encoding="utf-8")
+    det = next(x for x in data["detections"] if x["pack"] == pack["id"])
+    page = browser.new_page(viewport={"width": 1440, "height": 900})
+    page.goto(f"{out.as_uri()}#detections/{det['id']}")
+    page.locator("#drawer").wait_for(state="visible")
+    fact = page.locator("#dBody .dfacts div", has_text="Last changed").inner_text()
+    assert "2000-01-01" in fact and "may need a re-read" in fact and what in fact

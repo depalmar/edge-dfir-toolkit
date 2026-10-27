@@ -116,9 +116,14 @@ def refs_of(items) -> list[dict]:
 def git_dates() -> dict[str, str]:
     """Last commit date (YYYY-MM-DD) of every file under artifacts/, from one git
     log walk. Empty when git or the history is unavailable, so --check still runs;
-    the Pages workflow checks out the full history (fetch-depth: 0) for real dates."""
+    the Pages workflow checks out the full history (fetch-depth: 0) for real dates.
+    Commits listed in .git-blame-ignore-revs (a reformat, a field rename) are
+    skipped, so a mechanical sweep does not make every file look newly read."""
+    ignore_file = ROOT / ".git-blame-ignore-revs"
+    ignore = [ln.split("#")[0].strip() for ln in ignore_file.read_text().splitlines()] if ignore_file.is_file() else []
+    ignore = [r for r in ignore if len(r) >= 7]
     try:
-        out = subprocess.run(["git", "-C", str(ROOT), "log", "--format=@%cs", "--name-only", "--", "artifacts"],
+        out = subprocess.run(["git", "-C", str(ROOT), "log", "--format=@%H %cs", "--name-only", "--", "artifacts"],
                              capture_output=True, text=True, timeout=60, check=True).stdout
     except (OSError, subprocess.SubprocessError):
         return {}
@@ -126,10 +131,51 @@ def git_dates() -> dict[str, str]:
     cur = ""
     for ln in out.splitlines():
         if ln.startswith("@"):
-            cur = ln[1:]
-        elif ln.strip():
+            sha, day = ln[1:].split()
+            cur = "" if any(sha.startswith(r) for r in ignore) else day
+        elif ln.strip() and cur:
             dates.setdefault(ln.strip(), cur)
     return dates
+
+
+def platform_events(d: dict) -> dict[str, tuple[str, str]]:
+    """The newest dated outside event for each platform: a KEV entry (CISA's
+    dateAdded, from the ledger's kev_added) or an indicator set's publication."""
+    ev: dict[str, tuple[str, str]] = {}
+
+    def bump(pid: str, day: str, what: str) -> None:
+        if day and (pid not in ev or day > ev[pid][0]):
+            ev[pid] = (day, what)
+    for pid, cves in (d["kev"].get("added") or {}).items():
+        for c, day in cves.items():
+            bump(pid, str(day), f"KEV {c}, added {day}")
+    for st in d["iocs"]:
+        for pid in st.get("platforms") or []:
+            bump(pid, str(st["published"]), f"{st['publisher']} indicator set {st['id']}, published {st['published']}")
+    return ev
+
+
+def file_platforms(x: dict) -> list[str]:
+    """The specific platforms a record file speaks for. ALL (baseline hardening,
+    hunts for any device) is compared with nothing: no one platform's advisory dates it."""
+    if "platform_id" in x:
+        ps = [x["platform_id"]]
+    elif "platforms" in x:
+        ps = list(x["platforms"])
+    elif re.fullmatch(r"EDGE-\d{4}", str(x.get("id", ""))):
+        ps = [x["id"]]   # a catalog file is its platform
+    else:
+        ps = []
+    return [p for p in ps if p != "ALL"]
+
+
+def reread(x: dict, dates: dict[str, str], events: dict[str, tuple[str, str]]) -> list[str]:
+    """[event date, what] when the file's last commit is older than the newest
+    advisory on one of its platforms; [] otherwise, or when the date is unknown.
+    A commit is not a review: an unrelated edit after the advisory clears it too."""
+    day = dates.get(x.get("_file", ""), "")
+    hits = [events[p] for p in file_platforms(x) if day and p in events and events[p][0] > day]
+    return list(max(hits)) if hits else []
 
 
 def _yml(p: Path) -> dict:
@@ -172,7 +218,8 @@ def load() -> dict:
     hunts = [_yml(f) for f in sorted((ROOT / "artifacts" / "hunts").glob("*.yml"))]
     watch = yaml.safe_load((ROOT / "artifacts" / "watch" / "kev-watch.yml").read_text())
     kev = {"since": str(watch["since"]), "triaged": [{**t, "date": str(t["date"]), "refs": t.get("refs") or []}
-                                                    for t in watch.get("triaged") or []]}
+                                                    for t in watch.get("triaged") or []],
+           "added": {pid: {c: str(day) for c, day in cves.items()} for pid, cves in (watch.get("kev_added") or {}).items()}}
     return {"catalog": catalog, "profiles": profiles, "packs": packs, "rules": rules, "guide": guide,
             "actors": actors, "implants": implants, "iocs": iocs, "response": response, "hardening": hardening, "hunts": hunts,
             "kev": kev, "dates": git_dates()}
@@ -182,9 +229,13 @@ def load() -> dict:
 def build_data(d: dict) -> dict:
     prof = {p.name: p for p in d["profiles"]}
     dates = d.get("dates") or {}
+    events = platform_events(d)
 
     def changed(x: dict) -> str:
         return dates.get(x.get("_file", ""), "")
+
+    def rr(x: dict) -> list[str]:
+        return reread(x, dates, events)
     steps = {p.name: {s.id: {"tier": s.tier, "impact": s.impact, "kind": s.kind, "cmd": s.cmd or s.list_cmd or "",
                              "purpose": s.purpose, "instructions": (s.instructions or "").strip(),
                              "confidence": s.confidence, "unverified": s.unverified} for s in p.steps}
@@ -232,7 +283,7 @@ def build_data(d: dict) -> dict:
                 "steps": st, "files": src.get("files", []), "unv": bool(p.get("unverified")),
                 "sigma": [slug(r) for r in x.get("sigma", [])],
                 "runs": ["analyzer"] + (["siem"] if x.get("sigma") else []) + (["yara"] if x.get("type") == "yara" else []),
-                "changed": changed(p),
+                "changed": changed(p), "reread": rr(p),
             })
     det_cves = {c for x in dets for c in x["cves"]}
 
@@ -261,7 +312,7 @@ def build_data(d: dict) -> dict:
                 "provides": (a.get("provides") or "").strip(), "normal": (a.get("normal") or "").strip(),
                 "suspicious": (a.get("suspicious") or "").strip(), "basis": a.get("basis", ""),
                 "detections": [x["id"] for x in dets if c["id"] in x["platforms"] and cb in [s["id"] for s in x["steps"]]],
-                "changed": changed(c),
+                "changed": changed(c), "reread": rr(c),
             })
 
     packs_by_plat: dict[str, list[str]] = {}
@@ -287,7 +338,7 @@ def build_data(d: dict) -> dict:
             "n_art": len(c.get("artifacts", [])), "n_steps": len(prof[c["profile"]].steps) if c.get("profile") else 0,
             "n_det": sum(1 for x in dets if c["id"] in x["platforms"]),
             "n_hard": sum(len(h["controls"]) for h in d["hardening"].values() if h["platform_id"] == c["id"]),
-            "changed": changed(c),
+            "changed": changed(c), "reread": rr(c),
         })
 
     packs = [{"id": p["id"], "name": p["name"], "summary": p["summary"].strip(), "platforms": p["platforms"],
@@ -316,7 +367,7 @@ def build_data(d: dict) -> dict:
             "tradecraft": a.get("tradecraft", []), "victimology": a.get("victimology", []),
             "first_seen": str(a.get("first_seen", "")), "notes": (a.get("notes") or "").strip(),
             "references": refs_of(a.get("references")), "unv": bool(a.get("unverified")),
-            "confidence": a["link_confidence"], "changed": changed(a),
+            "confidence": a["link_confidence"], "changed": changed(a), "reread": rr(a),
         })
     for i in d["implants"]:
         detections = i.get("detections", [])
@@ -331,7 +382,7 @@ def build_data(d: dict) -> dict:
             "detection_packs": {x: det_by_id[x]["pack"] for x in detections if x in det_by_id},
             "coverage": "covered" if detections else "gap", "gap": (i.get("gap") or "").strip(),
             "confidence": i["confidence"], "unv": bool(i.get("unverified")),
-            "references": refs_of(i.get("references")), "changed": changed(i),
+            "references": refs_of(i.get("references")), "changed": changed(i), "reread": rr(i),
         })
 
     # Hardening: baseline (platform ALL) first, then per platform. A CVE or actor
@@ -353,7 +404,7 @@ def build_data(d: dict) -> dict:
                 "blunts": c.get("blunts", []), "blunt_links": blunt_links(c.get("blunts")),
                 "confidence": c["confidence"], "unv": bool(c.get("unverified")),
                 "sources": [{"title": x["title"], "url": x["url"], "quote": (x.get("quote") or "").strip()} for x in c["sources"]],
-                "stem": stem, "changed": changed(h),
+                "stem": stem, "changed": changed(h), "reread": rr(h),
             })
 
     iocs = [{
@@ -375,12 +426,12 @@ def build_data(d: dict) -> dict:
         "sigma": [slug(r) for r in h.get("sigma", [])], "inferred": (h.get("inferred") or "").strip(),
         "confidence": h["confidence"], "unv": bool(h.get("unverified")),
         "sources": [{"title": x["title"], "url": x["url"], "quote": x["quote"].strip(), "read": x.get("read", "direct")} for x in h["sources"]],
-        "changed": changed(h),
+        "changed": changed(h), "reread": rr(h),
     } for h in d["hunts"]]
 
     return {"platforms": platforms, "artifacts": artifacts, "detections": dets, "packs": packs, "rules": rules,
             "intel": intel, "iocs": iocs, "hardening": hard, "hunts": hunts, "facetKeys": FACET_KEYS, "repo": REPO_URL,
-            "abbr": PLATFORM_ABBR, "kev": d["kev"], "built": build_date().isoformat(),
+            "abbr": PLATFORM_ABBR, "kev": {k: v for k, v in d["kev"].items() if k != "added"}, "built": build_date().isoformat(),
             "steps": [[p.name, st.id, st.tier, st.cmd or st.list_cmd or "", st.purpose] for p in d["profiles"] for st in p.steps],
             "guideMins": max(1, round(len(re.findall(r"\w+", d["guide"])) / 230)),
             "profiles": [{"name": p.name, "ssh": "ssh" in p.transports, "validated": bool(p.validated_on),
@@ -1129,18 +1180,44 @@ def render_coverage(d: dict, data: dict) -> str:
             ("Threat intel", d["actors"] + d["implants"]), ("Hunts", d["hunts"]),
             ("Hardening", list(d["hardening"].values())), ("Response playbooks", list(d["response"].values()))]
     dates = d.get("dates") or {}
-    lrows = []
+    events = platform_events(d)
+    lrows, flagged = [], []
     for name, recs in libs:
         ds = sorted(dates.get(x.get("_file", ""), "") for x in recs)
         ds = [x for x in ds if x]
         if not ds:
             continue
-        recent = sum(1 for x in ds if (built - _dt.date.fromisoformat(x)).days <= 90)
-        lrows.append(f'<tr><td>{e(name)}</td><td class="num">{len(recs)}</td><td>{ds[-1]}</td><td>{ds[0]}</td><td class="num">{recent}</td></tr>')
-    changed_html = (f'<h4>Record files, last changed</h4><div class="scroll"><table class="tbl fresh"><thead><tr><th>Library</th><th>Files</th>'
-                    f'<th>Newest</th><th>Oldest</th><th>Changed in 90 days</th></tr></thead><tbody>{"".join(lrows)}</tbody></table></div>'
-                    '<p class="small muted">From the git history of each YAML file. Every record shows its own date in its quick facts.</p>'
-                    if lrows else '<p class="small muted">Last-changed dates come from the git history, which this build did not have.</p>')
+        hits = [(x, reread(x, dates, events)) for x in recs]
+        hits = [(x, h) for x, h in hits if h]
+        flagged += hits
+        lrows.append(f'<tr><td>{e(name)}</td><td class="num">{len(recs)}</td><td class="nw">{ds[-1]}</td><td class="nw">{ds[0]}</td>'
+                     f'<td class="num">{len(hits)}</td></tr>')
+    if lrows:
+        prow = []
+        for p in plats:
+            ev_ = events.get(p["id"])
+            n_ = sum(1 for x, h in flagged if p["id"] in file_platforms(x) and h[0] == (ev_ or ("",))[0])
+            prow.append(f'<tr><td class="nw">{e(PLATFORM_ABBR[p["id"]])}</td><td>{e(ev_[1]) if ev_ else "none recorded"}</td>'
+                        f'<td class="num">{n_}</td></tr>')
+        if flagged:
+            items = "".join(f'<li><a href="{REPO_URL}/blob/main/{e(x["_file"])}" rel="noopener"><code>{e(x["_file"])}</code></a> '
+                            f'changed {dates[x["_file"]]}, before {e(h[1])}</li>'
+                            for x, h in sorted(flagged, key=lambda t: (t[1][0], t[0]["_file"]), reverse=True))
+            flist = (f'<details class="fold"><summary>{plural(len(flagged), "file")} to re-read</summary>'
+                     f'<ul class="plain">{items}</ul></details>')
+        else:
+            flist = '<p class="small">No record file was last changed before its platform\'s newest advisory.</p>'
+        changed_html = (
+            f'<h4>Record files, last changed</h4><div class="scroll"><table class="tbl fresh"><thead><tr><th>Library</th><th>Files</th>'
+            f'<th>Newest</th><th>Oldest</th><th>Changed before the newest advisory</th></tr></thead><tbody>{"".join(lrows)}</tbody></table></div>'
+            f'<h4>Newest advisory, platform by platform</h4><div class="scroll"><table class="tbl fresh"><thead><tr><th>Platform</th>'
+            f'<th>Newest KEV entry or indicator set</th><th>Files changed before it</th></tr></thead><tbody>{"".join(prow)}</tbody></table></div>'
+            f'{flist}<p class="small muted">A file counts when its last commit is older than the newest KEV entry (CISA\'s date added) '
+            'or indicator set on a platform it covers. It may need a re-read; it is not known to be wrong. Files that apply to every '
+            'device are not compared. A commit is not a review: an unrelated edit after the advisory also clears the flag. '
+            'Every record shows its own date in its quick facts.</p>')
+    else:
+        changed_html = '<p class="small muted">Last-changed dates come from the git history, which this build did not have.</p>'
     fresh = (f'<div class="ftrack" role="img" aria-label="{e(fresh_txt)} Dashed line: the build date, {built.isoformat()}.">{dots}'
              f'<span class="fnow" style="left:{(now - y0) / span * 100:.2f}%"></span></div>'
              f'<div class="fticks" aria-hidden="true">{ticks}</div><p class="small muted">{e(fresh_txt)} Dashed line: '
@@ -2159,6 +2236,8 @@ a.hc:hover{box-shadow:inset 0 0 0 2px var(--accent)}
 .ps-foot{display:flex;justify-content:space-between;gap:4px 14px;flex-wrap:wrap;padding:8px 16px;border-top:1px solid var(--line);font-size:var(--fs-xs);color:var(--muted)}
 body.pal-open{overflow:hidden}
 .tbl.fresh td.num{text-align:right;font-variant-numeric:tabular-nums}
+.tbl.fresh .nw{white-space:nowrap}
+.dfacts .rrw{display:block;margin-top:3px;font-size:var(--fs-xs);color:var(--muted)}
 
 /* guide (F30) */
 .rmin{text-transform:none;letter-spacing:0;font-weight:400;color:var(--muted);margin-left:6px}
@@ -2208,7 +2287,9 @@ function runsStrip(x){
     return '<span class="' + (r[1] ? 'y' : 'n') + '"><i></i>' + r[0] + '<span class="sr">' + (r[1] ? ': yes' : ': no') + '</span></span>'; }).join('') + '</div>';
 }
 var DREC = null;   // the record being drawn: its file's last-changed date joins the quick facts
-function facts(rows){ rows = rows.filter(Boolean); if (DREC && DREC.changed) rows.push(['Last changed', esc(DREC.changed)]);
+function facts(rows){ rows = rows.filter(Boolean);
+  if (DREC && DREC.changed) rows.push(['Last changed', esc(DREC.changed) + (DREC.reread && DREC.reread.length ?
+    ' ' + b('may need a re-read', 'unv-b') + '<span class="rrw">before ' + esc(DREC.reread[1]) + '</span>' : '')]);
   return '<dl class="dfacts">' + rows.map(function(r){ return '<div><dt>' + esc(r[0]) + '</dt><dd>' + r[1] + '</dd></div>'; }).join('') + '</dl>'; }
 function connects(cols, hunts){   // hunts: this box is where the intel drawer's Hunts jump lands
   var hid = hunts ? ' id="dj-hunt"' : '';

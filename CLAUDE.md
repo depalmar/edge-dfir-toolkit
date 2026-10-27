@@ -133,6 +133,10 @@ platform since `since` is in a pack's `cves` or has a decision (`iocs`,
 `advisory-watch` workflow opens an issue for anything else and for changed
 upstream indicator files; it never commits. `deferred` means not yet read -
 never use it for a decision you made. A CVE that gains a pack leaves the ledger.
+`kev_added` holds CISA's `dateAdded` for every one of those entries, packed or
+not, filed by platform. It is pasted from `advisory_watch.py --dates`, never
+typed. The watch reports drift; the validator fails when a triaged CVE has no
+date under its platform.
 
 ## Threat intel and response rules
 
@@ -236,7 +240,12 @@ and decoration only, never text. Search everything (`/`, Ctrl+K) indexes the
 libraries, `D.steps`, the guide and the KEV ledger, and refangs the query before
 matching. A record's "Last changed" date comes from `git_dates()` (one `git log`
 walk over `artifacts/`). Pages checks out with `fetch-depth: 0`. A build without
-history shows no date rather than a guessed one.
+history shows no date rather than a guessed one. List mechanical sweeps (a
+reformat, a field rename) in `.git-blame-ignore-revs` so they do not reset
+dates. Freshness is "changed before the platform's newest advisory" (KEV
+`dateAdded` or an indicator set's `published`), never calendar age. It is
+worded "may need a re-read", not "out of date", and `ALL` files are not
+compared.
 Page changes go in the generator. `--check` fails on duplicate or non-URL-safe
 element ids, dangling `#tab/anchor` links and any external script or stylesheet.
 

@@ -14,8 +14,15 @@ report to an issue.
     python artifacts/scripts/advisory_watch.py --kev kev.json  # offline
     python artifacts/scripts/advisory_watch.py --upstream      # also re-hash indicator files
     python artifacts/scripts/advisory_watch.py --draft         # ledger stubs for new entries
+    python artifacts/scripts/advisory_watch.py --dates         # the kev_added block, from the feed
 
-Exit status: 0 nothing new, 10 something needs triage, 1 error.
+`kev_added` in the ledger holds CISA's dateAdded for every KEV entry on a
+watched platform since `since`. The site flags records whose file was last
+changed before their platform's newest entry. When the feed and the block
+differ, the report says so and --dates prints the replacement; a person
+pastes it, as with every other ledger change.
+
+Exit status: 0 nothing new, 10 something needs triage or the dates are out of step, 1 error.
 """
 from __future__ import annotations
 
@@ -93,6 +100,26 @@ def triage(kev: dict, watch: dict, covered: dict[str, list[str]]) -> dict[str, l
     return res
 
 
+def kev_dates(kev: dict, watch: dict) -> dict[str, dict[str, str]]:
+    """CISA's dateAdded for each KEV entry on a watched platform since `since`,
+    by platform, oldest first. Parsed from the feed, never typed in."""
+    out: dict[str, dict[str, str]] = {}
+    for v in sorted(kev.get("vulnerabilities", []), key=lambda v: (v.get("dateAdded", ""), v.get("cveID", ""))):
+        pid = platform_of(v, watch["platforms"])
+        if pid and v.get("dateAdded", "") >= watch["since"]:
+            out.setdefault(pid, {})[v["cveID"]] = v["dateAdded"]
+    return dict(sorted(out.items()))
+
+
+def date_drift(watch: dict, dates: dict[str, dict[str, str]]) -> list[dict]:
+    """Where the ledger's kev_added and the feed disagree: missing, changed, or gone from KEV."""
+    have = {(pid, c): d for pid, cs in (watch.get("kev_added") or {}).items() for c, d in cs.items()}
+    want = {(pid, c): d for pid, cs in dates.items() for c, d in cs.items()}
+    out = [{"platform": p, "cve": c, "ledger": have.get((p, c), "missing"), "feed": want.get((p, c), "not in KEV")}
+           for (p, c) in sorted(set(have) | set(want)) if have.get((p, c)) != want.get((p, c))]
+    return out
+
+
 def upstream_changes(watch: dict, files: dict[str, str], getter=fetch) -> list[dict]:
     out = []
     for iid, want in sorted(watch.get("upstream", {}).items()):
@@ -106,7 +133,7 @@ def upstream_changes(watch: dict, files: dict[str, str], getter=fetch) -> list[d
     return out
 
 
-def report(kev: dict, res: dict, changes: list[dict] | None) -> str:
+def report(kev: dict, res: dict, changes: list[dict] | None, drift: list[dict] | None = None) -> str:
     L = [f"# Advisory watch - KEV catalog {kev.get('catalogVersion', '?')}", ""]
     L.append("Nothing here is added to the repository automatically. For each item: read the vendor's "
              "advisory and any government or researcher publication it cites, then add a pack or an "
@@ -123,6 +150,15 @@ def report(kev: dict, res: dict, changes: list[dict] | None) -> str:
         L += ["", f"## Indicator files changed upstream ({len(changes)})", ""]
         L += [f"- {c['id']}: {c['url']} - was `{c['was'][:12]}`, now `{c['now'][:40]}`. Re-parse, diff, "
               "re-validate." for c in changes] or ["None."]
+    if drift is not None:
+        L += ["", f"## KEV dates out of step with the ledger ({len(drift)})", ""]
+        if drift:
+            L.append("The site compares each record's last change with these dates. Run with `--dates` and replace "
+                     "`kev_added` in `artifacts/watch/kev-watch.yml` with the block it prints.")
+            L += ["", "| Platform | CVE | Ledger | Feed |", "|---|---|---|---|"]
+            L += [f"| {r['platform']} | {r['cve']} | {r['ledger']} | {r['feed']} |" for r in drift]
+        else:
+            L.append("None.")
     L += ["", f"## Deferred - still to triage ({len(res['deferred'])})", ""]
     L += [f"- {r['added']} {r['cve']} ({r['platform']}, {r['product']}): {r['basis']}"
           for r in res["deferred"]] or ["None."]
@@ -142,6 +178,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--watch", type=Path, default=WATCH)
     ap.add_argument("--upstream", action="store_true", help="re-hash the publisher files behind indicator sets")
     ap.add_argument("--draft", action="store_true", help="print ledger stubs for new entries")
+    ap.add_argument("--dates", action="store_true", help="print the kev_added block for the ledger, from the feed")
     ap.add_argument("--out", type=Path, help="write the Markdown report here")
     a = ap.parse_args(argv)
     watch = load_watch(a.watch)
@@ -151,13 +188,18 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     res = triage(kev, watch, pack_cves())
     changes = upstream_changes(watch, ioc_files()) if a.upstream else None
-    text = report(kev, res, changes)
+    dates = kev_dates(kev, watch)
+    drift = date_drift(watch, dates)
+    if a.dates:   # the block alone, so it can be pasted over kev_added
+        print(yaml.safe_dump({"kev_added": dates}, sort_keys=False), end="")
+        return 0
+    text = report(kev, res, changes, drift)
     if a.out:
         a.out.write_text(text)
     print(text)
     if a.draft and res["new"]:
         print(draft(res, kev.get("dateReleased", "")[:10]))
-    return NEEDS_TRIAGE if res["new"] or changes else 0
+    return NEEDS_TRIAGE if res["new"] or changes or drift else 0
 
 
 if __name__ == "__main__":
