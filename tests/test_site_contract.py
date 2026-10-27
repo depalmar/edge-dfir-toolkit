@@ -189,3 +189,32 @@ def test_cve_records_join_kev_and_the_repository():
                                            "Contain and Control", "Triage Analysis", "Escalation Decision"]
     assert all(st[1].startswith("Target timeline: within ") for st in bs.BOD_STEPS)
     assert "#detections?cve=" not in doc.split('<script type="application/json"')[0]   # CVE mentions open the record
+
+
+def test_forensic_triage_flag_is_read_as_cisa_defines_it():
+    """KEV's forensicTriage is a BOD 26-04 deadline category. Every entry added before the
+    directive reads No, so the site reads those as 'added before BOD 26-04', never as
+    'not required'. CVE.org fields join every KEV record; platforms list their CVEs."""
+    import yaml as _yaml
+    bs = _site()
+    d = bs.load()
+    doc, data = bs.page(d)
+    for c in data["cves"]:
+        if not c["in_kev"]:
+            assert c["triage_k"] == "none"
+        elif c["added"] < bs.BOD_ISSUED:
+            assert c["triage"] == "No" and c["triage_k"] == "no-before", c["id"]
+        else:
+            assert c["triage_k"] == ("yes" if c["triage"] == "Yes" else "no-after")
+        if c["triage_k"] == "yes":
+            assert c["due_days"] == 3, c["id"]      # the directive: "within the timeline (three days)"
+    cve_js = doc[doc.index("LIB.cves = {"):doc.index("LIB.hunts = {")]
+    assert "not required" not in cve_js.lower()     # a playbook may say it of a feature; the CVE records never do
+    recs = {r["cve"]: r for r in _yaml.safe_load((ROOT / "artifacts" / "watch" / "cve-records.yml").read_text())["records"]}
+    for c in data["cves"]:
+        if c["in_kev"]:
+            assert c["id"] in recs and c["published"] == recs[c["id"]]["published"]
+            assert {w["id"] for w in recs[c["id"]]["cwes"]} <= set(c["cwes"])
+    for p in data["platforms"]:
+        assert set(p["cves"]) == {c["id"] for c in data["cves"] if p["id"] in c["platforms"]}
+    assert "cwe" in bs.FACET_KEYS["cves"]

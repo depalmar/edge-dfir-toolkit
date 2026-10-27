@@ -99,3 +99,22 @@ def test_the_repository_ledger_matches_the_shipped_watch_config():
     res = aw.triage({"vulnerabilities": []}, w, aw.pack_cves())
     assert res == {"new": [], "deferred": [], "decided": [], "covered": []}
     assert set(aw.ioc_files()) >= set(w["upstream"])
+
+
+def test_cve_record_keeps_the_cna_weakness_and_cisa_ssvc():
+    doc = {"cveMetadata": {"cveId": "CVE-2099-0001", "datePublished": "2099-01-03T10:00:00Z", "assignerShortName": "example"},
+           "containers": {"cna": {"problemTypes": [{"descriptions": [
+               {"cweId": "CWE-22", "description": "CWE-22 Improper Limitation of a Pathname ('Path Traversal')"},
+               {"description": "CWE-20 Improper Input Validation"}]}]},
+               "adp": [{"providerMetadata": {"shortName": "CISA-ADP"}, "metrics": [{"other": {"type": "ssvc", "content": {
+                   "timestamp": "2099-01-04T00:00:00Z",
+                   "options": [{"Exploitation": "active"}, {"Automatable": "no"}, {"Technical Impact": "total"}]}}}]},
+                   {"providerMetadata": {"shortName": "CVE"}}]}}
+    r = aw.cve_record(doc)
+    assert r == {"cve": "CVE-2099-0001", "published": "2099-01-03", "assigner": "example",
+                 "cwes": [{"id": "CWE-22", "name": "Improper Limitation of a Pathname ('Path Traversal')"},
+                          {"id": "CWE-20", "name": "Improper Input Validation"}],
+                 "cisa_ssvc": {"exploitation": "active", "automatable": "no", "technical_impact": "total", "assessed": "2099-01-04"}}
+    text = aw.cve_records_text(["CVE-2099-0001", "CVE-2099-0002"],
+                               getter=lambda u: json.dumps(doc).encode() if u.endswith("0001") else (_ for _ in ()).throw(OSError()))
+    assert "# not fetched: CVE-2099-0002: OSError" in text and yaml.safe_load(text)["records"] == [r]

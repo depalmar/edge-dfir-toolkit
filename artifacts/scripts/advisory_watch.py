@@ -159,6 +159,54 @@ def records_text(kev: dict, recs: list[dict]) -> str:
     return head + yaml.safe_dump(body, sort_keys=False, allow_unicode=True, width=120)
 
 
+CVE_API = "https://cveawg.mitre.org/api/cve/"
+CVE_RECORDS = ROOT / "artifacts" / "watch" / "cve-records.yml"
+
+
+def cve_record(doc: dict) -> dict:
+    """The fields the site shows from one CVE record (CVE JSON 5): when it was
+    published and by whom, the CNA's weakness names, and CISA's own Vulnrichment
+    decision points (the inputs BOD 26-04 names for its remediation timelines)."""
+    meta, cons = doc.get("cveMetadata", {}), doc.get("containers", {})
+    cwes = []
+    for pt in cons.get("cna", {}).get("problemTypes", []):
+        for x in pt.get("descriptions", []):
+            m = re.match(r"(CWE-\d+)[\s:]*(.*)", x.get("cweId") or x.get("description", ""))
+            cid = x.get("cweId") or (m.group(1) if m else "")
+            if cid and cid not in [c["id"] for c in cwes]:
+                name = re.sub(rf"^{re.escape(cid)}[\s:]*", "", x.get("description", "")).strip()
+                cwes.append({"id": cid, "name": name})
+    ssvc = None
+    for adp in cons.get("adp", []):
+        if adp.get("providerMetadata", {}).get("shortName") != "CISA-ADP":
+            continue
+        for mt in adp.get("metrics", []):
+            o = mt.get("other", {})
+            if o.get("type") == "ssvc":
+                opts = {k: v for d in o.get("content", {}).get("options", []) for k, v in d.items()}
+                ssvc = {"exploitation": str(opts.get("Exploitation", "")), "automatable": str(opts.get("Automatable", "")),
+                        "technical_impact": str(opts.get("Technical Impact", "")),
+                        "assessed": str(o.get("content", {}).get("timestamp", ""))[:10]}
+    return {"cve": meta.get("cveId", ""), "published": str(meta.get("datePublished", ""))[:10],
+            "assigner": meta.get("assignerShortName", ""), "cwes": cwes, "cisa_ssvc": ssvc}
+
+
+def cve_records_text(cves: list[str], getter=fetch) -> str:
+    out, missing = [], []
+    for c in sorted(cves):
+        try:
+            out.append(cve_record(json.loads(getter(CVE_API + c))))
+        except Exception as e:  # an unreachable record is listed, never guessed
+            missing.append(f"{c}: {e.__class__.__name__}")
+    head = ("# Fields from each CVE's public record at CVE.org (CVE JSON 5), verbatim, for every CVE the\n"
+            "# site shows. Generated - do not edit by hand:\n"
+            "#   python artifacts/scripts/advisory_watch.py --cve-records > artifacts/watch/cve-records.yml\n"
+            "# cisa_ssvc is CISA's Vulnrichment decision points (CISA-ADP container). Schema:\n"
+            "# ../schema/cve-records.schema.json.\n"
+            + "".join(f"# not fetched: {m}\n" for m in missing))
+    return head + yaml.safe_dump({"source": CVE_API, "records": out}, sort_keys=False, allow_unicode=True, width=120)
+
+
 def records_drift(have: list[dict], want: list[dict]) -> list[dict]:
     """Where the records file and the feed disagree: missing, changed, or gone from KEV."""
     h, w = {r["cve"]: r for r in have}, {r["cve"]: r for r in want}
@@ -234,6 +282,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--draft", action="store_true", help="print ledger stubs for new entries")
     ap.add_argument("--records", action="store_true", help="print kev-records.yml, from the feed")
     ap.add_argument("--records-file", type=Path, default=RECORDS, help="the records file to compare with the feed")
+    ap.add_argument("--cve-records", action="store_true",
+                    help="print cve-records.yml: each shown CVE's CVE.org record (published date, CWEs, CISA SSVC)")
     ap.add_argument("--out", type=Path, help="write the Markdown report here")
     a = ap.parse_args(argv)
     watch = load_watch(a.watch)
@@ -246,6 +296,9 @@ def main(argv: list[str] | None = None) -> int:
     want = kev_records(kev, watch, structured_refs())
     if a.records:   # the file alone, for the person to redirect and commit
         print(records_text(kev, want), end="")
+        return 0
+    if a.cve_records:   # every CVE the site shows: the KEV records plus the CVEs records name
+        print(cve_records_text(sorted({r["cve"] for r in want} | structured_refs())), end="")
         return 0
     have = (yaml.safe_load(a.records_file.read_text()) or {}).get("records") or [] if a.records_file.is_file() else []
     drift = records_drift(have, want)

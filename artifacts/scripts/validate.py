@@ -379,6 +379,18 @@ def main() -> int:
                 added_at[c] = r.get("platform")
                 if r.get("platform") and r["platform"] not in (w.get("platforms") or {}):
                     err(f"kev-records: {c} names unwatched platform {r['platform']}")
+        cf = ROOT / "artifacts" / "watch" / "cve-records.yml"
+        cdoc = (yaml.safe_load(cf.read_text()) or {}) if cf.is_file() else None
+        if cdoc is None:
+            err("artifacts/watch/cve-records.yml is missing; run advisory_watch.py --cve-records")
+        else:
+            validate_doc(schema("cve-records.schema.json"), cdoc, "watch/cve-records.yml")
+            have = [r.get("cve") for r in cdoc.get("records") or []]
+            if len(have) != len(set(have)):
+                err("cve-records: a CVE appears twice")
+            gone = sorted(set(added_at) - set(have))
+            if gone:
+                err(f"cve-records: no CVE.org record for KEV records {gone}; run advisory_watch.py --cve-records")
         seen_cve: set[str] = set()
         for t in w.get("triaged") or []:
             c, refs = t.get("cve", ""), t.get("refs", [])

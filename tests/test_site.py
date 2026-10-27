@@ -528,7 +528,7 @@ def test_cve_library_kev_fields_and_bod_steps(browser, tmp_path):
     flagged = [c for c in data["cves"] if c["triage"] == "Yes"]
     outside = next(c for c in data["cves"] if not c["in_kev"])
     page = browser.new_page(viewport={"width": 1440, "height": 900})
-    page.goto(f"{url}#cves?triage=Yes")
+    page.goto(f"{url}#cves?triage=yes")
     page.locator("#tab-cves .lc").first.wait_for(state="visible")
     assert _counts(page, "cves") == (len(flagged), len(data["cves"]))
     page.goto(f"{url}#cves/{flagged[0]['id']}")
@@ -536,8 +536,38 @@ def test_cve_library_kev_fields_and_bod_steps(browser, tmp_path):
     steps = page.locator("#dBody ol.bod > li b").all_inner_texts()
     assert steps == [s[0] for s in data["bod"]["steps"]]
     assert page.locator("#dBody ol.bod a[href^='#plans/'], #dBody ol.bod a[href^='#platforms/']").count() >= 1
-    assert "required by BOD 26-04" in page.locator("#dBody .dfacts").inner_text()
+    assert "flagged: 3 days and forensic triage" in page.locator("#dBody .dfacts").inner_text()
     page.goto(f"{url}#cves/{outside['id']}")
     page.locator("#drawer").wait_for(state="visible")
-    assert page.locator("#dBody h4").all_inner_texts()[0].upper() == "NOT IN KEV"   # headings are uppercased in CSS
+    assert "NOT IN KEV" in [h.upper() for h in page.locator("#dBody h4").all_inner_texts()]   # uppercased in CSS
     assert page.locator("#dBody ol.bod").count() == 0
+
+
+def test_cve_stats_badges_filter_and_platforms_link_back(browser, tmp_path):
+    """The stats across the CVEs shown count what the data says, a card's ransomware
+    badge filters instead of opening the card, a shared weakness filters, and a
+    platform's record lists its CVEs. A KEV entry from before BOD 26-04 never reads
+    'not required'."""
+    url = _build(tmp_path)
+    data = sys.modules["build_site"].page(sys.modules["build_site"].load())[1]
+    known = sum(c["ransomware"] == "Known" for c in data["cves"])
+    page = browser.new_page(viewport={"width": 1440, "height": 900})
+    page.goto(f"{url}#cves")
+    page.locator("#tab-cves .cvstats").wait_for(state="visible")
+    tiles = page.locator("#tab-cves .cvs-t b").all_inner_texts()
+    assert tiles[:3] == [str(len(data["cves"])), str(sum(c["triage"] == "Yes" for c in data["cves"])), str(known)]
+    page.locator("#tab-cves .lc .rw-b").first.click()
+    assert page.locator("#drawer").is_hidden() and _counts(page, "cves") == (known, len(data["cves"]))
+    page.goto(f"{url}#cves")
+    page.locator("#tab-cves .cvs-r").first.click()
+    assert "cwe=CWE-" in page.evaluate("location.hash")
+    page.goto(f"{url}#cves/CVE-2024-3400")
+    page.locator("#drawer").wait_for(state="visible")
+    facts = page.locator("#dBody .dfacts").inner_text()
+    assert "added before BOD 26-04" in facts and "not required" not in facts.lower()
+    assert "CVE record published" in facts and "These date the actor" in page.locator("#dBody").inner_text()
+    pid = data["cves"][0]["platforms"][0]
+    page.goto(f"{url}#platforms/{pid}")
+    page.locator("#drawer").wait_for(state="visible")
+    mine = [c["id"] for c in data["cves"] if pid in c["platforms"]]
+    assert page.locator("#dBody a[href^='#cves/']").count() == len(mine)

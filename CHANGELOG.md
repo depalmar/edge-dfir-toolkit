@@ -1,5 +1,38 @@
 # Changelog
 
+## 0.11.0 - 2026-10-27 - CVE tab review
+
+- **Forensic triage flag, read correctly.** KEV's "No" was shown as "not
+  required". Every entry added before BOD 26-04 was issued (2026-06-10) reads
+  No, so the old wording put "not required" on CVE-2024-3400.
+  - A record now reads "flagged: 3 days and forensic triage", "not flagged"
+    with its deadline, or "added before BOD 26-04".
+  - It quotes the directive's own definition and says the flag sets a federal
+    deadline rather than whether a device needs forensics.
+  - Due dates set before the directive are marked as set under BOD 22-01,
+    since revoked.
+  - All 74 KEV records were checked against CISA's cisa.gov feed: no
+    mismatch. The correction is recorded in `docs/VERIFICATION.md`.
+- **Dates beyond KEV's.** Each record has a timeline: the CVE.org record's
+  publication date and assigner, the date added to KEV, CISA's SSVC assessment,
+  the federal due date and the publication dates of linked indicator sets.
+  - Linked actors' first-seen dates are listed separately, as the actor's.
+  - The record says plainly that no feed dates when exploitation began.
+  - New `artifacts/watch/cve-records.yml` holds these fields, written by
+    `advisory_watch.py --cve-records`, with a schema and a validator check.
+- **Filters.** A card's "ransomware" and "forensic triage" badges filter the
+  list, and so do its weakness chips. There is a new "Weakness (CWE)" facet,
+  with names from the CNA's record.
+- **Patterns across the CVEs shown.** A panel above the list follows the
+  filters:
+  - counts you can click to filter;
+  - the weaknesses shared across CVEs and platforms;
+  - the actors and implants tied to the CVEs, with their CVEs.
+- **Each CVE record shows its relations.** It lists the other CVEs that share
+  its weaknesses, and the CVEs related through an actor or implant.
+- **Platforms tie back to their CVEs.** Platform cards and records show their
+  CVE count and the CVEs themselves, and each Start tile links to them.
+
 ## 0.10.0 - 2026-10-27 - CVE records and BOD 26-04
 
 - **A CVEs library.** It has one record per CVE: all 55 KEV entries on the ten

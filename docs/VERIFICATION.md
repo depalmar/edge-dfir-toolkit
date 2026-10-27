@@ -686,6 +686,19 @@ Every value below was parsed from, or quoted against, a saved copy of the page
 | `fortios-fgfm-access-off` (blunts CVE-2024-23113) | New control | FG-IR-24-029: "For each interface, remove the fgfm access" |
 | EDGE-HUNT-0026 (CVE-2020-3259) | New hunt, low/unverified, linked from the ledger | Truesec: "the first malicious authentication ... was preceded by a legitimate authentication from the real user of the same (later compromised) account" |
 
+## 2026-10-27 - the BOD 26-04 forensic triage flag, re-read
+
+The CVE records first showed KEV's `forensicTriage` "No" as "not required". That
+reading was wrong for most entries. Read on the live directive and guidance
+pages and counted in CISA's own feed.
+
+| Item | Change | Basis (verbatim, or counted) |
+|---|---|---|
+| `forensicTriage` "No" | Was "not required". Now an entry added before 2026-06-10 reads "added before BOD 26-04", and a later "No" reads "not flagged" with its deadline | BOD 26-04, Appendix A, item 04: "The text “& forensic triage” means that the agency must complete remediation or mitigation action within the timeline (three days) and carry out a forensic triage of the asset to assess whether the system is compromised." Counted in the cisa.gov feed, catalog 2026.10.26: all 1,617 entries added before 2026-06-10 read No; of 141 added since, 93 read Yes (every one with a 3-day due date) and 48 read No (3- or 14-day due dates) |
+| The 74 KEV records | Checked, no change | Compared field by field with `https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json`, catalog 2026.10.26: no mismatch in `forensicTriage`, `dateAdded` or `knownRansomwareCampaignUse` |
+| Due dates before 2026-06-10 | Labelled "set under BOD 22-01, since revoked" | BOD 26-04: "This Directive supersedes and hereby revokes BOD 19-02 ... and BOD 22-01" |
+| When exploitation happened | KEV's date is when CISA added the entry. The CVE.org record date and CISA's SSVC assessment are now shown, and linked actors' first-seen dates as the actor's | Guidance FAQ: "When a vendor, researcher, or partner reports exploitation, CISA reviews the evidence." The CVE.org record for CVE-2022-42475 is dated 20 days after its KEV addition, so the label is "CVE record published", not "disclosed" |
+
 ## Device verification
 
 | Date | Platform / release | Step | Change | Basis |

@@ -159,6 +159,15 @@ implant's `cves`). It adds no prose of its own:
 
 CVE mentions anywhere on the site link to `#cves/<id>`.
 
+`artifacts/watch/cve-records.yml` holds each shown CVE's CVE.org fields: the
+record's publication date, the assigner, the CNA's weakness names and CISA's
+SSVC decision points. It is written only by `advisory_watch.py --cve-records`.
+KEV's `forensicTriage` is a BOD 26-04 deadline category: every entry added
+before 2026-06-10 (`BOD_ISSUED`) reads No. So never word No as "not required";
+the site reads it as "added before BOD 26-04" or "not flagged". No feed dates
+when exploitation began. Show the dates the sources give, each labelled with
+what it is. An actor's first-seen date dates the actor, not the CVE.
+
 ## Threat intel and response rules
 
 **Indicators are parsed, never retyped.** `artifacts/intel/iocs/` sets come from
