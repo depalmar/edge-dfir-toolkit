@@ -1,0 +1,26 @@
+title: PAN-OS Management Interface Auth Bypass Request (CVE-2025-0108)
+id: 01deda3c-98e6-46ca-9b82-9034f9227b55
+status: experimental
+description: |
+  The discoverer's request shape for CVE-2025-0108: a double-encoded dot-dot
+  after /unauth/ that reaches a PHP page through a /PAN_help/ resource suffix
+  (GET /unauth/%252e%252e/php/ztp_gate.php/PAN_help/x.css). Needs web access
+  logs of the management interface that record the raw URI.
+references:
+  - https://www.slcyber.io/research/nginx-apache-path-confusion-to-auth-bypass-in-pan-os-cve-2025-0108
+  - https://security.paloaltonetworks.com/CVE-2025-0108
+author: Raymond DePalma (edge-dfir-toolkit)
+date: 2026-10-27
+tags:
+  - attack.initial_access
+  - attack.t1190
+  - cve.2025-0108
+logsource:
+  category: webserver
+detection:
+  selection:
+    Message|re: '(?i)/unauth/[^\s"?]*%252e%252e/[^\s"?]*/PAN_help/[^\s"?]+\.(css|js|html?)\b'
+  condition: selection
+falsepositives:
+  - Vulnerability scanners send the same request.
+level: high

@@ -54,10 +54,10 @@ Ordered by value. Effort figures are judgment, not measurement.
   hunts in `artifacts/hunts/` describe these by hand; the next step is an
   `ingest` mode that evaluates the simplest (syslog gap, device-sourced
   transfers) against exported data.
-- Work through the deferred entries in `artifacts/watch/kev-watch.yml` (22 at
-  the first sweep, including CVE-2025-0282 and CVE-2025-22457 on Ivanti and
-  CVE-2025-0108 on PAN-OS): read the primary sources, then add a pack or record
-  the decision.
+- Follow-ups from the 2026-10-27 KEV triage (listed at the end of that section
+  in `docs/VERIFICATION.md`): read-only FortiOS steps for /tmp and for process
+  memory maps, NetScaler /var/core listing, PEERSTITCH hashes and YARA, BUSHWALK,
+  two FortiOS hardening controls and a RADIUS hunt for CVE-2020-3259.
 - Clock-skew correction applied to every timeline row, using the V0 clock step.
 - Plaso / Timesketch export.
 - Evaluate the LLM brief against the fixture corpus before anyone relies on it.

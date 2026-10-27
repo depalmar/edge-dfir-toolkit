@@ -1,0 +1,27 @@
+title: Ivanti Connect Secure SAML SOAP Request (CVE-2024-21893)
+id: 768d10d2-5c4d-445b-abbc-2affc71a1bca
+status: experimental
+description: |
+  POST to /dana-ws/saml20.ws, the endpoint Unit 42 saw used in an attempt to
+  chain the CVE-2024-21893 SSRF to CVE-2024-21887, and the one Rapid7's
+  analysis triggers. Legitimate SAML SOAP traffic uses it too. Needs a web log
+  from a proxy, WAF or load balancer in front of the appliance.
+references:
+  - https://unit42.paloaltonetworks.com/threat-brief-ivanti-cve-2023-46805-cve-2024-21887/
+  - https://attackerkb.com/topics/FGlK1TVnB2/cve-2024-21893/rapid7-analysis
+author: Raymond DePalma (edge-dfir-toolkit)
+date: 2026-10-27
+tags:
+  - attack.initial_access
+  - attack.t1190
+  - cve.2024-21893
+logsource:
+  category: webserver
+detection:
+  selection:
+    cs-method: 'POST'
+    cs-uri-stem|endswith: '/dana-ws/saml20.ws'
+  condition: selection
+falsepositives:
+  - Appliances that use SAML SOAP bindings.
+level: medium

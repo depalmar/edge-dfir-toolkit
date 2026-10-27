@@ -36,8 +36,8 @@
         "properties": {
           "cve": {"type": "string", "pattern": "^CVE-[0-9]{4}-[0-9]{4,}$"},
           "platform": {"type": "string", "pattern": "^EDGE-[0-9]{4}$"},
-          "decision": {"enum": ["iocs", "no-indicators", "out-of-scope", "deferred"],
-                       "description": "iocs: an indicator set but no on-box detection; no-indicators: primary sources read, nothing usable published; out-of-scope: KEV product is not the watched platform; deferred: not yet triaged against primary sources"},
+          "decision": {"enum": ["iocs", "no-indicators", "lab-only", "out-of-scope", "deferred"],
+                       "description": "iocs: an indicator set but no on-box detection; no-indicators: primary sources read, nothing usable published; lab-only: signals published only from lab reproduction, with no exact log text to match; out-of-scope: KEV product is not the watched platform; deferred: not yet triaged against primary sources"},
           "refs": {"type": "array", "items": {"type": "string", "pattern": "^EDGE-(IOC|PACK|HUNT)-[0-9]{4}$"}},
           "date": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"},
           "basis": {"type": "string", "minLength": 10}

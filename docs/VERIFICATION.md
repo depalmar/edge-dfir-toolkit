@@ -285,11 +285,17 @@ summarising fetch it is marked `read: summariser` and the hunt carries
   CVE-2016-6415; NetScaler CVE-2023-6548/6549, CVE-2026-3055, CVE-2026-8452,
   CVE-2026-19490. CVE-2025-0108 (PAN-OS) and CVE-2026-88772's `.deb` file names
   were left out: the first string came only through a summariser, and the
-  second names files the directory legitimately hosts.
+  second names files the directory legitimately hosts. *(Superseded 2026-10-27:
+  the CVE-2025-0108 request was read directly on Searchlight Cyber's page and the
+  advisories' Threat IDs cover CVE-2025-0111 (EDGE-PACK-0032); CVE-2026-3055 and
+  CVE-2026-8452 have researcher indicators (EDGE-PACK-0034); CVE-2025-68686 is
+  scored by EDGE-PACK-0003's symlink check; CVE-2026-0322 has EDGE-IOC-0012. See
+  the 2026-10-27 KEV triage section.)*
 - Jaguar Tooth (CVE-2017-6742) targeted classic IOS, not IOS XE; omitted.
 - F5 K000154696 (hunting guide) and CISA ED 26-01 could not be read; F5 has no hunt.
 - The AA25-239A STIX bundle returned 403 to every fetch; the advisory's
-  indicators are not in the IOC set.
+  indicators are not in the IOC set. *(Superseded 2026-10-27: loaded from the IC3
+  PDF as EDGE-IOC-0013.)*
 
 ### Indicators
 
@@ -633,6 +639,33 @@ advisories and KB44859 (Firecrawl).
 | SYS32039 / SYS32040 | log_regex, possible | KB44859: "id=' SYS32040' - Integrity Checker Failed: Detected 1 mismatched files!"; Ivanti publishes false-positive guidance for the external scan |
 | EDGE-IOC-0014 | 5 MD5 from GTIG's April table + 4 from rule md5 fields | GTIG keeps the rest in a GTI Collection "for registered users" |
 | Ledger | CVE-2025-0282 and CVE-2025-22457 removed (now in a pack) | - |
+
+## 2026-10-27 - KEV triage of the 20 remaining ledger entries
+
+Three report-only agents read the vendor advisories and the publications they or
+CISA cite (`scratchpad/verify/triage-*.json`). Before anything became a detection
+the main session re-read the decisive passage on the live page (saved copies
+under `scratchpad/tri/`, or Firecrawl where curl was blocked).
+
+| CVE | Decision | Basis (verbatim) |
+|---|---|---|
+| CVE-2026-24858, CVE-2025-59718 | EDGE-PACK-0030 (high), EDGE-IOC-0015 | Fortinet: logid="0100032001" ... method="sso"; "Creation of a local admin ... has been seen in almost all cases"; FG-IR-26-060 "exploited in the wild by two malicious FortiCloud accounts"; Arctic Wolf logid="0100032095" config download. FG-IR-26-060 lists 104.28.195.106 twice; loaded once |
+| CVE-2025-61624 | EDGE-PACK-0031 (low, unverified) | Unit 42: "exploited CVE-2025-61624 to escalate from FortiOS administrative access to root"; "Inspect FortiOS configuration revisions for system.auto-script objects containing path traversal strings (../../)"; crashlog Signal 11 for miglogd, iked or syslogd. Fortinet FG-IR-26-122 states no exploitation |
+| CVE-2025-25249 | EDGE-IOC-0016 (ledger: iocs) | SOCRadar: "identified, with high confidence, exploitation"; tool "highly likely targets CVE-2025-25249"; /tmp/.i.js needs a /tmp listing step not yet written |
+| CVE-2025-68686 | Added to EDGE-PACK-0003 cves | FG-IR-25-934: "can only be abused as a consequence of a threat actor exploiting a known vulnerability to implement read-only access ... at file system level" - the symlink fortios-symlink-root scores |
+| CVE-2025-32756 | out-of-scope | FG-IR-25-254 affects FortiVoice, FortiMail, FortiNDR, FortiRecorder, FortiCamera only |
+| CVE-2025-0108, CVE-2025-0111 | EDGE-PACK-0032 (medium) | Searchlight Cyber: "GET /unauth/%252e%252e/php/ztp_gate.php/PAN_help/x.css HTTP/1.1"; both advisories: "enabling Threat ID 510000 and 510001" |
+| CVE-2024-21893 | EDGE-PACK-0033 (medium) | Unit 42: "through a SOAP based request to the endpoint /dana-ws/saml20.ws"; Rapid7: RetrievalMethod URI="http://127.0.0.1:8090/..." and "rebind: connect AF_INET to dest = 127.0.0.1:8090" in /data/var/dlogs/debuglog. EDGE-PACK-0007 now also reads debuglog files |
+| CVE-2026-3055, CVE-2026-8452 | EDGE-PACK-0034 (low, unverified) | watchTowr: "GET /wsfed/passive?wctx", "has no value and lacks the =", exploitation "as of March 27th"; Bishop Fox: "nsppe: PE 0 (pid N) got signal 10 or 11", "/var/vpn/theme/x.php ... Successful exploitation"; watchTowr only "believe[s] this is CVE-2026-8452"; Citrix: "We have not observed any unmitigated exploitation" |
+| CVE-2026-19490 | lab-only | Bishop Fox lab: "logs an SSL VPN login for user anonymous"; no ns.log text published |
+| CVE-2024-3393, CVE-2026-20349, CVE-2014-2120, CVE-2020-3259, CVE-2019-6693, CVE-2024-23113, CVE-2023-6548, CVE-2023-6549 | no-indicators | Quotes in `artifacts/watch/kev-watch.yml`, each re-read on the live page |
+
+Follow-ups, not done: a read-only FortiOS /tmp listing step (PivotC2) and a
+process memory-map step for miglogd and iked (PEERSTITCH 16 KB rwxp regions);
+Unit 42's PEERSTITCH hashes and YARA rule; NetScaler /var/core NSPPE-* listing;
+Mandiant's BUSHWALK (Ivanti, querymanifest.cgi) has no detection; hardening
+controls for FortiOS private-data-encryption (CVE-2019-6693) and fgfm access
+(CVE-2024-23113); a Truesec-based RADIUS hunt for CVE-2020-3259.
 
 ## Device verification
 

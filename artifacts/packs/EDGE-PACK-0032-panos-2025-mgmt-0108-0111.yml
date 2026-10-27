@@ -1,0 +1,67 @@
+# Detection pack EDGE-PACK-0032
+
+id: EDGE-PACK-0032
+name: PAN-OS management web interface 2025 (CVE-2025-0108, CVE-2025-0111)
+platforms: [EDGE-0001]
+cves: [CVE-2025-0108, CVE-2025-0111]
+summary: >-
+  CVE-2025-0108 is an authentication bypass in the management web interface
+  from a path-handling difference between nginx and Apache; CVE-2025-0111 is an
+  authenticated file read on the same interface. Palo Alto Networks: "Palo Alto
+  Networks has observed exploit attempts chaining CVE-2025-0108 with
+  CVE-2024-9474 and CVE-2025-0111 on unpatched and unsecured PAN-OS web
+  management interfaces." The vendor publishes Threat IDs 510000 and 510001 for
+  both CVEs, and the discoverer (Assetnote, now Searchlight Cyber) published the
+  request. Nothing is published for the file read itself, so CVE-2025-0111
+  rides on the Threat ID detection. Both detections need logs the profile does
+  not collect - the threat log and a web access log of the management
+  interface from a reverse proxy, NDR sensor or SIEM - and are not evaluated
+  without them. EDGE-PACK-0002 covers CVE-2024-9474.
+confidence: medium
+references:
+  - title: Palo Alto Networks - CVE-2025-0108 advisory
+    url: https://security.paloaltonetworks.com/CVE-2025-0108
+    accessed: "2026-10-27"
+  - title: Palo Alto Networks - CVE-2025-0111 advisory
+    url: https://security.paloaltonetworks.com/CVE-2025-0111
+    accessed: "2026-10-27"
+  - title: Searchlight Cyber (Assetnote) - nginx/Apache path confusion to auth bypass in PAN-OS (CVE-2025-0108)
+    url: https://www.slcyber.io/research/nginx-apache-path-confusion-to-auth-bypass-in-pan-os-cve-2025-0108
+    accessed: "2026-10-27"
+
+detect:
+  - id: panos-0108-unauth-traversal
+    title: Double-encoded traversal out of /unauth/ to a PAN_help resource
+    type: log_regex
+    tier: possible
+    evidence_class: web-logs
+    sigma: [01-panos-globalprotect/panos_cve_2025_0108_unauth_traversal.yml]
+    sources:
+      files: ["**/*access*.log*", "**/appweb*.log*", "**/httpd*.log*", "**/*proxy*.log*"]
+    pattern: '/unauth/[^\s"?]*%252e%252e/[^\s"?]*/PAN_help/[^\s"?]+\.(css|js|html?)\b'
+    flags: [ignorecase]
+    attack: [T1190]
+    notes: >-
+      The discoverer's request: "GET /unauth/%252e%252e/php/ztp_gate.php/PAN_help/x.css
+      HTTP/1.1". The suffixes follow the Apache rule it quotes,
+      RewriteRule ^(.*)(\/PAN_help\/)(.*)\.(css|js|html|htm)$. Scanners send the
+      same request, so a hit is an attempt; the response code says whether the
+      PHP ran. One researcher source for the shape.
+
+  - id: panos-0108-0111-threat-id
+    title: Threat ID 510000 or 510001 in the threat log
+    type: log_regex
+    tier: possible
+    evidence_class: web-logs
+    sigma: [01-panos-globalprotect/panos_cve_2025_0108_0111_threat_id.yml]
+    sources:
+      files: ["**/*threat*.log*", "**/*threat*.csv", "**/*.log"]
+    pattern: '(?<![0-9])51000[01](?![0-9])'
+    attack: [T1190]
+    notes: >-
+      Both advisories: "customers with a Threat Prevention subscription can block
+      attacks for this vulnerability by enabling Threat ID 510000 and 510001".
+      A threat-log entry means the signature saw an attempt against the
+      management interface, which the vendor says should be reachable only from
+      trusted addresses. The bare number can occur elsewhere in a log, so read
+      the matching line.

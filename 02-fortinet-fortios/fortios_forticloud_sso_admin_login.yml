@@ -1,0 +1,27 @@
+title: FortiOS Administrator Login Through FortiCloud SSO (CVE-2025-59718, CVE-2026-24858)
+id: 28bedaca-c6ad-437c-9ade-c552c626f6a5
+status: experimental
+description: |
+  Administrator login with method="sso". Fortinet and Arctic Wolf publish this
+  line for the FortiCloud SSO abuse. Legitimate FortiCloud SSO logins produce
+  it too, so review the user and the source address in ui="sso(...)".
+references:
+  - https://www.fortinet.com/blog/psirt-blogs/analysis-of-sso-abuse-on-fortios
+  - https://fortiguard.fortinet.com/psirt/FG-IR-26-060
+author: Raymond DePalma (edge-dfir-toolkit)
+date: 2026-10-27
+tags:
+  - attack.initial_access
+  - attack.t1078.004
+  - cve.2025-59718
+  - cve.2026-24858
+logsource:
+  product: fortinet
+  service: fortigate
+detection:
+  selection:
+    Message|re: 'logid="0100032001".*\bmethod="sso"'
+  condition: selection
+falsepositives:
+  - Organisations that use FortiCloud SSO for administration.
+level: medium

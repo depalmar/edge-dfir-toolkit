@@ -1,0 +1,108 @@
+# Detection pack EDGE-PACK-0034
+
+id: EDGE-PACK-0034
+name: NetScaler 2026 SAML and WS-Federation memory bugs (CVE-2026-3055, CVE-2026-8452)
+platforms: [EDGE-0004]
+cves: [CVE-2026-3055, CVE-2026-8452]
+summary: >-
+  CVE-2026-3055 is a memory over-read; watchTowr reports "in-the-wild
+  exploitation has begun, with evidence from our honeypot network showing
+  exploitation from known threat actor source IPs as of March 27th", and its
+  reliable trigger is GET /wsfed/passive?wctx, where "a wctx querystring
+  parameter needs to be present, but has no value and lacks the = symbol";
+  leaked memory, including administrative session IDs, returns in the NSC_TASS
+  cookie. CVE-2026-8452 is a SAML memory overflow; Citrix said before the KEV
+  listing "We have not observed any unmitigated exploitation", and the
+  indicators below come from Bishop Fox's lab reproduction of watchTowr's
+  proof of concept, which watchTowr only "believe[s] this is CVE-2026-8452".
+  Neither Citrix bulletin publishes an indicator, and every detection here
+  rests on one research team's lab work, hence low confidence. Not covered:
+  NSPPE-* core files under /var/core (no profile step lists them) and the
+  ns.log text watchTowr shows for CVE-2026-3055 only as a screenshot.
+confidence: low
+unverified: true
+references:
+  - title: Citrix - CTX696300, NetScaler ADC and Gateway security bulletin (CVE-2026-3055)
+    url: https://support.citrix.com/external/article/CTX696300/netscaler-adc-and-netscaler-gateway-secu.html
+    accessed: "2026-10-27"
+  - title: watchTowr - Citrix NetScaler CVE-2026-3055 memory over-read, part 2
+    url: https://labs.watchtowr.com/please-we-beg-just-one-weekend-free-of-appliances-citrix-netscaler-cve-2026-3055-memory-overread-part-2/
+    accessed: "2026-10-27"
+  - title: Citrix - CTX696604, NetScaler ADC and Gateway security bulletin (CVE-2026-8452)
+    url: https://support.citrix.com/external/article/CTX696604/netscaler-adc-and-netscaler-gateway-secu.html
+    accessed: "2026-10-27"
+  - title: Citrix - security update for NetScaler and NetScaler Gateway customers (blog linked from CTX696604)
+    url: https://community.citrix.com/techzone-blogs/110_security-updates/security-update-for-citrix-netscaler-and-netscaler-gateway-customers-r1570/
+    accessed: "2026-10-27"
+  - title: Bishop Fox - verifying the Citrix NetScaler SAML patch for CVE-2026-8452 (Detecting Exploitation)
+    url: https://bishopfox.com/blog/no-crash-required-verifying-the-citrix-netscaler-saml-patch-for-cve-2026-8452
+    accessed: "2026-10-27"
+  - title: watchTowr - Citrix NetScaler pre-auth RCE (CVE-2026-8452)
+    url: https://labs.watchtowr.com/youre-back-in-the-room-citrix-netscaler-pre-auth-rce-cve-2026-8452/
+    accessed: "2026-10-27"
+
+detect:
+  - id: netscaler-3055-wsfed-wctx-novalue
+    title: WS-Federation request with a bare wctx parameter
+    type: log_regex
+    tier: possible
+    evidence_class: web-logs
+    sigma: [04-citrix-netscaler/netscaler_cve_2026_3055_wsfed_wctx.yml]
+    sources:
+      files: ["**/*proxy*.log*", "**/*waf*.log*", "**/*access*.log*", "**/*.csv"]
+    pattern: '/wsfed/passive\?([^\s"&]*&)*wctx(?=[\s"&]|$)'
+    attack: [T1190, T1005]
+    notes: >-
+      watchTowr's request: GET /wsfed/passive?wctx HTTP/1.1. Every such request
+      is an attempt; scanners send it too. Gateway and AAA virtual-server
+      requests are not in the Apache logs the profile fetches, so this reads a
+      proxy, WAF or sensor log. On a hit, treat management sessions as exposed:
+      watchTowr recovered "authenticated administrative session IDs".
+
+  - id: netscaler-8452-nsppe-signal
+    title: Packet engine crashed with signal 10 or 11
+    type: log_regex
+    tier: possible
+    evidence_class: system-logs
+    sources:
+      steps: [fetch_logs]
+      files: ["**/ns.log*"]
+    pattern: 'nsppe: PE \d+ \(pid \d+\) got signal 1[01]\b'
+    attack: [T1190]
+    notes: >-
+      Bishop Fox: "nsppe: PE 0 (pid N) got signal 10 or 11, alongside pitboss
+      reporting the process unexpectedly died" - "The packet engine crashed on a
+      bad memory access. Signal 10 is what the overflow produced in our lab."
+      Failed attempts crash it too, and so do unrelated faults, so this is
+      possible. Written from the published line with its placeholder; replace
+      with a real sanitized ns.log line when one is published.
+
+  - id: netscaler-8452-theme-poc-shell
+    title: x.php under /var/vpn/theme
+    type: log_regex
+    tier: likely
+    evidence_class: persistence
+    sources:
+      steps: [php_stat]
+    pattern: '\s/var/vpn/theme/x\.php\s*$'
+    attack: [T1505.003]
+    notes: >-
+      Bishop Fox: "/var/vpn/theme/x.php, or any unexpected file under
+      /var/vpn/theme/" means "Successful exploitation. watchTowr's proof of
+      concept drops its webshell at that exact path." EDGE-PACK-0004's YARA rule
+      reads the same file through fetch_php.
+
+  - id: netscaler-8452-theme-php
+    title: Any PHP file under /var/vpn/theme
+    type: log_regex
+    tier: possible
+    evidence_class: persistence
+    sources:
+      steps: [php_stat]
+    pattern: '\s/var/vpn/theme/\S+\.php\s*$'
+    attack: [T1505.003]
+    notes: >-
+      The broader half of Bishop Fox's signal. Neither Citrix nor Bishop Fox says
+      whether a clean appliance keeps PHP under /var/vpn/theme, so compare with
+      a known-good appliance of the same build. Only .php files are listed by the
+      profile; other unexpected files there are not seen.

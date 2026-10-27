@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.1 - 2026-10-27
 
 - EDGE-PACK-0029: Ivanti Connect Secure CVE-2025-0282 and CVE-2025-22457 (UNC5221,
   SPAWN family, PHASEJAM, DRYHOOK, TRAILBLAZE, BRUSHFIRE). It has five
@@ -11,6 +11,21 @@
 - EDGE-IOC-0014: nine MD5 values from GTIG's posts.
 - The SPAWN implant record now lists its detections. Its gap now says what
   evidence is still needed.
+- All 20 remaining KEV ledger entries are triaged against primary sources; none
+  is deferred.
+- New packs:
+  - EDGE-PACK-0030: FortiCloud SSO abuse (CVE-2025-59718, CVE-2026-24858). Uses
+    Fortinet's own log lines. Comes with two Sigma rules and EDGE-IOC-0015.
+  - EDGE-PACK-0031: FortiOS auto-script traversal and PEERSTITCH
+    (CVE-2025-61624, low). Uses a generalised crash-log check.
+  - EDGE-PACK-0032: PAN-OS CVE-2025-0108 and CVE-2025-0111. Request shape and
+    Threat IDs 510000/510001.
+  - EDGE-PACK-0033: Ivanti CVE-2024-21893 SAML SSRF.
+  - EDGE-PACK-0034: NetScaler CVE-2026-3055 and CVE-2026-8452 (low).
+- EDGE-PACK-0003 now lists CVE-2025-68686.
+- EDGE-IOC-0016: PivotC2 indicators (CVE-2025-25249).
+- The ledger records decisions with a new `lab-only` value. Eight entries are
+  no-indicators and one is out-of-scope.
 
 ## 0.8.0 - 2026-10-27
 

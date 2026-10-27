@@ -1,0 +1,169 @@
+# Indicators EDGE-IOC-0015 - parsed from Fortinet PSIRT's own advisory page, not retyped.
+# Values are live, not defanged: do not paste them into a browser. Roles and context are the publisher's.
+# Schema: ../../schema/ioc.schema.json
+
+id: EDGE-IOC-0015
+title: FortiCloud SSO authentication bypass - CVE-2026-24858
+publisher: Fortinet PSIRT
+published: '2026-01-27'
+page_url: https://fortiguard.fortinet.com/psirt/FG-IR-26-060
+file_format: html-text
+license: publisher's terms
+accessed: '2026-10-27'
+actors: []
+implants: []
+cves:
+- CVE-2026-24858
+platforms:
+- EDGE-0002
+staleness: >-
+  January 2026. Fortinet locked the two malicious FortiCloud accounts on 2026-01-22 and says "We expect these
+  addresses may change in the future". The login sources include Cloudflare-fronted addresses other people use,
+  so the role of every address is unknown. The admin names are ones the actor chose; several are ordinary
+  names, and Fortinet "recommends reviewing all admin accounts to look for any unexpected entries".
+indicators:
+- type: account
+  value: cloud-noc@mail.io
+  role: actor-controlled
+  context: >-
+    FortiCloud account the actor logged in with (FG-IR-26-060)
+- type: account
+  value: cloud-init@mail.io
+  role: actor-controlled
+  context: >-
+    FortiCloud account the actor logged in with (FG-IR-26-060)
+- type: account
+  value: heltaylor.12@tutamail.com
+  role: actor-controlled
+  context: >-
+    FortiCloud account the actor logged in with (FG-IR-26-060)
+- type: account
+  value: support@openmail.pro
+  role: actor-controlled
+  context: >-
+    FortiCloud account the actor logged in with (FG-IR-26-060)
+- type: account
+  value: audit
+  role: actor-controlled
+  context: >-
+    Local admin name the actor created after SSO login (FG-IR-26-060); several are common legitimate names, so review rather than match blindly
+- type: account
+  value: backup
+  role: actor-controlled
+  context: >-
+    Local admin name the actor created after SSO login (FG-IR-26-060); several are common legitimate names, so review rather than match blindly
+- type: account
+  value: itadmin
+  role: actor-controlled
+  context: >-
+    Local admin name the actor created after SSO login (FG-IR-26-060); several are common legitimate names, so review rather than match blindly
+- type: account
+  value: secadmin
+  role: actor-controlled
+  context: >-
+    Local admin name the actor created after SSO login (FG-IR-26-060); several are common legitimate names, so review rather than match blindly
+- type: account
+  value: support
+  role: actor-controlled
+  context: >-
+    Local admin name the actor created after SSO login (FG-IR-26-060); several are common legitimate names, so review rather than match blindly
+- type: account
+  value: backupadmin
+  role: actor-controlled
+  context: >-
+    Local admin name the actor created after SSO login (FG-IR-26-060); several are common legitimate names, so review rather than match blindly
+- type: account
+  value: deploy
+  role: actor-controlled
+  context: >-
+    Local admin name the actor created after SSO login (FG-IR-26-060); several are common legitimate names, so review rather than match blindly
+- type: account
+  value: remoteadmin
+  role: actor-controlled
+  context: >-
+    Local admin name the actor created after SSO login (FG-IR-26-060); several are common legitimate names, so review rather than match blindly
+- type: account
+  value: security
+  role: actor-controlled
+  context: >-
+    Local admin name the actor created after SSO login (FG-IR-26-060); several are common legitimate names, so review rather than match blindly
+- type: account
+  value: svcadmin
+  role: actor-controlled
+  context: >-
+    Local admin name the actor created after SSO login (FG-IR-26-060); several are common legitimate names, so review rather than match blindly
+- type: account
+  value: system
+  role: actor-controlled
+  context: >-
+    Local admin name the actor created after SSO login (FG-IR-26-060); several are common legitimate names, so review rather than match blindly
+- type: account
+  value: adccount
+  role: actor-controlled
+  context: >-
+    Local admin name the actor created after SSO login (FG-IR-26-060); several are common legitimate names, so review rather than match blindly
+- type: ipv4
+  value: 104.28.244.115
+  role: unknown
+  context: >-
+    Login source observed by Fortinet; Fortinet: the actor "appears to have switched to use Cloudflare protected IPs"
+- type: ipv4
+  value: 104.28.212.114
+  role: unknown
+  context: >-
+    Login source observed by Fortinet; Fortinet: the actor "appears to have switched to use Cloudflare protected IPs"
+- type: ipv4
+  value: 104.28.212.115
+  role: unknown
+  context: >-
+    Login source observed by Fortinet; Fortinet: the actor "appears to have switched to use Cloudflare protected IPs"
+- type: ipv4
+  value: 104.28.195.105
+  role: unknown
+  context: >-
+    Login source observed by Fortinet; Fortinet: the actor "appears to have switched to use Cloudflare protected IPs"
+- type: ipv4
+  value: 104.28.195.106
+  role: unknown
+  context: >-
+    Login source observed by Fortinet; Fortinet: the actor "appears to have switched to use Cloudflare protected IPs"
+- type: ipv4
+  value: 104.28.227.106
+  role: unknown
+  context: >-
+    Login source observed by Fortinet; Fortinet: the actor "appears to have switched to use Cloudflare protected IPs"
+- type: ipv4
+  value: 104.28.227.105
+  role: unknown
+  context: >-
+    Login source observed by Fortinet; Fortinet: the actor "appears to have switched to use Cloudflare protected IPs"
+- type: ipv4
+  value: 104.28.244.114
+  role: unknown
+  context: >-
+    Login source observed by Fortinet; Fortinet: the actor "appears to have switched to use Cloudflare protected IPs"
+- type: ipv4
+  value: 163.61.198.15
+  role: unknown
+  context: >-
+    Login source observed by Fortinet; Fortinet: the actor "appears to have switched to use Cloudflare protected IPs"
+- type: ipv4
+  value: 104.28.244.116
+  role: unknown
+  context: >-
+    Login source observed by Fortinet; Fortinet: the actor "appears to have switched to use Cloudflare protected IPs"
+- type: ipv4
+  value: 38.54.6.28
+  role: unknown
+  context: >-
+    Login source observed by Fortinet; Fortinet: the actor "appears to have switched to use Cloudflare protected IPs"
+- type: ipv4
+  value: 37.1.209.19
+  role: unknown
+  context: >-
+    "Additional IPs observed by a third party, not Fortinet" (FG-IR-26-060)
+- type: ipv4
+  value: 217.119.139.50
+  role: unknown
+  context: >-
+    "Additional IPs observed by a third party, not Fortinet" (FG-IR-26-060)

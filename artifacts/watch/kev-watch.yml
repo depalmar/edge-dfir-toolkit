@@ -39,12 +39,6 @@ upstream:
   EDGE-IOC-0013: 1d0619d9908ee7b0a4dcf13ff24762643d4ab2844559fbd2eb562c03435f5e40
 
 triaged:
-  - cve: CVE-2025-61624
-    platform: EDGE-0002
-    decision: deferred
-    date: '2026-10-27'
-    basis: KEV-listed with no pack; not yet triaged against the vendor advisory and the publications it cites (seeded
-      by the first sweep).
   - cve: CVE-2026-0322
     platform: EDGE-0001
     decision: iocs
@@ -53,117 +47,74 @@ triaged:
     date: '2026-10-27'
     basis: Palo Alto Networks' advisory publishes three addresses tied to exploit attempts and no host-side indicator,
       so there is no on-box detection to add; the management-interface hardening control now cites it.
-  - cve: CVE-2026-19490
-    platform: EDGE-0004
-    decision: deferred
-    date: '2026-10-27'
-    basis: KEV-listed with no pack; not yet triaged against the vendor advisory and the publications it cites (seeded
-      by the first sweep).
   - cve: CVE-2025-25249
     platform: EDGE-0002
-    decision: deferred
+    decision: iocs
+    refs:
+    - EDGE-IOC-0016
     date: '2026-10-27'
-    basis: KEV-listed with no pack; not yet triaged against the vendor advisory and the publications it cites (seeded
-      by the first sweep).
-  - cve: CVE-2026-8452
+    basis: Fortinet's FG-IR-25-084 publishes no indicators. SOCRadar reports exploitation "with high confidence" via
+      a tool that "highly likely targets CVE-2025-25249", with hashes and C2 addresses (EDGE-IOC-0016) and the file
+      /tmp/.i.js, which no profile step lists yet; a read-only /tmp listing step is the follow-up.
+  - cve: CVE-2026-19490
     platform: EDGE-0004
-    decision: deferred
+    decision: lab-only
     date: '2026-10-27'
-    basis: KEV-listed with no pack; not yet triaged against the vendor advisory and the publications it cites (seeded
-      by the first sweep).
+    basis: 'Citrix CTX696939 publishes no indicators or exploitation statement. Bishop Fox''s lab work: a Gateway
+      bypass "logs an SSL VPN login for user anonymous" and "Every session this bug mints is anonymous", but the ns.log
+      text is not published; revisit with a real sanitized line.'
   - cve: CVE-2026-20349
     platform: EDGE-0005
-    decision: deferred
+    decision: no-indicators
     date: '2026-10-27'
-    basis: KEV-listed with no pack; not yet triaged against the vendor advisory and the publications it cites (seeded
-      by the first sweep).
-  - cve: CVE-2025-68686
-    platform: EDGE-0002
-    decision: deferred
-    date: '2026-10-27'
-    basis: KEV-listed with no pack; not yet triaged against the vendor advisory and the publications it cites (seeded
-      by the first sweep).
-  - cve: CVE-2026-3055
-    platform: EDGE-0004
-    decision: deferred
-    date: '2026-10-27'
-    basis: KEV-listed with no pack; not yet triaged against the vendor advisory and the publications it cites (seeded
-      by the first sweep).
-  - cve: CVE-2026-24858
-    platform: EDGE-0002
-    decision: deferred
-    date: '2026-10-27'
-    basis: KEV-listed with no pack; not yet triaged against the vendor advisory and the publications it cites (seeded
-      by the first sweep).
-  - cve: CVE-2025-59718
-    platform: EDGE-0002
-    decision: deferred
-    date: '2026-10-27'
-    basis: KEV-listed with no pack; not yet triaged against the vendor advisory and the publications it cites (seeded
-      by the first sweep).
+    basis: 'Cisco cisco-sa-asaftd-vpn-dos-dzv4mQFF: exploited ("In August 2026, the Cisco PSIRT became aware of active
+      exploitation") via "a crafted HTTP request" causing a reload; no request, crash text or syslog ID is published,
+      only Snort rules.'
   - cve: CVE-2019-6693
     platform: EDGE-0002
-    decision: deferred
+    decision: no-indicators
     date: '2026-10-27'
-    basis: KEV-listed with no pack; not yet triaged against the vendor advisory and the publications it cites (seeded
-      by the first sweep).
+    basis: 'FG-IR-19-007: offline decryption of ENC values "If the CLI configuration is exposed"; nothing happens
+      on the device. Hardening candidate: set private-data-encryption enable.'
   - cve: CVE-2025-32756
     platform: EDGE-0002
-    decision: deferred
+    decision: out-of-scope
     date: '2026-10-27'
-    basis: KEV-listed with no pack; not yet triaged against the vendor advisory and the publications it cites (seeded
-      by the first sweep).
-  - cve: CVE-2025-0111
-    platform: EDGE-0001
-    decision: deferred
-    date: '2026-10-27'
-    basis: KEV-listed with no pack; not yet triaged against the vendor advisory and the publications it cites (seeded
-      by the first sweep).
-  - cve: CVE-2025-0108
-    platform: EDGE-0001
-    decision: deferred
-    date: '2026-10-27'
-    basis: KEV-listed with no pack; not yet triaged against the vendor advisory and the publications it cites (seeded
-      by the first sweep).
+    basis: FG-IR-25-254 affects "FortiVoice, FortiMail, FortiNDR, FortiRecorder and FortiCamera" only; "Fortinet has
+      observed this to be exploited in the wild on FortiVoice." FortiOS is not affected.
   - cve: CVE-2024-3393
     platform: EDGE-0001
-    decision: deferred
+    decision: no-indicators
     date: '2026-10-27'
-    basis: KEV-listed with no pack; not yet triaged against the vendor advisory and the publications it cites (seeded
-      by the first sweep).
+    basis: 'Palo Alto Networks gives only a symptom: the firewall "stops responding or reboots unexpectedly"; no log
+      message, crash file or Threat ID.'
   - cve: CVE-2014-2120
     platform: EDGE-0005
-    decision: deferred
+    decision: no-indicators
     date: '2026-10-27'
-    basis: KEV-listed with no pack; not yet triaged against the vendor advisory and the publications it cites (seeded
-      by the first sweep).
+    basis: 'Cisco: "insufficient input validation of a parameter" and "additional attempted exploitation" in November
+      2024; no parameter, request or log line is published.'
   - cve: CVE-2024-23113
     platform: EDGE-0002
-    decision: deferred
+    decision: no-indicators
     date: '2026-10-27'
-    basis: KEV-listed with no pack; not yet triaged against the vendor advisory and the publications it cites (seeded
-      by the first sweep).
+    basis: 'FG-IR-24-029: "A third-party report is indicating this may be exploited in the wild"; no source named
+      and no indicators.'
   - cve: CVE-2020-3259
     platform: EDGE-0005
-    decision: deferred
+    decision: no-indicators
     date: '2026-10-27'
-    basis: KEV-listed with no pack; not yet triaged against the vendor advisory and the publications it cites (seeded
-      by the first sweep).
-  - cve: CVE-2024-21893
-    platform: EDGE-0003
-    decision: deferred
-    date: '2026-10-27'
-    basis: KEV-listed with no pack; not yet triaged against the vendor advisory and the publications it cites (seeded
-      by the first sweep).
+    basis: 'Cisco: "sending a crafted GET request to the web services interface"; Truesec "made an early decision
+      to refrain from publicly releasing the exploit". Truesec''s RADIUS pattern is a hunt candidate, not a pack detection.'
   - cve: CVE-2023-6549
     platform: EDGE-0004
-    decision: deferred
+    decision: no-indicators
     date: '2026-10-27'
-    basis: KEV-listed with no pack; not yet triaged against the vendor advisory and the publications it cites (seeded
-      by the first sweep).
+    basis: 'Citrix CTX584986: "Exploits of these CVEs on unmitigated appliances have been observed"; NetScaler blog
+      withholds detail and no researcher publication gives indicators.'
   - cve: CVE-2023-6548
     platform: EDGE-0004
-    decision: deferred
+    decision: no-indicators
     date: '2026-10-27'
-    basis: KEV-listed with no pack; not yet triaged against the vendor advisory and the publications it cites (seeded
-      by the first sweep).
+    basis: Same bulletin CTX584986; no indicators from Citrix or a researcher. NHS England relays a CrowdStrike claim
+      of no authentication needed; CrowdStrike's own publication was not found.

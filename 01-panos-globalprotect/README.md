@@ -1,7 +1,7 @@
 # 01-panos-globalprotect/ - PAN-OS / GlobalProtect
 
 Platform: `EDGE-0001` (see `artifacts/catalog/`).  
-Detection packs: `EDGE-PACK-0001`, `EDGE-PACK-0002`, `EDGE-PACK-0025` (see `artifacts/packs/`).
+Detection packs: `EDGE-PACK-0001`, `EDGE-PACK-0002`, `EDGE-PACK-0025`, `EDGE-PACK-0032` (see `artifacts/packs/`).
 
 ## Rules
 
@@ -12,6 +12,8 @@ Detection packs: `EDGE-PACK-0001`, `EDGE-PACK-0002`, `EDGE-PACK-0025` (see `arti
 | `panos_cve_2024_0012_auth_bypass.yml` | Sigma | CVE-2024-0012 management-interface bypass requests |
 | `panos_cve_2026_0257_poc_host_id.yml` | Sigma | GlobalProtect sessions carrying the CVE-2026-0257 proof of concept's default host IDs or names |
 | `panos_upstyle_backdoor.yar` | YARA | UPSTYLE payload and its .pth loader |
+| `panos_cve_2025_0108_unauth_traversal.yml` | Sigma | CVE-2025-0108 double-encoded traversal out of /unauth/ (discoverer's request shape) |
+| `panos_cve_2025_0108_0111_threat_id.yml` | Sigma | Threat IDs 510000 and 510001 for CVE-2025-0108 and CVE-2025-0111 |
 
 ## Notes
 

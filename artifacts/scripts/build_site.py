@@ -1113,7 +1113,7 @@ code.loc{display:inline-block;max-width:100%;background:var(--code-bg);border:1p
 .pick,.pickall{width:15px;height:15px;margin:2px 0 0;accent-color:var(--accent);cursor:pointer}
 
 /* ---- cards (grid library) ---- */
-.lgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:14px}
+.lgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(310px,100%),1fr));gap:14px}.lgrid>*{min-width:0}.lgrid code{overflow-wrap:anywhere}
 .lc{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:15px 16px;cursor:pointer;display:flex;flex-direction:column;gap:9px;box-shadow:0 1px 2px var(--shadow);transition:border-color .12s,box-shadow .12s,transform .12s}
 .lc:hover{border-color:var(--accent-border);box-shadow:0 4px 14px var(--shadow);transform:translateY(-1px)}
 .lc.sel{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
@@ -1385,7 +1385,7 @@ kbd{font-family:var(--mono);font-size:var(--fs-xs);border:1px solid var(--line);
   .row .c-plat .id{display:inline;margin:0;font-weight:400}
   .row .c-main{flex:1 1 100%}
   .row .c-val,.row .c-conf{display:block}
-  .lgrid{grid-template-columns:1fr}
+  .lgrid{grid-template-columns:minmax(0,1fr)}
   .card,.plan{padding:14px}.tbl{font-size:var(--fs-xs)}
   .steps thead{display:none}.steps tr.step td{display:block;border:0;padding:3px 0}
   .steps tr.step{display:block;padding:10px 0;border-top:1px solid var(--line-soft)}

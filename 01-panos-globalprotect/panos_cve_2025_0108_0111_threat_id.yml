@@ -1,0 +1,27 @@
+title: PAN-OS Threat ID 510000 or 510001 (CVE-2025-0108, CVE-2025-0111)
+id: 893f0ca7-ec53-466c-b0e5-5c84a9952a5d
+status: experimental
+description: |
+  Palo Alto Networks' Threat Prevention signatures for CVE-2025-0108 and
+  CVE-2025-0111. A threat-log entry is an attempt against the management web
+  interface.
+references:
+  - https://security.paloaltonetworks.com/CVE-2025-0108
+  - https://security.paloaltonetworks.com/CVE-2025-0111
+author: Raymond DePalma (edge-dfir-toolkit)
+date: 2026-10-27
+tags:
+  - attack.initial_access
+  - attack.t1190
+  - cve.2025-0108
+  - cve.2025-0111
+logsource:
+  product: paloalto
+  service: threat
+detection:
+  selection:
+    Message|re: '(?<![0-9])51000[01](?![0-9])'
+  condition: selection
+falsepositives:
+  - The number appearing in an unrelated field; read the matching line.
+level: high

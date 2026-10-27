@@ -91,9 +91,13 @@ controls:
     how: >-
       `config system global`, `set admin-forticloud-sso-login disable`, `end`. GUI:
       System > Settings, "Allow administrative login using FortiCloud SSO" off.
-    blunts: [CVE-2025-59718, CVE-2025-59719]
+    blunts: [CVE-2025-59718, CVE-2025-59719, CVE-2026-24858]
     confidence: high
     sources:
+      - title: Fortinet PSIRT - FG-IR-26-060 (CVE-2026-24858), workaround
+        url: https://fortiguard.fortinet.com/psirt/FG-IR-26-060
+        accessed: "2026-10-27"
+        quote: "go to System -> Settings -> Switch \"Allow administrative login using FortiCloud SSO\" to Off."
       - title: Fortinet PSIRT blog - analysis of SSO abuse on FortiOS (22 January 2026)
         url: https://www.fortinet.com/blog/psirt-blogs/analysis-of-sso-abuse-on-fortios
         accessed: "2026-10-22"

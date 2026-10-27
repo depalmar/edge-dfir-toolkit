@@ -3,7 +3,7 @@
 id: EDGE-PACK-0003
 name: FortiOS SSL-VPN exploitation and post-patch persistence
 platforms: [EDGE-0002]
-cves: [CVE-2022-42475, CVE-2023-27997, CVE-2024-21762]
+cves: [CVE-2022-42475, CVE-2023-27997, CVE-2024-21762, CVE-2025-68686]
 actors: []
 implants: [BOLDMOVE, COATHANGER]
 summary: >-

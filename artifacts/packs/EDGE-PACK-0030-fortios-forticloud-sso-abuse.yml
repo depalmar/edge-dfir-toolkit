@@ -1,0 +1,105 @@
+# Detection pack EDGE-PACK-0030
+
+id: EDGE-PACK-0030
+name: FortiOS FortiCloud SSO login abuse (CVE-2025-59718, CVE-2026-24858)
+platforms: [EDGE-0002]
+cves: [CVE-2025-59718, CVE-2026-24858]
+summary: >-
+  Two FortiCloud SSO authentication bypasses that ended in the same log trail.
+  CVE-2025-59718 (FG-IR-25-647) accepted a crafted SAML message; Arctic Wolf
+  began "observing intrusions involving malicious SSO logins on FortiGate
+  appliances" on 12 December 2025, "typically against the admin account",
+  followed by configuration downloads to the same addresses. CVE-2026-24858
+  (FG-IR-26-060) let a FortiCloud account log in to other customers' devices and
+  "was found being exploited in the wild by two malicious FortiCloud accounts".
+  Fortinet's own analysis publishes the SSO login and the local-admin creation
+  that followed "in almost all cases", and the advisory lists the accounts,
+  admin names and addresses (EDGE-IOC-0015). Arctic Wolf ties its December
+  logins to the disclosure of CVE-2025-59718, not provably to that flaw.
+  EDGE-HUNT-0015 holds the off-box sequence.
+confidence: high
+references:
+  - title: Fortinet PSIRT - FG-IR-26-060, FortiCloud SSO authentication bypass (CVE-2026-24858)
+    url: https://fortiguard.fortinet.com/psirt/FG-IR-26-060
+    accessed: "2026-10-27"
+  - title: Fortinet PSIRT blog - analysis of SSO abuse on FortiOS
+    url: https://www.fortinet.com/blog/psirt-blogs/analysis-of-sso-abuse-on-fortios
+    accessed: "2026-10-27"
+  - title: Fortinet PSIRT - FG-IR-25-647 (CVE-2025-59718)
+    url: https://fortiguard.fortinet.com/psirt/FG-IR-25-647
+    accessed: "2026-10-27"
+  - title: Arctic Wolf - malicious SSO logins following disclosure of CVE-2025-59718 and CVE-2025-59719
+    url: https://arcticwolf.com/resources/blog/arctic-wolf-observes-malicious-sso-logins-following-disclosure-cve-2025-59718-cve-2025-59719/
+    accessed: "2026-10-27"
+
+detect:
+  - id: fortios-sso-login-published-account
+    title: FortiCloud SSO login by an account Fortinet names as the actor's
+    type: log_regex
+    tier: confirmed
+    evidence_class: auth-logs
+    sources:
+      steps: [log_export]
+      files: ["**/*event*.log*", "**/*.log"]
+    pattern: 'logid="0100032001".*\buser="(cloud\-noc@mail\.io|cloud\-init@mail\.io|heltaylor\.12@tutamail\.com|support@openmail\.pro)"'
+    attack: [T1078.004, T1190]
+    notes: >-
+      FG-IR-26-060: "The actor has been observed to have logged in with the
+      following user accounts." Generated from EDGE-IOC-0015; a test keeps them
+      in step. Fortinet expects the addresses "may change", so no hit is not a
+      clean result - read every SSO login.
+
+  - id: fortios-sso-admin-login
+    title: Administrator login through FortiCloud SSO
+    type: log_regex
+    tier: possible
+    evidence_class: auth-logs
+    sigma: [02-fortinet-fortios/fortios_forticloud_sso_admin_login.yml]
+    sources:
+      steps: [log_export]
+      files: ["**/*event*.log*", "**/*.log"]
+    pattern: 'logid="0100032001".*\bmethod="sso"'
+    attack: [T1078.004]
+    notes: >-
+      Fortinet's malicious-login example: logid="0100032001" logdesc="Admin login
+      successful" ui="sso(104.28.244.115)" method="sso". Arctic Wolf's has
+      user="admin" with method="sso". Legitimate FortiCloud SSO produces the same
+      line, so this is possible on its own; it weighs more on a device whose
+      owners do not use FortiCloud SSO, or for a local name such as admin.
+
+  - id: fortios-admin-added-by-sso-principal
+    title: Local administrator created by an e-mail-form (FortiCloud) user
+    type: log_regex
+    tier: possible
+    evidence_class: persistence
+    sigma: [02-fortinet-fortios/fortios_sso_principal_admin_add.yml]
+    sources:
+      steps: [log_export]
+      files: ["**/*event*.log*", "**/*.log"]
+    pattern: 'logid="0100044547".*\buser="[^"@]+@[^"]+".*action="Add".*cfgpath="system\.admin"'
+    attack: [T1136.001]
+    notes: >-
+      Fortinet: "Creation of a local admin, presumably for persistence should
+      the SSO account become disabled, has been seen in almost all cases", with
+      the line logid="0100044547" ... user="cloud-init@mail.io" ... action="Add"
+      ... cfgpath="system.admin" cfgobj="secadmin". An SSO administrator adding
+      an admin is also routine work; compare cfgobj with the names in
+      EDGE-IOC-0015 and with your change records.
+
+  - id: fortios-config-downloaded-gui
+    title: System configuration downloaded through the GUI
+    type: log_regex
+    tier: possible
+    evidence_class: system-logs
+    sources:
+      steps: [log_export]
+      files: ["**/*event*.log*", "**/*.log"]
+    pattern: 'logid="0100032095".*System config file has been downloaded'
+    attack: [T1005, T1552.001]
+    notes: >-
+      Arctic Wolf: "Following malicious SSO logins, configurations were exported
+      to the same IP addresses via the GUI interface", logid="0100032095" ...
+      msg="System config file has been downloaded by user admin via GUI(...)".
+      FG-IR-26-060 also lists "Download customer config file" among the actor's
+      operations. Backups are downloaded legitimately; pair with an SSO login
+      from the same address.

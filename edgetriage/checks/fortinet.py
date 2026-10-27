@@ -78,14 +78,13 @@ _APP = re.compile(r"^application\s+(?P<app>\S+)")
 _SEGV = re.compile(r"signal 11 \(Segmentation fault\) received", re.I)
 
 
-@check("fortios_crashlog_sslvpnd_segv")
-def fortios_crashlog_sslvpnd_segv(view, det):
-    """sslvpnd crash with signal 11 in `diagnose debug crashlog read` output.
+def _crashlog_segv(view, apps: frozenset[str]):
+    """Signal-11 crashes of the named applications in `diagnose debug crashlog read`.
 
     The crash log puts the application name and the signal on separate rows,
-    so a same-line regex never fires on it. A signal-11 row is attributed to
-    sslvpnd when the nearest preceding `application` row with the same process
-    token names sslvpnd. Zero parsed crash rows is not-evaluated.
+    so a same-line regex never fires on it. A signal-11 row is attributed to an
+    application when the nearest preceding `application` row with the same
+    process token names it. Zero parsed crash rows is not-evaluated.
     """
     text = view.step_text("crashlog")
     if text is None:
@@ -102,9 +101,21 @@ def fortios_crashlog_sslvpnd_segv(view, det):
         a = _APP.match(msg)
         if a:
             app_by_tok[tok] = a.group("app")
-        elif _SEGV.search(msg) and app_by_tok.get(tok) == "sslvpnd":
-            hits.append(Hit("step:crashlog", "sslvpnd signal 11 (Segmentation fault)",
+        elif _SEGV.search(msg) and app_by_tok.get(tok) in apps:
+            hits.append(Hit("step:crashlog", f"{app_by_tok[tok]} signal 11 (Segmentation fault)",
                             line=n, excerpt=excerpt(line)))
     if rows == 0:
         return False, []
     return True, hits
+
+
+@check("fortios_crashlog_sslvpnd_segv")
+def fortios_crashlog_sslvpnd_segv(view, det):
+    """sslvpnd crash with signal 11 (Fortinet's CVE-2022-42475 tech tip)."""
+    return _crashlog_segv(view, frozenset({"sslvpnd"}))
+
+
+@check("fortios_crashlog_peerstitch_segv")
+def fortios_crashlog_peerstitch_segv(view, det):
+    """miglogd, iked or syslogd crash with signal 11 (Unit 42's PEERSTITCH hunting row)."""
+    return _crashlog_segv(view, frozenset({"miglogd", "iked", "syslogd"}))

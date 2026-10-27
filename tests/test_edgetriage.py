@@ -1107,3 +1107,96 @@ def test_ivanti_spawn_yara_is_mandiants_and_compiles():
                      "M_Dropper_PHASEJAM_1", "M_Credtheft_DRYHOOK_1", "M_Utility_SPAWNSNARE_1",
                      "M_APT_Utility_SPAWNSLOTH_2"}
     assert path.read_text().count('author = "Mandiant"') == 7
+
+
+# ------------------------------------------------------------------ KEV triage 2026-10-27
+def _pats(pack_file: str) -> dict:
+    import re
+    import yaml
+    pack = yaml.safe_load((ROOT / "artifacts/packs" / pack_file).read_text())
+    return {d["id"]: re.compile(d["pattern"], re.I if "ignorecase" in d.get("flags", []) else 0)
+            for d in pack["detect"] if "pattern" in d}
+
+
+def test_fortios_sso_patterns_match_published_lines():
+    """Fortinet's and Arctic Wolf's published lines, addresses swapped for documentation ranges."""
+    p = _pats("EDGE-PACK-0030-fortios-forticloud-sso-abuse.yml")
+    login = ('date=<date> time=<time> devname="FGT60FXXXXXXX" devid=" FGT60FXXXXXXX" eventtime=<eventtime> '
+             'tz="<timezone>" logid="0100032001" type="event" subtype="system" level="information" vd="root" '
+             'logdesc="Admin login successful" sn=" FGT60FXXXXXXX" user="admin" ui="sso(203.0.113.15)" '
+             'method="sso" srcip=203.0.113.15 dstip=<management IP> action="login" status="success"')
+    add = ('logid="0100044547" type="event" subtype="system" level="information" vd="root" '
+           'logdesc="Object attribute configured" user="cloud-ops@example.com" ui="GUI(203.0.113.15)" action="Add" '
+           'cfgtid=<Config ID> cfgpath="system.admin" cfgobj="secadmin" '
+           'cfgattr="old-password[]accprofile[super_admin]vdom[root]password[]" msg="Add system.admin secadmin"')
+    dl = ('logid="0100032095" type="event" subtype="system" level="warning" vd="root" '
+          'logdesc="Admin performed an action from GUI" user="admin" ui="GUI(203.0.113.15)" action="download" '
+          'status="success" msg="System config file has been downloaded by user admin via GUI(203.0.113.15)"')
+    assert p["fortios-sso-admin-login"].search(login)
+    assert not p["fortios-sso-admin-login"].search(login.replace('method="sso"', 'method="password"'))
+    assert p["fortios-admin-added-by-sso-principal"].search(add)
+    assert not p["fortios-admin-added-by-sso-principal"].search(add.replace("cloud-ops@example.com", "admin"))
+    assert p["fortios-config-downloaded-gui"].search(dl)
+    assert not p["fortios-sso-login-published-account"].search(login)
+
+
+def test_fortios_sso_account_pattern_matches_the_indicator_set():
+    """The confirmed-tier pattern names exactly the accounts parsed into EDGE-IOC-0015."""
+    import yaml
+    ioc = yaml.safe_load((ROOT / "artifacts/intel/iocs/EDGE-IOC-0015-fortinet-fg-ir-26-060.yml").read_text())
+    accounts = [i["value"] for i in ioc["indicators"] if i["type"] == "account" and "@" in i["value"]]
+    assert len(accounts) == 4
+    pat = _pats("EDGE-PACK-0030-fortios-forticloud-sso-abuse.yml")["fortios-sso-login-published-account"]
+    for a in accounts:
+        assert pat.search(f'logid="0100032001" type="event" user="{a}" ui="sso(203.0.113.9)" method="sso"'), a
+    assert not pat.search('logid="0100032001" type="event" user="ops@example.com" method="sso"')
+
+
+def test_fortios_autoscript_traversal_and_peerstitch_crashlog():
+    p = _pats("EDGE-PACK-0031-fortios-cve-2025-61624-peerstitch.yml")["fortios-autoscript-traversal-name"]
+    assert p.search('    edit "../../../../setup"')
+    assert p.search('    edit "../../tmp/apache2/conf/md-acme.conf"')
+    assert not p.search('    edit "nightly-backup"')
+    from edgetriage.checks.fortinet import fortios_crashlog_peerstitch_segv as chk
+    rows = ("xxxx: [ Date & Time ] <.....> application miglogd\n"
+            "xxxx: [ Date & Time ] <.....> *** signal 11 (Segmentation fault) received ***\n")
+    ok, hits = chk(_StepView({"crashlog": rows}), {})
+    assert ok and len(hits) == 1 and "miglogd" in hits[0].detail
+    assert chk(_StepView({"crashlog": rows.replace("miglogd", "sslvpnd")}), {}) == (True, [])
+    assert chk(_StepView({}), {}) == (False, [])
+
+
+def test_panos_0108_and_threat_id_patterns():
+    p = _pats("EDGE-PACK-0032-panos-2025-mgmt-0108-0111.yml")
+    req = p["panos-0108-unauth-traversal"]
+    assert req.search("GET /unauth/%252e%252e/php/ztp_gate.php/PAN_help/x.css HTTP/1.1")   # the discoverer's request
+    assert req.search("GET /unauth/%252E%252E/php/ztp_gate.php/PAN_help/x.htm HTTP/1.1")
+    assert not req.search("GET /unauth/php/ztp_gate.php/PAN_help/x.css HTTP/1.1")
+    tid = p["panos-0108-0111-threat-id"]
+    assert tid.search("1,2026/02/12 10:00:00,0123,THREAT,vulnerability,...,(510001),...")
+    assert not tid.search("bytes=5100012")
+
+
+def test_ivanti_21893_patterns_match_rapid7_and_unit42():
+    p = _pats("EDGE-PACK-0033-ivanti-ics-cve-2024-21893-ssrf.yml")
+    assert p["ivanti-21893-saml20-soap-post"].search('203.0.113.7 - - [02/Feb/2024] "POST /dana-ws/saml20.ws HTTP/1.1" 200')
+    assert not p["ivanti-21893-saml20-soap-post"].search('"GET /dana-ws/saml20.ws HTTP/1.1"')
+    assert p["ivanti-21893-loopback-retrievalmethod"].search(
+        '<ds:RetrievalMethod URI="http://127.0.0.1:8090/api/v1/license/keys-status/%3Bpython"/>')
+    assert p["ivanti-21893-debuglog-rebind-8090"].search(
+        "2024/02/02 09:37:41.758578 saml-server(30183) vc0  1 DSPreload::Net net.cc:424 - "
+        "rebind: connect AF_INET to dest = 127.0.0.1:8090")
+
+
+def test_netscaler_2026_patterns():
+    p = _pats("EDGE-PACK-0034-netscaler-2026-saml-wsfed.yml")
+    w = p["netscaler-3055-wsfed-wctx-novalue"]
+    assert w.search('"GET /wsfed/passive?wctx HTTP/1.1" 302')                 # watchTowr's request
+    assert w.search("GET /wsfed/passive?wa=wsignin1.0&wctx HTTP/1.1")
+    assert not w.search("GET /wsfed/passive?wctx=rm%3d0 HTTP/1.1")
+    assert p["netscaler-8452-nsppe-signal"].search("Oct 27 03:14:07 <local0.err> ns nsppe: PE 0 (pid 1234) got signal 10")
+    assert not p["netscaler-8452-nsppe-signal"].search("nsppe: PE 0 (pid 1234) got signal 15")
+    ls = "  1234  8 -rw-r--r--  1 nobody  wheel  31 Oct 27 03:15 /var/vpn/theme/x.php"
+    assert p["netscaler-8452-theme-poc-shell"].search(ls)
+    assert p["netscaler-8452-theme-php"].search(ls.replace("x.php", "y.php"))
+    assert not p["netscaler-8452-theme-poc-shell"].search(ls.replace("/var/vpn/theme/", "/var/vpn/bookmark/"))

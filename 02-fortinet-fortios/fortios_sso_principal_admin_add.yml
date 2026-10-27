@@ -1,0 +1,25 @@
+title: FortiOS Local Administrator Created by a FortiCloud SSO User (CVE-2026-24858)
+id: 0c5f9f16-186f-408a-a649-4d3375679679
+status: experimental
+description: |
+  Fortinet: after the malicious SSO login, creation of a local admin "has been
+  seen in almost all cases". The creating user is the e-mail-form FortiCloud
+  principal and the change is an Add on system.admin.
+references:
+  - https://www.fortinet.com/blog/psirt-blogs/analysis-of-sso-abuse-on-fortios
+author: Raymond DePalma (edge-dfir-toolkit)
+date: 2026-10-27
+tags:
+  - attack.persistence
+  - attack.t1136.001
+  - cve.2026-24858
+logsource:
+  product: fortinet
+  service: fortigate
+detection:
+  selection:
+    Message|re: 'logid="0100044547".*\buser="[^"@]+@[^"]+".*action="Add".*cfgpath="system\.admin"'
+  condition: selection
+falsepositives:
+  - Administrators who sign in with FortiCloud SSO and add admins as part of normal work.
+level: medium

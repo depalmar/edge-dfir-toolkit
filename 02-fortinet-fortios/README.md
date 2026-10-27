@@ -1,7 +1,7 @@
 # 02-fortinet-fortios/ - FortiOS (FortiGate / FortiProxy)
 
 Platform: `EDGE-0002` (see `artifacts/catalog/`).  
-Detection packs: `EDGE-PACK-0003`, `EDGE-PACK-0023`, `EDGE-PACK-0024` (see `artifacts/packs/`).
+Detection packs: `EDGE-PACK-0003`, `EDGE-PACK-0023`, `EDGE-PACK-0024`, `EDGE-PACK-0030`, `EDGE-PACK-0031` (see `artifacts/packs/`).
 
 ## Rules
 
@@ -11,6 +11,8 @@ Detection packs: `EDGE-PACK-0003`, `EDGE-PACK-0023`, `EDGE-PACK-0024` (see `arti
 | `fortios_cve_2024_55591_jsconsole_admin_login.yml` | Sigma | administrator login from jsconsole (CVE-2024-55591) |
 | `fortios_cve_2024_55591_jsconsole_admin_add.yml` | Sigma | administrator created from jsconsole |
 | `fortios_cve_2022_41328_hs20_icon_traversal.yml` | Sigma | hs20-icon upload with a traversal path - logged only when it fails (Mandiant) |
+| `fortios_forticloud_sso_admin_login.yml` | Sigma | administrator login through FortiCloud SSO (CVE-2025-59718, CVE-2026-24858) |
+| `fortios_sso_principal_admin_add.yml` | Sigma | local administrator created by an e-mail-form FortiCloud user (CVE-2026-24858) |
 
 ## Notes
 
