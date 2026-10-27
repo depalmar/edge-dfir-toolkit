@@ -54,8 +54,10 @@ Ordered by value. Effort figures are judgment, not measurement.
   hunts in `artifacts/hunts/` describe these by hand; the next step is an
   `ingest` mode that evaluates the simplest (syslog gap, device-sourced
   transfers) against exported data.
-- Indicators: the AA25-239A STIX bundle (403 on every fetch so far) and a
-  scheduled re-pull of the Volexity and Talos repositories.
+- Work through the deferred entries in `artifacts/watch/kev-watch.yml` (22 at
+  the first sweep, including CVE-2025-0282 and CVE-2025-22457 on Ivanti and
+  CVE-2025-0108 on PAN-OS): read the primary sources, then add a pack or record
+  the decision.
 - Clock-skew correction applied to every timeline row, using the V0 clock step.
 - Plaso / Timesketch export.
 - Evaluate the LLM brief against the fixture corpus before anyone relies on it.

@@ -248,3 +248,18 @@ def test_byline_credits_the_author_and_firm(browser, tmp_path):
     hrefs = page.locator(".byline a").evaluate_all("els => els.map(e => e.href)")
     assert hrefs == ["https://www.linkedin.com/in/raymond-depalma/", "https://www.linkedin.com/company/depalma-research"]
     assert "DePalma Research LLC" in page.locator("footer").inner_text()
+
+
+def test_unvalidated_collection_warning(browser, tmp_path):
+    url = _build(tmp_path)
+    page = browser.new_page()
+    page.goto(f"{url}#start")
+    assert "been run against a real device" in page.locator("#tab-start .warnbox").inner_text()
+    page.goto(f"{url}#plans/panos")
+    assert page.locator("#tab-plans .warnbox").is_visible()
+    assert "not yet run on a real device" in page.locator("#plan-panos .plan-h").inner_text()
+    assert "type UNVALIDATED" in page.locator("#b-sum").inner_text()
+    page.locator("#tab-plans .warnbox a").click()
+    page.wait_for_url("**#guide/unvalidated-profiles")
+    page.locator("#tab-guide").wait_for(state="visible")
+    page.locator("[id$='unvalidated-profiles']").first.wait_for(state="visible")

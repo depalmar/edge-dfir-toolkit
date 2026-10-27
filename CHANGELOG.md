@@ -1,5 +1,48 @@
 # Changelog
 
+## 0.8.0 - 2026-10-27
+
+### Unvalidated collection profiles are flagged everywhere
+No profile has been run against a real device or vendor virtual edition yet.
+- Each profile carries `validated_on: []`; an entry needs a release, date and
+  basis and a Device verification row in `docs/VERIFICATION.md`.
+- `plan` prints a warning; `profiles` marks every unvalidated profile.
+- A live `collect` asks the operator to type `UNVALIDATED`, or needs
+  `--accept-unvalidated` without a terminal. The check is in the engine, so no
+  front-end can skip it. Replays are not affected.
+- The manifest records the validation state, and `analyze` reports an
+  `unvalidated-profile` evidence gap.
+- README, the guide (new "Unvalidated profiles" section), the site's Start page
+  and Collection plans tab say the same. Each plan shows a "not yet run on a real
+  device" badge, and the command builder says the collector will ask.
+
+### Indicators
+- EDGE-IOC-0013: AA25-239A. 86 addresses (including the advisory's two IPv6
+  addresses) and the four SFTP-client hashes. Parsed from the joint advisory PDF
+  (IC3 copy) and cross-checked against CISA's page. Three addresses that the PDF
+  prints and CISA's current page does not are left out.
+- EDGE-IOC-0012: the three addresses Palo Alto Networks publishes for
+  CVE-2026-0322. The PAN-OS management-interface control now cites that advisory.
+- New indicator type `ipv6`: validated, defanged on the site, exported as STIX.
+
+### Advisory watch
+- `artifacts/scripts/advisory_watch.py` compares CISA's KEV catalog with the
+  packs and with a triage ledger (`artifacts/watch/kev-watch.yml`). It also
+  re-hashes the publisher files behind the indicator sets.
+- The weekly `advisory-watch` workflow posts anything untriaged to an issue. It
+  never commits.
+- The validator checks the ledger: references exist, and a CVE that gains a pack
+  must leave the ledger.
+- The first sweep seeded 22 KEV entries as `deferred`. Among them are Ivanti
+  CVE-2025-0282 and CVE-2025-22457 and PAN-OS CVE-2025-0108, which have no pack
+  yet.
+
+### Provenance rule
+- A government cyber authority's own publication now counts as documentation of
+  what it recommends (CLAUDE.md).
+- Four baseline hardening controls are restored to high after their sources were
+  re-read. Two of them lost wording that no source supported.
+
 ## 0.7.0 - 2026-10-23
 
 ### Source verification, round 3

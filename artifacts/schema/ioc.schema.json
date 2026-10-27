@@ -27,7 +27,7 @@
         "type": "object", "additionalProperties": false,
         "required": ["type", "value", "role", "context"],
         "properties": {
-          "type": {"enum": ["ipv4", "domain", "url", "sha256", "sha1", "md5", "ja3", "path", "account", "user-agent"]},
+          "type": {"enum": ["ipv4", "ipv6", "domain", "url", "sha256", "sha1", "md5", "ja3", "path", "account", "user-agent"]},
           "value": {"type": "string", "minLength": 1},
           "role": {"enum": ["actor-controlled", "compromised-infrastructure", "anonymiser", "multi-tenant", "suspected", "unknown"],
                    "description": "the publisher's own characterisation; unknown when it gives none"},

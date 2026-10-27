@@ -1,0 +1,56 @@
+name: advisory-watch
+
+# Weekly: compare CISA's KEV catalog with the packs and the triage ledger, and
+# re-hash the publisher files behind the indicator sets. The result goes to one
+# issue labelled advisory-watch. This job never commits: a person reads the
+# primary sources and lands a pack, an indicator set or a ledger decision
+# through a normal pull request, which the validate workflow gates.
+
+on:
+  schedule:
+    - cron: '17 13 * * 1'    # Mondays 13:17 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: advisory-watch
+  cancel-in-progress: false
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install
+        run: pip install pyyaml
+      - name: Compare KEV and upstream indicator files
+        id: watch
+        run: |
+          set +e
+          python artifacts/scripts/advisory_watch.py --upstream --draft --out report.md > /dev/null
+          code=$?
+          set -e
+          if [ "$code" -eq 1 ]; then exit 1; fi
+          echo "needs_triage=$([ "$code" -eq 10 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          cat report.md >> "$GITHUB_STEP_SUMMARY"
+      - name: Open or update the advisory-watch issue
+        if: steps.watch.outputs.needs_triage == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh label create advisory-watch --color B60205 \
+            --description "KEV or upstream indicator change awaiting triage" 2>/dev/null || true
+          num=$(gh issue list --label advisory-watch --state open --json number --jq '.[0].number')
+          if [ -n "$num" ]; then
+            gh issue edit "$num" --body-file report.md
+            gh issue comment "$num" --body "Re-run $(date -u +%Y-%m-%d): report updated in the issue body."
+          else
+            gh issue create --title "Advisory watch: exploited CVEs or indicator files need triage" \
+              --label advisory-watch --body-file report.md
+          fi

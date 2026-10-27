@@ -21,6 +21,7 @@ from .analyze import analyze
 from .checks.generic import load_baseline
 from .collect import CollectionRefused, collect, plan
 from .custody import Case
+from .notice import replay_note, unvalidated_notice
 from .profiles import ProfileError, available_profiles, get_profile, load_profile
 from .report_extras import build_brief, build_timeline
 from .transport import ReplayTransport, SSHTransport, TransportError
@@ -39,12 +40,15 @@ def _vars(pairs: list[str] | None) -> dict[str, str]:
 def cmd_profiles(_a) -> int:
     for name, path in available_profiles().items():
         p = load_profile(path)
-        print(f"{name:<12} {p.platform_id}  {p.display}  ({len(p.steps)} steps)")
+        mark = "" if p.validated else "  [not yet run on a real device]"
+        print(f"{name:<12} {p.platform_id}  {p.display}  ({len(p.steps)} steps){mark}")
     return 0
 
 
 def cmd_plan(a) -> int:
     prof = get_profile(a.profile)
+    if not prof.validated:
+        print(unvalidated_notice(prof), file=sys.stderr)
     print(f"# {prof.display} - order of volatility\n")
     for s, skip in plan(prof, a.allow_bundle, a.break_glass, _vars(a.var)):
         what = s.cmd or s.list_cmd or "(manual)"
@@ -74,6 +78,21 @@ def cmd_collect(a) -> int:
                                  prompt=prof.prompt, pager=prof.pager, hostkey_sha256=a.hostkey_sha256)
         target = {"host": a.host, "port": a.port, "user": a.user}
 
+    accept = False
+    if not prof.validated:
+        if a.replay:
+            print(replay_note(prof), file=sys.stderr)
+        else:
+            print(unvalidated_notice(prof), file=sys.stderr)
+            if a.accept_unvalidated:
+                accept = True
+            elif sys.stdin.isatty():
+                accept = input("Type UNVALIDATED to collect from this device anyway: ").strip() == "UNVALIDATED"
+            if not accept:
+                print("[!] not collected: unvalidated profile not acknowledged "
+                      "(type UNVALIDATED, or pass --accept-unvalidated)", file=sys.stderr)
+                return 2
+
     def confirm(msg: str) -> bool:
         if a.yes:
             return True
@@ -86,7 +105,7 @@ def cmd_collect(a) -> int:
                     preflight={"rebooted_since_incident": a.rebooted, "patched_since_incident": a.patched,
                                "notes": a.notes or ""},
                     variables=_vars(a.var), allow_bundle=a.allow_bundle, break_glass=a.break_glass,
-                    confirm=confirm)
+                    confirm=confirm, accept_unvalidated=accept)
     except (CollectionRefused, TransportError, ProfileError) as e:
         print(f"[!] {e}", file=sys.stderr)
         return 2
@@ -177,6 +196,9 @@ def build_parser() -> argparse.ArgumentParser:
     c.add_argument("--allow-bundle", action="store_true", help="permit vendor diagnostic bundles (writes a temp file on the device)")
     c.add_argument("--break-glass", action="store_true", help="include break-glass steps (core dumps, imaging); runs last")
     c.add_argument("--yes", action="store_true", help="skip the break-glass confirmation prompt")
+    c.add_argument("--accept-unvalidated", action="store_true",
+                   help="collect from a live device with a profile that has not been validated on a real device "
+                        "(none has yet); without it you are asked to type UNVALIDATED")
     c.add_argument("--rebooted", choices=["yes", "no", "unknown"], default="unknown",
                    help="has the device rebooted since the suspected incident?")
     c.add_argument("--patched", choices=["yes", "no", "unknown"], default="unknown",

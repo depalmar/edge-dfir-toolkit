@@ -31,7 +31,8 @@ def plan(profile: Profile, allow_bundle: bool, break_glass: bool,
 def collect(profile: Profile, transport: Transport, case: Case, *, case_id: str,
             operator: str | None, target: dict[str, Any], preflight: dict[str, str],
             variables: dict[str, str], allow_bundle: bool = False, break_glass: bool = False,
-            confirm: Callable[[str], bool] | None = None) -> dict[str, Any]:
+            confirm: Callable[[str], bool] | None = None,
+            accept_unvalidated: bool = False) -> dict[str, Any]:
     if case.exists():
         raise CollectionRefused(f"case already exists: {case.root} (use a new --case-id)")
 
@@ -44,11 +45,22 @@ def collect(profile: Profile, transport: Transport, case: Case, *, case_id: str,
                 "after all volatile state is recorded."):
             raise CollectionRefused("break-glass not confirmed")
 
+    # A profile nobody has run on a real device must not reach one silently. The
+    # check lives here, not in the CLI, so no other front-end can skip it.
+    live = transport.name != "replay"
+    if live and not profile.validated and not accept_unvalidated:
+        raise CollectionRefused(
+            f"profile {profile.name} has not been validated on a real device; "
+            "review it with 'plan', try it on a lab or virtual edition, then pass "
+            "--accept-unvalidated to collect from a live device")
+
     m = Case.new_manifest(case_id, operator, profile.platform_id, profile.name)
     m.update({
         "profile_sha256": sha256_file(profile.source) if profile.source else None,
         "target": {**target, "transport": transport.name},
         "preflight": preflight,
+        "profile_validation": {"validated_on": profile.validated_on,
+                               "unvalidated_accepted": bool(live and not profile.validated)},
         "options": {"allow_bundle": allow_bundle, "break_glass": break_glass,
                     "variables": sorted(variables)},   # names only; values may be paths/hosts
         "expected_evidence": profile.expected_evidence,

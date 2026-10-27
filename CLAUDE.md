@@ -31,6 +31,7 @@ python -m edgetriage analyze cases/X [--baseline b.json] [--window-start ISO]
 python artifacts/scripts/build_site.py --check   # site data contract, writes nothing
 python artifacts/scripts/build_site.py           # docs/site/index.html (CI does this; never commit it)
 python artifacts/scripts/mappings.py [--check]   # MAPPINGS.md is generated
+python artifacts/scripts/advisory_watch.py [--kev f.json] [--upstream] [--draft]   # KEV vs packs; reports, never edits
 sigma convert -t lucene --without-pipeline 01-panos-globalprotect/*.yml   # syntax gate only
 ```
 
@@ -63,7 +64,13 @@ and the report always carries the standing gap about on-box tampering.
 
 **Confidence reflects provenance.** `high` = vendor-documented or verified on a
 device; `medium` = multiple independent sources; `low` = single-source or
-inferred and **must** carry `unverified: true`. This applies to profile steps
+inferred and **must** carry `unverified: true`. A government cyber authority's
+own publication (CISA, NSA, FBI, NCSC-UK, ASD's ACSC, CCCS, NCSC-NL, AIVD/MIVD,
+and joint advisories they sign) is documentation of what that authority
+recommends or reports: a hardening control or playbook step it states verbatim
+is `high` on that one source, provided the `how` adds nothing the sources do
+not say. It documents a vendor's CLI syntax, log format or file path only where
+it prints them. This applies to profile steps
 too: a CLI command nobody has run on a real device is not `high`. The FortiOS
 SSL-VPN language directory is supplied by the operator because its path is not
 confirmed; do not hard-code a guess.
@@ -118,6 +125,14 @@ the device's owner keeps elsewhere (NetFlow, SIEM, AAA accounting, identity,
 proxies). Each quotes its source; a quote that came through a summarising fetch
 is `read: summariser`, and a hunt resting only on such quotes is `unverified`.
 The analyzer never runs hunts. No vendor query dialect in hunts either.
+
+**Exploited CVEs are triaged, not ignored.** `artifacts/watch/kev-watch.yml`
+holds the KEV-to-platform mapping and a ledger: every KEV entry on a watched
+platform since `since` is in a pack's `cves` or has a decision (`iocs`,
+`no-indicators`, `out-of-scope`, `deferred`) with a date and basis. The weekly
+`advisory-watch` workflow opens an issue for anything else and for changed
+upstream indicator files; it never commits. `deferred` means not yet read -
+never use it for a decision you made. A CVE that gains a pack leaves the ledger.
 
 ## Threat intel and response rules
 

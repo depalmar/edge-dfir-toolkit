@@ -564,7 +564,7 @@ No issue was rejected for missing evidence: every HIGH item was re-read (Volexit
 | B20 (part) off-box web-log detection for welcome.cgi + X-DSCGI-PATH | Not applied: needs a proxy log with request headers and no published field format; stated as uncovered in the pack and actor notes. |
 | B24 (part) log_regex for SYS32039/SYS32040; statedump/core artifacts | Event IDs recorded in catalog and profile; no detection added (PACK-0007 is scoped to web logs) and the GTIG statedump/core items were not re-read. Follow-up. |
 | B37 (part) add SPAWNWAVE/SPAWNSNARE | Optional ("if desired"); not added. |
-| F18 (policy) whether government directives count as "documented" for high | Not decided here; the four single-source controls were set to medium. Main session to settle in CLAUDE.md. |
+| F18 (policy) whether government directives count as "documented" for high | Not decided here; the four single-source controls were set to medium. Main session to settle in CLAUDE.md. **Settled 2026-10-27** (below). |
 | F23 (part) RayDetect claim | Finding says it was not verified; left unchanged. |
 
 #### Follow-ups for the main session
@@ -575,6 +575,48 @@ No issue was rejected for missing evidence: every HIGH item was re-read (Volexit
 - UTA0178 has no profile of its own; Volexity's UTA0178 IOC set and the 2024 web shells stay linked to EDGE-TA-0002 with a note. A separate EDGE-TA profile for UTA0178 (Volexity) would match the "never merge" rule more cleanly.
 - EDGE-TA-0007 still lists Salt Typhoon, OPERATOR PANDA, RedMike, UNC5807 and GhostEmperor as aliases on the strength of "partially overlaps"; not in these findings, but the same rule applies.
 - tests/test_site.py: no hunt quote is read: summariser any more, so the drawer flag is no longer exercised by real data (assertion flipped for EDGE-HUNT-0010).
+
+## 2026-10-27 - indicators, advisory sweep and the government-source rule
+
+### AA25-239A indicators (EDGE-IOC-0013)
+CISA's STIX bundle returns 403 to the workspace, so the set is parsed from the
+joint advisory PDF as published by IC3 (`https://www.ic3.gov/CSA/2025/250827.pdf`,
+sha256 `1d0619d9…5e40`, identical on 2026-10-22 and 2026-10-27). Table cells wrap
+in the PDF, so values were joined by page geometry and each joined value checked
+against CISA's HTML rendering of the same table.
+
+| Item | Finding | Decision | Basis |
+|---|---|---|---|
+| Two wrapped IPv6 cells | Joined to `2001:41d0:700:65dc::f656:929f` and `2a10:1fc0:7::f19c:39b3` | Loaded | CISA HTML Table 3 prints both whole |
+| Four wrapped SHA-256 cells (cmd3, cmd1, new2, sft) | Joined to 64 hex characters each | Loaded | CISA HTML Tables 4-7 print the same values |
+| `146.70.79.78`, `193.56.255.209`, `45.61.134.22` | Printed in the PDF (stamped Ver. 1.1) but absent from CISA's live Table 3 | Left out | CISA version history: "3 September 2025, v1.1: ... one IP correction and two removals"; the HTML is the current text |
+| Roles | The advisory calls the addresses "APT-associated" and never says which the actors own | `unknown` for every address; `actor-controlled` for the SFTP client hashes ("The APT actors also use a custom SFTP client") | Indicators rule in CLAUDE.md |
+
+### Advisory sweep since round 3 (KEV 2026.10.21 to 2026.10.26)
+
+| Item | Finding | Decision | Basis |
+|---|---|---|---|
+| KEV additions 2026-10-21 to 2026-10-26 | Four entries (PHP x2, Arista VeloCloud, Collabora) | None on a watched platform | KEV catalog 2026.10.26 |
+| CVE-2026-0322 (PAN-OS management interface RCE, KEV 2026-10-14) | Not in any pack; vendor publishes three addresses and no host indicator | EDGE-IOC-0012; added to `panos-mgmt-trusted-ips` blunts | Palo Alto Networks: "the following IP addresses have been associated with threat activity and limited exploit attempts targeting this vulnerability"; "The security risk posed by this issue is minimized by restricting access to the management interface to only trusted internal IP addresses" |
+| CVE-2026-0257 ransomware reporting (Help Net Security, 2026-10-21) | Press summary of Unit 42's 19 October update naming Qilin and Inc | No change: EDGE-PACK-0025 already cites the Unit 42 brief with both names | Unit 42 threat brief (already referenced) |
+| ReliaQuest note on GlobalProtect sessions with host names such as "kali" | Seen only through a press summary | Not added; follow-up against ReliaQuest's own post | Help Net Security (secondary) |
+| Ivanti CVE-2026-104935, Juniper AV26-1043, Cisco IOS XE August advisories | Already covered (EDGE-PACK-0026) / no exploitation stated / no exploitation stated | No change | CCCS AV26-1043; Cisco via ThreatCluster: "No active exploitation" |
+| 22 older KEV entries on watched platforms with no pack | Never triaged one by one | Recorded as `deferred` in `artifacts/watch/kev-watch.yml` | Ledger rule in CLAUDE.md |
+
+### Government guidance counts as documentation (F18 settled)
+A government cyber authority's own publication documents what that authority
+recommends; CLAUDE.md's confidence rule now says so. Re-read on the live pages
+before restoring:
+
+| Item | Was | Now | Basis |
+|---|---|---|---|
+| base-separate-pep | medium | high | CISA BOD 23-02 implementation guidance: "The policy enforcement should be separate from the device itself" |
+| base-segregate-from-ad | medium, one quote | high, PAM quote added | ASD: "Edge devices that use local accounts should be managed through a Privileged Access Management (PAM) system or secrets manager." |
+| base-default-creds | medium; "prefer products that make you create one" and "note it in procurement" unsourced | high; unsourced parts removed | ASD and CCCS quotes already on the control |
+| base-procure-forensics | medium; "make the specification a procurement requirement", no quote | high; NCSC's softer wording | NCSC-UK: "Network defenders are encouraged to consider these features when selecting new physical and virtual network devices." |
+
+The other seven baseline controls stay medium; they were not re-scored under
+the new rule in this pass.
 
 ## Device verification
 

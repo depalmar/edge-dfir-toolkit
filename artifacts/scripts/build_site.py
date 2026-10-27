@@ -323,7 +323,7 @@ def build_data(d: dict) -> dict:
 
     return {"platforms": platforms, "artifacts": artifacts, "detections": dets, "packs": packs, "rules": rules,
             "intel": intel, "iocs": iocs, "hardening": hard, "hunts": hunts, "facetKeys": FACET_KEYS, "repo": REPO_URL,
-            "profiles": [{"name": p.name, "ssh": "ssh" in p.transports,
+            "profiles": [{"name": p.name, "ssh": "ssh" in p.transports, "validated": bool(p.validated_on),
                           "vars": sorted({v for s in p.steps for v in s.requires_vars})} for p in d["profiles"]]}
 
 
@@ -525,6 +525,31 @@ def lib_panel(name: str, n_unv: int, rows: bool) -> str:
 </section>'''
 
 
+def validation_badge(p) -> str:
+    if p.validated_on:
+        runs = "; ".join(f'{v.get("release", "")} ({v.get("date", "")})' for v in p.validated_on)
+        return f'<span class="badge conf c-high" title="{e(runs)}">run on a device</span>'
+    return ('<span class="badge unv-b" title="No command in this profile has been run against a real device '
+            'or a vendor virtual edition">not yet run on a real device</span>')
+
+
+def unvalidated_banner(d: dict) -> str:
+    """The collection profiles were written from vendor documentation and checked against
+    synthetic replays only. Say so wherever someone might copy a command."""
+    unval = [p for p in d["profiles"] if not p.validated_on]
+    if not unval:
+        return ""
+    which = ("None of the collection profiles has" if len(unval) == len(d["profiles"])
+             else f'{len(unval)} of {len(d["profiles"])} collection profiles have not')
+    return (f'<div class="warnbox" role="note"><b>{which} been run against a real device or a vendor virtual '
+            'edition yet.</b> Every command comes from vendor documentation and was checked only against '
+            'synthetic replays. A command can fail, prompt, page differently or print a format the parsers do '
+            'not recognise; the analyzer reports that as <i>not evaluated</i>, never as clean. Try a profile on a '
+            'lab device or virtual edition first, read <code>plan</code> before you <code>collect</code>, and expect '
+            'the collector to ask you to type <code>UNVALIDATED</code> (or pass <code>--accept-unvalidated</code>) '
+            'before it connects. Report what you find - <a href="#guide/unvalidated-profiles">how to record a run</a>.</div>')
+
+
 def render_plans(d: dict) -> str:
     picker, sections = [], []
     for i, p in enumerate(d["profiles"]):
@@ -548,7 +573,7 @@ def render_plans(d: dict) -> str:
             groups.append(f'<tr class="tierrow"><th colspan="4"><span class="tchip">{e(tier)}</span> {e(TIER_LABEL[tier])} <span class="muted">- {e(TIER_CLASS[tier])}</span></th></tr>' + "".join(rows))
         sections.append(f'''
 <section class="plan" data-profile="{e(p.name)}" id="plan-{e(p.name)}"{'' if i == 0 else ' hidden'}>
-  <div class="plan-h"><div><span class="id">{e(p.platform_id)}</span> <h3>{e(p.display)}</h3></div>
+  <div class="plan-h"><div><span class="id">{e(p.platform_id)}</span> <h3>{e(p.display)}</h3> {validation_badge(p)}</div>
     <div class="links"><a class="chip link" href="#platforms/{e(p.platform_id)}">platform entry</a><a class="chip link" href="#artifacts?platform={e(p.platform_id)}">artifacts</a></div></div>
   <details class="guard"><summary>Read-only guard</summary>
     <div class="cols"><div><h4>Allow</h4>{chips(p.allow, 'chip code')}</div><div><h4>Deny</h4>{chips(p.deny, 'chip code')}</div>
@@ -574,6 +599,7 @@ def render_plans(d: dict) -> str:
   <div class="muted" id="b-sum"></div>
 </aside>'''
     return f'''<div class="lhead"><h2>Collection plans</h2><p class="lede">Every profile in order of volatility. Bundle and break-glass rows stay greyed out until you allow them in the builder, exactly as the collector behaves.</p></div>
+{unvalidated_banner(d)}
 <div class="picker">{"".join(picker)}</div>
 <div class="planwrap"><div class="plans">{"".join(sections)}</div>{builder}</div>'''
 
@@ -780,6 +806,7 @@ def render_start(d: dict, data: dict) -> str:
         "the report can claim.</li>",
         "<li><b>Use a read-only account</b> where the platform has one, and pin the host key.</li>",
         "</ol></div>",
+        unvalidated_banner(d),
 
         '<h3 class="sect">3. How a triage runs</h3>',
         f'<ol class="flowd" aria-label="Triage workflow">{flow}</ol>',
@@ -1394,6 +1421,7 @@ p code,li code,dd code,.desc code,td code{font-size:.9em;background:var(--code-b
 .ptile .n{color:var(--faint);font-size:var(--fs-xs)}
 .startcols{display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:8px 28px}
 .callout{background:var(--alert-bg);border:1px solid var(--line-soft);border-left:3px solid var(--crit);border-radius:10px;padding:12px 16px;color:var(--ink)}
+.warnbox{background:var(--alert-bg);border:1px solid var(--line-soft);border-left:3px solid var(--crit);border-radius:10px;padding:10px 14px;margin:12px 0;font-size:var(--fs-sm);line-height:1.55;color:var(--ink)}
 .callout ol{margin:0;padding-left:20px}.callout li{margin:6px 0;line-height:1.55}
 .flow{margin:0;padding-left:22px}.flow li{margin:0 0 12px;line-height:1.55}
 .flow code{display:block;margin:6px 0;background:var(--code-bg);border:1px solid var(--line-soft);border-radius:7px;padding:7px 10px;font-size:var(--fs-sm);word-break:break-word}
@@ -1537,6 +1565,7 @@ var ROLE = {'actor-controlled':'actor-controlled', 'compromised-infrastructure':
   'multi-tenant':'shared infrastructure', suspected:'suspected', unknown:'role not stated'};
 function defang(t, v){
   if (t === 'ipv4' || t === 'domain') return v.replace(/\./g, '[.]');
+  if (t === 'ipv6') return v.replace(/:/g, '[:]');
   if (t === 'url') return v.replace(/^http/i, 'hxxp').replace(/\./g, '[.]');
   return v;
 }
@@ -1551,6 +1580,7 @@ function stixPattern(t, v){
   var q = "'" + v.replace(/\\/g, '\\\\').replace(/'/g, "\\'") + "'";
   switch (t){
     case 'ipv4': return '[ipv4-addr:value = ' + q + ']';
+    case 'ipv6': return '[ipv6-addr:value = ' + q + ']';
     case 'domain': return '[domain-name:value = ' + q + ']';
     case 'url': return '[url:value = ' + q + ']';
     case 'sha256': return "[file:hashes.'SHA-256' = " + q + ']';
@@ -1617,7 +1647,7 @@ function intelCharts(){
       return '<td>' + (on ? '<span class="amd" title="' + esc(a.name + ' on ' + PN[p] + (n ? ': ' + n + ' implant record(s)' : '')) + '">' + (n || '') + '</span>' : '') + '</td>'; }).join('') + '</tr>'; }).join('') +
     '</tbody></table></div><p class="muted small">A dot is a platform the actor record names; the number is implant records on it.</p>';
   /* 4. what published indicators are */
-  var rc = {}, tot = 0; D.iocs.forEach(function(s){ s.ind.forEach(function(i){ if (i[0] === 'ipv4' || i[0] === 'domain'){ rc[i[2]] = (rc[i[2]] || 0) + 1; tot++; } }); });
+  var rc = {}, tot = 0; D.iocs.forEach(function(s){ s.ind.forEach(function(i){ if (i[0] === 'ipv4' || i[0] === 'ipv6' || i[0] === 'domain'){ rc[i[2]] = (rc[i[2]] || 0) + 1; tot++; } }); });
   var own = rc['actor-controlled'] || 0;
   var ioc = '<h4>Published addresses and domains, by the publisher\'s own label</h4>' + bar(Object.keys(ROLE).map(function(k){ return [ROLE[k], rc[k] || 0, 'role-' + k]; })) +
     '<div class="links" style="margin:8px 0 0">' + Object.keys(ROLE).filter(function(k){ return rc[k]; }).map(function(k){ return '<span class="chip role role-' + k + '">' + rc[k] + ' ' + esc(ROLE[k]) + '</span>'; }).join('') + '</div>' +
@@ -2459,7 +2489,8 @@ function build(){
     var imp = r.dataset.impact, on = imp === 'none' || (imp === 'vendor-bundle' && (bundle || bg)) || (imp === 'break-glass' && bg);
     r.classList.toggle('off', !on); if (on) n++; else off++;
   });
-  $('b-sum').textContent = n + ' step(s) will run' + (off ? ', ' + off + ' withheld' : '') + '.';
+  $('b-sum').textContent = n + ' step(s) will run' + (off ? ', ' + off + ' withheld' : '') + '.'
+    + (p.validated ? '' : ' This profile has not been run on a real device: the collector will ask you to type UNVALIDATED before it connects.');
 }
 ['b-case','b-host','b-user','b-op','b-reboot','b-patch','b-bundle','b-bg'].forEach(function(id){
   var el = $(id); el.addEventListener('input', build); el.addEventListener('change', build); });

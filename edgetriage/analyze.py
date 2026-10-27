@@ -166,6 +166,12 @@ def evidence_gaps(view: EvidenceView, results: list[dict[str, Any]],
             gaps.append({"kind": "log-retention",
                          "detail": f"earliest on-box log line {earliest or 'n/a'} is after the window start {window_start}; use off-box copies"})
     gaps.append({"kind": "standing", "detail": "on-box evidence on a compromised appliance may be tampered with; corroborate with off-box telemetry (SIEM, NetFlow, IdP, AD)"})
+    pv = m.get("profile_validation")   # absent in cases collected before 0.8.0
+    if pv is not None and not pv.get("validated_on"):
+        gaps.append({"kind": "unvalidated-profile",
+                     "detail": "the collection profile has not been run against a real device or vendor virtual edition; "
+                               "a command that failed or returned an unexpected format shows as 'not evaluated', so read "
+                               "the step statuses in manifest.json before relying on any absence"})
     return gaps
 
 

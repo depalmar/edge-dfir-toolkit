@@ -1,0 +1,181 @@
+# Advisory watch - read by artifacts/scripts/advisory_watch.py and gated by validate.py.
+# Schema: ../schema/watch.schema.json
+#
+# Every KEV entry on a watched platform added on or after `since` is either
+# covered by a pack (its CVE is in the pack's `cves`) or has a decision below.
+# The weekly workflow reports anything else as new. Nothing is added to the
+# repository automatically: a person reads the primary sources and records the
+# outcome here or as a pack / indicator set.
+
+kev_url: https://raw.githubusercontent.com/cisagov/kev-data/main/known_exploited_vulnerabilities.json
+
+# Entries added to KEV before this date are not reported. They were never
+# triaged one by one; coverage of older CVEs is whatever the packs already have.
+since: '2024-01-01'
+
+# Regexes are searched in KEV's own vendorProject and product strings.
+platforms:
+  EDGE-0001: {vendor: '^Palo Alto Networks$', product: '^PAN-OS'}
+  EDGE-0002: {vendor: '^Fortinet$', product: 'FortiOS|FortiProxy|Multiple Products'}
+  EDGE-0003: {vendor: '^(Ivanti|Pulse Secure)$', product: 'Connect Secure|Policy Secure'}
+  EDGE-0004: {vendor: '^Citrix$', product: 'NetScaler|Application Delivery Controller', exclude: '^NetScaler SD-WAN Enterprise'}
+  EDGE-0005: {vendor: '^Cisco$', product: 'Adaptive Security Appliance|\(ASA\)|Firepower Threat Defense'}
+  EDGE-0006: {vendor: '^SonicWall$', product: 'SMA ?100(?!0)'}
+  EDGE-0007: {vendor: '^Check Point$', product: 'Gateway|Multiple Products'}
+  EDGE-0008: {vendor: '^Juniper$', product: 'Junos'}
+  EDGE-0009: {vendor: '^Cisco$', product: 'IOS XE|IOS and IOS XE|IOS, (IOS )?XR, and (IOS )?XE|IOS Software and Cisco IOS XE'}
+  EDGE-0010: {vendor: '^F5$', product: 'BIG-IP'}
+
+# sha256 of each publisher file as it was parsed (checked 2026-10-27 against the
+# copies the indicator sets were built from). A change means re-parse and re-validate.
+upstream:
+  EDGE-IOC-0001: d73094b451db924c7faed7095c1096a3c4522408c8807e1553b7e0d6c4cc2754
+  EDGE-IOC-0002: df674c52047f03739a1e455edf6e24d852e399d3ad9de6df4680163204a4dccb
+  EDGE-IOC-0003: d730f25b110e4fb7019eefd1458f84ee96523f81b4a0b8d849e8c801df2dca81
+  EDGE-IOC-0004: 1205e54135dbdf9556287f66d46a0dd0ddc67ef4fec36695dc4fd941a47b65da
+  EDGE-IOC-0005: dbd18784d78708a3a17db67f0414c521c59bb55e1c91def63804ecd4cf755666
+  EDGE-IOC-0006: 6d3b2a1f21483ab914fa6f166d738004aded96a8769186068c2c23c61f87b40d
+  EDGE-IOC-0009: efb7f9c65888fc9fb4724d8404dbd1df39e1964d3f0efb63019701ce95665307
+  EDGE-IOC-0013: 1d0619d9908ee7b0a4dcf13ff24762643d4ab2844559fbd2eb562c03435f5e40
+
+triaged:
+  - cve: CVE-2025-61624
+    platform: EDGE-0002
+    decision: deferred
+    date: '2026-10-27'
+    basis: KEV-listed with no pack; not yet triaged against the vendor advisory and the publications it cites (seeded
+      by the first sweep).
+  - cve: CVE-2026-0322
+    platform: EDGE-0001
+    decision: iocs
+    refs:
+    - EDGE-IOC-0012
+    date: '2026-10-27'
+    basis: Palo Alto Networks' advisory publishes three addresses tied to exploit attempts and no host-side indicator,
+      so there is no on-box detection to add; the management-interface hardening control now cites it.
+  - cve: CVE-2026-19490
+    platform: EDGE-0004
+    decision: deferred
+    date: '2026-10-27'
+    basis: KEV-listed with no pack; not yet triaged against the vendor advisory and the publications it cites (seeded
+      by the first sweep).
+  - cve: CVE-2025-25249
+    platform: EDGE-0002
+    decision: deferred
+    date: '2026-10-27'
+    basis: KEV-listed with no pack; not yet triaged against the vendor advisory and the publications it cites (seeded
+      by the first sweep).
+  - cve: CVE-2026-8452
+    platform: EDGE-0004
+    decision: deferred
+    date: '2026-10-27'
+    basis: KEV-listed with no pack; not yet triaged against the vendor advisory and the publications it cites (seeded
+      by the first sweep).
+  - cve: CVE-2026-20349
+    platform: EDGE-0005
+    decision: deferred
+    date: '2026-10-27'
+    basis: KEV-listed with no pack; not yet triaged against the vendor advisory and the publications it cites (seeded
+      by the first sweep).
+  - cve: CVE-2025-68686
+    platform: EDGE-0002
+    decision: deferred
+    date: '2026-10-27'
+    basis: KEV-listed with no pack; not yet triaged against the vendor advisory and the publications it cites (seeded
+      by the first sweep).
+  - cve: CVE-2026-3055
+    platform: EDGE-0004
+    decision: deferred
+    date: '2026-10-27'
+    basis: KEV-listed with no pack; not yet triaged against the vendor advisory and the publications it cites (seeded
+      by the first sweep).
+  - cve: CVE-2026-24858
+    platform: EDGE-0002
+    decision: deferred
+    date: '2026-10-27'
+    basis: KEV-listed with no pack; not yet triaged against the vendor advisory and the publications it cites (seeded
+      by the first sweep).
+  - cve: CVE-2025-59718
+    platform: EDGE-0002
+    decision: deferred
+    date: '2026-10-27'
+    basis: KEV-listed with no pack; not yet triaged against the vendor advisory and the publications it cites (seeded
+      by the first sweep).
+  - cve: CVE-2019-6693
+    platform: EDGE-0002
+    decision: deferred
+    date: '2026-10-27'
+    basis: KEV-listed with no pack; not yet triaged against the vendor advisory and the publications it cites (seeded
+      by the first sweep).
+  - cve: CVE-2025-32756
+    platform: EDGE-0002
+    decision: deferred
+    date: '2026-10-27'
+    basis: KEV-listed with no pack; not yet triaged against the vendor advisory and the publications it cites (seeded
+      by the first sweep).
+  - cve: CVE-2025-22457
+    platform: EDGE-0003
+    decision: deferred
+    date: '2026-10-27'
+    basis: KEV-listed with no pack; not yet triaged against the vendor advisory and the publications it cites (seeded
+      by the first sweep).
+  - cve: CVE-2025-0111
+    platform: EDGE-0001
+    decision: deferred
+    date: '2026-10-27'
+    basis: KEV-listed with no pack; not yet triaged against the vendor advisory and the publications it cites (seeded
+      by the first sweep).
+  - cve: CVE-2025-0108
+    platform: EDGE-0001
+    decision: deferred
+    date: '2026-10-27'
+    basis: KEV-listed with no pack; not yet triaged against the vendor advisory and the publications it cites (seeded
+      by the first sweep).
+  - cve: CVE-2025-0282
+    platform: EDGE-0003
+    decision: deferred
+    date: '2026-10-27'
+    basis: KEV-listed with no pack; not yet triaged against the vendor advisory and the publications it cites (seeded
+      by the first sweep).
+  - cve: CVE-2024-3393
+    platform: EDGE-0001
+    decision: deferred
+    date: '2026-10-27'
+    basis: KEV-listed with no pack; not yet triaged against the vendor advisory and the publications it cites (seeded
+      by the first sweep).
+  - cve: CVE-2014-2120
+    platform: EDGE-0005
+    decision: deferred
+    date: '2026-10-27'
+    basis: KEV-listed with no pack; not yet triaged against the vendor advisory and the publications it cites (seeded
+      by the first sweep).
+  - cve: CVE-2024-23113
+    platform: EDGE-0002
+    decision: deferred
+    date: '2026-10-27'
+    basis: KEV-listed with no pack; not yet triaged against the vendor advisory and the publications it cites (seeded
+      by the first sweep).
+  - cve: CVE-2020-3259
+    platform: EDGE-0005
+    decision: deferred
+    date: '2026-10-27'
+    basis: KEV-listed with no pack; not yet triaged against the vendor advisory and the publications it cites (seeded
+      by the first sweep).
+  - cve: CVE-2024-21893
+    platform: EDGE-0003
+    decision: deferred
+    date: '2026-10-27'
+    basis: KEV-listed with no pack; not yet triaged against the vendor advisory and the publications it cites (seeded
+      by the first sweep).
+  - cve: CVE-2023-6549
+    platform: EDGE-0004
+    decision: deferred
+    date: '2026-10-27'
+    basis: KEV-listed with no pack; not yet triaged against the vendor advisory and the publications it cites (seeded
+      by the first sweep).
+  - cve: CVE-2023-6548
+    platform: EDGE-0004
+    decision: deferred
+    date: '2026-10-27'
+    basis: KEV-listed with no pack; not yet triaged against the vendor advisory and the publications it cites (seeded
+      by the first sweep).

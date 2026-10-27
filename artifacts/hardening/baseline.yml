@@ -57,7 +57,7 @@ controls:
       A zero-trust access proxy or SASE private-access service in front of the
       interface, as the implementation guidance describes; the interface itself
       stays unreachable from the internet.
-    confidence: medium
+    confidence: high
     sources:
       - title: CISA BOD 23-02 implementation guidance
         url: https://www.cisa.gov/news-events/directives/bod-23-02-implementation-guidance-mitigating-risk-internet-exposed-management-interfaces
@@ -101,12 +101,16 @@ controls:
       A separate identity store for device administration; local break-glass
       accounts held in a privileged access management system or secrets manager;
       no credential reused across devices.
-    confidence: medium
+    confidence: high
     sources:
       - title: ASD's ACSC - mitigation strategies for edge devices, practitioner guidance
         url: https://www.cyber.gov.au/publication/mitigation-strategies-for-edge-devices-practitioner-guidance
         accessed: "2026-10-22"
         quote: "it is critical to segregate edge devices from an organisation's corporate AD forest"
+      - title: ASD's ACSC - mitigation strategies for edge devices, practitioner guidance (local credentials)
+        url: https://www.cyber.gov.au/publication/mitigation-strategies-for-edge-devices-practitioner-guidance
+        accessed: "2026-10-27"
+        quote: "Edge devices that use local accounts should be managed through a Privileged Access Management (PAM) system or secrets manager."
 
   - id: base-logs-offbox
     control: Forward logs off the device in real time to a store the device cannot change
@@ -234,12 +238,12 @@ controls:
         quote: "Deactivate any functionality that is not required."
 
   - id: base-default-creds
-    control: Change every default credential, and prefer products that make you create one
+    control: Change every default credential
     category: identity
     priority: high
     why: Default and pre-configured accounts are the first thing scanned for.
-    how: Change or remove default and pre-configured accounts at deployment; note it in procurement.
-    confidence: medium
+    how: Change or remove default and pre-configured accounts at deployment.
+    confidence: high
     sources:
       - title: ASD's ACSC - mitigation strategies for edge devices, practitioner guidance
         url: https://www.cyber.gov.au/publication/mitigation-strategies-for-edge-devices-practitioner-guidance
@@ -279,11 +283,14 @@ controls:
       own state. NCSC-UK's specification asks producers for near-real-time log
       transfer over TLS, logging of any attempt to clear or rotate logs,
       configuration-hash heartbeats and volatile collection of running state.
-    how: Make the NCSC-UK specification a procurement requirement for edge devices.
-    confidence: medium
+    how: >-
+      Weigh the NCSC-UK specification's features when selecting new physical or
+      virtual edge devices.
+    confidence: high
     sources:
       - title: NCSC-UK - digital forensics and protective monitoring specifications for producers of network devices and appliances
         url: https://www.ncsc.gov.uk/guidance/guidance-on-digital-forensics-protective-monitoring
-        accessed: "2026-10-22"
+        accessed: "2026-10-27"
+        quote: "Network defenders are encouraged to consider these features when selecting new physical and virtual network devices."
 
-last_modified: "2026-10-23"
+last_modified: "2026-10-27"

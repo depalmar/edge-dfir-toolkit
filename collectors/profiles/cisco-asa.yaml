@@ -37,6 +37,12 @@ cli:
 
 expected_evidence: [identity, memory, process, sessions, config, system-logs, persistence]
 
+# Runs of this profile against a real device or a vendor virtual edition, each
+# {release, date, basis}. Empty: the CLI warns and live collection needs
+# --accept-unvalidated. Add an entry only with the run recorded in
+# docs/VERIFICATION.md (Device verification).
+validated_on: []
+
 steps:
   - id: show_clock
     tier: V0

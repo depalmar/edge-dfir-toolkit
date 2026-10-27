@@ -4,6 +4,17 @@
 
 By [Raymond DePalma](https://www.linkedin.com/in/raymond-depalma/) · published by [DePalma Research LLC](https://www.linkedin.com/company/depalma-research)
 
+> [!WARNING]
+> **The collection profiles have not been run against real devices.** Every
+> command in `collectors/profiles/` comes from vendor documentation and has been
+> checked only against synthetic replays - the maintainer has no hardware lab.
+> A command may fail, prompt, page differently or print a format the parsers do
+> not recognise. The analyzer reports that as *not evaluated*, never as clean,
+> but do not let an incident be the first run: try a profile on a lab device or
+> a vendor virtual edition first. Live `collect` asks you to type `UNVALIDATED`
+> (or pass `--accept-unvalidated`) until a profile records a verified run in its
+> `validated_on` list.
+
 A collector, an analyzer and a vendor-neutral detection pack for the edge
 devices that keep getting exploited: PAN-OS / GlobalProtect, FortiOS, Ivanti
 Connect Secure, Citrix NetScaler, Cisco ASA / FTD, Check Point, Juniper Junos,
@@ -84,6 +95,10 @@ edge-dfir-toolkit/
 ---
 
 ## Quick start
+
+> [!CAUTION]
+> Run these first against a lab device or vendor virtual edition, not a device
+> under investigation. See the warning at the top of this page.
 
 ```bash
 pip install -r requirements.txt
@@ -202,6 +217,18 @@ All fixture data is synthetic: documentation-range addresses, placeholder
 hosts and users, and the minimum content needed to exercise each detection.
 
 ---
+
+## Keeping up with new exploitation
+
+A weekly workflow (`.github/workflows/advisory-watch.yml`) compares CISA's
+Known Exploited Vulnerabilities catalog with the detection packs and re-hashes
+the publisher files behind every indicator set. Anything exploited on a covered
+platform that has neither a pack nor a recorded decision in
+`artifacts/watch/kev-watch.yml`, and any indicator file that changed upstream,
+is posted to an issue labelled `advisory-watch`. It never commits: content
+lands only through a pull request that the validator gates, after someone has
+read the primary sources. Run it locally with
+`python artifacts/scripts/advisory_watch.py --upstream`.
 
 ## Contributing
 

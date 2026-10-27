@@ -1008,3 +1008,57 @@ def test_ivanti_traversal_takes_both_published_payloads():
     assert not trav.search("GET /api/v1/totp/user-backup-code/12345")
     assert p["ivanti-traversal-to-injectable-endpoint"].search(
         "GET /api/v1/totp/user-backup-code/../../license/keys-status/x")
+
+
+# ------------------------------------------------------- unvalidated profiles
+class LiveLikeTransport(ReplayTransport):
+    """A replay that reports itself as live, so the live-device guard applies."""
+    name = "ssh"
+
+
+def _collect_live(fx, tmp_path, case_id, **kw):
+    case = Case(tmp_path / case_id)
+    collect(get_profile("panos"), LiveLikeTransport(fx / "panos-benign"), case, case_id=case_id,
+            operator="tester", target={"host": "192.0.2.10"},
+            preflight={"rebooted_since_incident": "no"}, variables={}, **kw)
+    return case.root
+
+
+def test_no_shipped_profile_claims_a_device_run():
+    # Flip this only together with a Device verification row in docs/VERIFICATION.md.
+    for name, path in available_profiles().items():
+        assert load_profile(path).validated_on == [], name
+
+
+def test_live_collection_of_unvalidated_profile_needs_acknowledgement(fx, tmp_path):
+    with pytest.raises(CollectionRefused, match="accept-unvalidated"):
+        _collect_live(fx, tmp_path, "IR-LIVE-1")
+    assert not (tmp_path / "IR-LIVE-1").exists(), "refused before anything is written"
+    root = _collect_live(fx, tmp_path, "IR-LIVE-2", accept_unvalidated=True)
+    pv = json.loads((root / "manifest.json").read_text())["profile_validation"]
+    assert pv == {"validated_on": [], "unvalidated_accepted": True}
+
+
+def test_replay_is_not_blocked_but_the_report_states_the_gap(fx, tmp_path):
+    root = run(fx, tmp_path, "panos", "panos-benign")
+    m = json.loads((root / "manifest.json").read_text())
+    assert m["profile_validation"]["unvalidated_accepted"] is False
+    assert any(g["kind"] == "unvalidated-profile" for g in analyze(root)["evidence_gaps"])
+
+
+def test_validated_on_entries_must_be_complete(tmp_path):
+    src = Path(available_profiles()["panos"]).read_text()
+    bad = tmp_path / "panos.yaml"
+    bad.write_text(src.replace("validated_on: []", "validated_on: [{release: '11.1.4', date: '2026-10-27'}]"))
+    with pytest.raises(ProfileError):
+        load_profile(bad)
+    good = tmp_path / "panos2.yaml"
+    good.write_text(src.replace("validated_on: []",
+                                "validated_on: [{release: '11.1.4', date: '2026-10-27', basis: 'VM-50 lab'}]"))
+    assert load_profile(good).validated
+
+
+def test_plan_warns_about_unvalidated_profile(capsys):
+    from edgetriage.cli import main
+    assert main(["plan", "--profile", "panos"]) == 0
+    assert "UNVALIDATED COLLECTION PROFILE" in capsys.readouterr().err

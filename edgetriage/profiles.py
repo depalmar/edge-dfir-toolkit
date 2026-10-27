@@ -113,6 +113,14 @@ class Profile:
     steps: list[Step]
     notes: str = ""
     source: Path | None = None
+    # Runs of this profile against a real device (or a vendor virtual edition),
+    # each {release, date, basis}. Empty means every command is checked only
+    # against documentation and synthetic replays - the CLI and the report say so.
+    validated_on: list[dict[str, str]] = field(default_factory=list)
+
+    @property
+    def validated(self) -> bool:
+        return bool(self.validated_on)
 
     def ordered(self, allow_bundle: bool = False, break_glass: bool = False) -> list[Step]:
         """Steps in order of volatility, filtered by the impact the operator allowed."""
@@ -187,7 +195,11 @@ def load_profile(path: Path) -> Profile:
         allow=list(cli.get("allow", [])), deny=list(cli.get("deny", [])),
         expected_evidence=list(raw.get("expected_evidence", [])), steps=steps,
         notes=raw.get("notes", ""), source=path,
+        validated_on=[{k: str(v) for k, v in (e or {}).items()} for e in (raw.get("validated_on") or [])],
     )
+    for e in prof.validated_on:
+        if not all(e.get(k) for k in ("release", "date", "basis")):
+            raise ProfileError(f"{name}: each validated_on entry needs release, date and basis")
     # Every command of every impact is one printable line; only impact-free ones
     # are additionally held to the allow/deny lists.
     for s in steps:

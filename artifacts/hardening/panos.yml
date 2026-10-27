@@ -19,9 +19,13 @@ controls:
     how: >-
       Device > Setup > Interfaces > Management > Permitted IP Addresses, listing
       only the management network or bastion hosts.
-    blunts: [CVE-2024-0012, CVE-2024-9474, CVE-2025-0108]
+    blunts: [CVE-2024-0012, CVE-2024-9474, CVE-2025-0108, CVE-2026-0322]
     confidence: high
     sources:
+      - title: Palo Alto Networks - CVE-2026-0322
+        url: https://security.paloaltonetworks.com/CVE-2026-0322
+        accessed: "2026-10-27"
+        quote: "The security risk posed by this issue is minimized by restricting access to the management interface to only trusted internal IP addresses according to our recommended best practice deployment guidelines"
       - title: Palo Alto Networks - CVE-2025-0108
         url: https://security.paloaltonetworks.com/CVE-2025-0108
         accessed: "2026-10-22"

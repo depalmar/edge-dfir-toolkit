@@ -55,6 +55,27 @@ The engine runs steps in order of volatility and refuses anything the profile
 did not declare. Vendor bundles need `--allow-bundle`; core dumps, imaging and
 anything that reboots need `--break-glass` and run last.
 
+### Unvalidated profiles
+
+No profile has yet been run against a real device or a vendor virtual edition.
+Every command comes from the vendor's documentation and has been checked only
+against synthetic replays, so a command can fail, prompt, page differently or
+print a format the parsers do not recognise. The analyzer reports such a step
+as not evaluated - never as clean - and the report carries an
+`unvalidated-profile` gap, but a failed collection during an incident still
+costs time you do not have.
+
+`plan` prints a warning for an unvalidated profile, and a live `collect` asks
+you to type `UNVALIDATED` (or pass `--accept-unvalidated` when there is no
+terminal) before it connects. Replays are not affected. Try a profile on a lab
+device or virtual edition first.
+
+A profile becomes validated when someone runs it on a real device or virtual
+edition and records the run: an entry in the profile's `validated_on` list
+(`release`, `date`, `basis`) and a row under Device verification in
+`docs/VERIFICATION.md` with any command that had to change. Sanitised replay
+captures from such a run are the most useful contribution to this project.
+
 ### Platform notes
 
 **PAN-OS / GlobalProtect.** Collect, then export the tech support file through

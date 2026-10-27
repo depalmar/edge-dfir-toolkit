@@ -86,6 +86,7 @@ def main() -> int:
     # ---- packs
     kv = schema("pack.schema.json")
     pack_ids, det_ids = set(), set()
+    pack_cves: dict[str, set[str]] = {}
     try:
         import yara  # type: ignore
     except ImportError:
@@ -98,6 +99,8 @@ def main() -> int:
         if pid in pack_ids:
             err(f"{p.name}: duplicate pack id {pid}")
         pack_ids.add(pid)
+        for c in doc.get("cves", []):
+            pack_cves.setdefault(c, set()).add(pid)
         if not p.name.startswith(pid + "-"):
             err(f"{p.name}: file name must start with its id {pid}")
         if doc.get("confidence") == "low" and not doc.get("unverified"):
@@ -299,8 +302,16 @@ def main() -> int:
             err(f"hunts/{p.name}: every source was read through a summariser; mark it unverified")
 
     # ---- indicators: parsed from the publisher's own file, every value well-formed
+    def _is_ipv6(v: str) -> bool:
+        import ipaddress
+        try:
+            return ipaddress.ip_address(v).version == 6 and v == ipaddress.ip_address(v).compressed
+        except ValueError:
+            return False
+
     iv2 = schema("ioc.schema.json")
     ioc_ids: set[str] = set()
+    ioc_docs: dict[str, dict] = {}
     n_ind = 0
     fmt = {"ipv4": r"(25[0-5]|2[0-4]\d|1?\d?\d)(\.(25[0-5]|2[0-4]\d|1?\d?\d)){3}", "sha256": r"[0-9a-f]{64}",
            "sha1": r"[0-9a-f]{40}", "md5": r"[0-9a-f]{32}", "ja3": r"[0-9a-f]{32}", "domain": r"[a-z0-9.-]+\.[a-z]{2,}",
@@ -312,6 +323,7 @@ def main() -> int:
         if not p.name.startswith(f"{rid}-") or rid in ioc_ids:
             err(f"iocs/{p.name}: file must be named <id>-<slug>.yml with a unique id")
         ioc_ids.add(rid)
+        ioc_docs[rid] = doc
         for aid in doc.get("actors", []):
             if aid not in actor_ids:
                 err(f"iocs/{p.name}: actor {aid} does not exist")
@@ -322,6 +334,8 @@ def main() -> int:
         for i in doc.get("indicators", []):
             t, v = i.get("type"), str(i.get("value", ""))
             n_ind += 1
+            if t == "ipv6" and not _is_ipv6(v):
+                err(f"iocs/{p.name}: {t} value {v!r} is not well-formed")
             if t in fmt and not re.fullmatch(fmt[t], v, re.I):
                 err(f"iocs/{p.name}: {t} value is malformed: {v[:40]}")
             if "[.]" in v or "hxxp" in v:
@@ -329,6 +343,44 @@ def main() -> int:
             if (t, v) in seen:
                 err(f"iocs/{p.name}: duplicate {t} {v[:40]}")
             seen.add((t, v))
+
+    # ---- advisory watch: every KEV decision points at something real and stays current
+    wf = ROOT / "artifacts" / "watch" / "kev-watch.yml"
+    w = yaml.safe_load(wf.read_text()) if wf.is_file() else None
+    if w is None:
+        err("artifacts/watch/kev-watch.yml is missing")
+    else:
+        validate_doc(schema("watch.schema.json"), w, "watch/kev-watch.yml")
+        for pid, rule in (w.get("platforms") or {}).items():
+            if pid not in platforms:
+                err(f"watch: platform {pid} does not exist")
+            for k in ("vendor", "product", "exclude"):
+                try:
+                    re.compile(rule.get(k) or "")
+                except re.error as e:
+                    err(f"watch: {pid} {k} regex does not compile: {e}")
+        missing = set(platforms) - set(w.get("platforms") or {})
+        if missing:
+            err(f"watch: platforms not watched: {sorted(missing)}")
+        for iid in (w.get("upstream") or {}):
+            if not ioc_docs.get(iid, {}).get("file_url"):
+                err(f"watch: upstream {iid} is not an indicator set with a file_url")
+        seen_cve: set[str] = set()
+        for t in w.get("triaged") or []:
+            c, refs = t.get("cve", ""), t.get("refs", [])
+            if c in seen_cve:
+                err(f"watch: {c} triaged twice")
+            seen_cve.add(c)
+            if t.get("platform") not in platforms:
+                err(f"watch: {c} names unknown platform {t.get('platform')}")
+            if c in pack_cves:
+                err(f"watch: {c} is covered by {sorted(pack_cves[c])}; remove its ledger entry")
+            if t.get("decision") == "iocs":
+                if not any(r in ioc_docs and c in ioc_docs[r].get("cves", []) for r in refs):
+                    err(f"watch: {c} decision iocs needs a ref to an indicator set listing that CVE")
+            for r in refs:
+                if not (r in ioc_ids or r in pack_ids or r in hunt_ids):
+                    err(f"watch: {c} refers to missing {r}")
 
     # ---- rule directories
     for d in sorted(ROOT.glob("[0-9][0-9]-*")):
