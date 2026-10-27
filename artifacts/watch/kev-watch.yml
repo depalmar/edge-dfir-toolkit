@@ -47,15 +47,6 @@ triaged:
     date: '2026-10-27'
     basis: Palo Alto Networks' advisory publishes three addresses tied to exploit attempts and no host-side indicator,
       so there is no on-box detection to add; the management-interface hardening control now cites it.
-  - cve: CVE-2025-25249
-    platform: EDGE-0002
-    decision: iocs
-    refs:
-    - EDGE-IOC-0016
-    date: '2026-10-27'
-    basis: Fortinet's FG-IR-25-084 publishes no indicators. SOCRadar reports exploitation "with high confidence" via
-      a tool that "highly likely targets CVE-2025-25249", with hashes and C2 addresses (EDGE-IOC-0016) and the file
-      /tmp/.i.js, which no profile step lists yet; a read-only /tmp listing step is the follow-up.
   - cve: CVE-2026-19490
     platform: EDGE-0004
     decision: lab-only
@@ -103,6 +94,8 @@ triaged:
   - cve: CVE-2020-3259
     platform: EDGE-0005
     decision: no-indicators
+    refs:
+    - EDGE-HUNT-0026
     date: '2026-10-27'
     basis: 'Cisco: "sending a crafted GET request to the web services interface"; Truesec "made an early decision
       to refrain from publicly releasing the exploit". Truesec''s RADIUS pattern is a hunt candidate, not a pack detection.'

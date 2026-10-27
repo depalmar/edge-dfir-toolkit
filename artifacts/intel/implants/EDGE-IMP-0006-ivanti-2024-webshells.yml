@@ -1,6 +1,6 @@
 id: EDGE-IMP-0006
 name: Ivanti 2024 web shells
-aliases: [GIFTEDVISITOR, LIGHTWIRE, WIREFIRE, ZIPLINE, THINSPOOL, WARPWIRE]
+aliases: [GIFTEDVISITOR, LIGHTWIRE, WIREFIRE, ZIPLINE, THINSPOOL, WARPWIRE, CHAINLINE]
 platforms: [EDGE-0003]
 actors: [EDGE-TA-0002]
 cves: [CVE-2023-46805, CVE-2024-21887]
@@ -16,13 +16,16 @@ summary: >-
   Integrity Checker Tool results; UTA0178 later modified scanner.py so the
   internal ICT reported zero new or mismatched files (Volexity, 18 January
   2024). Mandiant: "THINSPOOL attempts to evade Ivanti's Integrity Checker but
-  Mandiant observed this attempt failed."
+  Mandiant observed this attempt failed." Mandiant also reported "UNC5221
+  leveraging a custom web shell that Mandiant is tracking as CHAINLINE", a
+  Python backdoor reached at /api/v1/cav/client/health. BUSHWALK, from the
+  mitigation bypass, is a separate record (EDGE-IMP-0014).
 artifacts:
   - Modified files under the web root and CGI directories (vendor-assisted)
   - External ICT mismatches, when the tool itself was intact
 anti_forensics:
   - Internal ICT (scanner.py) modified to report zero new or mismatched files (UTA0178, Volexity)
-detections: [ivanti-totp-traversal, ivanti-traversal-to-injectable-endpoint]
+detections: [ivanti-totp-traversal, ivanti-traversal-to-injectable-endpoint, ivanti-2024-mandiant-webshell-yara]
 gap: >-
   The appliance's own logs do not record the exploit requests (Volexity), so
   the detections need an upstream proxy or WAF log of the raw URI; the shells
@@ -35,6 +38,9 @@ references:
   - title: Mandiant - suspected APT targets Ivanti Connect Secure zero-day (LIGHTWIRE, WIREFIRE, WARPWIRE, THINSPOOL, ZIPLINE)
     url: https://cloud.google.com/blog/topics/threat-intelligence/suspected-apt-targets-ivanti-zero-day
     accessed: "2026-10-23"
+  - title: Mandiant - Cutting Edge, Part 2 (CHAINLINE, YARA rules)
+    url: https://cloud.google.com/blog/topics/threat-intelligence/investigating-ivanti-zero-day-exploitation
+    accessed: "2026-10-27"
   - title: Volexity - Ivanti Connect Secure exploitation, new observations
     url: https://www.volexity.com/blog/2024/01/18/ivanti-connect-secure-vpn-exploitation-new-observations/
     accessed: "2026-10-22"

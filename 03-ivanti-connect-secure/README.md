@@ -9,6 +9,7 @@ Detection packs: `EDGE-PACK-0007`, `EDGE-PACK-0026`, `EDGE-PACK-0029`, `EDGE-PAC
 |---|---|---|
 | `ivanti_cve_2023_46805_totp_traversal.yml` | Sigma | the 2024 authentication-bypass traversal |
 | `ivanti_cve_2024_21887_traversal_to_injection.yml` | Sigma | the traversal reaching the license/keys-status injection endpoint (the full 2024 chain) |
+| `ivanti_2024_webshells_mandiant.yar` | YARA | Mandiant's hunting rules for BUSHWALK, CHAINLINE, LIGHTWIRE and WARPWIRE (2024); FRAMESTING left out (its published string is ambiguous); files from a snapshot or image only |
 | `ivanti_spawn_family_mandiant_2025.yar` | YARA | Mandiant's published rules for SPAWNSNAIL, SPAWNANT, SPAWNMOLE, SPAWNSNARE, SPAWNSLOTH, PHASEJAM and DRYHOOK (2025); files from a snapshot or image only |
 | `ivanti_cve_2024_21893_saml20_soap.yml` | Sigma | POST to /dana-ws/saml20.ws, the CVE-2024-21893 SSRF endpoint |
 

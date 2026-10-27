@@ -667,6 +667,25 @@ Mandiant's BUSHWALK (Ivanti, querymanifest.cgi) has no detection; hardening
 controls for FortiOS private-data-encryption (CVE-2019-6693) and fgfm access
 (CVE-2024-23113); a Truesec-based RADIUS hunt for CVE-2020-3259.
 
+## 2026-10-27 - follow-ups from the KEV triage
+
+Every value below was parsed from, or quoted against, a saved copy of the page
+(`scratchpad/tri/`).
+
+| Item | Change | Basis (verbatim) |
+|---|---|---|
+| FortiOS `proc_dump_miglogd`, `proc_dump_iked` (V1, medium, PID supplied by operator) and check `fortios_peerstitch_rwx_region` (likely) | New | Unit 42: "Inspect memory maps (/proc/<pid>/maps) of /bin/miglogd and /bin/iked for anonymous 16,384-byte regions with rwxp permissions"; command as MIVD/AIVD use it for PID 1. The allow-list already admitted it |
+| FortiOS `listing_data2_template` (low) and `fortios-peerstitch-staged-files` | New | Unit 42: "downloaded five files ... into /data2/template/" |
+| `02-fortinet-fortios/fortios_peerstitch_unit42.yar`, EDGE-IOC-0017 | New, parsed from the page | Unit 42 Table 3 and its rule block; one hash is of the string "123456", stated in the set |
+| FortiOS `listing_tmp` (low) and EDGE-PACK-0035 | New; CVE-2025-25249 leaves the ledger | SOCRadar: "saves the decrypted output to a temporary path (/tmp/.i.js)"; "fnsysctl ls -la /tmp/" |
+| NetScaler `core_list` (low) and `netscaler-8452-nsppe-core` (possible) | New; the existing find grammar admitted it | Bishop Fox: "use find /var/core -name 'NSPPE-*' instead"; "A fresh NSPPE-* core file" |
+| BUSHWALK: EDGE-IMP-0014, `ivanti-bushwalk-safariios-request` (possible) | New | Mandiant: "if the web request platform parameter is SafariiOS"; actor and CVE not named by Mandiant; Rapid7: "This bypass technique is CVE-2024-21893" kept as Rapid7's |
+| `03-ivanti-connect-secure/ivanti_2024_webshells_mandiant.yar` | BUSHWALK, CHAINLINE, LIGHTWIRE, WARPWIRE rules | Mandiant Cutting Edge Part 2. LIGHTWIRE regex rejoined after its backslash; FRAMESTING omitted - its string wraps after a comma and the page does not show whether a space belongs there |
+| CHAINLINE added to EDGE-IMP-0006 | Alias and quote | Mandiant: "UNC5221 leveraging a custom web shell that Mandiant is tracking as CHAINLINE" |
+| `fortios-private-data-encryption` (blunts CVE-2019-6693) | New control | FG-IR-19-007: "set private-data-encryption enable /* disabled by default */"; "Always use a password to protect the system configuration file when performing backups" |
+| `fortios-fgfm-access-off` (blunts CVE-2024-23113) | New control | FG-IR-24-029: "For each interface, remove the fgfm access" |
+| EDGE-HUNT-0026 (CVE-2020-3259) | New hunt, low/unverified, linked from the ledger | Truesec: "the first malicious authentication ... was preceded by a legitimate authentication from the real user of the same (later compromised) account" |
+
 ## Device verification
 
 | Date | Platform / release | Step | Change | Basis |

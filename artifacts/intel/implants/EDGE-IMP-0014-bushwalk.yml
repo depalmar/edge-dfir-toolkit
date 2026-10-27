@@ -1,0 +1,38 @@
+id: EDGE-IMP-0014
+name: BUSHWALK
+aliases: []
+platforms: [EDGE-0003]
+actors: []
+cves: []
+type: web-shell
+resides: disk
+survives_reboot: "yes"
+survives_upgrade: unknown
+summary: >-
+  Mandiant: "A mitigation bypass technique was recently identified that led to
+  the deployment of a custom webshell tracked as BUSHWALK." It "is written in
+  Perl and is embedded into a legitimate CS file, querymanifest.cgi", and runs
+  its function validateVersion "if the web request platform parameter is
+  SafariiOS", decoding a Base64 and RC4 payload from the command parameter to
+  run a command or write a file. Mandiant assessed the bypass activity as
+  "highly targeted, limited, and ... distinct from the post-advisory mass
+  exploitation activity", and does not name the actor or the CVE in that
+  section; Rapid7 writes that the bypass technique is CVE-2024-21893, which this
+  record does not adopt as Mandiant's claim.
+artifacts:
+  - Modified querymanifest.cgi (vendor-assisted or snapshot)
+  - Requests carrying platform=SafariiOS to querymanifest.cgi (off-box web log, where the parameter is in the query string)
+anti_forensics:
+  - "Mandiant: the actor cleaned up and restored \"the system to a clean state after deploying BUSHWALK\""
+detections: [ivanti-2024-mandiant-webshell-yara, ivanti-bushwalk-safariios-request]
+gap: >-
+  The file check needs a snapshot or image. Mandiant: "The external ICT
+  successfully detected the presence of the new web shell", but the actor
+  returned appliances to a clean state, which the ICT "cannot necessarily
+  detect". The request check sees the parameter only when it travels in the
+  query string and an upstream log records it.
+confidence: medium
+references:
+  - title: Mandiant - Cutting Edge, Part 2, investigating Ivanti Connect Secure VPN zero-day exploitation (31 January 2024)
+    url: https://cloud.google.com/blog/topics/threat-intelligence/investigating-ivanti-zero-day-exploitation
+    accessed: "2026-10-27"

@@ -160,4 +160,52 @@ controls:
         url: https://docs.fortinet.com/document/fortigate/7.0.0/best-practices/555436
         accessed: "2026-10-22"
 
-last_modified: "2026-10-22"
+  - id: fortios-private-data-encryption
+    control: Encrypt configuration secrets with your own key, and password-protect configuration backups
+    category: integrity
+    priority: high
+    why: >-
+      Without it, ENC values in an exposed configuration or an unprotected backup
+      can be decrypted with a key built into FortiOS. Fortinet: "If the CLI
+      configuration is exposed ... it is possible to decrypt the encrypted ENC
+      type data to plaintext using this hard-coded cryptographic key. Same goes
+      for the system backup file, if it is not password protected."
+    how: >-
+      `config system global`, `set private-data-encryption enable`, `end`
+      (FortiOS 5.6.11, 6.0.7, 6.2.1 and later prompt for the key). Fortinet's
+      workaround: "Always use a password to protect the system configuration
+      file when performing backups". Fortinet notes bugs with FortiManager
+      management or HA on older builds, fixed in FortiManager 6.2.7 and FortiOS
+      6.2.6, 6.4.4 and 6.6.0.
+    blunts: [CVE-2019-6693]
+    confidence: high
+    sources:
+      - title: Fortinet PSIRT - FG-IR-19-007 (CVE-2019-6693)
+        url: https://fortiguard.fortinet.com/psirt/FG-IR-19-007
+        accessed: "2026-10-27"
+        quote: "set private-data-encryption enable /* disabled by default */"
+
+  - id: fortios-fgfm-access-off
+    control: Remove fgfm from interface administrative access unless FortiManager needs it there
+    category: services
+    priority: high
+    why: >-
+      CVE-2024-23113 is a format-string flaw in the fgfmd daemon; Fortinet's
+      workaround removes fgfm access from interfaces. Fortinet: a local-in policy
+      limiting FGFM to one address "will reduce the attack surface but it won't
+      prevent the vulnerability from being exploited from this IP".
+    how: >-
+      Per interface, `config system interface`, `edit "portX"`, `set allowaccess`
+      with the same list minus fgfm (Fortinet's example: from `set allowaccess
+      ping https ssh fgfm` to `set allowaccess ping https ssh`), `next`, `end`.
+      Fortinet: "this will prevent FortiGate discovery from FortiManager.
+      Connection will still be possible from FortiGate."
+    blunts: [CVE-2024-23113]
+    confidence: high
+    sources:
+      - title: Fortinet PSIRT - FG-IR-24-029 (CVE-2024-23113), workarounds
+        url: https://fortiguard.fortinet.com/psirt/FG-IR-24-029
+        accessed: "2026-10-27"
+        quote: "For each interface, remove the fgfm access"
+
+last_modified: "2026-10-27"

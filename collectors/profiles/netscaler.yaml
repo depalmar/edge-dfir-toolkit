@@ -147,6 +147,22 @@ steps:
     purpose: Staging directories.
     confidence: high
 
+  - id: core_list
+    tier: P6
+    kind: command
+    cmd: shell find /var/core -name 'NSPPE-*' -ls
+    purpose: >-
+      Packet-engine core files, listed not copied (Bishop Fox: "roughly 2.3 GB
+      on our 14.1 appliance"). Bishop Fox, for CVE-2026-8452: "A fresh NSPPE-*
+      core file" is "The same crash, with the evidence attached", and "Core files
+      land in the directory for the current boot, so looking only in
+      /var/core/1 misses anything that arrived after a reboot; use find
+      /var/core -name 'NSPPE-*' instead."
+    confidence: low
+    unverified: true
+    references:
+      - https://bishopfox.com/blog/no-crash-required-verifying-the-citrix-netscaler-saml-patch-for-cve-2026-8452
+
   - id: fetch_php
     tier: P6
     kind: fetch

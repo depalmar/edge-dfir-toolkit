@@ -5,7 +5,7 @@ name: Ivanti Connect Secure authentication bypass and command injection (2024 ch
 platforms: [EDGE-0003]
 cves: [CVE-2023-46805, CVE-2024-21887]
 actors: [UTA0178, UNC5221]
-implants: [GIFTEDVISITOR, ZIPLINE, THINSPOOL, LIGHTWIRE, WARPWIRE]
+implants: [GIFTEDVISITOR, ZIPLINE, THINSPOOL, LIGHTWIRE, WARPWIRE, CHAINLINE, BUSHWALK]
 summary: >-
   A path traversal past authentication into REST endpoints that pass input to
   a shell. Web shells were written into legitimate CGI, Perl and Python
@@ -20,6 +20,9 @@ summary: >-
   them.
 confidence: high
 references:
+  - title: Mandiant - Cutting Edge, Part 2, investigating Ivanti Connect Secure VPN zero-day exploitation (BUSHWALK, CHAINLINE, YARA)
+    url: https://cloud.google.com/blog/topics/threat-intelligence/investigating-ivanti-zero-day-exploitation
+    accessed: "2026-10-27"
   - title: CISA AA24-060B
     url: https://www.cisa.gov/news-events/cybersecurity-advisories/aa24-060b
     accessed: "2026-10-22"
@@ -68,3 +71,33 @@ detect:
       Reaching license/keys-status through the traversal is the documented
       injection chain. Other reported sinks (cloud-server-test-connection) are not
       included until confirmed from a primary source.
+
+  - id: ivanti-2024-mandiant-webshell-yara
+    title: Mandiant's BUSHWALK, CHAINLINE, LIGHTWIRE or WARPWIRE rule matches a recovered file
+    type: yara
+    tier: likely
+    evidence_class: persistence
+    rule: 03-ivanti-connect-secure/ivanti_2024_webshells_mandiant.yar
+    sources:
+      files: ["**/home/webserver/htdocs/**", "**/home/perl/**", "**/home/venv3/**", "**/*.cgi", "**/*.py", "**/*.pm", "**/*.js"]
+    attack: [T1505.003, T1056.003]
+    notes: >-
+      Mandiant's hunting rules from Cutting Edge, Part 2. BUSHWALK sits in
+      querymanifest.cgi, CHAINLINE in a Python package behind the REST endpoint
+      /api/v1/cav/client/health. Runs only against files from a snapshot, the
+      external ICT's snapshot or an image.
+
+  - id: ivanti-bushwalk-safariios-request
+    title: Request to querymanifest.cgi with platform=SafariiOS
+    type: log_regex
+    tier: possible
+    evidence_class: web-logs
+    sources:
+      files: ["**/*.log*", "**/*.csv", "**/*.txt"]
+    pattern: 'querymanifest\.cgi\?[^\s"]*\bplatform=SafariiOS\b'
+    attack: [T1505.003]
+    notes: >-
+      Mandiant: BUSHWALK runs "if the web request platform parameter is
+      SafariiOS". Only a parameter in the query string reaches a URI log, and
+      Mandiant does not say which method the actor used. Mandiant does not say
+      whether legitimate clients send that value, so this is possible.

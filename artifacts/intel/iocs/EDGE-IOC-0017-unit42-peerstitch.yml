@@ -1,0 +1,118 @@
+# Indicators EDGE-IOC-0017 - parsed from the research team's own publication, not retyped.
+# Values are live, not defanged: do not paste them into a browser. Roles and context are the publisher's.
+# Schema: ../../schema/ioc.schema.json
+
+id: EDGE-IOC-0017
+title: PEERSTITCH FortiGate implant (CVE-2025-61624)
+publisher: Unit 42
+published: '2026-10-14'
+page_url: https://unit42.paloaltonetworks.com/fortimanager-cve-2024-47575-peerstitch-malware/
+file_format: html-table
+license: publisher's terms
+accessed: '2026-10-27'
+actors: []
+implants: []
+cves:
+- CVE-2025-61624
+platforms:
+- EDGE-0002
+staleness: >-
+  One 2026 intrusion. The addresses hosted the installer or were added to FortiManager as rogue FortiGates;
+  the publisher does not say who owns them, so their role is unknown. One hash is of the hard-coded string
+  "123456" and will match any file that contains exactly that text.
+indicators:
+- type: sha256
+  value: 'b9fb0b27ddd59b58d3ae53c7227298a3e0de1e6f868b9429ae21533bb9cd1e70'
+  role: actor-controlled
+  context: >-
+    ELF 64-bit ARM64 executable; PEERSTITCH core ptrace injector
+- type: sha256
+  value: '829b1cd270b30565739a478441833f49f10a49bd06f0d18cc96c8ae4a0431f11'
+  role: actor-controlled
+  context: >-
+    PEERSTITCH ARM64 mmap shellcode bootstrap header (45 bytes)
+- type: sha256
+  value: 'bd064244dad748cf2a44074bee56f5bfab4a2b18ee944b75d1b3febd4c1fe02a'
+  role: actor-controlled
+  context: >-
+    PEERSTITCH ARM64 core hook injection data block (1,280 bytes)
+- type: sha256
+  value: '9c4c4436ff5cdf0d6d68f5108031cbf3708a095cde4ef8c09316af7a7110437e'
+  role: actor-controlled
+  context: >-
+    PEERSTITCH staging and preparation script
+- type: sha256
+  value: 'fc1b10c58057ef9f1f9a1e2a3d4a1c89f43b0ead451398c70ed7a6e0312b36ee'
+  role: actor-controlled
+  context: >-
+    PEERSTITCH Node.js deployment orchestrator
+- type: sha256
+  value: 'f84eea718526706afdf2d1a2774fab76ecb11c18fb61995a37be8249c5e379ab'
+  role: actor-controlled
+  context: >-
+    PEERSTITCH emscripten JavaScript runtime component
+- type: sha256
+  value: 'b7ae166fd49a7ecfe6322a80b8aa56d6aa0825d8f5d106dab2e4fb7d14ce15a8'
+  role: actor-controlled
+  context: >-
+    PEERSTITCH emscripten WebAssembly binary module
+- type: sha256
+  value: '8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92'
+  role: actor-controlled
+  context: >-
+    PEERSTITCH runtime shared secret key artifact (hard-coded string “123456”)
+- type: ipv4
+  value: '23.240.77.233'
+  role: unknown
+  context: >-
+    Hosting installer and PEERSTITCH malware
+- type: ipv4
+  value: '47.18.167.159'
+  role: unknown
+  context: >-
+    Hosting installer and PEERSTITCH malware
+- type: ipv4
+  value: '45.32.41.202'
+  role: unknown
+  context: >-
+    Rogue FortiGate IP added to FortiManager
+- type: ipv4
+  value: '198.199.122.22'
+  role: unknown
+  context: >-
+    Rogue FortiGate IP added to FortiManager
+- type: url
+  value: 'http://23.240.77.233:8085/pM.js'
+  role: unknown
+  context: >-
+    Hosting PEERSTITCH stager
+- type: url
+  value: 'http://47.18.167.159:8085/pM.js'
+  role: unknown
+  context: >-
+    Hosting PEERSTITCH stager
+- type: url
+  value: 'http://23.240.77.233:8084/directory'
+  role: unknown
+  context: >-
+    ACME certificate authority abuse
+- type: url
+  value: 'http://23.240.77.233:8084/acme/new-acct'
+  role: unknown
+  context: >-
+    ACME certificate authority abuse
+- type: url
+  value: 'http://23.240.77.233:8084/acme/order/11111'
+  role: unknown
+  context: >-
+    ACME certificate authority abuse
+- type: url
+  value: 'http://23.240.77.233:8084/acme/authz/1'
+  role: unknown
+  context: >-
+    ACME certificate authority abuse
+- type: url
+  value: 'http://23.240.77.233:8084/acme/finalize/61924744/774083503'
+  role: unknown
+  context: >-
+    ACME certificate authority abuse

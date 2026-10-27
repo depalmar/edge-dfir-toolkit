@@ -50,14 +50,15 @@ Ordered by value. Effort figures are judgment, not measurement.
 ## Phase 3 - analysis
 
 - Off-box correlation: syslog forwarding gaps, NetFlow to and from the
-  management plane, IdP and AD events tied to the device's addresses. The 25
+  management plane, IdP and AD events tied to the device's addresses. The 26
   hunts in `artifacts/hunts/` describe these by hand; the next step is an
   `ingest` mode that evaluates the simplest (syslog gap, device-sourced
   transfers) against exported data.
-- Follow-ups from the 2026-10-27 KEV triage (listed at the end of that section
-  in `docs/VERIFICATION.md`): read-only FortiOS steps for /tmp and for process
-  memory maps, NetScaler /var/core listing, PEERSTITCH hashes and YARA, BUSHWALK,
-  two FortiOS hardening controls and a RADIUS hunt for CVE-2020-3259.
+- Mandiant's FRAMESTING rule (left out: its published string is ambiguous) once
+  Mandiant's own copy of the rule can be read without the blog's line wrapping.
+- A real or replayed FortiOS `diagnose sys process dump` capture to pin the
+  PEERSTITCH map parser, and PIDs resolved from the process listing rather than
+  supplied by the operator.
 - Clock-skew correction applied to every timeline row, using the V0 clock step.
 - Plaso / Timesketch export.
 - Evaluate the LLM brief against the fixture corpus before anyone relies on it.

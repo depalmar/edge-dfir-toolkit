@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.8.2 - 2026-10-27
+
+Follow-ups from the KEV triage.
+
+- PEERSTITCH (EDGE-PACK-0031) is now covered three ways, and the pack now has
+  five detections:
+  - Memory: new FortiOS steps dump the memory maps of miglogd and iked, and a
+    check looks for Unit 42's anonymous 16 KB rwxp region.
+  - Files: a `/data2/template` listing for the staged files.
+  - Unit 42's YARA rule, with its hashes and URLs as EDGE-IOC-0017.
+- PivotC2 (EDGE-PACK-0035, CVE-2025-25249): a new `/tmp` listing step finds
+  SOCRadar's `/tmp/.i.js`. The CVE leaves the ledger.
+- NetScaler: a core-file listing step flags packet-engine crashes for
+  CVE-2026-8452.
+- Ivanti 2024: Mandiant's BUSHWALK, CHAINLINE, LIGHTWIRE and WARPWIRE rules
+  (FRAMESTING is omitted because its published string is ambiguous). There is a
+  new BUSHWALK implant record (EDGE-IMP-0014) and a request check for
+  `platform=SafariiOS`. CHAINLINE is added to the 2024 web-shell record.
+- Hardening: FortiOS `private-data-encryption` (CVE-2019-6693) and removing
+  fgfm access (CVE-2024-23113), both in Fortinet's own syntax.
+- Hunt EDGE-HUNT-0026: Truesec's RADIUS pattern for CVE-2020-3259.
+
 ## 0.8.1 - 2026-10-27
 
 - EDGE-PACK-0029: Ivanti Connect Secure CVE-2025-0282 and CVE-2025-22457 (UNC5221,

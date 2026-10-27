@@ -17,8 +17,10 @@ summary: >-
   proof of concept, which watchTowr only "believe[s] this is CVE-2026-8452".
   Neither Citrix bulletin publishes an indicator, and every detection here
   rests on one research team's lab work, hence low confidence. Not covered:
-  NSPPE-* core files under /var/core (no profile step lists them) and the
-  ns.log text watchTowr shows for CVE-2026-3055 only as a screenshot.
+  the ns.log text watchTowr shows for CVE-2026-3055 only as a screenshot, and
+  Bishop Fox's check of a core file's contents for "Long runs of a repeated
+  letter followed by digits" (the profile lists core files, it does not copy
+  them).
 confidence: low
 unverified: true
 references:
@@ -106,3 +108,20 @@ detect:
       whether a clean appliance keeps PHP under /var/vpn/theme, so compare with
       a known-good appliance of the same build. Only .php files are listed by the
       profile; other unexpected files there are not seen.
+
+  - id: netscaler-8452-nsppe-core
+    title: Packet-engine core file under /var/core
+    type: log_regex
+    tier: possible
+    evidence_class: system-logs
+    sources:
+      steps: [core_list]
+    pattern: '\s/var/core/\d+/NSPPE-\S+\s*$'
+    attack: [T1190]
+    notes: >-
+      Bishop Fox: "A fresh NSPPE-* core file" in /var/core/<n>/ is "The same
+      crash, with the evidence attached"; "Long runs of a repeated letter
+      followed by digits inside that core file" tie it to this bug "rather than
+      to an unrelated fault". The listing cannot see inside the file, so a core
+      alone is any packet-engine crash - compare its time with the ns.log
+      signal line and keep the file for Citrix.

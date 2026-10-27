@@ -119,3 +119,35 @@ def fortios_crashlog_sslvpnd_segv(view, det):
 def fortios_crashlog_peerstitch_segv(view, det):
     """miglogd, iked or syslogd crash with signal 11 (Unit 42's PEERSTITCH hunting row)."""
     return _crashlog_segv(view, frozenset({"miglogd", "iked", "syslogd"}))
+
+
+# /proc/<pid>/maps rows, the form `diagnose sys process dump` prints (MIVD/AIVD publish
+# a masked row: "7f7ff.....-7f7ff..... ....  0000....  00:..  .....  /lib/preload.so (deleted)").
+_MAP_ROW = re.compile(r"^\s*(?P<start>[0-9a-fA-F]+)-(?P<end>[0-9a-fA-F]+)\s+(?P<perms>[r-][w-][x-][ps])\s+"
+                      r"(?P<off>[0-9a-fA-F]+)\s+(?P<dev>[0-9a-fA-F]+:[0-9a-fA-F]+)\s+(?P<inode>\d+)\s*(?P<path>\S.*)?$")
+
+
+@check("fortios_peerstitch_rwx_region")
+def fortios_peerstitch_rwx_region(view, det):
+    """Anonymous 16,384-byte rwxp mapping in miglogd or iked (Unit 42's PEERSTITCH row).
+
+    PEERSTITCH's bootstrap maps 0x4000 bytes PROT_READ|PROT_WRITE|PROT_EXEC as
+    MAP_PRIVATE|MAP_ANONYMOUS. A hit is such a row with no backing file. Zero map
+    rows across the collected dumps is not-evaluated.
+    """
+    rows, hits = 0, []
+    for step in ("proc_dump_miglogd", "proc_dump_iked"):
+        text = view.step_text(step)
+        if text is None:
+            continue
+        for n, line in enumerate(text.splitlines(), 1):
+            m = _MAP_ROW.match(line)
+            if not m:
+                continue
+            rows += 1
+            size = int(m.group("end"), 16) - int(m.group("start"), 16)
+            if m.group("perms") == "rwxp" and size == 0x4000 and m.group("inode") == "0" and not m.group("path"):
+                hits.append(Hit(f"step:{step}", "anonymous 16 KB rwxp region", line=n, excerpt=excerpt(line)))
+    if rows == 0:
+        return False, []
+    return True, hits

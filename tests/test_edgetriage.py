@@ -999,7 +999,7 @@ def test_ivanti_traversal_takes_both_published_payloads():
     import re
     import yaml
     pack = yaml.safe_load((ROOT / "artifacts/packs/EDGE-PACK-0007-ivanti-ics-2024-chain.yml").read_text())
-    p = {d["id"]: re.compile(d["pattern"], re.I) for d in pack["detect"]}
+    p = {d["id"]: re.compile(d["pattern"], re.I) for d in pack["detect"] if "pattern" in d}
     trav = p["ivanti-totp-traversal"]
     # Assetnote's published requests.
     assert trav.search("GET /api/v1/totp/user-backup-code/../../system/system-information")
@@ -1200,3 +1200,65 @@ def test_netscaler_2026_patterns():
     assert p["netscaler-8452-theme-poc-shell"].search(ls)
     assert p["netscaler-8452-theme-php"].search(ls.replace("x.php", "y.php"))
     assert not p["netscaler-8452-theme-poc-shell"].search(ls.replace("/var/vpn/theme/", "/var/vpn/bookmark/"))
+
+
+def test_fortios_peerstitch_rwx_region_check():
+    """Rows in the /proc/<pid>/maps form MIVD/AIVD publish for `diagnose sys process dump`."""
+    from edgetriage.checks.fortinet import fortios_peerstitch_rwx_region as chk
+    clean = ("7f7ff0001000-7f7ff0021000 r-xp 00000000 00:0d 4242   /bin/init\n"
+             "7f7ff0021000-7f7ff0025000 rw-p 00000000 00:00 0\n")
+    implanted = clean + "7f7ff8000000-7f7ff8004000 rwxp 00000000 00:00 0\n"
+    ok, hits = chk(_StepView({"proc_dump_miglogd": implanted}), {})
+    assert ok and len(hits) == 1
+    assert chk(_StepView({"proc_dump_iked": clean}), {}) == (True, [])               # 16 KB but rw-p
+    big = clean + "7f7ff8000000-7f7ff8008000 rwxp 00000000 00:00 0\n"                # 32 KB: not the published size
+    assert chk(_StepView({"proc_dump_miglogd": big}), {}) == (True, [])
+    backed = clean + "7f7ff8000000-7f7ff8004000 rwxp 00000000 00:0d 77 /data/lib/x.so\n"
+    assert chk(_StepView({"proc_dump_miglogd": backed}), {}) == (True, [])
+    assert chk(_StepView({"proc_dump_miglogd": "Command fail. Return code -61\n"}), {}) == (False, [])
+    assert chk(_StepView({}), {}) == (False, [])
+
+
+def test_fortios_peerstitch_and_pivotc2_listings():
+    p = _pats("EDGE-PACK-0031-fortios-cve-2025-61624-peerstitch.yml")["fortios-peerstitch-staged-files"]
+    assert p.search("-rwxr-xr-x 1 0 0 412312 Oct 13 02:11 lldprx")
+    assert p.search("-rw-r--r-- 1 0 0 9120 Oct 13 02:11 ipssem.js")
+    assert not p.search("-rw-r--r-- 1 0 0 9120 Oct 13 02:11 template.conf")
+    q = _pats("EDGE-PACK-0035-fortios-cve-2025-25249-pivotc2.yml")["fortios-pivotc2-tmp-stage"]
+    assert q.search("-rw-r--r-- 1 0 0 30411 Sep 2 04:10 .i.js")
+    assert not q.search("-rw-r--r-- 1 0 0 30411 Sep 2 04:10 ui.js")
+
+
+def test_peerstitch_yara_is_unit42s_and_its_hash_is_in_the_set():
+    yara = pytest.importorskip("yara")
+    import re
+    import yaml
+    path = ROOT / "02-fortinet-fortios/fortios_peerstitch_unit42.yar"
+    assert {r.identifier for r in yara.compile(filepath=str(path))} == {"u42_apt_linux_PEERSTITCH_fortigate_implant"}
+    meta_hash = re.search(r'hash = "([0-9a-f]{64})"', path.read_text()).group(1)
+    ioc = yaml.safe_load((ROOT / "artifacts/intel/iocs/EDGE-IOC-0017-unit42-peerstitch.yml").read_text())
+    assert meta_hash in {i["value"] for i in ioc["indicators"]}
+
+
+def test_netscaler_core_listing_pattern():
+    p = _pats("EDGE-PACK-0034-netscaler-2026-saml-wsfed.yml")["netscaler-8452-nsppe-core"]
+    row = "  5012  2304000 -rw-------  1 root  wheel  2359296000 Oct 27 03:14 /var/core/2/NSPPE-00-1234"
+    assert p.search(row)
+    assert not p.search(row.replace("NSPPE-00-1234", "nsaaad-core"))
+
+
+def test_ivanti_2024_mandiant_rules_and_bushwalk_request(tmp_path):
+    yara = pytest.importorskip("yara")
+    rules = yara.compile(filepath=str(ROOT / "03-ivanti-connect-secure/ivanti_2024_webshells_mandiant.yar"))
+    assert {r.identifier for r in rules} == {"M_Hunting_Webshell_BUSHWALK_1", "M_Hunting_Webshell_CHAINLINE_1",
+                                           "M_Hunting_Webshell_LIGHTWIRE_4", "M_Hunting_CredTheft_WARPWIRE_strings"}
+    # Only the strings Mandiant's BUSHWALK rule names, in a file under 5 KB - nothing executable.
+    stub = tmp_path / "querymanifest.cgi"
+    stub.write_text('# fixture\n"SafariiOS" "command" "change" "update"\n$data = RC4($key, $data);\n')
+    assert [m.rule for m in rules.match(str(stub))] == ["M_Hunting_Webshell_BUSHWALK_1"]
+    benign = tmp_path / "benign.cgi"
+    benign.write_text("#!/usr/bin/perl\nprint 'manifest';\n")
+    assert not rules.match(str(benign))
+    p = _pats("EDGE-PACK-0007-ivanti-ics-2024-chain.yml")["ivanti-bushwalk-safariios-request"]
+    assert p.search('"GET /querymanifest.cgi?platform=SafariiOS&command=AAAA HTTP/1.1"')
+    assert not p.search('"GET /querymanifest.cgi?platform=WIN HTTP/1.1"')

@@ -100,6 +100,36 @@ steps:
     references:
       - https://github.com/JSCU-NL/COATHANGER
 
+  - id: proc_dump_miglogd
+    tier: V1
+    kind: command
+    cmd: diagnose sys process dump {miglogd_pid}
+    requires_vars: [miglogd_pid]
+    var_examples: {miglogd_pid: "1234"}
+    purpose: >-
+      Process information and memory map of miglogd. Unit 42's PEERSTITCH
+      hunting row: "Inspect memory maps (/proc/<pid>/maps) of /bin/miglogd and
+      /bin/iked for anonymous 16,384-byte regions with rwxp permissions". The
+      command is the one MIVD/AIVD use for PID 1; the operator supplies the PID
+      from a process listing taken just before (diagnose sys top). PEERSTITCH
+      lives only in memory, so this runs before anything that could restart
+      the daemon.
+    confidence: medium
+    references:
+      - https://unit42.paloaltonetworks.com/fortimanager-cve-2024-47575-peerstitch-malware/
+      - https://github.com/JSCU-NL/COATHANGER
+
+  - id: proc_dump_iked
+    tier: V1
+    kind: command
+    cmd: diagnose sys process dump {iked_pid}
+    requires_vars: [iked_pid]
+    var_examples: {iked_pid: "1235"}
+    purpose: Process information and memory map of iked, for the same PEERSTITCH check as proc_dump_miglogd.
+    confidence: medium
+    references:
+      - https://unit42.paloaltonetworks.com/fortimanager-cve-2024-47575-peerstitch-malware/
+
   - id: get_admin_list
     tier: V3
     kind: command
@@ -238,6 +268,35 @@ steps:
     confidence: medium
     references:
       - https://github.com/JSCU-NL/COATHANGER
+
+  - id: listing_data2_template
+    tier: P6
+    kind: command
+    cmd: fnsysctl ls -la /data2/template
+    purpose: >-
+      Unit 42: the PEERSTITCH script "downloaded five files ... into
+      /data2/template/" - pM.js (self-deleting), index.js, index.wasm, ipssem.js
+      and lldprx, which "unlinked its own binary from disk". The directory name
+      comes from one researcher and has not been listed on a device by this
+      project.
+    confidence: low
+    unverified: true
+    references:
+      - https://unit42.paloaltonetworks.com/fortimanager-cve-2024-47575-peerstitch-malware/
+
+  - id: listing_tmp
+    tier: P6
+    kind: command
+    cmd: fnsysctl ls -la /tmp
+    purpose: >-
+      SOCRadar's PivotC2 stager "saves the decrypted output to a temporary path
+      (/tmp/.i.js)", and its hunting guidance is "fnsysctl ls -la /tmp/.i.js"
+      and "fnsysctl ls -la /tmp/". This project does not know what a clean /tmp
+      holds, so only named indicators are scored.
+    confidence: low
+    unverified: true
+    references:
+      - https://socradar.io/blog/cve-2025-25249-pivotc2-fortigate-rat/
 
   - id: log_export
     tier: P3

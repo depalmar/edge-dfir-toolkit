@@ -1,0 +1,56 @@
+# Off-box hunt EDGE-HUNT-0026
+# Schema: ../schema/hunt.schema.json
+
+id: EDGE-HUNT-0026
+title: First VPN login from a new address right after the real user's own login
+platforms:
+- EDGE-0005
+seen_in:
+- Truesec CSIRT, Akira ransomware incidents (2024)
+cves:
+- CVE-2020-3259
+hypothesis: >-
+  Credentials read from the ASA's memory are used soon after the real user signed in with them,
+  without any password-guessing beforehand.
+data:
+- aaa-accounting
+- identity
+data_detail: >-
+  RADIUS or NPS authentication logs for the AnyConnect VPN, kept off the ASA, for the whole window
+  the device ran a release vulnerable to CVE-2020-3259.
+method:
+- >-
+  For each VPN account, find its first successful login from an address it has never used before.
+- >-
+  Check whether that login came shortly after a successful login by the same account from the
+  user's usual address.
+- >-
+  Look for the pattern across several accounts with different passwords and no failed-login
+  burst (spray or brute force) before it.
+normal: >-
+  New addresses appear when users travel or change networks, without a tie to their own previous
+  login and without the pattern repeating across many accounts.
+suspicious: >-
+  Several accounts each first used from an attacker-looking address shortly after the real user's
+  login, with no password attacks against the VPN.
+attack:
+- T1078
+- T1212
+confidence: low
+unverified: true
+sources:
+- title: Truesec - Akira ransomware and exploitation of Cisco AnyConnect vulnerability CVE-2020-3259
+  url: https://www.truesec.com/hub/blog/akira-ransomware-and-exploitation-of-cisco-anyconnect-vulnerability-cve-2020-3259
+  accessed: '2026-10-27'
+  quote: >-
+    the first malicious authentication (i.e., logons from threat actor-controlled IP addresses) with
+    all the compromised accounts was preceded by a legitimate authentication from the real user of
+    the same (later compromised) account.
+  read: direct
+- title: Truesec - Akira ransomware and exploitation of Cisco AnyConnect vulnerability CVE-2020-3259
+  url: https://www.truesec.com/hub/blog/akira-ransomware-and-exploitation-of-cisco-anyconnect-vulnerability-cve-2020-3259
+  accessed: '2026-10-27'
+  quote: >-
+    The radius log analysis did not show signs of password attacks against the SSL VPN service
+    (i.e., password spray or brute force attacks).
+  read: direct
