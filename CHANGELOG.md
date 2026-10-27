@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased - site UX v2
+## 0.9.0 - 2026-10-27 - site UX v2
 
 The Claude Design handoff (UX assessment findings F1 to F38), built in three
 steps. Step 1 holds the quick fixes:
