@@ -1,5 +1,28 @@
 # Changelog
 
+## Unreleased - site UX v2
+
+The Claude Design handoff (UX assessment findings F1 to F38), built in three
+steps. Step 1 holds the quick fixes:
+
+- Contrast (F33): `--faint` is now used only for lines and decoration. Facet
+  heads, table heads, counts, footers, ghost chips and section labels move to
+  `--muted`. Light `--conf-mid` darkens to #5d7189, and filled bars use
+  `--on-accent` (F36).
+- The record drawer is a dialog (F16). Focus moves to its title on open and
+  goes back to the row that opened it on close.
+- A zero on a warning tile is no longer red (F12). The intel page shows "every
+  record has one" when no implant lacks a detection.
+- One short platform name (F24, F8). `PLATFORM_ABBR` in the generator feeds
+  the pickers, the facet rail (full name on hover) and the actor matrix, and
+  `--check` fails on a platform without one. Facet values keep catalog or
+  total-count order, so they no longer reorder as other filters change.
+- Guide section links are always visible, and each h3 has a "Copy link" button
+  (F30).
+- Touch targets under 760 px (F31).
+- Words instead of coloured inset bars (F11): "unverified", "coverage gap" and
+  "baseline" badges. `stable` volatility is the same colour in badges and bars.
+
 ## 0.8.2 - 2026-10-27
 
 Follow-ups from the KEV triage.

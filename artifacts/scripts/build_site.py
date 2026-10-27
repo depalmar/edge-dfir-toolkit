@@ -88,6 +88,15 @@ def short(name: str) -> str:
     return re.sub(r"\s*\([^)]*\)", "", name).strip()
 
 
+# The name a picker, facet or matrix column shows. Card headers keep the full
+# name; --check fails if a catalog platform has no entry here.
+PLATFORM_ABBR = {
+    "EDGE-0001": "PAN-OS", "EDGE-0002": "FortiOS", "EDGE-0003": "Ivanti", "EDGE-0004": "NetScaler",
+    "EDGE-0005": "ASA/FTD", "EDGE-0006": "SMA 100", "EDGE-0007": "Check Point", "EDGE-0008": "Junos",
+    "EDGE-0009": "IOS XE", "EDGE-0010": "BIG-IP",
+}
+
+
 def refs_of(items) -> list[dict]:
     return [{"title": r["title"], "url": r["url"]} for r in items or []]
 
@@ -323,6 +332,7 @@ def build_data(d: dict) -> dict:
 
     return {"platforms": platforms, "artifacts": artifacts, "detections": dets, "packs": packs, "rules": rules,
             "intel": intel, "iocs": iocs, "hardening": hard, "hunts": hunts, "facetKeys": FACET_KEYS, "repo": REPO_URL,
+            "abbr": PLATFORM_ABBR,
             "profiles": [{"name": p.name, "ssh": "ssh" in p.transports, "validated": bool(p.validated_on),
                           "vars": sorted({v for s in p.steps for v in s.requires_vars})} for p in d["profiles"]]}
 
@@ -400,6 +410,9 @@ def markdown(md: str, ctx: dict | None = None) -> str:
             hid = f"g-{slug(m.group(2))}"
             anchor = (f'<a class="hlink" href="#guide/{hid[2:]}" aria-label="Link to this section">#</a>'
                       if ctx and lvl in (3, 4) else "")
+            if ctx and lvl == 3:
+                anchor += (f'<button type="button" class="copy sm hcopy" data-copylink="#guide/{hid[2:]}" '
+                           f'aria-label="Copy a link to this section">Copy link</button>')
             out.append(f'<h{lvl} id="{hid}">{md_inline(m.group(2))}{anchor}</h{lvl}>')
             i += 1
             continue
@@ -553,7 +566,8 @@ def unvalidated_banner(d: dict) -> str:
 def render_plans(d: dict) -> str:
     picker, sections = [], []
     for i, p in enumerate(d["profiles"]):
-        picker.append(f'<button type="button" class="pbtn" data-profile="{e(p.name)}" aria-pressed="{str(i == 0).lower()}">{e(short(p.display))}</button>')
+        picker.append(f'<button type="button" class="pbtn" data-profile="{e(p.name)}" aria-pressed="{str(i == 0).lower()}" '
+                      f'title="{e(p.display)}">{e(PLATFORM_ABBR.get(p.platform_id, short(p.display)))}</button>')
         groups = []
         for tier in TIER_ORDER:
             steps = [s for s in p.steps if s.tier == tier]
@@ -627,8 +641,9 @@ def render_response(d: dict) -> str:
     rich = lambda t: f'<span class="rx">{e(t)}</span>'
     for n, (stem, r) in enumerate(sorted(d["response"].items(), key=lambda kv: kv[1]["platform_id"])):
         pid = r["platform_id"]
-        picker.append(f'<button type="button" class="rbtn" data-resp="{e(stem)}" aria-pressed="{str(n == 0).lower()}">{e(short(r["name"]))}</button>')
-        options.append(f'<option value="{e(stem)}">{e(short(r["name"]))}</option>')
+        ab = PLATFORM_ABBR.get(pid, short(r["name"]))
+        picker.append(f'<button type="button" class="rbtn" data-resp="{e(stem)}" aria-pressed="{str(n == 0).lower()}" title="{e(r["name"])}">{e(ab)}</button>')
+        options.append(f'<option value="{e(stem)}">{e(ab)}</option>')
 
         def when_attr(st):
             w = [x.strip() for x in str(st.get("when", "")).split(",") if x.strip()]
@@ -968,7 +983,7 @@ CSS = r"""
   --ink:#1c1b19;--muted:#6b6862;--faint:#a09b90;--line:#e4e1db;--line-soft:#f0ede8;--field:#ddd8d0;
   --accent:#5e3a24;--accent-hover:#472a19;--accent-soft:#f2e9e2;--accent-border:#e0cfc1;--on-accent:#fff;
   --crit:#a12b2b;--high:#b4611c;--med:#8a7320;--low:#5c7a4a;
-  --conf-strong:#3d5a80;--conf-mid:#6b7f96;--conf-bg:#eef2f7;--alert-bg:#fdf6f2;
+  --conf-strong:#3d5a80;--conf-mid:#5d7189;--conf-bg:#eef2f7;--alert-bg:#fdf6f2;
   --code-bg:#f6f4f0;--shadow:rgba(28,27,25,.07);--shadow-lg:rgba(28,27,25,.16);--hdr:150px;--ink-2:#3d3a35;
   --sans:system-ui,"Segoe UI Variable Text","Segoe UI",-apple-system,BlinkMacSystemFont,Roboto,"Helvetica Neue",Arial,sans-serif;
   --mono:ui-monospace,"Cascadia Mono","Cascadia Code","SF Mono",SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
@@ -1030,7 +1045,7 @@ h1{margin:0;font-size:var(--fs-lg);font-weight:600;letter-spacing:-.01em}
 .lnkbtn{background:none;border:0;padding:0;color:var(--accent);text-decoration:underline;font-size:var(--fs-sm)}
 #railToggle{display:none}
 .fgroup{margin:12px 0 4px}
-.fhead{display:flex;gap:6px;align-items:center;width:100%;background:none;border:0;padding:4px 0;font-size:var(--fs-xs);letter-spacing:.07em;text-transform:uppercase;color:var(--faint);font-weight:600;text-align:left}
+.fhead{display:flex;gap:6px;align-items:center;width:100%;background:none;border:0;padding:4px 0;font-size:var(--fs-xs);letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:600;text-align:left}
 .fhead .car{transition:transform .15s;font-size:var(--fs-xs)}
 .fgroup.shut .car{transform:rotate(-90deg)}
 .fgroup.shut .fvals{display:none}
@@ -1043,8 +1058,8 @@ h1{margin:0;font-size:var(--fs-lg);font-weight:600;letter-spacing:-.01em}
 .fv.on .box{background:var(--accent);border-color:var(--accent);box-shadow:inset 0 0 0 2px var(--panel)}
 .fv input:focus-visible+.box{outline:2px solid var(--accent);outline-offset:1px}
 .fv .fl{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.fv .fc{font-family:var(--mono);font-size:var(--fs-xs);color:var(--faint)}
-.fv.zero{color:var(--faint)}
+.fv .fc{font-family:var(--mono);font-size:var(--fs-xs);color:var(--muted)}
+.fv.zero{color:var(--muted)}
 .more{background:none;border:0;color:var(--accent);font-size:var(--fs-xs);padding:3px 8px}
 main{padding:20px 28px 60px;min-width:0}
 .lhead h2{margin:0 0 4px;font-size:var(--fs-lg);font-weight:600;letter-spacing:-.01em}
@@ -1054,14 +1069,14 @@ main{padding:20px 28px 60px;min-width:0}
 .controls{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px}
 .search{flex:1 1 300px;display:flex;align-items:center;gap:8px;background:var(--panel);border:1px solid var(--field);border-radius:9px;padding:0 12px}
 .search:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
-.search .glyph{color:var(--faint)}
+.search .glyph{color:var(--muted)}
 .search input{flex:1;border:0;background:none;padding:10px 0;font-size:var(--fs-base);outline:0;min-width:0}
 .tgl{background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:9px 13px;font-size:var(--fs-sm);color:var(--ink);white-space:nowrap}
 .tgl:hover{border-color:var(--accent)}
 .tgl[aria-pressed=true]{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}
 .tgl .n{font-family:var(--mono);font-size:var(--fs-xs);background:var(--alert-bg);color:var(--crit);border-radius:20px;padding:1px 6px;margin-left:5px}
 .exp{display:flex;gap:6px;align-items:center;margin-left:auto}
-.exp .lbl{font-size:var(--fs-xs);letter-spacing:.08em;text-transform:uppercase;color:var(--faint)}
+.exp .lbl{font-size:var(--fs-xs);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
 .meta{display:flex;gap:10px;flex-wrap:wrap;align-items:center;min-height:28px;margin-bottom:10px;font-size:var(--fs-sm)}
 .count{font-family:var(--mono);color:var(--muted)}
 .active{display:flex;gap:5px;flex-wrap:wrap}
@@ -1085,16 +1100,18 @@ button.tile:hover{border-color:var(--accent)}
 .tile b{font-size:var(--fs-lg);font-weight:600;letter-spacing:-.02em}
 .tile span{font-size:var(--fs-sm);color:var(--muted);line-height:1.35}
 .tile.warn b{color:var(--crit)}
+.tile.ok b{color:var(--low)}
 
 /* ---- rows (table library) ---- */
 .rows{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden}
 .row{display:grid;grid-template-columns:30px 150px minmax(0,1fr) 96px 92px 74px 104px;gap:14px;padding:13px 16px;border-top:1px solid var(--line-soft);align-items:start}
 .row.head span{font-size:inherit;line-height:1.4}
-.row.head{border-top:0;padding-top:11px;padding-bottom:11px;font-size:var(--fs-xs);letter-spacing:.08em;text-transform:uppercase;color:var(--faint);font-weight:600;background:var(--panel)}
+.row.head{border-top:0;padding-top:11px;padding-bottom:11px;font-size:var(--fs-xs);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600;background:var(--panel)}
 .row.item{cursor:pointer}
 .row.item:hover{background:var(--hover)}
 .row.item.sel{background:var(--accent-soft);box-shadow:inset 3px 0 0 var(--accent)}
-.row.unv .c-plat{box-shadow:inset 3px 0 0 var(--crit);padding-left:8px;margin-left:-8px}
+.row .unv-n{display:none}
+@media (max-width:1100px) and (min-width:641px){.row .unv-n{display:inline-block;margin-top:4px}}
 .c-plat{font-size:var(--fs-sm);line-height:1.35}
 .c-plat .id{display:block;margin-top:3px}
 .c-main{min-width:0}
@@ -1117,8 +1134,6 @@ code.loc{display:inline-block;max-width:100%;background:var(--code-bg);border:1p
 .lc{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:15px 16px;cursor:pointer;display:flex;flex-direction:column;gap:9px;box-shadow:0 1px 2px var(--shadow);transition:border-color .12s,box-shadow .12s,transform .12s}
 .lc:hover{border-color:var(--accent-border);box-shadow:0 4px 14px var(--shadow);transform:translateY(-1px)}
 .lc.sel{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
-.lc.unv{box-shadow:inset 3px 0 0 var(--crit),0 1px 2px var(--shadow)}
-.lc.gap{box-shadow:inset 3px 0 0 var(--crit),0 1px 2px var(--shadow)}
 .lc-h{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
 .lc-t{min-width:0}
 .dist .seg.hd{min-width:0}
@@ -1159,7 +1174,7 @@ body.drawer-open{overflow:auto}
 
 /* ---- shared bits ---- */
 h3{margin:0;font-size:var(--fs-md);font-weight:600}
-h4{margin:14px 0 6px;font-size:var(--fs-xs);letter-spacing:.07em;text-transform:uppercase;color:var(--faint)}
+h4{margin:14px 0 6px;font-size:var(--fs-xs);letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 18px;box-shadow:0 1px 2px var(--shadow)}
 .card-h{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:flex-start}
 .card p{margin:10px 0}
@@ -1173,7 +1188,7 @@ h4{margin:14px 0 6px;font-size:var(--fs-xs);letter-spacing:.07em;text-transform:
 .imp-bundle{color:var(--med);border-color:currentColor;background:var(--alert-bg)}
 .imp-bg{color:var(--on-accent);background:var(--crit);border-color:var(--crit)}
 .conf{color:var(--conf-mid)}.c-high{color:var(--conf-strong);background:var(--conf-bg);border-color:var(--conf-strong)}
-.c-low{color:var(--faint)}
+.c-low{color:var(--muted)}
 .unv-b{color:var(--crit);background:var(--alert-bg);border-color:var(--crit)}
 .tier{font-weight:600}.t-possible{color:var(--med);border-color:var(--med)}
 .t-likely{color:var(--high);border-color:var(--high)}.t-confirmed{color:var(--on-accent);background:var(--crit);border-color:var(--crit)}
@@ -1186,7 +1201,7 @@ a.chip.mono:hover{border-color:var(--accent-border)}
 .chip.nw{white-space:nowrap;word-break:normal}
 .chip.link{background:var(--accent-soft);color:var(--accent);border-color:var(--accent-border)}
 .chip.link:hover{border-color:var(--accent)}
-.chip.ghost{background:none;border:1px dashed var(--line);color:var(--faint)}
+.chip.ghost{background:none;border:1px dashed var(--field);color:var(--muted)}
 .chip.cve{background:var(--conf-bg);color:var(--conf-strong)}
 .chip.actor{background:var(--alert-bg);color:var(--high)}
 .chip.implant{background:var(--alert-bg);color:var(--crit)}
@@ -1197,7 +1212,7 @@ ul.plain .row2{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
 details summary{cursor:pointer;color:var(--muted);font-size:var(--fs-sm);margin-top:8px}
 .tbl{width:100%;border-collapse:collapse;font-size:var(--fs-sm);margin-top:10px}
 .tbl th,.tbl td{text-align:left;vertical-align:top;padding:8px 8px;border-top:1px solid var(--line-soft)}
-.tbl thead th{font-size:var(--fs-xs);letter-spacing:.05em;text-transform:uppercase;color:var(--faint);border-top:0}
+.tbl thead th{font-size:var(--fs-xs);letter-spacing:.05em;text-transform:uppercase;color:var(--muted);border-top:0}
 .tbl td.id{white-space:nowrap}
 .picker{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
 .pbtn,.rbtn{background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:6px 13px;font-size:var(--fs-sm);color:var(--muted)}
@@ -1212,7 +1227,7 @@ details summary{cursor:pointer;color:var(--muted);font-size:var(--fs-sm);margin-
 .tierrow th{background:var(--panel-2);font-size:var(--fs-sm);font-weight:600;padding:9px 8px}
 .tchip{font-family:var(--mono);font-size:var(--fs-xs);background:var(--accent);color:var(--on-accent);border-radius:5px;padding:1px 6px;margin-right:6px}
 .step.off{opacity:.38}
-.step .kind{font-size:var(--fs-xs);color:var(--faint);margin-top:3px}
+.step .kind{font-size:var(--fs-xs);color:var(--muted);margin-top:3px}
 .purpose{color:var(--muted);font-size:var(--fs-sm);margin-top:4px}
 .needs{font-size:var(--fs-xs);color:var(--high);margin-top:3px}
 .cmd{display:inline-flex;gap:6px;align-items:flex-start;max-width:100%}
@@ -1247,18 +1262,18 @@ table.cov .cell a:hover{box-shadow:inset 0 0 0 2px var(--accent)}
 .cell.t-confirmed{background:color-mix(in srgb,var(--crit) 40%,transparent)}
 table.cov .num{text-align:center;font-family:var(--mono);min-width:34px}
 .num.warn{color:var(--crit)}
-.legend{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:-12px 0 24px}
+.legend{color:var(--muted);display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:-12px 0 24px}
 .guide{max-width:760px}
 .guide h2{font-size:var(--fs-lg);margin:8px 0 10px}.guide h3{font-size:var(--fs-md);margin:26px 0 8px}.guide h4{font-size:var(--fs-xs)}
 .guide p,.guide li{line-height:1.7;color:var(--ink-2)}
 .guide code{background:var(--code-bg);border-radius:4px;padding:1px 4px;font-size:var(--fs-sm)}
 .guide pre code{background:none;padding:0}
-footer{max-width:1440px;margin:0 auto;padding:22px 28px 40px;color:var(--faint);font-size:var(--fs-xs);border-top:1px solid var(--line)}
+footer{max-width:1440px;margin:0 auto;padding:22px 28px 40px;color:var(--muted);font-size:var(--fs-xs);border-top:1px solid var(--line)}
 .sect{margin:22px 0 10px;font-size:var(--fs-md)}
 .cls{color:var(--muted)}
 .vol-live{color:var(--crit);border-color:currentColor}.vol-rotating{color:var(--high);border-color:currentColor}
-.vol-stable{color:var(--low);border-color:currentColor}.vol-off-box{color:var(--conf-strong);border-color:currentColor;background:var(--conf-bg)}
-.fv-high{color:var(--on-accent);background:var(--accent);border-color:var(--accent)}.fv-medium{color:var(--accent);border-color:var(--accent-border)}.fv-low{color:var(--faint)}
+.vol-stable{color:var(--med);border-color:currentColor}.vol-off-box{color:var(--conf-strong);border-color:currentColor;background:var(--conf-bg)}
+.fv-high{color:var(--on-accent);background:var(--accent);border-color:var(--accent)}.fv-medium{color:var(--accent);border-color:var(--accent-border)}.fv-low{color:var(--muted)}
 .mot-espionage{color:var(--conf-strong);border-color:currentColor}.mot-financial{color:var(--high);border-color:currentColor}
 .mot-unknown,.mot-mixed{color:var(--muted)}
 .kind-actor{color:var(--high);border-color:currentColor}.kind-implant{color:var(--crit);border-color:currentColor}
@@ -1281,7 +1296,7 @@ footer{max-width:1440px;margin:0 auto;padding:22px 28px 40px;color:var(--faint);
 .sbar .role-compromised-infrastructure,.chip.role-compromised-infrastructure{background:var(--high);color:var(--on-accent);border-color:var(--high)}
 .sbar .role-anonymiser,.chip.role-anonymiser{background:var(--med);color:var(--on-accent);border-color:var(--med)}
 .sbar .role-multi-tenant,.chip.role-multi-tenant{background:var(--conf-mid);color:var(--on-accent);border-color:var(--conf-mid)}
-.sbar .role-suspected,.sbar .role-unknown,.chip.role-suspected,.chip.role-unknown{background:var(--faint);color:var(--on-accent);border-color:var(--faint)}
+.sbar .role-suspected,.sbar .role-unknown,.chip.role-suspected,.chip.role-unknown{background:var(--muted);color:var(--on-accent);border-color:var(--muted)}
 .amx{border-collapse:collapse;font-size:var(--fs-xs)}.amx th,.amx td{padding:4px 6px;border-bottom:1px solid var(--line-soft);text-align:center}
 .amx thead th{font-weight:500;white-space:nowrap}.amx tbody th{text-align:left;font-weight:500;white-space:nowrap}
 .amd{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:var(--accent);color:var(--on-accent);font-size:10px}
@@ -1293,11 +1308,11 @@ footer{max-width:1440px;margin:0 auto;padding:22px 28px 40px;color:var(--faint);
 .ioct td:nth-child(2){min-width:16ch}.ioct .chip{white-space:nowrap}
 @media (max-width:900px){.chg,.attg{grid-template-columns:minmax(0,1fr)}.tlr{grid-template-columns:96px minmax(0,1fr)}}
 .attrib{background:var(--panel-2);border:1px solid var(--line-soft);border-radius:8px;padding:9px 12px;margin:12px 0;font-size:var(--fs-sm);display:grid;gap:4px}
-.attrib .k{display:inline-block;min-width:110px;font-size:var(--fs-xs);letter-spacing:.05em;text-transform:uppercase;color:var(--faint)}
+.attrib .k{display:inline-block;min-width:110px;font-size:var(--fs-xs);letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
 .attrib q{font-style:italic;color:var(--ink)}
 .gap-b{color:var(--on-accent);background:var(--crit);border-color:var(--crit)}
 .surv-yes{color:var(--crit);border-color:currentColor}.surv-no{color:var(--low);border-color:currentColor}
-.surv-partial{color:var(--high);border-color:currentColor}.surv-unknown{color:var(--faint)}
+.surv-partial{color:var(--high);border-color:currentColor}.surv-unknown{color:var(--muted)}
 .itype{color:var(--accent);border-color:var(--accent-border);background:var(--accent-soft)}
 .res-memory{color:var(--crit);border-color:currentColor}.res-boot{color:var(--on-accent);background:var(--crit);border-color:var(--crit)}
 .res-disk,.res-memory\+disk{color:var(--high);border-color:currentColor}
@@ -1338,12 +1353,18 @@ footer{max-width:1440px;margin:0 auto;padding:22px 28px 40px;color:var(--faint);
 .rstep.done{background:var(--panel-2)}.rstep.done .rbody b{text-decoration:line-through;text-decoration-color:var(--faint);color:var(--muted)}
 .roff{display:none}
 .rstep.off{border-style:dashed;background:transparent}.rstep.off label{display:none}
-.rstep.off .roff{display:flex;flex-wrap:wrap;gap:4px 6px;align-items:center;padding:5px 12px;font-size:var(--fs-xs);color:var(--faint)}
+.rstep.off .roff{display:flex;flex-wrap:wrap;gap:4px 6px;align-items:center;padding:5px 12px;font-size:var(--fs-xs);color:var(--muted)}
 .rofft{flex:1 1 260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.roff .verdict{opacity:.6;font-size:var(--fs-xs);margin:0}
 .rstep.cred .rbody{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.3fr) minmax(0,1.3fr);gap:4px 16px}
 .cred .cw,.cred .ca{color:var(--ink-2);line-height:1.5}.cl{display:block;font-size:var(--fs-xs);text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
 .dont .rdet{color:var(--ink-2)}.dont li{padding:6px 0;border-bottom:1px solid var(--line-soft)}.dont li:last-child{border-bottom:0}
 .rrefs{margin-top:12px}
+@media (max-width:760px){
+  .fv{min-height:44px}
+  .achip{padding:2px 3px 2px 10px}.achip button{width:26px;height:26px;border-radius:50%;display:inline-grid;place-items:center;padding:0}
+  .achip button:hover{background:var(--accent-border)}
+  .copy.sm{min-height:32px}
+}
 @media (max-width:760px){.rsel-l{display:flex}.rpick{display:none}.rstep.cred .rbody{grid-template-columns:minmax(0,1fr)}
   .rphase{grid-template-columns:24px minmax(0,1fr);gap:6px}.rrail .pn{width:20px;height:20px;font-size:var(--fs-xs)}}
 @media print{
@@ -1418,7 +1439,7 @@ p code,li code,dd code,.desc code,td code{font-size:.9em;background:var(--code-b
 .ptile-h b{font-size:var(--fs-md);font-weight:600}
 .ptile-l{display:flex;flex-wrap:wrap;gap:2px 12px;padding:8px 14px 11px;border-top:1px solid var(--line-soft);font-size:var(--fs-sm)}
 .ptile-l a{text-decoration:none}.ptile-l a:hover{text-decoration:underline}
-.ptile .n{color:var(--faint);font-size:var(--fs-xs)}
+.ptile .n{color:var(--muted);font-size:var(--fs-xs)}
 .startcols{display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:8px 28px}
 .callout{background:var(--alert-bg);border:1px solid var(--line-soft);border-left:3px solid var(--crit);border-radius:10px;padding:12px 16px;color:var(--ink)}
 .warnbox{background:var(--alert-bg);border:1px solid var(--line-soft);border-left:3px solid var(--crit);border-radius:10px;padding:10px 14px;margin:12px 0;font-size:var(--fs-sm);line-height:1.55;color:var(--ink)}
@@ -1443,7 +1464,7 @@ a.tile{text-decoration:none;color:var(--ink)}a.tile:hover{border-color:var(--acc
 .vrow{display:grid;grid-template-columns:150px 1fr 64px;gap:10px;align-items:center;text-decoration:none;color:var(--ink);font-size:var(--fs-sm)}
 .vrow:hover .vname{text-decoration:underline}
 .vbar{display:flex;gap:2px;height:20px;border-radius:5px;overflow:hidden}
-.vseg{display:flex;align-items:center;justify-content:center;font-size:var(--fs-xs);color:#fff;min-width:18px;font-variant-numeric:tabular-nums}
+.vseg{display:flex;align-items:center;justify-content:center;font-size:var(--fs-xs);color:var(--on-accent);min-width:18px;font-variant-numeric:tabular-nums}
 .vs-high{background:var(--conf-strong)}.vs-medium{background:var(--conf-mid)}.vs-low{background:var(--crit)}
 .cell.r1{background:color-mix(in srgb,var(--accent) 12%,transparent)}.cell.r2{background:color-mix(in srgb,var(--accent) 26%,transparent)}
 .cell.r3{background:color-mix(in srgb,var(--accent) 42%,transparent)}.cell.r4{background:color-mix(in srgb,var(--accent) 60%,transparent)}
@@ -1454,8 +1475,9 @@ details.fold{margin:8px 0 20px}details.fold summary{font-size:var(--fs-sm);color
 .guide h2{font-size:var(--fs-lg);margin:6px 0 10px}
 .guide h3{font-size:var(--fs-md);margin:30px 0 8px;padding-top:4px}
 .guide h4{font-size:var(--fs-xs)}
-.hlink{margin-left:8px;color:var(--faint);text-decoration:none;opacity:0;font-weight:400}
-.guide h3:hover .hlink,.guide h4:hover .hlink,.hlink:focus{opacity:1}
+.hlink{margin-left:8px;color:var(--muted);text-decoration:none;opacity:1;font-weight:400}
+.hlink:hover{color:var(--accent)}
+.guide h3 .hcopy{margin-left:8px;vertical-align:2px;font-weight:400;letter-spacing:0}
 .guide .callout{margin:10px 0 14px}
 .pnote{border-left:2px solid var(--line);padding:2px 0 2px 14px;margin:12px 0}
 .pnote p{margin:0 0 6px}.pnote .links{margin:4px 0 0}
@@ -1512,7 +1534,6 @@ details.fold{margin:8px 0 20px}details.fold summary{font-size:var(--fs-sm);color
 /* ---- hardening ---- */
 .pr{font-weight:600}.pr-critical{color:var(--on-accent);background:var(--crit);border-color:var(--crit)}
 .pr-high{color:var(--high);border-color:currentColor}.pr-medium{color:var(--med);border-color:currentColor}
-.lc.base{box-shadow:inset 3px 0 0 var(--low),0 1px 2px var(--shadow)}
 ol.steps{padding-left:20px;margin:0}ol.steps li{margin:6px 0;line-height:1.55}
 .dist .seg.hd:nth-child(odd){background:var(--conf-strong)}.dist .seg.hd:nth-child(even){background:var(--conf-mid)}
 .callout.inf{border-left-color:var(--med);margin:12px 0}
@@ -1558,8 +1579,10 @@ var SHELL = {yes:'shell: yes', restricted:'shell: restricted', no:'shell: none'}
 var PN = {}, PLAT = {}; D.platforms.forEach(function(p){ PN[p.id] = p.short; PLAT[p.id] = p; });
 var PACK = {}; D.packs.forEach(function(p){ PACK[p.id] = p; });
 var INTEL = {}; D.intel.forEach(function(i){ INTEL[i.id] = i; });
-var PABBR = {'EDGE-0001':'PAN-OS', 'EDGE-0002':'FortiOS', 'EDGE-0003':'Ivanti', 'EDGE-0004':'NetScaler', 'EDGE-0005':'ASA/FTD',
-  'EDGE-0006':'SMA 100', 'EDGE-0007':'Check Point', 'EDGE-0008':'Junos', 'EDGE-0009':'IOS XE', 'EDGE-0010':'BIG-IP'};
+var ABBR = D.abbr;   // short platform names, from PLATFORM_ABBR in the generator
+var PORDER = ['ALL'].concat(D.platforms.map(function(p){ return p.id; }));   // platform facets keep catalog order
+function pab(v){ return v === 'ALL' ? 'Every platform' : (ABBR[v] || PN[v] || v); }
+function pfull(v){ return PLAT[v] ? PLAT[v].name : v; }
 var IOC = {}; D.iocs.forEach(function(s){ IOC[s.id] = s; });
 var ROLE = {'actor-controlled':'actor-controlled', 'compromised-infrastructure':'compromised third party', anonymiser:'VPN / anonymiser',
   'multi-tenant':'shared infrastructure', suspected:'suspected', unknown:'role not stated'};
@@ -1641,7 +1664,7 @@ function intelCharts(){
     '<div><h4>Implants tied to a named actor</h4>' + bar([['attributed by the reporter', withA, 'q2'], ['no actor named', imps.length - withA, 'q1']]) + '</div></div>';
   /* 3. who touched which platform */
   var plats = D.platforms.map(function(p){ return p.id; });
-  var mx = '<div class="scroll"><table class="amx"><thead><tr><th></th>' + plats.map(function(p){ return '<th><a href="#platforms/' + p + '" title="' + esc(PN[p]) + '">' + esc(PABBR[p] || PLAT[p].short) + '</a></th>'; }).join('') + '</tr></thead><tbody>' +
+  var mx = '<div class="scroll"><table class="amx"><thead><tr><th></th>' + plats.map(function(p){ return '<th><a href="#platforms/' + p + '" title="' + esc(PN[p]) + '">' + esc(ABBR[p] || PLAT[p].short) + '</a></th>'; }).join('') + '</tr></thead><tbody>' +
     actors.map(function(a){ return '<tr><th><a href="#intel/' + a.id + '">' + esc(a.name) + '</a></th>' + plats.map(function(p){
       var on = a.platforms.indexOf(p) >= 0, n = a.implants.filter(function(x){ return INTEL[x] && INTEL[x].platforms.indexOf(p) >= 0; }).length;
       return '<td>' + (on ? '<span class="amd" title="' + esc(a.name + ' on ' + PN[p] + (n ? ': ' + n + ' implant record(s)' : '')) + '">' + (n || '') + '</span>' : '') + '</td>'; }).join('') + '</tr>'; }).join('') +
@@ -1710,7 +1733,7 @@ window.addEventListener('resize', hdrH); hdrH();
 var toastT; function toast(m){ var t = $('toast'); t.textContent = m; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(function(){ t.hidden = true; }, 1800); }
 
 /* ---------------------------------------------------------------- libraries */
-function F(k, label, get, name, order){ return {k:k, label:label, get:get, name:name || function(v){ return v; }, order:order}; }
+function F(k, label, get, name, order, tip){ return {k:k, label:label, get:get, name:name || function(v){ return v; }, order:order, tip:tip}; }
 var ORD = {vol:['live','rotating','stable','off-box'], hml:['high','medium','low'], tier:['confirmed','likely','possible'],
            level:['critical','high','medium','low','informational','-'], yn:['yes','partial','no','unknown']};
 var KIND = {step:'Collection step', ingest:'Off-box export (ingest)', manual:'Manual'};
@@ -1726,7 +1749,7 @@ artifacts: {
   noun:'artifacts', items:D.artifacts, view:'rows',
   head:['', 'Platform', 'Artifact and what it proves', 'Class', 'Volatility', 'Value', 'Confidence'],
   facets:[
-    F('platform', 'Platform', function(a){ return [a.platform]; }, function(v){ return PN[v] || v; }),
+    F('platform', 'Platform', function(a){ return [a.platform]; }, pab, PORDER, pfull),
     F('class', 'Artifact class', function(a){ return [a['class']]; }),
     F('volatility', 'Volatility', function(a){ return [a.volatility]; }, null, ORD.vol),
     F('value', 'Forensic value', function(a){ return [a.value]; }, null, ORD.hml),
@@ -1739,7 +1762,7 @@ artifacts: {
   text:function(a){ return [a.id, PN[a.platform], a.locator, a.description, a['class'], a.volatility, a.collected_by, a.retention, a.seen_in.join(' '), a.evidence.join(' '), a.provides, a.normal, a.suspicious].join(' '); },
   row:function(a){
     return '<span class="c-pick"><input type="checkbox" class="pick" aria-label="Pick ' + esc(a.id) + '"' + (S.artifacts.picks[a.id] ? ' checked' : '') + '></span>' +
-      '<span class="c-plat">' + esc(PN[a.platform]) + '<span class="id">' + esc(a.id) + '</span></span>' +
+      '<span class="c-plat">' + esc(PN[a.platform]) + '<span class="id">' + esc(a.id) + '</span>' + (a.unv ? b('unverified', 'unv-b unv-n') : '') + '</span>' +
       '<span class="c-main"><code class="loc">' + esc(a.locator) + '</code><span class="desc">' + rich(a.description) + '</span>' +
       (a.suspicious ? '<span class="lead"><b>Lead:</b> ' + rich(a.suspicious) + '</span>' : '') +
       (a.seen_in.length ? '<span class="seen">' + chips(a.seen_in, 'implant') + '</span>' : '') + '</span>' +
@@ -1820,7 +1843,7 @@ platforms: {
 detections: {
   noun:'detections', items:D.detections, view:'cards',
   facets:[
-    F('platform', 'Platform', function(x){ return x.platforms; }, function(v){ return PN[v] || v; }),
+    F('platform', 'Platform', function(x){ return x.platforms; }, pab, PORDER, pfull),
     F('runs', 'Runs in', function(x){ return x.runs; }, function(v){ return RUNS[v] || v; }, ['analyzer','siem','yara']),
     F('tier', 'Tier', function(x){ return [x.tier]; }, null, ORD.tier),
     F('evidence', 'Evidence class', function(x){ return [x.evidence]; }),
@@ -1836,7 +1859,8 @@ detections: {
     return hd(x.id, x.title, esc(x.pack + ' · ' + x.pack_name), b(x.tier, 'tier t-' + x.tier)) +
       (x.notes ? '<p class="clamp">' + rich(x.notes) + '</p>' : '') +
       '<div class="lc-f">' + '<span class="chip">' + esc(x.evidence) + '</span><span class="chip mono">' + esc(x.type === 'check' ? 'check:' + x.check : x.type) + '</span>' +
-      (x.sigma.length ? b('Sigma', 'fmt fmt-sigma') : '') + (x.type === 'yara' ? b('YARA', 'fmt fmt-yara') : '') + chips(x.attack.slice(0, 2), 'mono') + '</div>';
+      (x.sigma.length ? b('Sigma', 'fmt fmt-sigma') : '') + (x.type === 'yara' ? b('YARA', 'fmt fmt-yara') : '') + chips(x.attack.slice(0, 2), 'mono') +
+      (x.unv ? b('unverified', 'unv-b') : '') + '</div>';
   },
   title:function(x){ return x.title; },
   drawer:function(x){
@@ -1883,7 +1907,7 @@ intel: {
     F('motivation', 'Motivation', function(i){ return i.kind === 'actor' ? [i.motivation] : []; }),
     F('iocs', 'Published indicators', function(i){ return [i.iocs.length ? 'yes' : 'no']; }, function(v){ return v === 'yes' ? 'has published indicators' : 'none published'; }),
     F('reporter', 'Reported by', function(i){ return i.kind === 'actor' ? i.reported_by : []; }),
-    F('platform', 'Platform', function(i){ return i.platforms; }, function(v){ return PN[v] || v; })
+    F('platform', 'Platform', function(i){ return i.platforms; }, pab, PORDER, pfull)
   ],
   text:function(i){ return [i.id, i.name, (i.aliases || []).join(' '), i.summary, i.iocs.map(function(x){ return IOC[x].ind.map(function(v){ return v[1]; }).join(' '); }).join(' '), (i.reported_by || []).join(' '), (i.tradecraft || []).join(' '), (i.cves || []).join(' '), i.type, i.motivation].join(' '); },
   card:function(i){
@@ -1891,11 +1915,13 @@ intel: {
     if (i.kind === 'actor') return hd(nid, i.name, i.aliases.length ? 'also: ' + esc(i.aliases.join(', ')) : '', b('actor', 'kind-actor') + b(i.motivation, 'mot mot-' + i.motivation)) +
       '<p class="clamp"><q class="quote">' + esc(i.stated_confidence) + '</q></p>' +
       '<div class="lc-f">' + b('link: ' + i.link_confidence, 'conf c-' + i.link_confidence) + chips(i.platforms.map(function(p){ return PN[p]; })) +
-      (i.packs.length ? '<span class="chip">' + i.packs.length + (i.packs.length === 1 ? ' pack' : ' packs') + '</span>' : '<span class="chip ghost">no pack</span>') + iocChip(i) + '</div>';
+      (i.packs.length ? '<span class="chip">' + i.packs.length + (i.packs.length === 1 ? ' pack' : ' packs') + '</span>' : '<span class="chip ghost">no pack</span>') + iocChip(i) +
+      (i.unv ? b('unverified', 'unv-b') : '') + '</div>';
     return hd(nid, i.name, i.aliases.length ? esc(i.aliases.join(', ')) : '', b('implant', 'kind-implant') + b(i.type, 'itype')) +
       '<p class="clamp">' + rich(i.summary) + '</p>' +
       '<div class="lc-f">' + b('resides: ' + i.resides, 'res res-' + i.resides) + b('reboot: ' + i.reboot, 'surv surv-' + i.reboot) +
-      (i.coverage === 'gap' ? b('coverage gap', 'gap-b') : '<span class="chip">' + i.detections.length + ' detections</span>') + iocChip(i) + '</div>';
+      (i.coverage === 'gap' ? b('coverage gap', 'gap-b') : '<span class="chip">' + i.detections.length + ' detections</span>') + iocChip(i) +
+      (i.unv ? b('unverified', 'unv-b') : '') + '</div>';
   },
   cls:function(i){ return i.kind === 'implant' && i.coverage === 'gap' ? ' gap' : ''; },
   title:function(i){ return i.name; },
@@ -1947,10 +1973,12 @@ intel: {
     var dets = {}; imps.forEach(function(i){ i.detections.forEach(function(x){ dets[x] = 1; }); });
     var st = S.intel.sel;
     function on(k, v){ return st[k] && st[k].length === 1 && st[k][0] === v && Object.keys(st).filter(function(x){ return st[x].length; }).length === 1; }
-    function tile(n, label, k, v, warn){ return k ? '<button type="button" class="tile' + (warn ? ' warn' : '') + (on(k, v) ? ' on' : '') + '" data-only="' + k + '" data-v="' + v + '"><b>' + n + '</b><span>' + esc(label) + '</span></button>'
-      : '<div class="tile"><b>' + n + '</b><span>' + esc(label) + '</span></div>'; }
+    function tile(n, label, k, v, warn, zero){ var w = warn ? (n > 0 ? ' warn' : ' ok') : '', l = n === 0 && zero ? zero : label;
+      return k ? '<button type="button" class="tile' + w + (on(k, v) ? ' on' : '') + '" data-only="' + k + '" data-v="' + v + '"><b>' + n + '</b><span>' + esc(l) + '</span></button>'
+      : '<div class="tile' + w + '"><b>' + n + '</b><span>' + esc(l) + '</span></div>'; }
     return '<div class="tiles">' + tile(actors, 'actors and named clusters', 'kind', 'actor') + tile(imps.length, 'implants and tool families', 'kind', 'implant') +
-      tile(gaps, 'implants with no detection - each says why', 'coverage', 'gap', true) + tile(boot, 'implants that survive a reboot', 'reboot', 'yes', true) +
+      tile(gaps, 'implants with no detection - each says why', 'coverage', 'gap', true, 'implants without a detection: every record has one') +
+      tile(boot, 'implants that survive a reboot', 'reboot', 'yes', true) +
       tile(Object.keys(rep).length, 'reporting parties, quoted verbatim') + tile(Object.keys(dets).length, 'detections tied to a named implant') + '</div>' + intelCharts();
   }
 },
@@ -1958,7 +1986,8 @@ intel: {
 hardening: {
   noun:'controls', items:D.hardening, view:'cards',
   facets:[
-    F('platform', 'Applies to', function(c){ return [c.platform]; }, function(v){ return v === 'ALL' ? 'Every platform (baseline)' : (PN[v] || v); }),
+    F('platform', 'Applies to', function(c){ return [c.platform]; }, function(v){ return v === 'ALL' ? 'Every platform (baseline)' : pab(v); }, PORDER,
+      function(v){ return v === 'ALL' ? 'Baseline controls that apply to every platform' : pfull(v); }),
     F('category', 'Category', function(c){ return [c.category]; }, function(v){ return HCAT[v] || v; }),
     F('priority', 'Priority', function(c){ return [c.priority]; }, null, ['critical','high','medium']),
     F('confidence', 'Confidence', function(c){ return [c.confidence]; }, null, ORD.hml)
@@ -1968,8 +1997,8 @@ hardening: {
   card:function(c){
     return hd(c.platform === 'ALL' ? 'Every platform' : PN[c.platform], c.control, '', b(c.priority, 'pr pr-' + c.priority)) +
       '<p class="clamp">' + rich(c.why) + '</p>' +
-      '<div class="lc-f"><span class="chip">' + esc(HCAT[c.category] || c.category) + '</span>' + chips(c.blunts.slice(0, 3), 'cve') +
-      (c.blunts.length > 3 ? '<span class="chip ghost">+' + (c.blunts.length - 3) + '</span>' : '') + '</div>';
+      '<div class="lc-f">' + (c.platform === 'ALL' ? b('baseline', 'imp-none') : '') + '<span class="chip">' + esc(HCAT[c.category] || c.category) + '</span>' + chips(c.blunts.slice(0, 3), 'cve') +
+      (c.blunts.length > 3 ? '<span class="chip ghost">+' + (c.blunts.length - 3) + '</span>' : '') + (c.unv ? b('unverified', 'unv-b') : '') + '</div>';
   },
   cls:function(c){ return c.platform === 'ALL' ? ' base' : ''; },
   title:function(c){ return c.control; },
@@ -1992,7 +2021,7 @@ hardening: {
     var all = D.hardening, st = S.hardening.sel;
     function n(k, v){ return all.filter(function(c){ return c[k] === v; }).length; }
     function on(k, v){ return st[k] && st[k].length === 1 && st[k][0] === v && Object.keys(st).filter(function(x){ return st[x].length; }).length === 1; }
-    function tile(num, label, k, v, warn){ return '<button type="button" class="tile' + (warn ? ' warn' : '') + (on(k, v) ? ' on' : '') + '" data-only="' + k + '" data-v="' + v + '"><b>' + num + '</b><span>' + esc(label) + '</span></button>'; }
+    function tile(num, label, k, v, warn){ return '<button type="button" class="tile' + (warn ? (num > 0 ? ' warn' : ' ok') : '') + (on(k, v) ? ' on' : '') + '" data-only="' + k + '" data-v="' + v + '"><b>' + num + '</b><span>' + esc(label) + '</span></button>'; }
     var plats = {}; all.forEach(function(c){ if (c.platform !== 'ALL') plats[c.platform] = 1; });
     return '<div class="tiles">' + tile(n('platform', 'ALL'), 'baseline controls - start here, they apply to every platform', 'platform', 'ALL') +
       tile(n('category', 'exposure'), 'about what faces the internet - the management interface first', 'category', 'exposure', true) +
@@ -2005,7 +2034,8 @@ hardening: {
 LIB.hunts = {
   noun:'hunts', items:D.hunts, view:'cards',
   facets:[
-    F('platform', 'Platform', function(h){ return h.platforms; }, function(v){ return v === 'ALL' ? 'Any edge device' : (PN[v] || v); }),
+    F('platform', 'Platform', function(h){ return h.platforms; }, function(v){ return v === 'ALL' ? 'Any edge device' : pab(v); }, PORDER,
+      function(v){ return v === 'ALL' ? 'Hunts that apply to any edge device' : pfull(v); }),
     F('data', 'Data you need', function(h){ return h.data; }, function(v){ return HDATA[v] || v; }),
     F('actor', 'Actor', function(h){ return h.actors; }, function(v){ return ACTN[v] || v; }),
     F('confidence', 'Confidence', function(h){ return [h.confidence]; }, null, ORD.hml)
@@ -2089,18 +2119,19 @@ function renderRail(n){
   var L = LIB[n], st = S[n], h = '';
   L.facets.forEach(function(f){
     var tot = {}, cnt = {};
-    L.items.forEach(function(i){ (f.get(i) || []).forEach(function(v){ tot[v] = 1; }); });
+    L.items.forEach(function(i){ (f.get(i) || []).forEach(function(v){ tot[v] = (tot[v] || 0) + 1; }); });
     L.items.forEach(function(i){ if (pass(n, st, i, f.k)) (f.get(i) || []).forEach(function(v){ cnt[v] = (cnt[v] || 0) + 1; }); });
     var vals = Object.keys(tot);
     if (!vals.length) return;
     if (f.order) vals.sort(function(a, c){ var x = f.order.indexOf(a), y = f.order.indexOf(c); return (x < 0 ? 99 : x) - (y < 0 ? 99 : y); });
-    else vals.sort(function(a, c){ return (cnt[c] || 0) - (cnt[a] || 0) || f.name(a).localeCompare(f.name(c)); });
+    // by total, never by the live count, so the list does not reorder as other filters change
+    else vals.sort(function(a, c){ return tot[c] - tot[a] || f.name(a).localeCompare(f.name(c)); });
     var sel = st.sel[f.k] || [], key = n + ':' + f.k, open = OPEN[key], lim = open || vals.length <= 9 ? vals.length : 7;
     var shut = OPEN[key + ':shut'];
     h += '<div class="fgroup' + (shut ? ' shut' : '') + '"><button type="button" class="fhead" data-fold="' + key + '" aria-expanded="' + !shut + '"><span class="car">▼</span>' + esc(f.label) + (sel.length ? '<span class="fsel">' + sel.length + '</span>' : '') + '</button><div class="fvals">';
     vals.slice(0, lim).forEach(function(v){
       var on = sel.indexOf(v) >= 0, c = cnt[v] || 0;
-      h += '<label class="fv' + (on ? ' on' : '') + (c || on ? '' : ' zero') + '" title="' + esc(f.name(v)) + '"><input type="checkbox" data-f="' + f.k + '" value="' + esc(v) + '"' + (on ? ' checked' : '') + '><span class="box"></span><span class="fl">' + esc(f.name(v)) + '</span><span class="fc">' + c + '</span></label>';
+      h += '<label class="fv' + (on ? ' on' : '') + (c || on ? '' : ' zero') + '" title="' + esc(f.tip ? f.tip(v) : f.name(v)) + '"><input type="checkbox" data-f="' + f.k + '" value="' + esc(v) + '"' + (on ? ' checked' : '') + '><span class="box"></span><span class="fl">' + esc(f.name(v)) + '</span><span class="fc">' + c + '</span></label>';
     });
     if (vals.length > lim) h += '<button type="button" class="more" data-more="' + key + '">Show all ' + vals.length + '</button>';
     else if (open) h += '<button type="button" class="more" data-more="' + key + '">Show fewer</button>';
@@ -2264,7 +2295,7 @@ function renderToc(){
 function markSel(){
   document.querySelectorAll('.item.sel').forEach(function(x){ x.classList.remove('sel'); });
   if (!openId || openLib !== cur) return;
-  var el = document.querySelector('#tab-' + cur + ' .item[data-id="' + (window.CSS && CSS.escape ? CSS.escape(openId) : openId) + '"]');
+  var el = document.querySelector('#tab-' + cur + ' .item[data-id="' + cssId(openId) + '"]');
   if (el){ el.classList.add('sel'); var r = el.getBoundingClientRect(); if (r.top < 0 || r.bottom > window.innerHeight) el.scrollIntoView({block:'center'}); }
 }
 function navState(){
@@ -2272,21 +2303,32 @@ function navState(){
   for (var k = 0; k < l.length; k++) if (l[k].id === openId){ i = k; break; }
   $('dPrev').disabled = i <= 0; $('dNext').disabled = i < 0 || i >= l.length - 1;
 }
+var dReturn = null;   // what had focus before the drawer opened; it gets focus back on close
+function cssId(v){ return window.CSS && CSS.escape ? CSS.escape(v) : v; }
 function openDrawer(n, id){
   var L = LIB[n], it = null;
   for (var k = 0; k < L.items.length; k++) if (L.items[k].id === id){ it = L.items[k]; break; }
   if (!it){ toast('Nothing called ' + id + ' in ' + n); closeDrawer(); return; }
+  var opening = $('drawer').hidden;
+  if (opening) dReturn = document.activeElement;
   openId = id; openLib = n;
   $('dId').textContent = L.label ? L.label(it) : it.id; $('dTitle').textContent = L.title(it);
   $('dBody').innerHTML = L.drawer(it); $('dBody').scrollTop = 0;
   $('drawer').hidden = false; $('scrim').hidden = false; document.body.classList.add('drawer-open');
   markSel(); navState(); writeHash();
+  if (opening) $('dTitle').focus({preventScroll:true});
 }
 function closeDrawer(write){
-  var was = !$('drawer').hidden;
+  var was = !$('drawer').hidden, lastId = openId, lastLib = openLib;
   $('drawer').hidden = true; $('scrim').hidden = true; document.body.classList.remove('drawer-open');
   openId = null; markSel();
   if (write !== false && was) writeHash();
+  if (!was) return;
+  // back to what opened it; if a re-render replaced that row, to the row for the same record
+  var r = dReturn; dReturn = null;
+  if (!(r && r.isConnected && r.offsetParent !== null))
+    r = lastLib === cur && lastId ? document.querySelector('#tab-' + cur + ' .item[data-id="' + cssId(lastId) + '"]') : null;
+  if (r && r.focus) r.focus({preventScroll:true});
 }
 function stepDrawer(dir){
   var l = LAST[openLib] || [];
@@ -2368,7 +2410,8 @@ function copyText(text, done){
 }
 document.addEventListener('click', function(ev){
   var b = ev.target.closest('.copy'); if (!b || b.id === 'dLink') return;
-  var text = b.dataset.copy || ((b.parentElement.querySelector('code') || {}).textContent) || '';
+  var text = b.dataset.copylink ? location.href.split('#')[0] + b.dataset.copylink
+    : (b.dataset.copy || ((b.parentElement.querySelector('code') || {}).textContent) || '');
   copyText(text, function(){ var t = b.textContent; b.textContent = 'Copied'; setTimeout(function(){ b.textContent = t; }, 1200); });
 });
 
@@ -2560,8 +2603,8 @@ def page(d: dict) -> tuple[str, dict]:
   <main id="main"><noscript><p class="empty">The libraries need JavaScript. Everything on this page is also in the repository as YAML, Sigma and YARA.</p></noscript>{panels}</main>
 </div>
 <div class="scrim" id="scrim" hidden></div>
-<aside class="drawer" id="drawer" hidden aria-labelledby="dTitle">
-  <div class="dhead"><div><span class="id" id="dId"></span><h2 id="dTitle"></h2></div>
+<aside class="drawer" id="drawer" hidden role="dialog" aria-modal="true" aria-labelledby="dTitle">
+  <div class="dhead"><div><span class="id" id="dId"></span><h2 id="dTitle" tabindex="-1"></h2></div>
     <div class="dacts"><button type="button" id="dPrev" title="Previous (&#8592; or k)" aria-label="Previous record">&#8592;</button><button type="button" id="dNext" title="Next (&#8594; or j)" aria-label="Next record">&#8594;</button>
       <button type="button" id="dLink">Copy link</button><button type="button" id="dWide">Wider</button><button type="button" id="dClose" aria-label="Close (Esc)">&#215;</button></div></div>
   <div class="dbody" id="dBody"></div>
@@ -2604,6 +2647,9 @@ def check(d: dict, doc: str, data: dict) -> list[str]:
     for r in d["rules"]:
         if r["dir"] not in RULE_DIR_PLATFORM:
             problems.append(f"rule directory {r['dir']} has no platform in RULE_DIR_PLATFORM")
+    noabbr = sorted(plat - set(PLATFORM_ABBR))
+    if noabbr:
+        problems.append(f"no short name in PLATFORM_ABBR for {noabbr}")
     missing = sorted(plat - set(data.get("guideNotes", [])))
     if missing:
         problems.append(f"investigation guide has no platform note for {missing} (see NOTE_PLATFORM)")

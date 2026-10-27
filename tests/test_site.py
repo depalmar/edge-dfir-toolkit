@@ -250,6 +250,63 @@ def test_byline_credits_the_author_and_firm(browser, tmp_path):
     assert "DePalma Research LLC" in page.locator("footer").inner_text()
 
 
+def test_drawer_is_a_dialog_and_focus_round_trips(browser, tmp_path):
+    """F16: opening a record moves focus into the drawer; closing it returns
+    focus to the row that opened it, so a keyboard user keeps their place."""
+    url = _build(tmp_path)
+    page = browser.new_page(viewport={"width": 1440, "height": 900})
+    page.goto(f"{url}#artifacts")
+    row = page.locator("#tab-artifacts .item").nth(2)
+    rid = row.get_attribute("data-id")
+    row.focus()
+    page.keyboard.press("Enter")
+    page.locator("#drawer").wait_for(state="visible")
+    assert page.locator("#drawer").get_attribute("role") == "dialog"
+    assert page.locator("#drawer").get_attribute("aria-modal") == "true"
+    assert page.evaluate("document.activeElement.id") == "dTitle"
+    page.keyboard.press("j")                                   # stepping keeps focus where it is
+    assert page.evaluate("document.activeElement.id") == "dTitle"
+    page.keyboard.press("k")
+    page.keyboard.press("Escape")
+    page.locator("#drawer").wait_for(state="hidden")
+    assert page.evaluate("document.activeElement.dataset.id") == rid
+
+
+def test_text_is_never_the_faint_token(browser, tmp_path):
+    """F33: --faint is for lines and decoration. Facet heads and table heads
+    were set in it and failed contrast."""
+    url = _build(tmp_path)
+    page = browser.new_page(viewport={"width": 1440, "height": 900})
+    faint = ("() => { const s = document.createElement('span'); s.style.color = 'var(--faint)';"
+             " document.body.appendChild(s); const c = getComputedStyle(s).color; s.remove(); return c; }")
+    page.goto(f"{url}#artifacts")
+    page.locator("#rail .fhead").first.wait_for(state="visible")
+    f = page.evaluate(faint)
+    for sel in ("#rail .fhead", "#tab-artifacts .row.head", "#rail .fv .fc", "footer"):
+        assert page.locator(sel).first.evaluate("e => getComputedStyle(e).color") != f, sel
+    page.goto(f"{url}#plans/panos")
+    th = page.locator("#plan-panos .tbl thead th").first
+    th.wait_for(state="visible")
+    assert th.evaluate("e => getComputedStyle(e).color") != f
+
+
+def test_platform_facets_use_short_names_and_keep_their_order(browser, tmp_path):
+    """F8/F24: one short name everywhere a platform is picked, the full name on
+    hover; the rail no longer reorders when another filter changes the counts."""
+    url = _build(tmp_path)
+    page = browser.new_page(viewport={"width": 1440, "height": 900})
+    page.goto(f"{url}#artifacts")
+    lab = page.locator('#rail label:has(input[data-f="platform"][value="EDGE-0001"])')
+    assert lab.locator(".fl").inner_text() == "PAN-OS"
+    assert lab.get_attribute("title") == "PAN-OS / GlobalProtect"
+    order = page.locator('#rail input[data-f="platform"]').evaluate_all("els => els.map(e => e.value)")
+    assert order == sorted(order)                              # catalog order
+    page.locator("#rail label:has(input[value='memory'])").click()
+    assert page.locator('#rail input[data-f="platform"]').evaluate_all("els => els.map(e => e.value)") == order
+    page.goto(f"{url}#response/cisco-asa")
+    assert page.locator('.rbtn[data-resp="cisco-asa"]').inner_text() == "ASA/FTD"
+
+
 def test_unvalidated_collection_warning(browser, tmp_path):
     url = _build(tmp_path)
     page = browser.new_page()
