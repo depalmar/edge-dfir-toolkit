@@ -1470,7 +1470,7 @@ q.quote{font-style:italic;color:var(--ink);font-size:var(--fs-sm)}
 .dacts button{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:5px 10px;font-size:var(--fs-sm);color:var(--ink)}
 .dacts button:hover:not(:disabled){border-color:var(--accent)}
 .dacts button:disabled{opacity:.35;cursor:default}
-.dbody{padding:4px 18px 40px;overflow-y:auto;flex:1}
+.dbody{padding:0 18px 40px;overflow-y:auto;flex:1;overscroll-behavior:contain}
 .dbody h4{margin:20px 0 7px}
 .dbody p{margin:6px 0}
 .dloc{display:flex;gap:8px;align-items:flex-start;margin:14px 0 4px}
@@ -1478,8 +1478,11 @@ q.quote{font-style:italic;color:var(--ink);font-size:var(--fs-sm)}
 .stepbox{background:var(--panel-2);border:1px solid var(--line-soft);border-radius:10px;padding:10px 12px}
 .stepbox .codewrap{margin:8px 0}
 .refs{padding-left:18px}.refs li{margin:4px 0}
-.scrim{display:none}
-body.drawer-open{overflow:auto}
+/* One scroller at a time: while a record is open the page is locked behind a scrim and only
+   the drawer scrolls; the gutter stays reserved so the page does not shift when it locks. */
+html{scrollbar-gutter:stable}
+.scrim{position:fixed;inset:0;background:rgba(20,18,16,.32);z-index:45}
+body.drawer-open{overflow:hidden}
 
 /* ---- shared bits ---- */
 h3{margin:0;font-size:var(--fs-md);font-weight:600}
@@ -1699,8 +1702,6 @@ kbd{font-family:var(--mono);font-size:var(--fs-xs);border:1px solid var(--line);
   #railToggle{display:inline-flex;gap:6px;align-items:center}
   .rail:not(.open) #rail{display:none}
   .rail:not(.open) #railReset{display:none}
-  .scrim{display:block;position:fixed;inset:0;background:rgba(0,0,0,.32);z-index:45}
-  body.drawer-open{overflow:hidden}
 }
 @media (max-width:640px){
   .rail{top:0}
@@ -1714,7 +1715,7 @@ kbd{font-family:var(--mono);font-size:var(--fs-xs);border:1px solid var(--line);
   .steps thead{display:none}.steps tr.step td{display:block;border:0;padding:3px 0}
   .steps tr.step{display:block;padding:10px 0;border-top:1px solid var(--line-soft)}
   .steps tr.step td:first-child{font-weight:600}.steps .tierrow th{display:block}
-  .dhead{padding:12px 14px}.dbody{padding:4px 14px 40px}
+  .dhead{padding:12px 14px}.dbody{padding:0 14px 40px}
   .dacts #dWide{display:none}
 }
 

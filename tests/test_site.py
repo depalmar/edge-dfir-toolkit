@@ -412,3 +412,26 @@ def test_record_drawer_facts_sections_and_connections(browser, tmp_path):
     page.locator("#drawer").wait_for(state="visible")
     first_two = page.locator("#dBody > nav").evaluate_all("els => els.map(e => e.className)")
     assert first_two[:2] == ["djump", "dsecs"]                 # the intel jumps stay first
+
+
+def test_open_record_is_the_only_scroller(browser, tmp_path):
+    """With a record open the page behind it is locked under a scrim, so there is
+    one scrollbar and the wheel never spills from the drawer into the page."""
+    url = _build(tmp_path)
+    page = browser.new_page(viewport={"width": 1440, "height": 900})
+    page.goto(f"{url}#detections/netscaler-8452-theme-poc-shell")
+    page.locator("#drawer").wait_for(state="visible")
+    assert page.locator("#scrim").is_visible()
+    assert page.evaluate("getComputedStyle(document.body).overflowY") == "hidden"
+    assert page.evaluate("getComputedStyle(document.getElementById('dBody')).overscrollBehaviorY") == "contain"
+    before = page.evaluate("window.scrollY")
+    box = page.locator("#dBody").bounding_box()
+    page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+    for _ in range(12):
+        page.mouse.wheel(0, 900)                              # far past the end of the record
+    page.wait_for_timeout(300)
+    assert page.evaluate("document.getElementById('dBody').scrollTop") > 0
+    assert page.evaluate("window.scrollY") == before
+    page.locator("#scrim").click(position={"x": 20, "y": 400})
+    page.locator("#drawer").wait_for(state="hidden")
+    assert page.evaluate("getComputedStyle(document.body).overflowY") != "hidden"
