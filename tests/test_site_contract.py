@@ -72,3 +72,41 @@ def test_dark_theme_outlines_are_visible():
         assert _contrast(t["muted"], t[surface]) >= 4.5, surface
     media = re.search(r"@media \(prefers-color-scheme:dark\)\{:root:not\(\[data-theme=light\]\)\{(.*?)\}\}", bs.CSS, re.S).group(1)
     assert dict(re.findall(r"--([\w-]+):(#[0-9a-f]{6})", media)) == t   # both dark blocks agree
+
+
+def test_heatmaps_are_tables_with_a_label_on_every_cell():
+    """F35: a coverage heatmap is a table: two header rows, one row per platform with
+    a row header, and every cell (filled or empty) says what it holds."""
+    bs = _site()
+    d = bs.load()
+    doc, data = bs.page(d)
+    heats = re.findall(r'<div class="heat" style="--cols:(\d+)" role="table" aria-label="[^"]+">(.*?)</div></div>', doc, re.S)
+    assert len(heats) == 2
+    for cols, body in heats:
+        rows = body.split('<div class="hrow" role="row">')[1:]
+        assert len(rows) == len(data["platforms"]) + 2
+        assert rows[1].count('role="columnheader"') == int(cols) + 2
+        for row in rows[2:]:
+            assert row.count('role="rowheader"') == 1
+            cells = re.findall(r'role="cell"( aria-label="[^"]+")?>(<a [^>]*aria-label="[^"]+")?', row)
+            assert len(cells) == int(cols) + 1
+            assert all(own or inner for own, inner in cells)
+
+
+def test_records_carry_their_last_changed_date():
+    """F21: a record's date is its file's last commit, from git; a build without
+    history shows none rather than a guessed date."""
+    bs = _site()
+    d = bs.load()
+    for path, day in bs.git_dates().items():
+        assert path.startswith("artifacts/") and re.fullmatch(r"\d{4}-\d{2}-\d{2}", day)
+    first = d["catalog"][0]
+    d["dates"] = {first["_file"]: "2026-01-02"}
+    doc, data = bs.page(d)
+    assert next(p for p in data["platforms"] if p["id"] == first["id"])["changed"] == "2026-01-02"
+    assert {a["changed"] for a in data["artifacts"] if a["platform"] == first["id"]} == {"2026-01-02"}
+    assert "Record files, last changed" in doc
+    d["dates"] = {}
+    doc, data = bs.page(d)
+    assert not any(p["changed"] for p in data["platforms"])
+    assert "which this build did not have" in doc

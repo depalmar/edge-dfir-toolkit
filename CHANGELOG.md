@@ -75,8 +75,26 @@ Step 2 adds new views, built from data the repository already has:
     continued command, which cut it short.
 - Guide: reading time in the contents rail and 32 px contents links.
 
-Step 3 adds the larger pieces, and two fixes from review:
+Step 3 adds the larger pieces, and fixes from review:
 
+- Search everything (F2). `/`, Ctrl+K or the header box opens one search
+  across:
+  - every library;
+  - every collection step;
+  - the guide;
+  - the KEV ledger.
+
+  Results are grouped by library, at most five in each, with an "All N" link
+  into that library's filter. An address pasted defanged (`192.0.2[.]1`,
+  `hxxps://`) finds the stored value. Esc closes the search before it closes
+  a record.
+- Last changed (F21). Each record's quick facts give the date its file was
+  last committed, and Coverage lists the newest and oldest file in each
+  library. The Pages workflow now fetches the full git history. A build
+  without history shows no dates rather than guessed ones.
+- Text alternatives for the charts (F35). The coverage heatmaps are tables
+  with a label on every cell, and each timeline track describes itself. The
+  KEV year chart and the steps-per-tier strip each have a sentence of text.
 - `edgetriage analyze` now also writes `report.html` beside `report.md`, verdict
   first (F38). The page holds:
   - the verdict card and its status bar;

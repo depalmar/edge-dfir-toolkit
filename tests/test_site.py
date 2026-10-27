@@ -391,8 +391,8 @@ def test_artifact_rows_group_highlight_and_link(browser, tmp_path):
     page.goto(f"{url}#detections")
     page.locator("#tab-detections .lc").first.wait_for(state="visible")
     assert page.locator("#tab-detections .lc .runs").count() == page.locator("#tab-detections .lc").count()
-    page.locator("#searchBtn").click()                        # until the palette ships it filters the library in view
-    assert page.evaluate("document.activeElement.classList.contains('q')")
+    page.locator("#searchBtn").click()                        # the header search opens search-everything
+    assert page.evaluate("document.activeElement.id") == "palQ"
 
 
 def test_record_drawer_facts_sections_and_connections(browser, tmp_path):
@@ -404,6 +404,8 @@ def test_record_drawer_facts_sections_and_connections(browser, tmp_path):
     page.locator("#drawer").wait_for(state="visible")
     assert page.locator("#dBody .dfacts dt").all_inner_texts()[:3] == ["Class", "Volatility", "Forensic value"]
     assert page.locator("#dPos").inner_text().endswith(" of 92")
+    if sys.modules["build_site"].git_dates():                 # F21: the file's last commit date, when history is present
+        assert "Last changed" in page.locator("#dBody .dfacts dt").all_inner_texts()
     assert "How it connects" in page.locator("#dBody .dsecs button").all_inner_texts()
     page.locator("#dBody .dsecs button", has_text="How it connects").click()
     page.wait_for_function("() => document.getElementById('dBody').scrollTop > 0")
@@ -435,3 +437,65 @@ def test_open_record_is_the_only_scroller(browser, tmp_path):
     page.locator("#scrim").click(position={"x": 20, "y": 400})
     page.locator("#drawer").wait_for(state="hidden")
     assert page.evaluate("getComputedStyle(document.body).overflowY") != "hidden"
+
+
+def test_search_everything_palette(browser, tmp_path):
+    """F2: one search across every library, the collection steps, the guide and the
+    KEV ledger. Opens with / and Ctrl+K, groups results in a fixed order, matches a
+    defanged paste, Enter opens the record, Esc closes the palette before the record."""
+    url = _build(tmp_path)
+    d = sys.modules["build_site"].load()
+    ip = next(i["value"] for s in d["iocs"] for i in s["indicators"] if i["type"] == "ipv4")
+    errors: list[str] = []
+    page = browser.new_page(viewport={"width": 1440, "height": 900})
+    page.on("pageerror", lambda e: errors.append(str(e)))
+    page.goto(f"{url}#start")
+    page.locator("#tab-start").wait_for(state="visible")
+    page.keyboard.press("/")
+    page.locator("#pal").wait_for(state="visible")
+    assert page.evaluate("document.activeElement.id") == "palQ"
+    assert page.locator("#palList [data-pq]").count() == 6          # an empty box offers examples
+    page.fill("#palQ", "CVE-2024-3400")
+    groups = [g.split("\n")[0].title() for g in page.locator("#palList .ps-gh").all_inner_texts()]
+    assert groups[:2] == ["Artifacts", "Detections"] and "Collection Steps" in groups
+    assert page.get_attribute("#palQ", "aria-activedescendant") == "pal-r0"
+    page.keyboard.press("ArrowUp")                                  # wraps to the last result
+    assert page.locator("#palList .ps-r.on").get_attribute("id") == f"pal-r{page.locator('#palList .ps-r').count() - 1}"
+    page.keyboard.press("ArrowDown")
+    target = page.locator("#palList .ps-r.on").get_attribute("href")
+    page.keyboard.press("Enter")
+    page.locator("#drawer").wait_for(state="visible")
+    assert page.evaluate("location.hash") == target and page.locator("#pal").is_hidden()
+    page.keyboard.press("Control+k")                                # Esc closes the palette, not the record behind it
+    page.locator("#pal").wait_for(state="visible")
+    page.keyboard.press("Escape")
+    assert page.locator("#pal").is_hidden() and page.locator("#drawer").is_visible()
+    page.keyboard.press("Escape")
+    page.locator("#searchBtn").click()
+    page.fill("#palQ", ip.replace(".", "[.]"))                      # pasted defanged from a report
+    assert "Indicators" in [g.split("\n")[0].title() for g in page.locator("#palList .ps-gh").all_inner_texts()]
+    page.fill("#palQ", "zzzq-nothing-has-this")
+    assert "Nothing matches every word" in page.locator("#palList").inner_text()
+    page.keyboard.press("Escape")
+    assert not page.evaluate("document.body.classList.contains('pal-open')")
+    page.goto(f"{url}#artifacts")
+    page.locator("#tab-artifacts .q").click()
+    page.keyboard.type("/var")                                      # a slash typed into a filter stays there
+    assert page.locator("#pal").is_hidden() and page.input_value("#tab-artifacts .q") == "/var"
+    assert not errors
+
+
+def test_charts_have_text_alternatives(browser, tmp_path):
+    """F35: each timeline track says what it shows, and the coverage heatmaps are
+    tables a screen reader can walk."""
+    url = _build(tmp_path)
+    page = browser.new_page(viewport={"width": 1440, "height": 900})
+    page.goto(f"{url}#intel")
+    page.locator("#tab-intel .tlr").first.wait_for(state="visible")
+    tracks = page.locator("#tab-intel .tlr:not(.tlh) .tlk")        # the axis row is plain text, not a chart
+    labels = tracks.evaluate_all("els => els.map(e => [e.getAttribute('role'), e.getAttribute('aria-label') || ''])")
+    assert labels and all(r == "img" and len(a) > 20 for r, a in labels)
+    page.goto(f"{url}#coverage")
+    page.locator("#tab-coverage .heat").first.wait_for(state="visible")
+    assert page.locator("#tab-coverage .heat[role=table]").count() == 2
+    assert page.get_by_role("table", name="Artifacts by platform and class").count() == 1

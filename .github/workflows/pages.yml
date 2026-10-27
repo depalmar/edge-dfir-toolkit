@@ -30,6 +30,8 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # full history: each record's "last changed" date is its file's last commit
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'

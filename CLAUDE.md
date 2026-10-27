@@ -232,7 +232,11 @@ Start's verdict ladder (`LADDER`) is run through `analyze.verdict()` by
 `tests/test_site_contract.py`: change the copy and the code together. Coverage
 reads the KEV ledger from `artifacts/watch/kev-watch.yml`; `#coverage/<anchor>`
 scrolls to `id="cov-<anchor>"` and `--check` validates it. `--faint` is for lines
-and decoration only, never text.
+and decoration only, never text. Search everything (`/`, Ctrl+K) indexes the
+libraries, `D.steps`, the guide and the KEV ledger, and refangs the query before
+matching. A record's "Last changed" date comes from `git_dates()` (one `git log`
+walk over `artifacts/`). Pages checks out with `fetch-depth: 0`. A build without
+history shows no date rather than a guessed one.
 Page changes go in the generator. `--check` fails on duplicate or non-URL-safe
 element ids, dangling `#tab/anchor` links and any external script or stylesheet.
 

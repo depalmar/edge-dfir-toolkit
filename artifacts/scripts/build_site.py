@@ -24,6 +24,7 @@ import html
 import inspect
 import json
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -112,11 +113,36 @@ def refs_of(items) -> list[dict]:
 
 
 # --------------------------------------------------------------------------- load
+def git_dates() -> dict[str, str]:
+    """Last commit date (YYYY-MM-DD) of every file under artifacts/, from one git
+    log walk. Empty when git or the history is unavailable, so --check still runs;
+    the Pages workflow checks out the full history (fetch-depth: 0) for real dates."""
+    try:
+        out = subprocess.run(["git", "-C", str(ROOT), "log", "--format=@%cs", "--name-only", "--", "artifacts"],
+                             capture_output=True, text=True, timeout=60, check=True).stdout
+    except (OSError, subprocess.SubprocessError):
+        return {}
+    dates: dict[str, str] = {}
+    cur = ""
+    for ln in out.splitlines():
+        if ln.startswith("@"):
+            cur = ln[1:]
+        elif ln.strip():
+            dates.setdefault(ln.strip(), cur)
+    return dates
+
+
+def _yml(p: Path) -> dict:
+    """A YAML record plus the repository path it came from, for its last-changed date."""
+    doc = yaml.safe_load(p.read_text())
+    doc["_file"] = p.relative_to(ROOT).as_posix()
+    return doc
+
+
 def load() -> dict:
-    catalog = sorted((yaml.safe_load(p.read_text()) for p in (ROOT / "artifacts" / "catalog").glob("*.yml")),
-                     key=lambda c: c["id"])
+    catalog = sorted((_yml(p) for p in (ROOT / "artifacts" / "catalog").glob("*.yml")), key=lambda c: c["id"])
     profiles = sorted((load_profile(p) for p in available_profiles().values()), key=lambda p: p.platform_id)
-    packs = [yaml.safe_load(p.read_text()) for p in sorted((ROOT / "artifacts" / "packs").glob("*.yml"))]
+    packs = [_yml(p) for p in sorted((ROOT / "artifacts" / "packs").glob("*.yml"))]
     rules = []
     for f in sorted(list(ROOT.glob("[0-9][0-9]-*/*.yml")) + list(ROOT.glob("[0-9][0-9]-*/*.yar"))):
         text = f.read_text()
@@ -138,23 +164,27 @@ def load() -> dict:
                       "cves": cves, "attack": attack})
     guide = (ROOT / "docs" / "edge-dfir-investigation-guide.md").read_text()
     intel = ROOT / "artifacts" / "intel"
-    actors = sorted((yaml.safe_load(f.read_text()) for f in (intel / "actors").glob("*.yml")), key=lambda a: a["id"])
-    implants = sorted((yaml.safe_load(f.read_text()) for f in (intel / "implants").glob("*.yml")), key=lambda i: i["id"])
+    actors = sorted((_yml(f) for f in (intel / "actors").glob("*.yml")), key=lambda a: a["id"])
+    implants = sorted((_yml(f) for f in (intel / "implants").glob("*.yml")), key=lambda i: i["id"])
     iocs = sorted((yaml.safe_load(f.read_text()) for f in (intel / "iocs").glob("*.yml")), key=lambda i: i["id"])
-    response = {f.stem: yaml.safe_load(f.read_text()) for f in sorted((ROOT / "artifacts" / "response").glob("*.yml"))}
-    hardening = {f.stem: yaml.safe_load(f.read_text()) for f in sorted((ROOT / "artifacts" / "hardening").glob("*.yml"))}
-    hunts = [yaml.safe_load(f.read_text()) for f in sorted((ROOT / "artifacts" / "hunts").glob("*.yml"))]
+    response = {f.stem: _yml(f) for f in sorted((ROOT / "artifacts" / "response").glob("*.yml"))}
+    hardening = {f.stem: _yml(f) for f in sorted((ROOT / "artifacts" / "hardening").glob("*.yml"))}
+    hunts = [_yml(f) for f in sorted((ROOT / "artifacts" / "hunts").glob("*.yml"))]
     watch = yaml.safe_load((ROOT / "artifacts" / "watch" / "kev-watch.yml").read_text())
     kev = {"since": str(watch["since"]), "triaged": [{**t, "date": str(t["date"]), "refs": t.get("refs") or []}
                                                     for t in watch.get("triaged") or []]}
     return {"catalog": catalog, "profiles": profiles, "packs": packs, "rules": rules, "guide": guide,
             "actors": actors, "implants": implants, "iocs": iocs, "response": response, "hardening": hardening, "hunts": hunts,
-            "kev": kev}
+            "kev": kev, "dates": git_dates()}
 
 
 # --------------------------------------------------------------------------- data for the libraries
 def build_data(d: dict) -> dict:
     prof = {p.name: p for p in d["profiles"]}
+    dates = d.get("dates") or {}
+
+    def changed(x: dict) -> str:
+        return dates.get(x.get("_file", ""), "")
     steps = {p.name: {s.id: {"tier": s.tier, "impact": s.impact, "kind": s.kind, "cmd": s.cmd or s.list_cmd or "",
                              "purpose": s.purpose, "instructions": (s.instructions or "").strip(),
                              "confidence": s.confidence, "unverified": s.unverified} for s in p.steps}
@@ -202,6 +232,7 @@ def build_data(d: dict) -> dict:
                 "steps": st, "files": src.get("files", []), "unv": bool(p.get("unverified")),
                 "sigma": [slug(r) for r in x.get("sigma", [])],
                 "runs": ["analyzer"] + (["siem"] if x.get("sigma") else []) + (["yara"] if x.get("type") == "yara" else []),
+                "changed": changed(p),
             })
     det_cves = {c for x in dets for c in x["cves"]}
 
@@ -230,6 +261,7 @@ def build_data(d: dict) -> dict:
                 "provides": (a.get("provides") or "").strip(), "normal": (a.get("normal") or "").strip(),
                 "suspicious": (a.get("suspicious") or "").strip(), "basis": a.get("basis", ""),
                 "detections": [x["id"] for x in dets if c["id"] in x["platforms"] and cb in [s["id"] for s in x["steps"]]],
+                "changed": changed(c),
             })
 
     packs_by_plat: dict[str, list[str]] = {}
@@ -255,6 +287,7 @@ def build_data(d: dict) -> dict:
             "n_art": len(c.get("artifacts", [])), "n_steps": len(prof[c["profile"]].steps) if c.get("profile") else 0,
             "n_det": sum(1 for x in dets if c["id"] in x["platforms"]),
             "n_hard": sum(len(h["controls"]) for h in d["hardening"].values() if h["platform_id"] == c["id"]),
+            "changed": changed(c),
         })
 
     packs = [{"id": p["id"], "name": p["name"], "summary": p["summary"].strip(), "platforms": p["platforms"],
@@ -283,7 +316,7 @@ def build_data(d: dict) -> dict:
             "tradecraft": a.get("tradecraft", []), "victimology": a.get("victimology", []),
             "first_seen": str(a.get("first_seen", "")), "notes": (a.get("notes") or "").strip(),
             "references": refs_of(a.get("references")), "unv": bool(a.get("unverified")),
-            "confidence": a["link_confidence"],
+            "confidence": a["link_confidence"], "changed": changed(a),
         })
     for i in d["implants"]:
         detections = i.get("detections", [])
@@ -298,7 +331,7 @@ def build_data(d: dict) -> dict:
             "detection_packs": {x: det_by_id[x]["pack"] for x in detections if x in det_by_id},
             "coverage": "covered" if detections else "gap", "gap": (i.get("gap") or "").strip(),
             "confidence": i["confidence"], "unv": bool(i.get("unverified")),
-            "references": refs_of(i.get("references")),
+            "references": refs_of(i.get("references")), "changed": changed(i),
         })
 
     # Hardening: baseline (platform ALL) first, then per platform. A CVE or actor
@@ -320,7 +353,7 @@ def build_data(d: dict) -> dict:
                 "blunts": c.get("blunts", []), "blunt_links": blunt_links(c.get("blunts")),
                 "confidence": c["confidence"], "unv": bool(c.get("unverified")),
                 "sources": [{"title": x["title"], "url": x["url"], "quote": (x.get("quote") or "").strip()} for x in c["sources"]],
-                "stem": stem,
+                "stem": stem, "changed": changed(h),
             })
 
     iocs = [{
@@ -342,11 +375,13 @@ def build_data(d: dict) -> dict:
         "sigma": [slug(r) for r in h.get("sigma", [])], "inferred": (h.get("inferred") or "").strip(),
         "confidence": h["confidence"], "unv": bool(h.get("unverified")),
         "sources": [{"title": x["title"], "url": x["url"], "quote": x["quote"].strip(), "read": x.get("read", "direct")} for x in h["sources"]],
+        "changed": changed(h),
     } for h in d["hunts"]]
 
     return {"platforms": platforms, "artifacts": artifacts, "detections": dets, "packs": packs, "rules": rules,
             "intel": intel, "iocs": iocs, "hardening": hard, "hunts": hunts, "facetKeys": FACET_KEYS, "repo": REPO_URL,
             "abbr": PLATFORM_ABBR, "kev": d["kev"], "built": build_date().isoformat(),
+            "steps": [[p.name, st.id, st.tier, st.cmd or st.list_cmd or "", st.purpose] for p in d["profiles"] for st in p.steps],
             "guideMins": max(1, round(len(re.findall(r"\w+", d["guide"])) / 230)),
             "profiles": [{"name": p.name, "ssh": "ssh" in p.transports, "validated": bool(p.validated_on),
                           "vars": sorted({v for s in p.steps for v in s.requires_vars})} for p in d["profiles"]]}
@@ -633,7 +668,8 @@ def plan_summary(p) -> str:
             f'{conf_bar(c, "h18", ("high", "medium", "unverified"))}'
             f'<div class="small muted">{c["high"]} vendor-documented &#183; {c["medium"]} multi-source &#183; {c["low"]} unverified</div>'
             f'<div class="small muted">{imp["none"]} read-only &#183; {imp["vendor-bundle"]} write a bundle &#183; {imp["break-glass"]} break-glass</div></div>'
-            f'<div class="psum-r"><ol class="tstrip" aria-label="Steps per tier, in the order they run">{"".join(strip)}</ol>'
+            f'<div class="psum-r"><ol class="tstrip" aria-label="Steps per tier, in the order they run: '
+            + ", ".join(f"{t} {tc[t]}" for t in TIER_ORDER) + f'">{"".join(strip)}</ol>'
             f'<div class="small muted">Steps per tier, in the order they run</div></div></div>')
 
 
@@ -1016,29 +1052,35 @@ def _pip(tier: str) -> str:
     return f'<i class="pip p-{tier}"></i>' if tier else ""
 
 
-def heatmap(plats: list[dict], groups, total, cell, mx: int, label: str, miss=()) -> str:
+def heatmap(plats: list[dict], groups, total, cell, mx: int, label: str, miss=(), noun: str = "detection") -> str:
     """A platform x class grid. cell(p, c) -> (count, href, strongest tier or "");
     total(p) -> (count, href). Darker means more; the pip is the strongest tier."""
     cols = [c for _, cs in groups for c in cs]
-    head1 = "<span></span>" + "".join(f'<span class="hg" style="grid-column:span {len(cs)}">{e(g)}</span>' for g, cs in groups) + "<span></span>"
-    head2 = "<span></span>" + "".join(f'<span class="hk">{e(c)}</span>' for c in cols) + '<span class="hk">total</span>'
+    head1 = ('<div class="hrow" role="row"><span role="columnheader"></span>'
+             + "".join(f'<span class="hg" role="columnheader" aria-colspan="{len(cs)}" style="grid-column:span {len(cs)}">{e(g)}</span>'
+                       for g, cs in groups) + '<span role="columnheader"></span></div>')
+    head2 = ('<div class="hrow" role="row"><span role="columnheader"><span class="sr">Platform</span></span>'
+             + "".join(f'<span class="hk" role="columnheader">{e(c)}</span>' for c in cols)
+             + '<span class="hk" role="columnheader">total</span></div>')
     tmax = max(total(p)[0] for p in plats) or 1
     rows = []
     for p in plats:
+        ab = PLATFORM_ABBR[p["id"]]
         cells = []
         for c in cols:
             n, href, tier = cell(p, c)
             if n:
-                tip = f'{PLATFORM_ABBR[p["id"]]}, {c}: {n}' + (f", strongest {tier}" if tier else "")
+                tip = f"{ab} {c}: {plural(n, noun)}" + (f", strongest {tier}" if tier else "")
                 heat = round(10 + 50 * min(n, mx) / mx)
-                cells.append(f'<a class="hc{" dk" if n >= 4 else ""}" href="{href}" style="--h:{heat}%" title="{e(tip)}" '
-                             f'aria-label="{e(tip)}">{n}{_pip(tier)}</a>')
+                cells.append(f'<span class="hcw" role="cell"><a class="hc{" dk" if n >= 4 else ""}" href="{href}" style="--h:{heat}%" '
+                             f'title="{e(tip)}" aria-label="{e(tip)}">{n}{_pip(tier)}</a></span>')
             else:
-                cells.append(f'<span class="hc e{" miss" if c in miss else ""}" title="{e(PLATFORM_ABBR[p["id"]])}, {e(c)}: none"></span>')
+                tip = f"{ab} {c}: none" + (" - the most volatile evidence is out of reach" if c in miss else "")
+                cells.append(f'<span class="hcw" role="cell" aria-label="{e(tip)}"><span class="hc e{" miss" if c in miss else ""}" title="{e(tip)}"></span></span>')
         tn, thref = total(p)
-        rows.append(f'<a class="hr" href="{thref}">{e(PLATFORM_ABBR[p["id"]])}</a>{"".join(cells)}'
-                    f'<span class="htot">{tn}<i class="hbar"><b style="width:{round(100 * tn / tmax)}%"></b></i></span>')
-    return (f'<div class="card hwrap"><div class="heat" style="--cols:{len(cols)}" role="group" aria-label="{e(label)}">'
+        rows.append(f'<div class="hrow" role="row"><span role="rowheader"><a class="hr" href="{thref}">{e(ab)}</a></span>{"".join(cells)}'
+                    f'<span class="htot" role="cell" aria-label="{e(ab)} total: {plural(tn, noun)}">{tn}<i class="hbar"><b style="width:{round(100 * tn / tmax)}%"></b></i></span></div>')
+    return (f'<div class="card hwrap"><div class="heat" style="--cols:{len(cols)}" role="table" aria-label="{e(label)}">'
             f'{head1}{head2}{"".join(rows)}</div></div>')
 
 
@@ -1083,10 +1125,27 @@ def render_coverage(d: dict, data: dict) -> str:
                    for i, (t, x) in enumerate(sets))
     ticks = "".join(f'<span style="left:{(y - y0) / span * 100:.2f}%">{y}</span>' for y in range(y0, y1 + 1))
     fresh_txt = f"{old} of {len(sets)} indicator sets were published more than a year ago (grey)."
+    libs = [("Platforms and artifacts", d["catalog"]), ("Detection packs", d["packs"]),
+            ("Threat intel", d["actors"] + d["implants"]), ("Hunts", d["hunts"]),
+            ("Hardening", list(d["hardening"].values())), ("Response playbooks", list(d["response"].values()))]
+    dates = d.get("dates") or {}
+    lrows = []
+    for name, recs in libs:
+        ds = sorted(dates.get(x.get("_file", ""), "") for x in recs)
+        ds = [x for x in ds if x]
+        if not ds:
+            continue
+        recent = sum(1 for x in ds if (built - _dt.date.fromisoformat(x)).days <= 90)
+        lrows.append(f'<tr><td>{e(name)}</td><td class="num">{len(recs)}</td><td>{ds[-1]}</td><td>{ds[0]}</td><td class="num">{recent}</td></tr>')
+    changed_html = (f'<h4>Record files, last changed</h4><div class="scroll"><table class="tbl fresh"><thead><tr><th>Library</th><th>Files</th>'
+                    f'<th>Newest</th><th>Oldest</th><th>Changed in 90 days</th></tr></thead><tbody>{"".join(lrows)}</tbody></table></div>'
+                    '<p class="small muted">From the git history of each YAML file. Every record shows its own date in its quick facts.</p>'
+                    if lrows else '<p class="small muted">Last-changed dates come from the git history, which this build did not have.</p>')
     fresh = (f'<div class="ftrack" role="img" aria-label="{e(fresh_txt)} Dashed line: the build date, {built.isoformat()}.">{dots}'
              f'<span class="fnow" style="left:{(now - y0) / span * 100:.2f}%"></span></div>'
              f'<div class="fticks" aria-hidden="true">{ticks}</div><p class="small muted">{e(fresh_txt)} Dashed line: '
              f'the build date. Hover a dot for the publisher.</p>')
+    fresh = '<h4>Indicator sets, by publication date</h4>' + fresh
 
     # 3. readiness scorecard
     ready = []
@@ -1132,7 +1191,7 @@ def render_coverage(d: dict, data: dict) -> str:
     det_heat = heatmap(plats, VOLG, lambda p: (p["n_det"], f'#detections?platform={p["id"]}'), det_cell, 6,
                        "Detections by platform and evidence class")
     art_heat = heatmap(plats, VOLG + [("Off-box", ["off-box"])], lambda p: (p["n_art"], f'#artifacts?platform={p["id"]}'),
-                       art_cell, 5, "Artifacts by platform and class", miss=("memory", "process"))
+                       art_cell, 5, "Artifacts by platform and class", miss=("memory", "process"), noun="artifact")
     dhead = "".join(f'<th class="vert"><span>{e(c)}</span></th>' for c in CLASSES)
 
     def tier_cell(xs_tiers, href, label):
@@ -1245,7 +1304,9 @@ def render_coverage(d: dict, data: dict) -> str:
            f'<div><b>{len(triaged)}</b><span>exploited CVEs with a decision instead</span></div>'
            f'<div><b class="{"bad" if open_ else "good"}">{open_}</b><span>waiting to be read</span></div></div>'
            f'<h4>Pack CVEs by the year of the CVE</h4><ol class="ychart" role="img" aria-label="'
-           + e(", ".join(f"{y}: {n}" for y, n in sorted(yc.items()))) + f'">{years}</ol></div>'
+           + e(", ".join(f"{y}: {n}" for y, n in sorted(yc.items()))) + f'">{years}</ol>'
+           f'<p class="small muted">{sum(n for y, n in yc.items() if y >= since[:4])} of {len(pack_cves)} pack CVEs carry a year of '
+           f'{since[:4]} or later. The year is the one in the CVE id, not when exploitation began.</p></div>'
            f'<div class="card"><b class="ch">Why an exploited CVE has no pack</b>'
            f'<div class="dbar" role="img" aria-label="' + e(", ".join(f"{n} {k}" for k, n in dc.items())) + f'">{dsegs}</div>'
            f'<ul class="dkey">{dkey}</ul><p class="small muted">Latest decision {e(latest)}. &quot;deferred&quot; would mean not yet '
@@ -1261,7 +1322,7 @@ def render_coverage(d: dict, data: dict) -> str:
         '<div class="cov2"><div class="card"><b class="ch">Confidence, library by library</b>'
         f'<div class="crows">{conf_html}</div><div class="skey"><span><i class="sw cs-high"></i>high - vendor-documented or verified</span>'
         '<span><i class="sw cs-medium"></i>medium - several sources</span><span><i class="sw cs-low"></i>low or unverified</span></div></div>',
-        f'<div class="card"><b class="ch">How fresh the indicator sets are</b>{fresh}</div></div></section>',
+        f'<div class="card"><b class="ch">How fresh the content is</b>{fresh}{changed_html}</div></div></section>',
         '<section id="cov-ready" class="covsec"><h3 class="sect">How ready is each platform</h3>',
         '<p class="muted small">Eight things a responder relies on. Sorted by how many each platform has; every cell opens the '
         'evidence behind it.</p>',
@@ -1685,7 +1746,7 @@ footer{max-width:1440px;margin:0 auto;padding:22px 28px 40px;color:var(--muted);
 @media (max-width:760px){.rsel-l{display:flex}.rpick{display:none}.rstep.cred .rbody{grid-template-columns:minmax(0,1fr)}
   .rphase{grid-template-columns:24px minmax(0,1fr);gap:6px}.rrail .pn{width:20px;height:20px;font-size:var(--fs-xs)}}
 @media print{
-  .hdr,.rhead,.rtool .links,.rnav,.rlinks,.rail,footer,.toast,.scrim,#drawer{display:none!important}
+  .hdr,.rhead,.rtool .links,.rnav,.rlinks,.rail,footer,.toast,.scrim,#drawer,.ps-box,.ps-scrim{display:none!important}
   .panel:not(#tab-response){display:none!important}.resp[hidden]{display:none!important}
   body{background:#fff}.card.resp{border:0;box-shadow:none;padding:0}.rstep{break-inside:avoid}.rstep.off{display:none}
   .rrail::after{display:none}.rrefs[open] summary,.rrefs{display:block}}
@@ -1977,6 +2038,7 @@ a.locl:hover code.loc{border-color:var(--accent-border)}
 .rsc{display:block;height:6px;border-radius:3px;background:var(--line-soft);overflow:hidden}.rsc b{display:block;height:100%;border-radius:3px}
 .s-ok{background:var(--low)}.s-thin{background:var(--med)}.s-none{background:var(--crit)}
 .card.hwrap{overflow-x:auto;padding:12px 14px;margin:10px 0 8px}
+.hrow{display:contents}.hcw{display:block;min-width:0}
 .heat{display:grid;grid-template-columns:92px repeat(var(--cols),minmax(38px,1fr)) 70px;gap:3px;align-items:center;min-width:calc(162px + var(--cols) * 44px)}
 .hg{font-size:var(--fs-xs);color:var(--muted);text-align:center;border-bottom:1px solid var(--line);padding-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .hk{font-size:11px;color:var(--muted);text-align:center;line-height:1.2;align-self:end;overflow-wrap:anywhere;padding-top:4px}
@@ -2079,6 +2141,25 @@ a.hc:hover{box-shadow:inset 0 0 0 2px var(--accent)}
 .b2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px}
 .b2 select{width:100%;min-width:0}
 
+/* search everything (F2) */
+.ps-scrim{position:fixed;inset:0;background:rgba(20,18,16,.38);z-index:65}
+.ps-box{position:fixed;top:min(10vh,80px);left:50%;transform:translateX(-50%);width:min(700px,94%);max-height:76vh;display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:0 18px 60px var(--shadow-lg);z-index:70;overflow:hidden}
+.ps-in{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--line)}
+.ps-in .glyph{color:var(--muted)}
+.ps-in input{flex:1;min-width:0;border:0;background:none;font-size:var(--fs-md);outline:0;color:var(--ink);padding:4px 0}
+.ps-body{overflow-y:auto;overscroll-behavior:contain;flex:1;padding:4px 0 8px}
+.ps-gh{display:flex;justify-content:space-between;padding:10px 16px 4px;font-size:var(--fs-xs);letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.ps-r{display:flex;flex-direction:column;justify-content:center;min-height:44px;padding:6px 16px;text-decoration:none;color:var(--ink)}
+.ps-r:hover{background:var(--hover)}
+.ps-r.on{background:var(--accent-soft);box-shadow:inset 3px 0 0 var(--accent)}
+.ps-t{font-size:var(--fs-sm);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.ps-t.m{font-family:var(--mono)}
+.ps-s{font-size:var(--fs-xs);color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ps-all{display:block;padding:4px 16px 6px;font-size:var(--fs-xs)}
+.ps-empty{padding:14px 16px;font-size:var(--fs-sm);color:var(--ink-2)}.ps-empty .links{margin-top:10px}
+.ps-foot{display:flex;justify-content:space-between;gap:4px 14px;flex-wrap:wrap;padding:8px 16px;border-top:1px solid var(--line);font-size:var(--fs-xs);color:var(--muted)}
+body.pal-open{overflow:hidden}
+.tbl.fresh td.num{text-align:right;font-variant-numeric:tabular-nums}
+
 /* guide (F30) */
 .rmin{text-transform:none;letter-spacing:0;font-weight:400;color:var(--muted);margin-left:6px}
 """
@@ -2126,7 +2207,9 @@ function runsStrip(x){
   return '<div class="runs"><span class="rk">Runs in</span>' + [['Analyzer', true], ['SIEM', x.sigma.length > 0], ['YARA', x.type === 'yara']].map(function(r){
     return '<span class="' + (r[1] ? 'y' : 'n') + '"><i></i>' + r[0] + '<span class="sr">' + (r[1] ? ': yes' : ': no') + '</span></span>'; }).join('') + '</div>';
 }
-function facts(rows){ return '<dl class="dfacts">' + rows.filter(Boolean).map(function(r){ return '<div><dt>' + esc(r[0]) + '</dt><dd>' + r[1] + '</dd></div>'; }).join('') + '</dl>'; }
+var DREC = null;   // the record being drawn: its file's last-changed date joins the quick facts
+function facts(rows){ rows = rows.filter(Boolean); if (DREC && DREC.changed) rows.push(['Last changed', esc(DREC.changed)]);
+  return '<dl class="dfacts">' + rows.map(function(r){ return '<div><dt>' + esc(r[0]) + '</dt><dd>' + r[1] + '</dd></div>'; }).join('') + '</dl>'; }
 function connects(cols, hunts){   // hunts: this box is where the intel drawer's Hunts jump lands
   var hid = hunts ? ' id="dj-hunt"' : '';
   cols = cols.filter(function(c){ return c[1] && c[1].filter(Boolean).length; });
@@ -2201,13 +2284,16 @@ function intelCharts(){
   var rows = actors.map(function(a){
     var pts = a.iocs.map(function(id){ return {t:ymd(IOC[id].published), l:IOC[id].publisher + ', ' + IOC[id].published}; }), f = ymd(a.first_seen);
     var ts = pts.map(function(p){ return p.t; }).concat(f ? [f] : []), mn = Math.min.apply(null, ts), mx = Math.max.apply(null, ts), nr = a.reported_by.length;
-    return '<div class="tlr"><a href="#intel/' + a.id + '">' + esc(a.name) + '</a><div class="tlk">' + nowL +
+    var alt = a.name + ': ' + (f ? 'first seen ' + a.first_seen + '; ' : '') + (pts.length ? 'indicators published ' + pts.map(function(p){ return p.l; }).join('; ') : 'no indicator set') + '; ' + (nr === 1 ? '1 reporter' : nr + ' reporters');
+    return '<div class="tlr"><a href="#intel/' + a.id + '">' + esc(a.name) + '</a><div class="tlk" role="img" aria-label="' + esc(alt) + '">' + nowL +
       (mx > mn ? '<span class="tlb" style="left:' + x(mn) + ';width:' + ((mx - mn) / span * 100).toFixed(2) + '%"></span>' : '') +
       (f ? '<span class="tld first" style="left:' + x(f) + '" title="First seen: ' + esc(a.first_seen) + '"></span>' : '') +
       pts.map(function(p){ return '<span class="tld" style="left:' + x(p.t) + '" title="Indicators published: ' + esc(p.l) + '"></span>'; }).join('') +
       '</div><span class="tlrep">' + (nr === 1 ? '1 reporter' : nr + ' reporters') + '</span></div>';
   }).join('');
-  var lane = '<div class="tlr lane"><span>Every indicator set</span><div class="tlk">' + nowL + D.iocs.map(function(s, i){
+  var lane = '<div class="tlr lane"><span>Every indicator set</span><div class="tlk" role="img" aria-label="' + esc(D.iocs.length + ' indicator sets, published ' +
+    D.iocs.map(function(s){ return s.published; }).sort()[0] + ' to ' + D.iocs.map(function(s){ return s.published; }).sort().pop() + '; ' +
+    D.iocs.filter(function(s){ return !s.actors.length; }).length + ' have no actor record') + '">' + nowL + D.iocs.map(function(s, i){
     return '<span class="tlq' + (s.actors.length ? '' : ' un') + '" style="left:' + x(ymd(s.published)) + ';top:' + (3 + (i % 3) * 8) + 'px" title="' +
       esc(s.publisher + ', ' + s.published + ': ' + s.title) + '"></span>'; }).join('') + '</div><span class="tlrep">grey: no actor record</span></div>';
   var tl = '<div class="tl"><div class="tlr tlh"><span></span><div class="tlk">' + ticks + '</div><span class="tlrep">reported by</span></div>' + rows + lane + '</div>' +
@@ -2285,11 +2371,7 @@ function themeLabel(){ $('themeBtn').textContent = isDark() ? '☀ Light' : '☾
 var th = store('edt-theme'); root.setAttribute('data-theme', th === 'dark' ? 'dark' : 'light'); themeLabel();
 $('themeBtn').addEventListener('click', function(){ var n = isDark() ? 'light' : 'dark'; root.setAttribute('data-theme', n); store('edt-theme', n); themeLabel(); });
 function hdrH(){ root.style.setProperty('--hdr', document.querySelector('.hdr').offsetHeight + 'px'); }
-// Until the search palette ships, the header search filters the library in view (Artifacts from anywhere else).
-$('searchBtn').addEventListener('click', function(){
-  if (LIB[cur]){ $('tab-' + cur).querySelector('.q').focus(); return; }
-  location.hash = '#artifacts'; setTimeout(function(){ $('tab-artifacts').querySelector('.q').focus(); }, 0);
-});
+
 window.addEventListener('resize', hdrH); hdrH();
 var toastT; function toast(m){ var t = $('toast'); t.textContent = m; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(function(){ t.hidden = true; }, 1800); }
 
@@ -2925,7 +3007,7 @@ function openDrawer(n, id){
   if (opening) dReturn = document.activeElement;
   openId = id; openLib = n;
   $('dId').textContent = L.label ? L.label(it) : it.id; $('dTitle').textContent = L.title(it);
-  $('dBody').innerHTML = L.drawer(it); $('dBody').scrollTop = 0; buildSecs();
+  DREC = it; $('dBody').innerHTML = L.drawer(it); DREC = null; $('dBody').scrollTop = 0; buildSecs();
   $('drawer').hidden = false; $('scrim').hidden = false; document.body.classList.add('drawer-open');
   markSel(); navState(); writeHash();
   if (opening) $('dTitle').focus({preventScroll:true});
@@ -3053,7 +3135,9 @@ document.addEventListener('click', function(ev){
 /* ---------------------------------------------------------------- keyboard */
 document.addEventListener('keydown', function(ev){
   var tag = (document.activeElement || {}).tagName || '', typing = /INPUT|SELECT|TEXTAREA/.test(tag);
-  if (ev.key === '/' && !typing && LIB[cur]){ ev.preventDefault(); $('tab-' + cur).querySelector('.q').focus(); return; }
+  if ((ev.key === 'k' || ev.key === 'K') && (ev.ctrlKey || ev.metaKey)){ ev.preventDefault(); palOpen(); return; }
+  if (ev.key === '/' && !typing){ ev.preventDefault(); palOpen(); return; }
+  if (!$('pal').hidden) return;
   if (ev.key === 'Escape'){
     if (!$('drawer').hidden){ closeDrawer(); return; }
     if (typing && document.activeElement.classList.contains('q')){ document.activeElement.value = ''; S[cur].q = ''; renderLib(cur); document.activeElement.blur(); }
@@ -3061,6 +3145,92 @@ document.addEventListener('keydown', function(ev){
   }
   if (!$('drawer').hidden && !typing && (ev.key === 'ArrowLeft' || ev.key === 'k')){ stepDrawer(-1); ev.preventDefault(); }
   if (!$('drawer').hidden && !typing && (ev.key === 'ArrowRight' || ev.key === 'j')){ stepDrawer(1); ev.preventDefault(); }
+});
+
+/* ---------------------------------------------------------------- search everything (F2) */
+var PAL = null, palI = 0, palFlat = [], palReturn = null;
+var PAL_ORDER = ['Artifacts', 'Detections', 'Collection steps', 'Hunts', 'Threat intel', 'Indicators', 'Hardening', 'Platforms', 'Exploited CVEs', 'Guide'];
+var PAL_LIB = {'Artifacts':'artifacts', 'Detections':'detections', 'Hunts':'hunts', 'Threat intel':'intel', 'Indicators':'intel', 'Hardening':'hardening', 'Platforms':'platforms'};
+function palIndex(){
+  if (PAL) return PAL;
+  PAL = [];
+  function add(g, t, sub, x, href, mono){ PAL.push({g:g, t:String(t), s:sub, x:String(x).toLowerCase(), href:href, mono:!!mono}); }
+  D.artifacts.forEach(function(a){ add('Artifacts', a.locator, PN[a.platform] + ' · ' + a.id, a._t, '#artifacts/' + a.id, true); });
+  D.detections.forEach(function(x){ add('Detections', x.title, x.id + ' · ' + x.pack, x._t, '#detections/' + x.id); });
+  D.steps.forEach(function(st){ add('Collection steps', st[3] || st[1], st[0] + ' · ' + st[2] + ' ' + st[1] + ' · ' + st[4], st.join(' '), '#plans/' + st[0], !!st[3]); });
+  D.hunts.forEach(function(h){ add('Hunts', h.title, h.id, h._t, '#hunts/' + h.id); });
+  D.intel.forEach(function(i){ add('Threat intel', i.name, i.kind + ' · ' + i.id, i._t, '#intel/' + i.id); });
+  D.iocs.forEach(function(set){ var to = set.actors[0] || set.implants[0];
+    set.ind.forEach(function(v){ add('Indicators', defang(v[0], v[1]), (ROLE[v[2]] || v[2]) + ' · ' + set.publisher + ' · ' + set.id,
+      v[1] + ' ' + v[0] + ' ' + v[3] + ' ' + set.id, to ? '#intel/' + to : '#intel?iocs=yes', true); }); });
+  D.hardening.forEach(function(c){ add('Hardening', c.control, (c.platform === 'ALL' ? 'Baseline' : PN[c.platform]) + ' · ' + c.id, c._t, '#hardening/' + c.id); });
+  D.platforms.forEach(function(p){ add('Platforms', p.name, p.vendor + ' · ' + p.id, p._t, '#platforms/' + p.id); });
+  D.kev.triaged.forEach(function(k){ add('Exploited CVEs', k.cve, (ABBR[k.platform] || k.platform) + ' · ' + k.decision,
+    [k.cve, k.decision, k.basis, k.platform, ABBR[k.platform] || ''].join(' '), '#coverage/kev'); });
+  D.toc.forEach(function(t){ add('Guide', t.title, 'Guide section', t.title, '#guide/' + t.id.slice(2)); });
+  return PAL;
+}
+// a defanged paste matches too: 192.0.2[.]1, hxxps://, [:]
+function palNorm(q){ return q.replace(/\[\.\]/g, '.').replace(/\[:\]/g, ':').replace(/\bhxxp/gi, 'http').toLowerCase(); }
+function palSearch(q){
+  var toks = palNorm(q).split(/\s+/).filter(Boolean), by = {};
+  if (!toks.length) return {toks:[], groups:[]};
+  palIndex().forEach(function(r){
+    for (var i = 0; i < toks.length; i++) if (r.x.indexOf(toks[i]) < 0) return;
+    var tl = r.t.toLowerCase();
+    (by[r.g] = by[r.g] || []).push({r:r, sc:toks.every(function(t){ return tl.indexOf(t) >= 0; }) ? 2 : 1});
+  });
+  return {toks:toks, groups:PAL_ORDER.filter(function(g){ return by[g]; }).map(function(g){
+    var a = by[g].sort(function(x, y){ return y.sc - x.sc; });
+    return {g:g, n:a.length, items:a.slice(0, 5).map(function(o){ return o.r; })}; })};
+}
+function palRender(){
+  var q = $('palQ').value, res = palSearch(q), h = '';
+  palFlat = [];
+  if (!q.trim()) h = '<div class="ps-empty">Try a CVE, a file path, a command or an address from a log line:<div class="links">' +
+    ['CVE-2024-3400', 'lina', 'disk0:', '/var/tmp', 'show memory region', 'UNC3886'].map(function(t){ return '<button type="button" class="chip btnchip" data-pq="' + esc(t) + '">' + esc(t) + '</button>'; }).join('') + '</div></div>';
+  else if (!res.groups.length) h = '<div class="ps-empty">Nothing matches every word. Fewer words, or a shorter fragment of the path, usually finds it.</div>';
+  else res.groups.forEach(function(g){
+    h += '<div class="ps-g" role="group" aria-label="' + esc(g.g) + '"><div class="ps-gh"><span>' + esc(g.g) + '</span><span>' + g.n + '</span></div>';
+    g.items.forEach(function(r){ palFlat.push(r);
+      h += '<a class="ps-r" role="option" aria-selected="false" href="' + esc(r.href) + '"><span class="ps-t' + (r.mono ? ' m' : '') + '">' + hl(r.t, res.toks) + '</span><span class="ps-s">' + esc(r.s) + '</span></a>'; });
+    if (g.n > 5 && PAL_LIB[g.g]) h += '<a class="ps-all" href="#' + PAL_LIB[g.g] + '?q=' + encodeURIComponent(palNorm(q).trim()) + '">All ' + g.n + ' in ' + esc(g.g) + ' &#8594;</a>';
+    h += '</div>';
+  });
+  $('palList').innerHTML = h;
+  $('palList').querySelectorAll('.ps-r').forEach(function(a, i){ a.id = 'pal-r' + i; });
+  palI = 0; palMark();
+}
+function palMark(){
+  var rows = $('palList').querySelectorAll('.ps-r');
+  rows.forEach(function(a, i){ var on = i === palI; a.classList.toggle('on', on); a.setAttribute('aria-selected', String(on)); if (on) a.scrollIntoView({block:'nearest'}); });
+  if (rows[palI]) $('palQ').setAttribute('aria-activedescendant', rows[palI].id); else $('palQ').removeAttribute('aria-activedescendant');
+}
+function palOpen(){
+  if (!$('pal').hidden){ $('palQ').focus(); return; }
+  palReturn = document.activeElement;
+  $('pal').hidden = false; $('palScrim').hidden = false; document.body.classList.add('pal-open');
+  $('palQ').value = ''; palRender(); $('palQ').focus();
+}
+function palClose(restore){
+  if ($('pal').hidden) return;
+  $('pal').hidden = true; $('palScrim').hidden = true; document.body.classList.remove('pal-open');
+  if (restore !== false && palReturn && palReturn.isConnected && palReturn.focus) palReturn.focus({preventScroll:true});
+  palReturn = null;
+}
+function palGo(href){ palClose(false); if (location.hash === href) route(); else location.hash = href; }
+$('searchBtn').addEventListener('click', palOpen);
+$('palScrim').addEventListener('click', function(){ palClose(); });
+$('palQ').addEventListener('input', palRender);
+$('palQ').addEventListener('keydown', function(ev){
+  if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp'){ ev.preventDefault(); if (palFlat.length){ palI = (palI + (ev.key === 'ArrowDown' ? 1 : palFlat.length - 1)) % palFlat.length; palMark(); } }
+  else if (ev.key === 'Enter'){ ev.preventDefault(); if (palFlat[palI]) palGo(palFlat[palI].href); }
+  else if (ev.key === 'Escape'){ ev.preventDefault(); ev.stopPropagation(); palClose(); }
+  else if (ev.key === 'Tab') ev.preventDefault();   // the dialog is modal; results move with the arrow keys
+});
+$('palList').addEventListener('click', function(ev){
+  var c = ev.target.closest('[data-pq]'); if (c){ $('palQ').value = c.dataset.pq; palRender(); $('palQ').focus(); return; }
+  var a = ev.target.closest('a'); if (a && ev.button === 0 && !ev.metaKey && !ev.ctrlKey && !ev.shiftKey){ ev.preventDefault(); palGo(a.getAttribute('href')); }
 });
 
 /* ---------------------------------------------------------------- response: picker, verdict lens, case, checklist */
@@ -3247,7 +3417,7 @@ def page(d: dict) -> tuple[str, dict]:
 <header class="hdr"><div class="hdr-in">
   <div class="hdr-top">
     <a class="brand" href="#start" aria-label="Edge DFIR Toolkit: start"><span class="dot"></span><h1>Edge DFIR Toolkit</h1></a><span class="pill wide-only">v{e(__version__)} &#183; Apache-2.0</span>
-    <button type="button" class="hsearch" id="searchBtn" aria-keyshortcuts="/"><span class="glyph" aria-hidden="true">&#8981;</span><span class="hs-l">Search everything: a CVE, path, command, address or actor</span><span class="hs-s">Search</span><kbd aria-hidden="true">/</kbd></button>
+    <button type="button" class="hsearch" id="searchBtn" aria-haspopup="dialog" aria-keyshortcuts="/ Control+K Meta+K"><span class="glyph" aria-hidden="true">&#8981;</span><span class="hs-l">Search everything: a CVE, path, command, address or actor</span><span class="hs-s">Search</span><kbd aria-hidden="true">/</kbd></button>
     <span class="hdr-right"><a class="hbtn wide-only" href="{REPO_URL}" rel="noopener">GitHub &#8599;</a>
       <button type="button" class="hbtn" id="themeBtn">Theme</button></span>
   </div>
@@ -3268,13 +3438,19 @@ def page(d: dict) -> tuple[str, dict]:
   <div class="dbody" id="dBody"></div>
 </aside>
 <div class="toast" id="toast" role="status" hidden></div>
+<div class="ps-scrim" id="palScrim" hidden></div>
+<div class="ps-box" id="pal" role="dialog" aria-modal="true" aria-label="Search everything" hidden>
+  <div class="ps-in"><span class="glyph" aria-hidden="true">&#8981;</span><input id="palQ" type="text" role="combobox" aria-expanded="true" aria-controls="palList" aria-autocomplete="list" autocomplete="off" spellcheck="false" placeholder="Search all libraries, plans, the guide and the KEV ledger" aria-label="Search everything"><kbd>Esc</kbd></div>
+  <div class="ps-body" id="palList" role="listbox" aria-label="Results"></div>
+  <div class="ps-foot"><span>&#8593; &#8595; move &#183; Enter open &#183; Esc close</span><span>Indicator values are matched refanged; paste an address as it appears in a log.</span></div>
+</div>
 <footer>
   {len(data['platforms'])} platforms &#183; {len(data['artifacts'])} artifacts &#183; {len(d['profiles'])} collection profiles &#183; {n_det} detections in {len(d['packs'])} packs &#183; {len(d['rules'])} rule files.
   Built from the repository on {built}; every figure is computed from the catalog, profiles, packs, rules and intel at build time.
   Detection content is Sigma and YARA only.<br>
   Built and maintained by <a href="{AUTHOR_URL}" rel="noopener" target="_blank">{e(AUTHOR)}</a> (LinkedIn) &#183; published by <a href="{FIRM_URL}" rel="noopener" target="_blank">{e(FIRM)}</a> (LinkedIn) &#183; <a href="{REPO_URL}" rel="noopener">source on GitHub</a>.
   Independent research, not affiliated with or endorsed by any former employer or by any vendor whose products it covers.
-  Keyboard: <kbd>/</kbd> search, <kbd>&#8592;</kbd> <kbd>&#8594;</kbd> step through records, <kbd>Esc</kbd> close.
+  Keyboard: <kbd>/</kbd> or <kbd>Ctrl</kbd> <kbd>K</kbd> search everything, <kbd>&#8592;</kbd> <kbd>&#8594;</kbd> step through records, <kbd>Esc</kbd> close.
 </footer>
 <script type="application/json" id="data">{js_data(data)}</script>
 <script>{JS}</script>
