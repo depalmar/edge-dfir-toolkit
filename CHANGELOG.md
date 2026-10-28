@@ -34,6 +34,10 @@
   site's verdict ladder and the guide's tier table say the same.
 - Three regression tests pin each fix: repeated messages in a deleted stretch,
   rotation with repeated messages, and lines received late.
+- **Ingest-only reports.** A case built only from exports is the normal path
+  for Ivanti and SonicWall, which have no collection profile. Its report
+  printed `Profile: None` and `Collected: to UTC`. It now says there was no
+  live collection. Stream gaps of whole hours read "1 h", not "1 h 0 min".
 
 ## 0.14.0 - 2026-10-28 - The SIEM's copy against the box
 

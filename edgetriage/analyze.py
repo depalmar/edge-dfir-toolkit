@@ -259,9 +259,9 @@ def render_report(f: dict[str, Any], m: dict[str, Any]) -> str:
         "",
         "| | |", "|---|---|",
         f"| Platform | {f['platform_id']} |",
-        f"| Profile | {m.get('profile')} |",
-        f"| Target | {m.get('target', {}).get('host', 'n/a')} |",
-        f"| Collected | {m.get('collection_start_utc', 'n/a')} -> {m.get('collection_end_utc', 'n/a')} |",
+        f"| Profile | {m.get('profile') or NO_PROFILE} |",
+        f"| Target | {(m.get('target') or {}).get('host', 'n/a')} |",
+        f"| Collected | {_collected(m)} |",
         f"| Analyzed | {f['analyzed_utc']} (edgetriage {f['tool_version']}) |",
         f"| Packs | {', '.join(f['packs_applied']) or 'none'} |",
         f"| Detections | {len(hit)} hit, {len(clean)} no hit, {len(ne)} not evaluated |",
@@ -298,7 +298,9 @@ def render_report(f: dict[str, Any], m: dict[str, Any]) -> str:
 
 def _dur(seconds: int) -> str:
     h, rem = divmod(int(seconds), 3600)
-    return f"{h} h {rem // 60} min" if h else f"{rem // 60} min"
+    if h:
+        return f"{h} h {rem // 60} min" if rem // 60 else f"{h} h"
+    return f"{rem // 60} min"
 
 
 def offbox_rows(o: dict[str, Any]) -> list[tuple[str, str]]:
@@ -329,7 +331,7 @@ def offbox_rows(o: dict[str, Any]) -> list[tuple[str, str]]:
 
 def offbox_markdown(o: dict[str, Any]) -> list[str]:
     L = ["## Off-box comparison", "",
-         "The device's syslog as the SIEM received it, lined up by message with the logs left on the box "
+         "The device's syslog as the SIEM received it, lined up by message, in order, with the logs left on the box "
          "(EDGE-HUNT-0027). Runs on one side only appear under Findings as possible indicators.", "",
          "| | |", "|---|---|"]
     L += [f"| {k} | {v.replace('|', '/')} |" for k, v in offbox_rows(o)]
@@ -440,6 +442,17 @@ def _hms(ts: str | None) -> str:
     return (ts or "").replace("T", " ").rstrip("Z").split(".")[0]
 
 
+NO_PROFILE = "none (exports ingested, no live collection)"
+
+
+def _collected(m: dict[str, Any]) -> str:
+    """When the live collection ran; an ingest-only case (Ivanti, SonicWall) says it had none."""
+    start, end = m.get("collection_start_utc"), m.get("collection_end_utc")
+    if start and end:
+        return f"{_hms(start)} to {_hms(end)[11:]} UTC"
+    return f"from {_hms(start)} UTC, no end recorded" if start else "no live collection"
+
+
 def render_html(f: dict[str, Any], m: dict[str, Any]) -> str:
     """report.html: verdict first, then how it was reached, the evidence gaps,
     the findings with their escaped excerpts, the collection and what to do next."""
@@ -460,9 +473,9 @@ def render_html(f: dict[str, Any], m: dict[str, Any]) -> str:
     pv = m.get("profile_validation")
     pf = m.get("preflight") or {}
     rows = [("Platform", f'{cat["name"]} ({f.get("platform_id")})' if cat.get("name") else str(f.get("platform_id"))),
-            ("Profile", str(m.get("profile")) + (", not yet run on a real device" if pv is not None and not pv.get("validated_on") else "")),
+            ("Profile", str(m.get("profile") or NO_PROFILE) + (", not yet run on a real device" if pv is not None and not pv.get("validated_on") else "")),
             ("Target", str((m.get("target") or {}).get("host", "n/a"))),
-            ("Collected", f'{_hms(m.get("collection_start_utc"))} to {_hms(m.get("collection_end_utc"))[11:]} UTC'),
+            ("Collected", _collected(m)),
             ("Analyzed", f'{_hms(f["analyzed_utc"])} UTC, edgetriage {f["tool_version"]}'),
             ("Packs", ", ".join(f["packs_applied"]) or "none"),
             ("Preflight", f'rebooted: {pf.get("rebooted_since_incident", "unknown")} · upgraded: {pf.get("patched_since_incident", "unknown")}')]
@@ -515,7 +528,7 @@ def render_html(f: dict[str, Any], m: dict[str, Any]) -> str:
     offbox_html = ""
     if f.get("offbox"):
         offbox_html = ('<h2>Off-box comparison</h2><p class="note">The device\'s syslog as the SIEM received it, lined up by '
-                       'message with the logs left on the box. Runs on one side only appear under Findings as possible '
+                       'message, in order, with the logs left on the box. Runs on one side only appear under Findings as possible '
                        f'indicators. <a href="{SITE_URL}#hunts/EDGE-HUNT-0027">EDGE-HUNT-0027 &#8594;</a></p><dl class="meta">'
                        + "".join(f"<dt>{esc(k)}</dt><dd>{esc(val)}</dd>" for k, val in offbox_rows(f["offbox"])) + "</dl>")
 

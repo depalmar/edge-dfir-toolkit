@@ -73,6 +73,7 @@ def test_runs_on_either_side_are_possible_indicators(tmp_path):
     assert out["offbox"]["forwarded"][0]["sha256"] and out["offbox"]["shared"] == 120 - 8 - 6
     md = (root / "report.md").read_text()
     assert "## Off-box comparison" in md and "Gone from the box | 1 run(s) found" in md
+    assert "| Collected | no live collection |" in md and "None" not in md   # an ingest-only case says so
     html = (root / "report.html").read_text()
     assert "Off-box comparison" in html and "#hunts/EDGE-HUNT-0027" in html
 
