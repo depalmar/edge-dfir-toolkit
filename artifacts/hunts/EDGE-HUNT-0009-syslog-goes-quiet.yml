@@ -26,6 +26,9 @@ method:
   Flag a drop or gap while NetFlow still shows the device passing traffic, or a device that
   stops sending on 514 or 6514 but keeps sending other traffic.
 - Correlate with unexpected reboots and with the end of administrator sessions.
+- >-
+  edgetriage analyze <case> --forwarded <export> lists the longest silences in the forwarded
+  stream against its own cadence; it does not see NetFlow, so the gaps are listed, not scored.
 normal: A steady rate, with gaps only in maintenance windows.
 suspicious: >-
   Silence while the device is up, or a gap that ends exactly when an administrator session

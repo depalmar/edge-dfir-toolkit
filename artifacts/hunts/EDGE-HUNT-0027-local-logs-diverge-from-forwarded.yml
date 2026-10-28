@@ -38,6 +38,9 @@ method:
 - >-
   Check where the local logs begin. A local log that starts after the exploit window, while the
   forwarded stream runs straight through it, needs a rotation or reboot to explain it.
+- >-
+  edgetriage analyze <case> --forwarded <export> does the first two steps and reports runs of
+  five or more one-sided lines as possible indicators; it says when the copies do not line up.
 normal: >-
   For the period local retention covers, every forwarded line is still on the box, and lines
   missing from the SIEM fall inside known collector outages.

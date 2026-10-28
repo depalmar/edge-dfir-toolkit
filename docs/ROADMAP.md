@@ -50,10 +50,12 @@ Ordered by value. Effort figures are judgment, not measurement.
 ## Phase 3 - analysis
 
 - Off-box correlation: syslog forwarding gaps, NetFlow to and from the
-  management plane, IdP and AD events tied to the device's addresses. The 26
-  hunts in `artifacts/hunts/` describe these by hand; the next step is an
-  `ingest` mode that evaluates the simplest (syslog gap, device-sourced
-  transfers) against exported data.
+  management plane, IdP and AD events tied to the device's addresses. The
+  hunts in `artifacts/hunts/` describe these by hand. 0.14.0 added the first
+  coded one: `analyze --forwarded` compares the SIEM's copy of the device's
+  syslog with the logs on the box (EDGE-HUNT-0027) and lists stream gaps
+  (EDGE-HUNT-0009). Next: device-sourced transfers and the gap check
+  corroborated with NetFlow, against exported data.
 - Mandiant's FRAMESTING rule (left out: its published string is ambiguous) once
   Mandiant's own copy of the rule can be read without the blog's line wrapping.
 - A real or replayed FortiOS `diagnose sys process dump` capture to pin the

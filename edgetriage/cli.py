@@ -143,7 +143,9 @@ def cmd_ingest(a) -> int:
 def cmd_analyze(a) -> int:
     baseline = load_baseline(a.baseline) if a.baseline else None
     out = analyze(Path(a.case), platform_id=a.platform, all_packs=a.all_packs,
-                  baseline=baseline, window_start=a.window_start)
+                  baseline=baseline, window_start=a.window_start,
+                  forwarded=[Path(p) for p in a.forwarded] if a.forwarded else None,
+                  forwarded_local=a.forwarded_local)
     v = out["verdict"]
     print(f"VERDICT: {v['level']}\n  {v['rationale']}")
     for r in out["detections"]:
@@ -151,6 +153,12 @@ def cmd_analyze(a) -> int:
             print(f"  [hit] {r['id']} x{r['hit_count']}")
     ne = sum(1 for r in out["detections"] if r["status"] == "not-evaluated")
     print(f"  {ne} detection(s) not evaluated, {len(out['evidence_gaps'])} evidence gap(s)")
+    if out.get("offbox"):
+        o = out["offbox"]
+        state = {k: (f"{o[k]['runs']} run(s)" if o[k]["status"] == "evaluated" else "not evaluated")
+                 for k in ("gone_from_box", "never_forwarded")}
+        print(f"  off-box: {o.get('shared', 0)} shared lines; gone from the box: {state['gone_from_box']}; "
+              f"never forwarded: {state['never_forwarded']}; {len(o['gaps'])} stream gap(s) listed")
     print(f"  report: {Path(a.case) / 'report.md'}")
     return 0
 
@@ -223,6 +231,12 @@ def build_parser() -> argparse.ArgumentParser:
     z.add_argument("--all-packs", action="store_true")
     z.add_argument("--baseline", help="JSON {path: sha256} from a known-good device of the same build")
     z.add_argument("--window-start", help="ISO time the suspected exploitation window opens")
+    z.add_argument("--forwarded", action="append", metavar="FILE",
+                   help="the device's syslog as the SIEM received it (raw lines, JSON or CSV with a Message field); "
+                        "lined up with the logs on the box. Repeat for several files")
+    z.add_argument("--forwarded-local", action="append", metavar="GLOB",
+                   help="which case files are the local copy (default: every *.log, messages and syslog file, "
+                        "and any step whose id names a log)")
     z.set_defaults(fn=cmd_analyze)
 
     t = sub.add_parser("timeline", help="write timeline.jsonl / timeline.csv from findings")

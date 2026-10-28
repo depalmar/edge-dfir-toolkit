@@ -180,7 +180,10 @@ def evidence_gaps(view: EvidenceView, results: list[dict[str, Any]],
 # --------------------------------------------------------------------------- main
 def analyze(case_root: Path, *, platform_id: str | None = None, all_packs: bool = False,
             baseline: dict[str, str] | None = None, window_start: str | None = None,
-            pack_dir: Path = PACK_DIR) -> dict[str, Any]:
+            pack_dir: Path = PACK_DIR, forwarded: list[Path] | None = None,
+            forwarded_local: list[str] | None = None) -> dict[str, Any]:
+    """forwarded: the device's syslog as the SIEM received it. When given, the two
+    off-box comparisons run beside the packs (see offbox.py)."""
     view = EvidenceView(case_root)
     platform_id = platform_id or view.manifest.get("platform_id")
     packs = packs_for(platform_id, load_packs(pack_dir), all_packs)
@@ -205,6 +208,19 @@ def analyze(case_root: Path, *, platform_id: str | None = None, all_packs: bool 
                 "hit_count": len(hits), "hits": tiered[:MAX_HITS_KEPT],
                 "notes": det.get("notes"),
             })
+    off, off_rows = None, []
+    if forwarded:
+        from . import offbox
+        off = offbox.compare(view, [Path(p) for p in forwarded], forwarded_local, window_start)
+        off_rows = offbox.results(off)
+        for key in ("gone_from_box", "never_forwarded"):   # the hits live in detections, once
+            off[key] = {k: v for k, v in off[key].items() if k != "hits"} | {"runs": len(off[key]["hits"])}
+    gaps = evidence_gaps(view, results, window_start)
+    at = next((i for i, g in enumerate(gaps) if g["kind"] == "standing"), len(gaps))
+    for r in off_rows:
+        if r["status"] == "not-evaluated":
+            gaps.insert(at, {"kind": "offbox-not-compared", "detail": f"{r['id']}: {r['reason']}"})
+            at += 1
     out = {
         "case_id": view.manifest["case_id"],
         "platform_id": platform_id,
@@ -213,10 +229,12 @@ def analyze(case_root: Path, *, platform_id: str | None = None, all_packs: bool 
         "packs_applied": [p["id"] for p in packs],
         "baseline_supplied": baseline is not None,
         "window_start": window_start,
-        "verdict": verdict(results),
-        "detections": results,
-        "evidence_gaps": evidence_gaps(view, results, window_start),
+        "verdict": verdict(results + off_rows),
+        "detections": results + off_rows,
+        "evidence_gaps": gaps,
     }
+    if off is not None:
+        out["offbox"] = off
     dump_json(Path(case_root) / "findings.json", out)
     (Path(case_root) / "report.md").write_text(render_report(out, view.manifest), encoding="utf-8")
     (Path(case_root) / "report.html").write_text(render_html(out, view.manifest), encoding="utf-8")
@@ -262,6 +280,8 @@ def render_report(f: dict[str, Any], m: dict[str, Any]) -> str:
         if r.get("notes"):
             L += ["", f"> {r['notes'].strip()}"]
         L.append("")
+    if f.get("offbox"):
+        L += offbox_markdown(f["offbox"])
     L += ["## Evidence gaps", "", "What this analysis could not see. Read before acting on the verdict.", ""]
     for g in f["evidence_gaps"]:
         L.append(f"- **{g['kind']}** - {g['detail']}")
@@ -269,6 +289,46 @@ def render_report(f: dict[str, Any], m: dict[str, Any]) -> str:
     L += [f"- `{r['id']}` - {r['title']}" for r in ne] or ["None."]
     L.append("")
     return "\n".join(L)
+
+
+def _dur(seconds: int) -> str:
+    h, rem = divmod(int(seconds), 3600)
+    return f"{h} h {rem // 60} min" if h else f"{rem // 60} min"
+
+
+def offbox_rows(o: dict[str, Any]) -> list[tuple[str, str]]:
+    """The off-box comparison as (label, value) pairs, shared by report.md and report.html."""
+    rows = [("Forwarded copy", "; ".join(f"{Path(x['path']).name} ({x['format']}, {x['lines']} lines, sha256 {x['sha256'][:16]})"
+                                         for x in o["forwarded"]) or "none")]
+    rows.append(("Local logs", "; ".join(f"{x['source']} ({x['lines']} lines, {x['shared']} shared"
+                                         f"{'' if x['comparable'] else ', not comparable'})" for x in o["local"]) or "none found"))
+    if o.get("span"):
+        rows.append(("Compared span", f"{o.get('shared', 0)} shared lines, {o['span']['from'] or 'line ' + str(o['span']['first_line'])}"
+                                      f" to {o['span']['to'] or 'line ' + str(o['span']['last_line'])}"))
+    if o.get("before_box"):
+        b = o["before_box"]
+        rows.append(("Older than the box", f"{b['lines']} forwarded lines ({b['from']} to {b['to']}) come before the oldest line "
+                                           "still on the box. Rotation explains that unless the local log should reach further back."))
+    for key, label in (("gone_from_box", "Gone from the box"), ("never_forwarded", "Never forwarded")):
+        p = o[key]
+        val = f"{p['runs']} run(s) found" if p["status"] == "evaluated" else "not evaluated"
+        rows.append((label, val + (f" - {p['reason']}" if p.get("reason") else "")))
+    if o.get("gaps"):
+        rows.append(("Stream gaps", "; ".join(f"{_dur(g['seconds'])} after {g['from']}{' (in the window)' if g['in_window'] else ''}"
+                                              for g in o["gaps"])
+                     + f". Listed, not scored: compare with NetFlow for the same hours (EDGE-HUNT-0009)."))
+    elif o.get("gap_floor_seconds"):
+        rows.append(("Stream gaps", f"none of {_dur(o['gap_floor_seconds'])} or more"))
+    return rows
+
+
+def offbox_markdown(o: dict[str, Any]) -> list[str]:
+    L = ["## Off-box comparison", "",
+         "The device's syslog as the SIEM received it, lined up by message with the logs left on the box "
+         "(EDGE-HUNT-0027). Runs on one side only appear under Findings as possible indicators.", "",
+         "| | |", "|---|---|"]
+    L += [f"| {k} | {v.replace('|', '/')} |" for k, v in offbox_rows(o)]
+    return L + [""]
 
 
 # --------------------------------------------------------------------------- report.html
@@ -279,7 +339,7 @@ def render_report(f: dict[str, Any], m: dict[str, Any]) -> str:
 # stays in the case folder and is never published.
 SITE_URL = "https://depalmar.github.io/edge-dfir-toolkit/"
 CLASS_ORDER = ["identity", "memory", "process", "sessions", "integrity", "config",
-               "auth-logs", "web-logs", "system-logs", "filesystem", "persistence"]
+               "auth-logs", "web-logs", "system-logs", "filesystem", "persistence", "offbox-logs"]
 GAP_CLOSE = {
     "missing-evidence-class": "Ingest the off-box copy for the window: edgetriage ingest <case> --label <name> --bundle <file>.",
     "detection-not-evaluated": "Collect or ingest the evidence this detection reads.",
@@ -290,6 +350,8 @@ GAP_CLOSE = {
     "log-retention": "Pull the off-box syslog from the window start to the earliest on-box line.",
     "standing": "Corroborate with NetFlow for the management interface and IdP logons for the same hours.",
     "unvalidated-profile": "Read the step statuses in manifest.json before relying on any absence.",
+    "offbox-not-compared": "Export the device's syslog from the SIEM for the same hours as raw lines, or as JSON or CSV with a "
+                           "Message field, and pass it with --forwarded; point --forwarded-local at the local log it should match.",
 }
 _LIGHT = ("--bg:#fbfbfa;--panel:#fff;--panel-2:#fbfbfa;--ink:#1c1b19;--ink-2:#3d3a35;--muted:#6b6862;--faint:#a09b90;"
           "--line:#e4e1db;--line-soft:#f0ede8;--accent:#5e3a24;--accent-soft:#f2e9e2;--on-accent:#fff;--crit:#a12b2b;"
@@ -439,10 +501,18 @@ def render_html(f: dict[str, Any], m: dict[str, Any]) -> str:
         meta_line = " · ".join(esc(x) for x in [r["pack"], " ".join(r["cves"]), r["evidence_class"], f'{n} hit{"" if n == 1 else "s"}'] if x)
         finds.append(f'<article class="find"><div class="fh"><div><div class="fid">{esc(r["id"])}</div><div class="ft">{esc(r["title"])}</div>'
                      f'<div class="small muted">{meta_line}</div></div><div><span class="badge tier-{t}">{t}</span> '
-                     f'<a href="{SITE_URL}#detections/{_quote(r["id"])}">Detection record &#8594;</a></div></div>{"".join(hits)}'
+                     + (f'<a href="{SITE_URL}#hunts/{_quote(r["hunt"])}">Hunt record &#8594;</a>' if r.get("hunt") else
+                        f'<a href="{SITE_URL}#detections/{_quote(r["id"])}">Detection record &#8594;</a>')
+                     + f'</div></div>{"".join(hits)}'
                      + (f'<p class="note">{esc(r["notes"].strip())}</p>' if r.get("notes") else "") + "</article>")
     if not finds:
         finds.append('<p class="note">No detection fired. That is not a finding that the device is clean: read the evidence gaps above.</p>')
+    offbox_html = ""
+    if f.get("offbox"):
+        offbox_html = ('<h2>Off-box comparison</h2><p class="note">The device\'s syslog as the SIEM received it, lined up by '
+                       'message with the logs left on the box. Runs on one side only appear under Findings as possible '
+                       f'indicators. <a href="{SITE_URL}#hunts/EDGE-HUNT-0027">EDGE-HUNT-0027 &#8594;</a></p><dl class="meta">'
+                       + "".join(f"<dt>{esc(k)}</dt><dd>{esc(val)}</dd>" for k, val in offbox_rows(f["offbox"])) + "</dl>")
 
     steps = m.get("steps") or []
     sclass = {"ok": "st-ok", "pending-manual": "st-pending-manual", "error": "st-error"}
@@ -478,6 +548,7 @@ def render_html(f: dict[str, Any], m: dict[str, Any]) -> str:
 <div class="gaps">{gap_html}</div>
 <h2>Findings</h2>
 {"".join(finds)}
+{offbox_html}
 <h2>Collection</h2>
 <div class="strip" role="img" aria-label="{esc(strip_cap)}">{"".join(strip)}</div>
 <p class="small muted">{esc(strip_cap)} Green ran; dashed did not run; olive waits for a person; red failed. Hover a block for the step.</p>

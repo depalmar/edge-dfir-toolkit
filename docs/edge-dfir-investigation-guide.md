@@ -152,8 +152,21 @@ is still evidence: the FortiOS symlink check reads those refusals.
 
 ```bash
 python -m edgetriage analyze cases/IR-YYYY-NNN --window-start 2026-09-01T00:00:00 \
-    [--baseline known-good-hashes.json]
+    [--baseline known-good-hashes.json] [--forwarded siem-export.jsonl]
 ```
+
+`--forwarded` takes the device's syslog as your SIEM or collector received it,
+for the same hours: raw lines, or JSON or CSV with a `Message` field. The
+analyzer lines it up with the logs on the box by message, not by clock, and
+reports two things as possible indicators:
+- runs of forwarded lines that are gone from the box;
+- runs of local lines the SIEM never received.
+
+It also lists the longest silences in the forwarded stream without scoring
+them. When the two copies share too few lines (the device forwards a different
+format than it keeps, or logs at a different level), it says the comparison
+was not evaluated. Use `--forwarded-local` to name the local file when it is
+not a `*.log`, `messages` or `syslog` file.
 
 Read the report in this order:
 

@@ -27,7 +27,7 @@ python -m pytest -q tests/                    # suite against synthetic fixtures
 python tests/make_fixtures.py /tmp/fx         # regenerate fixtures to poke at by hand
 python -m edgetriage plan --profile <name> [--allow-bundle] [--break-glass]
 python -m edgetriage collect --profile <name> --case-id X --replay /tmp/fx/<fixture>
-python -m edgetriage analyze cases/X [--baseline b.json] [--window-start ISO]
+python -m edgetriage analyze cases/X [--baseline b.json] [--window-start ISO] [--forwarded siem.jsonl]
 python artifacts/scripts/build_site.py --check   # site data contract, writes nothing
 python artifacts/scripts/build_site.py           # docs/site/index.html (CI does this; never commit it)
 python artifacts/scripts/mappings.py [--check]   # MAPPINGS.md is generated
@@ -125,7 +125,20 @@ so with `toolkit` rather than dressing an inference up as a vendor's.
 the device's owner keeps elsewhere (NetFlow, SIEM, AAA accounting, identity,
 proxies). Each quotes its source; a quote that came through a summarising fetch
 is `read: summariser`, and a hunt resting only on such quotes is `unverified`.
-The analyzer never runs hunts. No vendor query dialect in hunts either.
+The analyzer never runs hunts, with one coded exception: given `--forwarded`,
+`edgetriage/offbox.py` lines the SIEM's copy of the device's syslog up with
+the logs on the box (EDGE-HUNT-0027) and lists gaps in the forwarded stream
+(EDGE-HUNT-0009).
+- It lines the copies up by message, never by clock, and only between the
+  first and last line they share, so rotation and a clock in another zone
+  are not deletion.
+- One-sided runs of `RUN_MIN` or more lines are `possible`, in their own
+  evidence class (`offbox-logs`).
+- It says not-evaluated when the copies share fewer than `MIN_SHARED` lines
+  or differ by level (`MIN_SHARE`).
+- Stream gaps are listed, never scored.
+
+No vendor query dialect in hunts either.
 
 **Exploited CVEs are triaged, not ignored.** `artifacts/watch/kev-watch.yml`
 holds the KEV-to-platform mapping and a ledger: every KEV entry on a watched

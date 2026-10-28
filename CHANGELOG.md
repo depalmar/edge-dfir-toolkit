@@ -1,5 +1,37 @@
 # Changelog
 
+## 0.14.0 - 2026-10-28 - The SIEM's copy against the box
+
+- **`analyze --forwarded`.** Give the analyzer the device's syslog as the SIEM
+  or collector received it: raw lines, JSON (array or lines) or CSV with a
+  `Message` field. It lines that copy up with the logs on the box. This is the
+  first off-box hunt the toolkit runs in code: EDGE-HUNT-0027, plus the gap
+  list from EDGE-HUNT-0009.
+  - **By message, not by clock.** Each line is reduced to the message after
+    its syslog header. The comparison runs only between the first and last
+    line the copies share. Rotation at either end, and a device clock in
+    another time zone, are not read as deletion. Lines older than anything on
+    the box are reported as older than the box.
+  - **Two possible indicators.** It flags runs of five or more forwarded lines
+    gone from the box, and runs of local lines the SIEM never received, with
+    shared lines on both sides of each run. They sit in their own evidence
+    class, `offbox-logs`. Each finding names its benign causes: a level or
+    facility logged at one end only, lost UDP datagrams, a collector outage.
+  - **Not evaluated, never "all missing".** That applies when the copies share
+    fewer than 20 lines (a different forwarded format) or when most of the span
+    is one-sided (a level difference). It shows as an `offbox-not-compared`
+    evidence gap.
+  - **Stream gaps are listed, never scored.** Each is measured against the
+    stream's own cadence and flagged when it falls in the `--window-start`
+    window. A quiet night is not an indicator without NetFlow.
+  - **Exports in either order.** A newest-first export is put back in time
+    order. Each export's sha256 is recorded in `findings.json`.
+  - **In the reports.** `report.md` and `report.html` have an "Off-box
+    comparison" section. The findings link to the hunt record.
+- **Docs.** The guide, README, roadmap and both hunts describe the new option.
+  CLAUDE.md's "the analyzer never runs hunts" now names this one coded
+  exception and how it behaves.
+
 ## 0.13.0 - 2026-10-28 - Keeping quotes and exploitation dates current
 
 - **Quote check.** New `artifacts/scripts/check_quotes.py` re-fetches every
