@@ -543,6 +543,32 @@ def test_cve_library_kev_fields_and_bod_steps(browser, tmp_path):
     assert page.locator("#dBody ol.bod").count() == 0
 
 
+def test_exploitation_dates_filter_and_show_their_quotes(browser, tmp_path):
+    """The exploitation facet filters, a CVE exploited before its record was published says
+    so with every source quoted, and a CVE with no dated report says that is not a claim
+    it was never exploited."""
+    url = _build(tmp_path)
+    data = sys.modules["build_site"].page(sys.modules["build_site"].load())[1]
+    before = [c for c in data["cves"] if c["expl_k"] == "before"]
+    assert before
+    page = browser.new_page(viewport={"width": 1440, "height": 900})
+    page.goto(f"{url}#cves?expl=before")
+    page.locator("#tab-cves .lc").first.wait_for(state="visible")
+    assert _counts(page, "cves") == (len(before), len(data["cves"]))
+    assert page.locator("#tab-cves .lc .xb").count() == len(before)
+    c = before[0]
+    page.goto(f"{url}#cves/{c['id']}")
+    page.locator("#drawer").wait_for(state="visible")
+    assert "Exploited before the CVE record was published." in page.locator("#dBody").inner_text()
+    assert "Earliest exploitation reported" in page.locator("#dBody .dfacts").inner_text()
+    assert page.locator("#dBody .srcs blockquote").count() == len(c["expl"])
+    none = [c for c in data["cves"] if c["expl_k"] == "none"]
+    if none:
+        page.goto(f"{url}#cves/{none[0]['id']}")
+        page.locator("#drawer").wait_for(state="visible")
+        assert "That is not a claim it was not exploited." in page.locator("#dBody").inner_text()
+
+
 def test_cve_stats_badges_filter_and_platforms_link_back(browser, tmp_path):
     """The stats across the CVEs shown count what the data says, a card's ransomware
     badge filters instead of opening the card, a shared weakness filters, and a

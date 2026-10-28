@@ -191,6 +191,47 @@ def test_cve_records_join_kev_and_the_repository():
     assert "#detections?cve=" not in doc.split('<script type="application/json"')[0]   # CVE mentions open the record
 
 
+def test_exploitation_dates_are_quoted_and_compared_at_the_end_of_their_period():
+    """Every exploitation date sits inside its own quote. 'Exploited before the CVE record
+    was published' compares the END of the period the source gives with CVE.org's date, so
+    'August 2023' is never read as earlier than it is. A CVE nobody searched says so."""
+    import copy
+
+    import yaml as _yaml
+    bs = _site()
+    assert bs.period_end("2023-08") == "2023-08-31" and bs.period_end("2024-02") == "2024-02-29"
+    assert bs.period_end("2022") == "2022-12-31" and bs.period_end("2023-12") == "2023-12-31"
+    assert bs.period_end("2024-03-26") == "2024-03-26"
+    doc = _yaml.safe_load((ROOT / "artifacts" / "intel" / "exploitation.yml").read_text())
+    for rec in doc["records"]:
+        for rp in rec["reports"]:
+            if rp.get("earliest"):
+                assert " ".join(rp["earliest_words"].split()) in " ".join(rp["quote"].split()), rec["cve"]
+    d = bs.load()
+    data = bs.build_data(d)
+    searched = {r["cve"] for r in doc["records"]}
+    for c in data["cves"]:
+        if c["id"] not in searched:
+            assert c["expl_k"] == "unsearched" and c["expl_searched"] is None, c["id"]
+        elif c["earliest"]:
+            assert (c["expl_k"] == "before") == (bs.period_end(c["earliest"]["date"]) < c["published"]), c["id"]
+        else:
+            assert c["expl_k"] in ("reported", "none") and not any(r["earliest"] for r in c["expl"]), c["id"]
+    assert "expl" in bs.FACET_KEYS["cves"]
+    # a month-precise date in the publication's own month is not "before"; the month before is
+    pub = next(c for c in data["cves"] if c["published"] and not c["published"].endswith(("-01", "-31", "-30", "-28", "-29")))
+    y, m = int(pub["published"][:4]), int(pub["published"][5:7])
+    prev = f"{y - (m == 1)}-{(m - 2) % 12 + 1:02d}"
+    for month, want in ((pub["published"][:7], "dated"), (prev, "before")):
+        d2 = copy.deepcopy(d)
+        d2["expl"] = {pub["id"]: {"cve": pub["id"], "searched": ["synthetic"], "reports": [{
+            "publisher": "Example", "kind": "researcher", "title": "t", "url": "https://example.com/", "accessed": "2099-01-01",
+            "stated_on": None, "stated_on_basis": "none", "activity": "exploitation", "earliest": month,
+            "earliest_words": "x", "quote": "x", "read": "direct"}]}}
+        got = next(c for c in bs.build_data(d2)["cves"] if c["id"] == pub["id"])
+        assert got["expl_k"] == want, (month, pub["published"])
+
+
 def test_forensic_triage_flag_is_read_as_cisa_defines_it():
     """KEV's forensicTriage is a BOD 26-04 deadline category. Every entry added before the
     directive reads No, so the site reads those as 'added before BOD 26-04', never as

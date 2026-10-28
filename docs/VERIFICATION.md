@@ -699,6 +699,34 @@ pages and counted in CISA's own feed.
 | Due dates before 2026-06-10 | Labelled "set under BOD 22-01, since revoked" | BOD 26-04: "This Directive supersedes and hereby revokes BOD 19-02 ... and BOD 22-01" |
 | When exploitation happened | KEV's date is when CISA added the entry. The CVE.org record date and CISA's SSVC assessment are now shown, and linked actors' first-seen dates as the actor's | Guidance FAQ: "When a vendor, researcher, or partner reports exploitation, CISA reviews the evidence." The CVE.org record for CVE-2022-42475 is dated 20 days after its KEV addition, so the label is "CVE record published", not "disclosed" |
 
+## 2026-10-28 - exploitation dates, gathered and checked
+
+`artifacts/intel/exploitation.yml` is new.
+- **Gathering.** Nine research passes, one per platform group, read primary
+  sources for all 77 CVEs and copied each quote from a page fetched that day.
+  None worked from memory or search snippets.
+- **Checking.** Each of the 129 quotes was then checked against its page:
+  - **87 in code.** The page was fetched, reduced to text, and the quote matched
+    after normalising whitespace, quote marks and dashes.
+  - **42 by an independent check with a rendered fetch.** These were knowledge
+    bases that build their pages in JavaScript, Wayback captures, and pages
+    the shell cannot reach.
+
+  Every quote was found. The rendered check also tested each `stated_on`
+  against the page.
+
+| Item | Change | Basis |
+|---|---|---|
+| CVE-2019-6693, Google Threat Intelligence Group | `earliest` 2025 not used | "Throughout 2025 we observed ransomware operators leveraging..." is the window of its investigations, not a start date |
+| CVE-2025-0108, GreyNoise update | `earliest` 2025-02-13 not used | "up from 2 on February 13" is a count of IPs, not a first-seen date |
+| CVE-2018-0171, Cisco advisory | `earliest` 2021-11 not used | "In November 2021 ... became aware of additional attempted exploitation": "additional" follows earlier attempts Cisco does not date. Talos's "Since at least 2021" stands |
+| CVE-2025-53521, CISA alert | Report dropped | A KEV-addition alert ("one new vulnerability ... based on evidence of active exploitation") carries no date beyond KEV's own |
+| CVE-2026-94127, F5 K000162605 | `stated_on_basis` corrected | The rendered page shows "Published Date: Sep 22, 2026"; the first reading said the article showed no date |
+| CVE-2025-21590, Juniper RedPenguin PDF | Kept at 2025-03-12 | The PDF is headed "Date: 2025-03-11" and went public through JSA95385 on 2025-03-12; the basis records both |
+| JSA72300 (five J-Web CVEs) | Kept at 2023-11-08 | The modification history also lists "2023-08-30: Update on exploitation"; the page does not show what it said, so it is recorded under `searched`, not as a date |
+| CVE-2024-3400, -0012, -9474, CVE-2026-0300 | Quoted from Wayback captures | The live advisories have been reworded since; the captures show the first wording on the first day |
+| Publisher names | "Palo Alto Networks Unit 42" normalised to "Unit 42" | Matches the rest of the repository |
+
 ## Device verification
 
 | Date | Platform / release | Step | Change | Basis |

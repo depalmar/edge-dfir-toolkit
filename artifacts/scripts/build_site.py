@@ -66,7 +66,7 @@ RULE_DIR_PLATFORM = {
 FACET_KEYS = {
     "artifacts": ["platform", "class", "volatility", "value", "evidence", "kind", "confidence", "basis", "seen"],
     "platforms": ["vendor", "shell", "memory", "profile"],
-    "cves": ["platform", "triage", "ransomware", "coverage", "cwe", "year"],
+    "cves": ["platform", "triage", "expl", "ransomware", "coverage", "cwe", "year"],
     "detections": ["platform", "runs", "pack", "tier", "evidence", "type", "attack", "cve", "actor"],
     "intel": ["kind", "platform", "motivation", "type", "resides", "reboot", "coverage", "iocs", "reporter"],
     "hardening": ["platform", "category", "priority", "confidence"],
@@ -161,6 +161,17 @@ def cve_universe(d: dict) -> set[str]:
     return out
 
 
+def period_end(p: str) -> str:
+    """The last day of a YYYY, YYYY-MM or YYYY-MM-DD period, for comparisons that must not
+    read "August 2023" as earlier than it is."""
+    if len(p) >= 10:
+        return p[:10]
+    if len(p) == 7:
+        y, m = int(p[:4]), int(p[5:7])
+        return (_dt.date(y + (m == 12), m % 12 + 1, 1) - _dt.timedelta(days=1)).isoformat()
+    return p[:4] + "-12-31"
+
+
 def platform_events(d: dict) -> dict[str, tuple[str, str]]:
     """The newest dated outside event for each platform: a KEV entry (CISA's
     dateAdded, from the ledger's kev_added) or an indicator set's publication."""
@@ -247,12 +258,14 @@ def load() -> dict:
            "records": [{**r, "added": str(r["added"]), "due": str(r["due"])} for r in recs["records"]], "added": {}}
     cvf = ROOT / "artifacts" / "watch" / "cve-records.yml"
     cverec = {r["cve"]: r for r in (yaml.safe_load(cvf.read_text()) or {}).get("records", [])} if cvf.is_file() else {}
+    xpf = intel / "exploitation.yml"   # when each CVE was exploited, in the sources' own words
+    expl = {r["cve"]: r for r in (yaml.safe_load(xpf.read_text()) or {}).get("records", [])} if xpf.is_file() else {}
     for r in kev["records"]:   # the re-read flag's KEV events, by the platform KEV's own product strings map to
         if r["platform"]:
             kev["added"].setdefault(r["platform"], {})[r["cve"]] = r["added"]
     return {"catalog": catalog, "profiles": profiles, "packs": packs, "rules": rules, "guide": guide,
             "actors": actors, "implants": implants, "iocs": iocs, "response": response, "hardening": hardening, "hunts": hunts,
-            "kev": kev, "cverec": cverec, "dates": git_dates()}
+            "kev": kev, "cverec": cverec, "expl": expl, "dates": git_dates()}
 
 
 # --------------------------------------------------------------------------- data for the libraries
@@ -528,6 +541,7 @@ def build_data(d: dict) -> dict:
         })
 
     cverec = d.get("cverec") or {}
+    expl = d.get("expl") or {}
     for c in cves:
         cr = cverec.get(c["id"]) or {}
         names = {w["id"]: w["name"] for w in cr.get("cwes", [])}
@@ -540,6 +554,27 @@ def build_data(d: dict) -> dict:
                          if c["in_kev"] else "none")
         c["due_days"] = ((_dt.date.fromisoformat(c["due"]) - _dt.date.fromisoformat(c["added"])).days
                          if c["in_kev"] and c["due"] else None)
+        # Exploitation dates: only what a quoted source states. "before" compares the END of the
+        # period the source gives (a month, a year) with the CVE record's publication, so a
+        # month-precise date is never read as earlier than it is.
+        xr = expl.get(c["id"])
+        reps = [{"publisher": rp["publisher"], "kind": rp["kind"], "title": rp["title"], "url": rp["url"],
+                 "accessed": str(rp["accessed"]), "stated_on": str(rp["stated_on"]) if rp.get("stated_on") else None,
+                 "stated_on_basis": " ".join(str(rp["stated_on_basis"]).split()), "activity": rp["activity"],
+                 "earliest": str(rp["earliest"]) if rp.get("earliest") else None,
+                 "earliest_words": " ".join(str(rp.get("earliest_words", "")).split()),
+                 "quote": " ".join(str(rp["quote"]).split()), "note": " ".join(str(rp.get("note", "")).split()),
+                 "read": rp["read"]} for rp in (xr or {}).get("reports", [])]
+        dated = [x for x in reps if x["earliest"]]
+        first = min(dated, key=lambda x: (x["earliest"], period_end(x["earliest"]))) if dated else None
+        said = [x for x in reps if x["stated_on"]]
+        fr = min(said, key=lambda x: x["stated_on"]) if said else None
+        c["expl"] = reps
+        c["expl_searched"] = [" ".join(str(x).split()) for x in xr["searched"]] if xr else None
+        c["earliest"] = {"date": first["earliest"], "by": first["publisher"], "activity": first["activity"]} if first else None
+        c["first_report"] = {"date": fr["stated_on"], "by": fr["publisher"]} if fr else None
+        before = bool(first and c["published"] and period_end(first["earliest"]) < c["published"])
+        c["expl_k"] = "before" if before else "dated" if first else "reported" if reps else "none" if xr else "unsearched"
     for p in platforms:
         mine = [c for c in cves if p["id"] in c["platforms"]]
         p["cves"] = [c["id"] for c in mine]
@@ -2378,6 +2413,10 @@ a.hc:hover{box-shadow:inset 0 0 0 2px var(--accent)}
 /* exploited CVEs */
 .bod-b{color:var(--ink);background:var(--alert-bg);border-color:var(--crit);font-weight:600}
 .rw-b{color:var(--crit);background:transparent;border-color:var(--crit)}
+.xb{color:var(--ink);background:var(--accent-soft);border-color:var(--accent)}
+.xcall{margin:0 0 10px;padding:8px 12px;font-size:var(--fs-sm)}
+.xh{margin:12px 0 4px;font-size:var(--fs-sm)}
+.xread{margin:6px 0}.xread>summary{cursor:pointer;color:var(--muted)}.xread ul{margin:6px 0;padding-left:18px}
 ol.bod{list-style:none;margin:0 0 8px;padding:0;counter-reset:bod}
 ol.bod>li{counter-increment:bod;display:grid;grid-template-columns:26px minmax(0,1fr);column-gap:10px;padding:10px 0;border-top:1px solid var(--line-soft)}
 ol.bod>li::before{content:counter(bod);grid-row:span 3;width:24px;height:24px;border-radius:50%;background:var(--accent-soft);color:var(--ink);display:grid;place-items:center;font-size:var(--fs-xs);font-weight:600}
@@ -2998,6 +3037,24 @@ function cweShort(id){ var n = CWEN[id] || '', m = n.match(/\('([^']+)'\)/);
   return id + (m ? ' ' + m[1] : n ? ' ' + (n.length <= 34 ? n : n.slice(0, 32).replace(/\s+\S*$/, '') + '…') : ''); }
 var TRIN = {yes:'Flagged for triage', 'no-after':'Not flagged', 'no-before':'Added before BOD 26-04', none:'Not in KEV'};
 var CVEIX = {}; D.cves.forEach(function(c){ CVEIX[c.id] = c; });
+var XPN = {before:'Exploited before the CVE record was published', dated:'Earliest exploitation dated', reported:'Reported exploited; start not dated',
+  none:'Searched; no source dates it', unsearched:'Not searched yet'};
+var XPT = {before:'A quoted source dates exploitation activity before CVE.org published the record (compared at the end of the month or year when that is all the source gives)',
+  dated:'A quoted source dates the earliest exploitation, on or after the CVE record\'s publication', reported:'A quoted source reports exploitation but does not say when it began',
+  none:'The sources read do not report a date; that is not a claim it was not exploited', unsearched:'Nobody has looked for exploitation dates for this CVE yet'};
+var XKIND = {vendor:'vendor', researcher:'researcher who saw it', government:'government agency'};
+function xplSources(c){
+  if (c.expl_searched === null) return '<p class="small muted">Not yet searched for exploitation dates.</p>';
+  var read = c.expl_searched.length ? '<details class="xread"><summary class="small">What was read for this CVE (' + c.expl_searched.length + ')</summary><ul class="small">' +
+    c.expl_searched.map(function(s){ return '<li>' + esc(s) + '</li>'; }).join('') + '</ul></details>' : '';
+  if (!c.expl.length) return '<p class="small"><b>No dated report found.</b> The sources read do not say when exploitation of this CVE began. That is not a claim it was not exploited.</p>' + read;
+  return '<h4 class="xh">What the sources say</h4><ul class="srcs">' + c.expl.map(function(r){
+    return '<li><a href="' + esc(r.url) + '" rel="noopener" target="_blank">' + esc(r.title) + '</a> <span class="small muted">' + esc(r.publisher) + ' · ' + esc(XKIND[r.kind] || r.kind) + '</span>' +
+      (r.read === 'summariser' ? ' <span class="chip ghost">read through a summariser - check the quote</span>' : '') +
+      '<blockquote>' + esc(r.quote) + '</blockquote>' + (r.note ? '<div class="small">' + esc(r.note) + '</div>' : '') +
+      '<div class="small muted">' + (r.stated_on ? 'Stated ' + esc(r.stated_on) : 'Statement date not shown') +
+      ' · ' + esc(r.stated_on_basis) + ' · read ' + esc(r.accessed) + '</div></li>'; }).join('') + '</ul>' + read;
+}
 function triageFact(c){
   if (c.triage_k === 'yes') return b('flagged: 3 days and forensic triage', 'bod-b');
   if (c.triage_k === 'no-after') return 'not flagged' + (c.due_days != null ? '; ' + c.due_days + '-day deadline' : '');
@@ -3006,18 +3063,26 @@ function triageFact(c){
 function cveDates(c){
   var ev = [];
   if (c.published) ev.push([c.published, 'CVE record published', 'CVE.org' + (c.assigner ? ', assigned by ' + c.assigner : '')]);
+  c.expl.forEach(function(r){
+    if (r.earliest) ev.push([r.earliest, r.activity === 'attempted' ? 'Earliest attempted exploitation, as reported' : 'Earliest exploitation, as reported',
+      r.publisher + ': "' + r.earliest_words + '"' + (r.stated_on ? ', said ' + r.stated_on : '')]);
+    if (r.stated_on) ev.push([r.stated_on, r.activity === 'attempted' ? 'Attempted exploitation reported' : 'Exploitation reported', r.publisher + ' (' + (XKIND[r.kind] || r.kind) + ')']);
+  });
   if (c.in_kev) ev.push([c.added, 'Added to KEV', 'CISA']);
   if (c.ssvc && c.ssvc.assessed) ev.push([c.ssvc.assessed, 'CISA assessment', 'exploitation ' + c.ssvc.exploitation + ', automatable ' + c.ssvc.automatable + ', technical impact ' + c.ssvc.technical_impact]);
   if (c.in_kev && c.due) ev.push([c.due, 'Federal due date', c.added < D.bod.issued ? 'set under BOD 22-01, since revoked' : 'BOD 26-04' + (c.triage_k === 'yes' ? ', with forensic triage' : '')]);
   c.iocs.forEach(function(sid){ var st = IOC[sid]; if (st) ev.push([st.published, 'Indicators published', st.publisher + ' (' + sid + ')']); });
   ev.sort(function(x, y){ return x[0] < y[0] ? -1 : x[0] > y[0] ? 1 : 0; });
   var acts = c.actors.map(function(a){ return CX['intel:' + a]; }).filter(function(y){ return y && y.first_seen; });
-  return '<ol class="cvt">' + ev.map(function(e){ return '<li><span class="cvt-d">' + esc(e[0]) + '</span><b>' + esc(e[1]) + '</b><span class="small muted">' + esc(e[2]) + '</span></li>'; }).join('') + '</ol>' +
+  var pre = c.expl_k === 'before' ? '<p class="callout xcall"><b>Exploited before the CVE record was published.</b> ' + esc(c.earliest.by) + ' dates ' +
+    (c.earliest.activity === 'attempted' ? 'attempted exploitation' : 'exploitation') + ' to ' + esc(c.earliest.date) + '; CVE.org published the record on ' + esc(c.published) + '.</p>' : '';
+  return pre + '<ol class="cvt">' + ev.map(function(e){ return '<li><span class="cvt-d">' + esc(e[0]) + '</span><b>' + esc(e[1]) + '</b><span class="small muted">' + esc(e[2]) + '</span></li>'; }).join('') + '</ol>' +
     (acts.length ? '<p class="small"><b>First activity reported for the actors tied to it:</b> ' + acts.map(function(y){
       return '<a href="#intel/' + esc(y.id) + '">' + esc(y.name) + '</a> ' + esc(y.first_seen) + ' (' + esc(y.reported_by.join(', ')) + ')'; }).join('; ') +
-      '. These date the actor, not necessarily this CVE.</p>' : '') +
-    '<p class="small muted">No feed records when exploitation of a CVE began. CISA adds an entry after a report (&quot;' + esc(D.bod.kev_reported) + '&quot;), ' +
-    'and exploitation can start before the CVE record is published.</p>';
+      '. These date the actor, not necessarily this CVE.</p>' : '') + xplSources(c) +
+    '<p class="small muted">No feed records when exploitation of a CVE began. ' +
+    (c.expl.length ? 'The exploitation dates here are the sources\' own, quoted above; a month or a year is as precise as the source gives. ' : '') +
+    'CISA adds an entry after a report (&quot;' + esc(D.bod.kev_reported) + '&quot;), and exploitation can start before the CVE record is published.</p>';
 }
 function cveSameCwe(c){
   var rows = c.cwes.map(function(w){ var o = D.cves.filter(function(x){ return x.id !== c.id && x.cwes.indexOf(w) >= 0; });
@@ -3038,12 +3103,15 @@ function cveRelated(c){
 }
 function cveStats(shown){
   if (!shown.length) return '';
-  var tri = 0, rw = 0, det = 0, cw = {}, act = {};
+  var tri = 0, rw = 0, det = 0, xb = 0, xd = 0, cw = {}, act = {};
   shown.forEach(function(c){ if (c.triage_k === 'yes') tri++; if (c.ransomware === 'Known') rw++; if (c.detections.length) det++;
+    if (c.expl_k === 'before') xb++; if (c.earliest) xd++;
     c.cwes.forEach(function(w){ cw[w] = cw[w] || {n:0, p:{}}; cw[w].n++; c.platforms.forEach(function(p){ cw[w].p[p] = 1; }); });
     c.actors.concat(c.implants).forEach(function(a){ (act[a] = act[a] || []).push(c.id); }); });
   var tiles = [[shown.length, 'CVEs shown', ''], [tri, 'flagged for BOD 26-04 forensic triage', 'data-f="triage" data-v="yes"'],
-    [rw, 'known ransomware use (KEV)', 'data-f="ransomware" data-v="Known"'], [det, 'with detections here', 'data-f="coverage" data-v="detections"'],
+    [rw, 'known ransomware use (KEV)', 'data-f="ransomware" data-v="Known"'],
+    [xb, 'exploited before the CVE record was published, per a quoted source', 'data-f="expl" data-v="before"'],
+    [xd, 'with a quoted date for the earliest exploitation', ''], [det, 'with detections here', 'data-f="coverage" data-v="detections"'],
     [shown.length - det, 'without a detection', '']];
   var shared = Object.keys(cw).filter(function(w){ return cw[w].n > 1; }).sort(function(x, y){ return cw[y].n - cw[x].n || (x < y ? -1 : 1); }).slice(0, 8);
   var acts = Object.keys(act).sort(function(x, y){ return act[y].length - act[x].length || (x < y ? -1 : 1); }).slice(0, 8);
@@ -3058,7 +3126,8 @@ function cveStats(shown){
       return '<li><a href="#intel/' + esc(a) + '">' + esc(y ? y.name : a) + '</a> <span class="small muted">' + act[a].length + (act[a].length === 1 ? ' CVE' : ' CVEs') + '</span>' +
         '<div class="links">' + act[a].map(function(id){ return lnk('#cves/' + id, id); }).join('') + '</div></li>'; }).join('') + '</ul>' :
       '<p class="small muted">None of the CVEs shown is tied to an actor or implant record.</p>') + '</div></div>' +
-    '<p class="small muted">Weakness ids come from KEV and the CVE records; the ties to actors and implants come from the packs, implants, hunts and indicator sets here. Click a count or a weakness to filter.</p></details>';
+    '<p class="small muted">Weakness ids come from KEV and the CVE records; the ties to actors and implants come from the packs, implants, hunts and indicator sets here. ' +
+    'Exploitation dates are the sources\' own, quoted under Dates in each record. Click a count or a weakness to filter.</p></details>';
 }
 LIB.cves = {
   noun:'CVEs', items:D.cves, view:'cards',
@@ -3067,6 +3136,8 @@ LIB.cves = {
     F('triage', 'BOD 26-04 forensic triage', function(c){ return [c.triage_k]; }, function(v){ return TRIN[v] || v; }, ['yes', 'no-after', 'no-before', 'none'],
       function(v){ return v === 'yes' ? 'CISA set a three-day deadline with forensic triage for federal agencies' : v === 'no-after' ? 'Added after BOD 26-04, without the triage requirement' :
         v === 'no-before' ? 'Added before BOD 26-04 was issued; every earlier KEV entry reads No' : 'Not in CISA\'s KEV catalog'; }),
+    F('expl', 'Exploitation dates', function(c){ return [c.expl_k]; }, function(v){ return XPN[v] || v; }, ['before', 'dated', 'reported', 'none', 'unsearched'],
+      function(v){ return XPT[v] || ''; }),
     F('ransomware', 'Ransomware use (KEV)', function(c){ return c.in_kev ? [c.ransomware] : []; }, null, ['Known', 'Unknown']),
     F('coverage', 'What the toolkit has', function(c){ return [c.coverage]; }, function(v){ return COVN[v] || v; }, Object.keys(COVN)),
     F('cwe', 'Weakness (CWE)', function(c){ return c.cwes; }, cweShort),
@@ -3074,12 +3145,14 @@ LIB.cves = {
   ],
   text:function(c){ return [c.id, c.name, c.vendor, c.product, c.description, c.action, c.cwes.map(function(w){ return w + ' ' + (CWEN[w] || ''); }).join(' '), cvePl(c),
     c.platforms.map(function(p){ return PN[p] || ''; }).join(' '), COVN[c.coverage] || '', c.decision ? c.decision.basis : '', c.assigner,
-    c.triage_k === 'yes' ? 'forensic triage BOD 26-04' : '', c.ransomware === 'Known' ? 'ransomware' : ''].join(' '); },
+    c.triage_k === 'yes' ? 'forensic triage BOD 26-04' : '', c.ransomware === 'Known' ? 'ransomware' : '', XPN[c.expl_k] || '',
+    c.expl.map(function(r){ return r.publisher + ' ' + r.earliest_words; }).join(' ')].join(' '); },
   card:function(c){
     var meta = (cvePl(c) || c.vendor || 'no platform') + (c.published ? ' · published ' + c.published : '') + (c.in_kev ? ' · KEV ' + c.added : ' · not in KEV');
     return hd(meta, c.id, '',
         (c.triage_k === 'yes' ? '<span class="badge bod-b" data-f="triage" data-v="yes" title="Filter: flagged for forensic triage">forensic triage</span>' : '') +
-        (c.ransomware === 'Known' ? '<span class="badge rw-b" data-f="ransomware" data-v="Known" title="Filter: known ransomware use">ransomware</span>' : '')) +
+        (c.ransomware === 'Known' ? '<span class="badge rw-b" data-f="ransomware" data-v="Known" title="Filter: known ransomware use">ransomware</span>' : '') +
+        (c.expl_k === 'before' ? '<span class="badge xb" data-f="expl" data-v="before" title="Filter: a quoted source dates exploitation before the CVE record was published">exploited before publication</span>' : '')) +
       (c.name ? '<p class="clamp">' + esc(c.name) + '</p>' : '') +
       '<div class="lc-f"><span class="chip">' + esc(cveCov(c)) + '</span>' +
       c.cwes.slice(0, 2).map(function(w){ return '<span class="chip" data-f="cwe" data-v="' + esc(w) + '" title="Filter by this weakness">' + esc(cweShort(w)) + '</span>'; }).join('') + '</div>';
@@ -3089,6 +3162,7 @@ LIB.cves = {
   drawer:function(c){
     var x = facts([['Platforms', esc(cvePl(c) || 'none')],
       c.published ? ['CVE record published', esc(c.published)] : null,
+      c.earliest ? ['Earliest exploitation reported', esc(c.earliest.date) + ' <span class="small muted">' + esc(c.earliest.by) + (c.earliest.activity === 'attempted' ? ', attempted' : '') + ', quoted under Dates</span>'] : null,
       c.in_kev ? ['Added to KEV', esc(c.added)] : ['KEV', 'not in the catalog'],
       c.in_kev && c.due ? ['Federal due date', esc(c.due) + (c.added < D.bod.issued ? ' <span class="small muted">(BOD 22-01, revoked)</span>' : '')] : null,
       c.in_kev ? ['BOD 26-04 forensic triage', triageFact(c)] : null,
@@ -3128,6 +3202,7 @@ LIB.cves = {
   },
   exp:function(c){ return {id:c.id, name:c.name, platforms:c.platforms.map(function(p){ return PN[p] || p; }), in_kev:c.in_kev,
     cve_record:{published:c.published, assigner:c.assigner, cwes:c.cwes.map(function(w){ return {id:w, name:CWEN[w] || ''}; }), cisa_ssvc:c.ssvc},
+    exploitation:{reading:XPN[c.expl_k], earliest:c.earliest, reports:c.expl, searched:c.expl_searched},
     kev:c.in_kev ? {vendor:c.vendor, product:c.product, added:c.added, due:c.due, ransomware:c.ransomware, forensic_triage:c.triage,
       forensic_triage_reading:TRIN[c.triage_k], required_action:c.action, description:c.description, links:c.links, catalog:D.bod.catalog} : null,
     toolkit:cveCov(c), decision:c.decision, detections:c.detections, artifacts:c.artifacts, hunts:c.hunts, hardening:c.hardening,

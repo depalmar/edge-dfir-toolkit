@@ -1,5 +1,38 @@
 # Changelog
 
+## 0.12.0 - 2026-10-28 - When exploitation began, quoted
+
+- **Exploitation dates for every CVE.** No feed records when exploitation of a
+  CVE began. New `artifacts/intel/exploitation.yml` quotes what primary sources
+  say for all 77 CVEs: 129 reports from vendors, the teams that saw the
+  exploitation, and government agencies.
+  - **Earliest activity.** `earliest` is the earliest activity a source dates,
+    only as precise as the source. 39 reports carry one, covering 36 CVEs.
+  - **Statement date.** `stated_on` is when the statement was published, taken
+    from bylines and revision histories.
+  - **What was read.** Each CVE lists what was read, including dates that were
+    rejected and why. Four CVEs have no report that dates exploitation, and the
+    record says that is not a claim they were not exploited.
+  - **Checked.** Every one of the 129 quotes was checked against its page on
+    2026-10-28. Details are in `docs/VERIFICATION.md`.
+- **Exploited before the CVE record was published.** For 20 CVEs, a quoted
+  source dates exploitation before CVE.org published the record. The comparison
+  uses the end of the period the source gives, so "August 2023" is never read
+  as earlier than it is.
+- **On the site.** Each CVE's Dates section adds:
+  - the earliest exploitation and every report of exploitation;
+  - "What the sources say", with each quote, its date, how that date is known,
+    and what was read.
+  - CVEs dated before their record's publication also get a callout and a card
+    badge.
+
+  The CVE library also gains an "Exploitation dates" facet and two stats tiles.
+  The export carries the reports.
+- **Validator.** It checks the new schema and that each `earliest_words` sits
+  in its quote. It also checks that dates are real calendar dates, that no
+  `earliest` falls after its report's own date, and that every CVE is one the
+  site shows.
+
 ## 0.11.0 - 2026-10-27 - CVE tab review
 
 - **Forensic triage flag, read correctly.** KEV's "No" was shown as "not

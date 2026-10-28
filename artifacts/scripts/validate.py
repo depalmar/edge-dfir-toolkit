@@ -410,6 +410,46 @@ def main() -> int:
                 if not (r in ioc_ids or r in pack_ids or r in hunt_ids):
                     err(f"watch: {c} refers to missing {r}")
 
+    # ---- exploitation dates: every date sits inside its own quote
+    xf = ROOT / "artifacts" / "intel" / "exploitation.yml"
+    if xf.is_file():
+        import datetime as _dt
+        xdoc = yaml.safe_load(xf.read_text()) or {}
+        validate_doc(schema("exploitation.schema.json"), xdoc, "intel/exploitation.yml")
+        cvf = ROOT / "artifacts" / "watch" / "cve-records.yml"
+        shown = ({r.get("cve") for r in (yaml.safe_load(cvf.read_text()) or {}).get("records") or []}
+                 if cvf.is_file() else set())
+
+        def _real(day: str) -> bool:
+            parts = day.split("-")
+            try:
+                _dt.date(int(parts[0]), int(parts[1]) if len(parts) > 1 else 1, int(parts[2]) if len(parts) > 2 else 1)
+                return True
+            except ValueError:
+                return False
+
+        seen_x: set[str] = set()
+        for rec in xdoc.get("records") or []:
+            c = rec.get("cve", "")
+            if c in seen_x:
+                err(f"exploitation: {c} appears twice")
+            seen_x.add(c)
+            if shown and c not in shown:
+                err(f"exploitation: {c} is not a CVE the site shows; it has no CVE.org record")
+            for rp in rec.get("reports") or []:
+                quote = " ".join(str(rp.get("quote", "")).split())
+                words = " ".join(str(rp.get("earliest_words", "")).split())
+                early, said, seen_on = rp.get("earliest"), rp.get("stated_on"), rp.get("accessed")
+                for name, val in (("earliest", early), ("stated_on", said), ("accessed", seen_on)):
+                    if val and not _real(str(val)):
+                        err(f"exploitation: {c} {name} {val} is not a calendar date")
+                if early and words not in quote:
+                    err(f"exploitation: {c} ({rp.get('publisher')}) earliest_words {words!r} are not in the quote")
+                if early and said and str(early) > str(said)[:len(str(early))]:
+                    err(f"exploitation: {c} ({rp.get('publisher')}) earliest {early} is after the report's own date {said}")
+                if said and seen_on and str(said) > str(seen_on):
+                    err(f"exploitation: {c} ({rp.get('publisher')}) stated_on {said} is after it was accessed")
+
     # ---- rule directories
     for d in sorted(ROOT.glob("[0-9][0-9]-*")):
         if d.is_dir() and not (d / "README.md").is_file():

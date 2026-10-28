@@ -168,6 +168,30 @@ the site reads it as "added before BOD 26-04" or "not flagged". No feed dates
 when exploitation began. Show the dates the sources give, each labelled with
 what it is. An actor's first-seen date dates the actor, not the CVE.
 
+**Exploitation dates are quoted, never inferred.** `artifacts/intel/exploitation.yml`
+holds, per CVE, what primary sources say about when it was exploited:
+- Primary sources are the vendor, the team that saw the exploitation and a
+  government cyber authority. News, NVD and aggregators are leads only, and a
+  KEV-addition alert is not a report.
+- `stated_on` is when the quoted text was published. For an updated page, use
+  the revision that added it, and say how in `stated_on_basis`. Make it `null`
+  when the page does not show it.
+- `earliest` is only as precise as the source (year, month or day). Its words
+  (`earliest_words`) must sit inside the quote, which the validator checks.
+- Never take `earliest` from IOC or actor first-seen dates, PoC or patch
+  dates, a count of IPs, a window of investigations, or "additional"
+  exploitation. Never move it between chained CVEs. "Attempted" stays
+  `activity: attempted`.
+- A year missing from the quote, a CVE named only in a heading, a translation
+  or a hedge elsewhere on the page goes in `note`.
+- `searched` lists what was read, including what was rejected and why. An
+  empty `reports` is not a claim the CVE was never exploited.
+- "Exploited before the CVE record was published" is computed only from
+  `earliest` and CVE.org's date, comparing the end of the source's period
+  (`period_end`).
+- Check every quote against its page before committing: in code where the
+  shell can fetch it, and with a rendered fetch otherwise.
+
 ## Threat intel and response rules
 
 **Indicators are parsed, never retyped.** `artifacts/intel/iocs/` sets come from
