@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.13.0 - 2026-10-28 - Keeping quotes and exploitation dates current
+
+- **Quote check.** New `artifacts/scripts/check_quotes.py` re-fetches every
+  page a record quotes and confirms the quote is still there word for word.
+  That's 274 quotes across exploitation dates, hunts and hardening controls.
+  - It forgives only what a faithful copy can differ in: whitespace, quote
+    marks, dashes, and the spacing a link or a PDF bullet leaves.
+  - A JavaScript-built knowledge base is listed as needing a rendered check,
+    never as changed.
+  - A quote read through a summariser that now matches word for word is listed
+    as ready to become `read: direct`.
+  - A monthly workflow (`quote-check`) runs it and opens an issue when a quote
+    is gone. It never commits.
+- **First run.** 196 quotes matched, none were gone, 46 need a rendered check
+  and 32 were unreachable from the sandbox. It found five hardening quotes
+  from cyber.gc.ca carrying a full stop the page does not have; they are list
+  items. Corrected and recorded in `docs/VERIFICATION.md`.
+- **Exploitation dates stay current.** The weekly advisory-watch report has a
+  new section listing every CVE on the site with no record in
+  `artifacts/intel/exploitation.yml`. It keeps the issue open until each one
+  has been searched.
+
 ## 0.12.1 - 2026-10-28 - Local logs against the forwarded copy
 
 - **New hunt, EDGE-HUNT-0027: local logs no longer match the copy the SIEM

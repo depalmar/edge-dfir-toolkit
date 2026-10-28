@@ -228,7 +228,16 @@ platform that has neither a pack nor a recorded decision in
 is posted to an issue labelled `advisory-watch`. It never commits: content
 lands only through a pull request that the validator gates, after someone has
 read the primary sources. Run it locally with
-`python artifacts/scripts/advisory_watch.py --upstream`.
+`python artifacts/scripts/advisory_watch.py --upstream`. The same report lists
+every CVE on the site that has not yet been searched for when its exploitation
+began.
+
+Quotes age too: a vendor rewords an advisory, or a page moves. A monthly
+workflow (`.github/workflows/quote-check.yml`) re-fetches every page a record
+quotes and opens an issue labelled `quote-check` when a quote is no longer on
+its page. Pages that only render in a browser are listed for a manual check
+rather than counted as changed. Run it locally with
+`python artifacts/scripts/check_quotes.py`.
 
 ## Contributing
 

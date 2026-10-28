@@ -25,7 +25,12 @@ site builds one CVE record from each, and flags a record file changed before
 its platform's newest entry. When the feed and the file differ, the report
 says so.
 
-Exit status: 0 nothing new, 10 something needs triage or the records are out of step, 1 error.
+The report also lists every CVE the site shows that has no record in
+artifacts/intel/exploitation.yml, so a new KEV entry gets its exploitation
+dates searched for, not just its pack or ledger decision.
+
+Exit status: 0 nothing new, 10 something needs triage, the records are out of step or a CVE
+has not been searched for exploitation dates, 1 error.
 """
 from __future__ import annotations
 
@@ -42,6 +47,7 @@ import yaml
 ROOT = Path(__file__).resolve().parents[2]
 WATCH = ROOT / "artifacts" / "watch" / "kev-watch.yml"
 RECORDS = ROOT / "artifacts" / "watch" / "kev-records.yml"
+EXPLOITATION = ROOT / "artifacts" / "intel" / "exploitation.yml"
 NEEDS_TRIAGE = 10
 CVE_RE = re.compile(r"CVE-\d{4}-\d{4,}")
 # KEV's field names, and what the records file calls them. Kept verbatim.
@@ -236,7 +242,15 @@ def upstream_changes(watch: dict, files: dict[str, str], getter=fetch) -> list[d
     return out
 
 
-def report(kev: dict, res: dict, changes: list[dict] | None, drift: list[dict] | None = None) -> str:
+def unsearched(shown: set[str], path: Path = EXPLOITATION) -> list[str]:
+    """The CVEs the site shows that nobody has searched for exploitation dates yet."""
+    have = ({r.get("cve") for r in (yaml.safe_load(path.read_text()) or {}).get("records") or []}
+            if path.is_file() else set())
+    return sorted(shown - have)
+
+
+def report(kev: dict, res: dict, changes: list[dict] | None, drift: list[dict] | None = None,
+           todo: list[str] | None = None) -> str:
     L = [f"# Advisory watch - KEV catalog {kev.get('catalogVersion', '?')}", ""]
     L.append("Nothing here is added to the repository automatically. For each item: read the vendor's "
              "advisory and any government or researcher publication it cites, then add a pack or an "
@@ -259,6 +273,16 @@ def report(kev: dict, res: dict, changes: list[dict] | None, drift: list[dict] |
             L.append("The site's CVE records and its re-read flag read `artifacts/watch/kev-records.yml`. Regenerate it "
                      "with `--records`, read the diff, and commit it.")
             L += ["", "| CVE | Change |", "|---|---|"] + [f"| {r['cve']} | {r['change']} |" for r in drift]
+        else:
+            L.append("None.")
+    if todo is not None:
+        L += ["", f"## Not yet searched for exploitation dates ({len(todo)})", ""]
+        if todo:
+            L.append("Read the vendor's advisory and the researcher and government reports on each, quote what they "
+                     "say about when exploitation began, and add a record to `artifacts/intel/exploitation.yml`. "
+                     "A record with no reports and a `searched` list is a valid result. Check the quotes with "
+                     "`check_quotes.py` before committing.")
+            L += [""] + [f"- {c}" for c in todo]
         else:
             L.append("None.")
     L += ["", f"## Deferred - still to triage ({len(res['deferred'])})", ""]
@@ -284,6 +308,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--records-file", type=Path, default=RECORDS, help="the records file to compare with the feed")
     ap.add_argument("--cve-records", action="store_true",
                     help="print cve-records.yml: each shown CVE's CVE.org record (published date, CWEs, CISA SSVC)")
+    ap.add_argument("--exploitation-file", type=Path, default=EXPLOITATION,
+                    help="the exploitation-dates file to check the shown CVEs against")
     ap.add_argument("--out", type=Path, help="write the Markdown report here")
     a = ap.parse_args(argv)
     watch = load_watch(a.watch)
@@ -302,13 +328,14 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     have = (yaml.safe_load(a.records_file.read_text()) or {}).get("records") or [] if a.records_file.is_file() else []
     drift = records_drift(have, want)
-    text = report(kev, res, changes, drift)
+    todo = unsearched({r["cve"] for r in want} | structured_refs(), a.exploitation_file)
+    text = report(kev, res, changes, drift, todo)
     if a.out:
         a.out.write_text(text)
     print(text)
     if a.draft and res["new"]:
         print(draft(res, kev.get("dateReleased", "")[:10]))
-    return NEEDS_TRIAGE if res["new"] or changes or drift else 0
+    return NEEDS_TRIAGE if res["new"] or changes or drift or todo else 0
 
 
 if __name__ == "__main__":

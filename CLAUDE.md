@@ -32,6 +32,7 @@ python artifacts/scripts/build_site.py --check   # site data contract, writes no
 python artifacts/scripts/build_site.py           # docs/site/index.html (CI does this; never commit it)
 python artifacts/scripts/mappings.py [--check]   # MAPPINGS.md is generated
 python artifacts/scripts/advisory_watch.py [--kev f.json] [--upstream] [--draft]   # KEV vs packs; reports, never edits
+python artifacts/scripts/check_quotes.py [--only file.yml] [--out r.md]   # every quote against its live page; reports, never edits
 sigma convert -t lucene --without-pipeline 01-panos-globalprotect/*.yml   # syntax gate only
 ```
 
@@ -189,8 +190,12 @@ holds, per CVE, what primary sources say about when it was exploited:
 - "Exploited before the CVE record was published" is computed only from
   `earliest` and CVE.org's date, comparing the end of the source's period
   (`period_end`).
-- Check every quote against its page before committing: in code where the
-  shell can fetch it, and with a rendered fetch otherwise.
+- Check every quote against its page before committing: `check_quotes.py`
+  where the shell can fetch it, and a rendered fetch for what it lists as
+  needing one. The monthly `quote-check` workflow re-runs it on every quoted
+  source and opens an issue when a quote is gone; it never commits.
+- The weekly advisory-watch report lists every shown CVE with no record here.
+  A new KEV entry is not done until it has one, even an empty one.
 
 ## Threat intel and response rules
 

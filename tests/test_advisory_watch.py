@@ -65,6 +65,22 @@ def test_exit_codes_and_empty_catalog_refused(tmp_path):
     assert aw.main(["--kev", str(watched)] + args) == aw.NEEDS_TRIAGE
 
 
+def test_cves_not_searched_for_exploitation_dates_are_reported(tmp_path):
+    """A CVE the site shows with no exploitation-dates record keeps the weekly issue open;
+    a record with no reports still counts as searched."""
+    xf = tmp_path / "exploitation.yml"
+    xf.write_text(yaml.safe_dump({"records": [{"cve": "CVE-2099-0002", "reports": [], "searched": ["vendor advisory"]}]}))
+    assert aw.unsearched({"CVE-2099-0001", "CVE-2099-0002"}, xf) == ["CVE-2099-0001"]
+    assert aw.unsearched({"CVE-2099-0001"}, tmp_path / "missing.yml") == ["CVE-2099-0001"]
+    k = kev(("CVE-2099-0001", "ExampleVendor", "ExampleOS", "2099-01-02"))
+    text = aw.report(k, aw.triage(k, WATCH, {}), None, [], ["CVE-2099-0001"])
+    assert "Not yet searched for exploitation dates (1)" in text and "- CVE-2099-0001" in text
+    assert "exploitation dates" not in aw.report(k, aw.triage(k, WATCH, {}), None)   # older callers unchanged
+    # the shipped file covers every CVE the site shows today
+    shown = {r["cve"] for r in yaml.safe_load((ROOT / "artifacts/watch/cve-records.yml").read_text())["records"]}
+    assert aw.unsearched(shown) == []
+
+
 def test_kev_records_come_from_the_feed_verbatim():
     k = kev(("CVE-2099-0001", "ExampleVendor", "ExampleOS", "2099-01-05"),
             ("CVE-2099-0002", "ExampleVendor", "ExampleOS", "2023-06-01"),   # before `since`, but a record names it

@@ -31,7 +31,7 @@ controls:
       - title: Canadian Centre for Cyber Security AL25-014 - security incident impacting F5
         url: https://cyber.gc.ca/en/alerts-advisories/al25-014-security-incident-impacting-f5
         accessed: "2026-10-22"
-        quote: "Isolate F5 management interfaces that are facing the public internet."
+        quote: "Isolate F5 management interfaces that are facing the public internet"
 
   - id: f5-self-ip-lockdown
     control: Set Port Lockdown to Allow None on self IPs that face untrusted networks
@@ -150,7 +150,7 @@ controls:
       - title: Canadian Centre for Cyber Security AL25-014 - security incident impacting F5
         url: https://cyber.gc.ca/en/alerts-advisories/al25-014-security-incident-impacting-f5
         accessed: "2026-10-22"
-        quote: "Decommission End-of-Life F5 products."
+        quote: "Decommission End-of-Life F5 products"
       - title: CISA ED 26-01 - mitigate vulnerabilities in F5 devices
         url: https://www.cisa.gov/news-events/directives/ed-26-01-mitigate-vulnerabilities-f5-devices
         accessed: "2026-10-23"

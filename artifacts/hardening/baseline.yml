@@ -83,7 +83,7 @@ controls:
       - title: CCCS - security considerations for edge devices (ITSM.80.101)
         url: https://cyber.gc.ca/en/guidance/security-considerations-edge-devices-itsm80101
         accessed: "2026-10-22"
-        quote: "Use strong, phishing-resistant multi-factor authentication (MFA) for all administrative access to devices."
+        quote: "Use strong, phishing-resistant multi-factor authentication (MFA) for all administrative access to devices"
       - title: ASD's ACSC - mitigation strategies for edge devices, practitioner guidance
         url: https://www.cyber.gov.au/publication/mitigation-strategies-for-edge-devices-practitioner-guidance
         accessed: "2026-10-23"
@@ -134,7 +134,7 @@ controls:
       - title: CCCS - security considerations for edge devices (ITSM.80.101)
         url: https://cyber.gc.ca/en/guidance/security-considerations-edge-devices-itsm80101
         accessed: "2026-10-22"
-        quote: "Enable centralized (off-device) logging and configure log levels to be as detailed as possible."
+        quote: "Enable centralized (off-device) logging and configure log levels to be as detailed as possible"
       - title: NSA - Network Infrastructure Security Guide v1.2 (PP-22-0293)
         url: https://media.defense.gov/2022/Jun/15/2003018261/-1/-1/0/CTR_NSA_NETWORK_INFRASTRUCTURE_SECURITY_GUIDE_20220615.PDF
         accessed: "2026-10-23"
@@ -235,7 +235,7 @@ controls:
       - title: CCCS - security considerations for edge devices (ITSM.80.101)
         url: https://cyber.gc.ca/en/guidance/security-considerations-edge-devices-itsm80101
         accessed: "2026-10-22"
-        quote: "Deactivate any functionality that is not required."
+        quote: "Deactivate any functionality that is not required"
 
   - id: base-default-creds
     control: Change every default credential

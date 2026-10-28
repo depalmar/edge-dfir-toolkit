@@ -1,0 +1,60 @@
+name: quote-check
+
+# Monthly: re-fetch every page a record quotes (exploitation dates, hunt sources,
+# hardening sources) and confirm the quote is still on it. A quote that is gone
+# goes to one issue labelled quote-check. This job never commits: a person reads
+# the page and fixes the quote, the record or the claim through a normal pull
+# request, and records the correction in docs/VERIFICATION.md. Pages that only
+# render in a browser, and pages the runner cannot reach, are listed in the
+# report and the job summary but never counted as changed.
+
+on:
+  schedule:
+    - cron: '41 14 3 * *'    # the 3rd of each month, 14:41 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: quote-check
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install
+        run: |
+          pip install pyyaml
+          sudo apt-get install -y --no-install-recommends poppler-utils
+      - name: Check every quote against its page
+        id: check
+        run: |
+          set +e
+          python artifacts/scripts/check_quotes.py --out report.md > /dev/null
+          code=$?
+          set -e
+          if [ "$code" -eq 1 ]; then exit 1; fi
+          echo "changed=$([ "$code" -eq 10 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          cat report.md >> "$GITHUB_STEP_SUMMARY"
+      - name: Open or update the quote-check issue
+        if: steps.check.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh label create quote-check --color FBCA04 \
+            --description "A quoted source no longer carries its quote" 2>/dev/null || true
+          num=$(gh issue list --label quote-check --state open --json number --jq '.[0].number')
+          if [ -n "$num" ]; then
+            gh issue edit "$num" --body-file report.md
+            gh issue comment "$num" --body "Re-run $(date -u +%Y-%m-%d): report updated in the issue body."
+          else
+            gh issue create --title "Quote check: quoted sources no longer match their page" \
+              --label quote-check --body-file report.md
+          fi

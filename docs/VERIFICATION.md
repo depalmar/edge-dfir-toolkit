@@ -727,6 +727,18 @@ pages and counted in CISA's own feed.
 | CVE-2024-3400, -0012, -9474, CVE-2026-0300 | Quoted from Wayback captures | The live advisories have been reworded since; the captures show the first wording on the first day |
 | Publisher names | "Palo Alto Networks Unit 42" normalised to "Unit 42" | Matches the rest of the repository |
 
+## 2026-10-28 - first run of check_quotes.py
+
+The first run checked all 274 quoted sources: 196 matched word for word and none
+were gone. 46 are on hosts that build their text in the browser and need a
+rendered check, and 32 could not be fetched from the sandbox (cisa.gov refuses
+it, and cyber.gov.au timed out). Five quotes matched except for a final full stop:
+
+| Item | Change | Basis |
+|---|---|---|
+| `base-phishing-resistant-mfa`, `base-logs-offbox`, `base-disable-unused` (cyber.gc.ca ITSM.80.101) | Trailing full stop removed from each quote | The page lists them as bullet items without one: the raw HTML reads "...administrative access to devices</li>" |
+| `f5-mgmt-not-internet`, `f5-decommission-eos` (cyber.gc.ca AL25-014) | Trailing full stop removed from each quote | Same: list items without a full stop |
+
 ## Device verification
 
 | Date | Platform / release | Step | Change | Basis |
