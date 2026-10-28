@@ -78,21 +78,25 @@ def test_runs_on_either_side_are_possible_indicators(tmp_path):
 
 
 def test_a_deleted_stretch_with_repeated_messages_is_still_one_run(tmp_path):
-    """Every third line is the same logout. Twelve forwarded lines gone from the box and nine
-    local lines never forwarded both include logouts. A logout pairs only with a copy in its
-    own stretch, so each stretch is one run with every line counted. (A logout used to pair
-    with any copy anywhere in the log, which split both stretches into runs of two.)"""
+    """Every third line is the same logout. Eleven forwarded lines gone from the box and seven
+    local lines never forwarded both include logouts, and each stretch ends just before a
+    logout both copies keep. A logout pairs only with a copy in its own stretch, the one
+    beside it first, so each stretch is one run with every line counted and the right end.
+    (A logout used to pair with any copy anywhere in the log, which split both stretches
+    into runs of two.)"""
     m = _logout_every(3)
-    gone, unsent = set(range(40, 52)), set(range(80, 89))
+    gone, unsent = set(range(40, 51)), set(range(80, 87))
     local = [_local(i, T0 + timedelta(minutes=i), m) for i in range(140) if i not in gone]
     fwd = [_forwarded(i, T0 + timedelta(minutes=i), m) for i in range(140) if i not in unsent]
     root = _case(tmp_path, local)
     (tmp_path / "siem.log").write_text("\n".join(fwd) + "\n")
     out = analyze(root, forwarded=[tmp_path / "siem.log"])
     g, u = _det(out, "offbox-gone-from-box"), _det(out, "offbox-never-forwarded")
-    assert g["status"] == "hit" and g["hit_count"] == 1 and g["hits"][0]["extra"]["lines"] == 12
-    assert u["status"] == "hit" and u["hit_count"] == 1 and u["hits"][0]["extra"]["lines"] == 9
+    assert g["status"] == "hit" and g["hit_count"] == 1 and g["hits"][0]["extra"]["lines"] == 11
+    assert u["status"] == "hit" and u["hit_count"] == 1 and u["hits"][0]["extra"]["lines"] == 7
     assert "seq 40" in g["hits"][0]["excerpt"] and "seq 80" in u["hits"][0]["excerpt"]
+    assert g["hits"][0]["extra"]["end"] == "Oct 22 09:50:00"   # line 50, not the kept logout at 51
+    assert u["hits"][0]["extra"]["end"] == "Oct 22 10:26:00"   # line 86, not the kept logout at 87
 
 
 def test_rotation_with_repeated_messages_is_not_deletion(tmp_path):

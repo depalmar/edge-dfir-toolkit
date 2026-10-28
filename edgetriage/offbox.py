@@ -262,13 +262,25 @@ def _pair(fwd: list[Line], local: list[Line]) -> tuple[list[str | None], list[st
         ff[i] = lf[j] = SHARED
     bounds = [(-1, -1)] + chain + [(len(fk), len(lk))]
     for n, ((a0, b0), (a1, b1)) in enumerate(zip(bounds, bounds[1:])):
-        step = -1 if n == 0 else 1
+        fi = [i for i in range(a0 + 1, a1) if ff[i] == ONE_SIDED]
+        lj = [j for j in range(b0 + 1, b1) if lf[j] == ONE_SIDED]
+        p, q, r, s = 0, 0, len(fi), len(lj)
+        first, last = n == 0, n == len(bounds) - 2
+        # the ends first, as a diff does: a repeated message beside an anchor meets its own copy.
+        # Before the first anchor the copies meet only at the anchor end (the box starts part
+        # way through), and after the last one only at the anchor end too.
+        while not first and p < r and q < s and fk[fi[p]] == lk[lj[q]]:
+            ff[fi[p]] = lf[lj[q]] = LOOSE
+            p, q = p + 1, q + 1
+        while not last and p < r and q < s and fk[fi[r - 1]] == lk[lj[s - 1]]:
+            r, s = r - 1, s - 1
+            ff[fi[r]] = lf[lj[s]] = LOOSE
+        step = -1 if first else 1
         free: dict[str, deque[int]] = defaultdict(deque)
-        for j in range(b0 + 1, b1)[::step]:
-            if lf[j] == ONE_SIDED:
-                free[lk[j]].append(j)
-        for i in range(a0 + 1, a1)[::step]:
-            if ff[i] == ONE_SIDED and free.get(fk[i]):
+        for j in lj[q:s][::step]:
+            free[lk[j]].append(j)
+        for i in fi[p:r][::step]:
+            if free.get(fk[i]):
                 j = free[fk[i]].popleft()
                 ff[i] = lf[j] = LOOSE
     return ff, lf

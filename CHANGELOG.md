@@ -13,6 +13,10 @@
     stretch.
   - **Loose pairs.** Those pairs, and once-only lines the collector received
     out of order, are `loose`: they neither end a run nor count toward one.
+  - **Runs end where they end.** Inside a stretch, the matching lines at
+    each end are paired first, as a diff does. A logout both copies keep,
+    just after a run, then meets its own copy, and the run's end time is the
+    last line actually missing.
 - **Fixed: rotation with repeated messages.** The same bag counting let a
   rotated-away logout pair with a later copy on the box. That pulled rotated
   lines into the comparison. Depending on spacing, it raised false "gone from
