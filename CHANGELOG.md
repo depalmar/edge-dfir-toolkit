@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.12.1 - 2026-10-28 - Local logs against the forwarded copy
+
+- **New hunt, EDGE-HUNT-0027: local logs no longer match the copy the SIEM
+  received.** A reader suggested it on LinkedIn.
+  - It lines up the SIEM's copy of a device's syslog with the logs left on the
+    box. It flags lines the SIEM holds that are gone locally, local logs that
+    begin after the exploit window, and clearing events in the forwarded copy.
+  - Sources:
+    - AA25-239A tells defenders to review forwarded logs for "Evidence of
+      clearing locally stored logs".
+    - Volexity found an Ivanti appliance in January 2024 whose "logs had been
+      wiped and logging had been disabled".
+    - Talos saw the 2023 IOS XE attacker "clearing logs and removing users".
+  - It sits beside EDGE-HUNT-0009, not in place of it. SPAWNSLOTH disabled
+    local logging and forwarding together, which leaves both copies matching.
+  - It is linked from the records for CVE-2023-46805, CVE-2024-21887 and
+    CVE-2023-20198.
+
 ## 0.12.0 - 2026-10-28 - When exploitation began, quoted
 
 - **Exploitation dates for every CVE.** No feed records when exploitation of a

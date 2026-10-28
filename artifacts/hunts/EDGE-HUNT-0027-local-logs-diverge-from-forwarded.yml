@@ -1,0 +1,79 @@
+# Off-box hunt EDGE-HUNT-0027
+# Schema: ../schema/hunt.schema.json
+
+id: EDGE-HUNT-0027
+title: Local logs no longer match the copy the SIEM received
+platforms:
+- ALL
+- EDGE-0003
+- EDGE-0009
+actors:
+- EDGE-TA-0007
+seen_in:
+- AA25-239A
+- Ivanti 2024 (Volexity)
+- IOS XE web UI 2023 (Talos)
+cves:
+- CVE-2023-46805
+- CVE-2024-21887
+- CVE-2023-20198
+hypothesis: >-
+  The actor cleared or edited the device's local logs after the events had already been
+  forwarded, so the forwarded copy still holds what the box no longer shows.
+data:
+- syslog
+data_detail: >-
+  The device's syslog as your SIEM or collector received it, and the device's local logs for the
+  same window, from the collected case or the vendor's own log export.
+method:
+- >-
+  Normalise both copies to timestamp and message, and line them up on the device's own
+  timestamps for the period the local logs still cover.
+- >-
+  List the lines the SIEM received that are gone from the box, and the local lines the SIEM
+  never received.
+- >-
+  In the forwarded copy, look for the clearing itself: a clear-logging command, a logs-cleared
+  event, or logging or forwarding being switched off.
+- >-
+  Check where the local logs begin. A local log that starts after the exploit window, while the
+  forwarded stream runs straight through it, needs a rotation or reboot to explain it.
+normal: >-
+  For the period local retention covers, every forwarded line is still on the box, and lines
+  missing from the SIEM fall inside known collector outages.
+suspicious: >-
+  Lines the SIEM holds that are gone from the box, local logs that begin after the exploit
+  window while the forwarded stream does not, or a clearing event in the forwarded copy.
+attack:
+- T1070
+inferred: >-
+  AA25-239A tells defenders to look in the forwarded logs for "Evidence of clearing locally stored
+  logs"; lining the two copies up line by line is this toolkit's extension of that advice. It
+  cannot see suppression that stops both copies at once: GTIG reports SPAWNSLOTH disabled both
+  local logging and remote syslog forwarding, which is what the syslog-gap hunt (EDGE-HUNT-0009)
+  is for. Lines can also go missing through UDP syslog loss, collector outages and rotation, so
+  rule those out before calling a difference tampering.
+confidence: medium
+sources:
+- title: AA25-239A joint advisory (IC3 PDF v1.1), page 18
+  url: https://www.ic3.gov/CSA/2025/250827.pdf
+  accessed: '2026-10-28'
+  quote: >-
+    Review logs forwarded from network devices for indications of potential malicious behavior,
+    such as: Evidence of clearing locally stored logs, Disabling log creation or log forwarding
+  read: direct
+- title: Volexity - Active exploitation of two zero-day vulnerabilities in Ivanti Connect Secure VPN
+  url: >-
+    https://www.volexity.com/blog/2024/01/10/active-exploitation-of-two-zero-day-vulnerabilities-in-ivanti-connect-secure-vpn/
+  accessed: '2026-10-28'
+  quote: >-
+    A closer inspection of the ICS VPN appliance showed that its logs had been wiped and logging
+    had been disabled.
+  read: direct
+- title: Cisco Talos - Active exploitation of Cisco IOS XE Software Web Management User Interface
+  url: https://blog.talosintelligence.com/active-exploitation-of-cisco-ios-xe-software/
+  accessed: '2026-10-28'
+  quote: >-
+    We also observed the attacker clearing logs and removing users, likely to hide evidence of
+    their activity
+  read: direct
