@@ -20,12 +20,17 @@ def _msg(i: int) -> str:
     return f"UI_CMDLINE_READ_LINE: User 'ir-ro', command 'show route 198.51.100.{i % 250}' seq {i}"
 
 
-def _local(i: int, t: datetime) -> str:
-    return f"{t:%b %d %H:%M:%S} mx-lab-01 mgd[2210]: {_msg(i)}"
+def _logout_every(n: int):
+    """Messages where every nth line is the same logout, as in a real Junos log."""
+    return lambda i: "UI_LOGOUT_EVENT: User 'ir-ro' logout" if i % n == 0 else _msg(i)
 
 
-def _forwarded(i: int, t: datetime) -> str:
-    return f"<190>{t:%b %d %H:%M:%S} mx-lab-01 mgd[2210]: {_msg(i)}"
+def _local(i: int, t: datetime, msg=_msg) -> str:
+    return f"{t:%b %d %H:%M:%S} mx-lab-01 mgd[2210]: {msg(i)}"
+
+
+def _forwarded(i: int, t: datetime, msg=_msg) -> str:
+    return f"<190>{t:%b %d %H:%M:%S} mx-lab-01 mgd[2210]: {msg(i)}"
 
 
 T0 = datetime(2026, 10, 22, 9, 0, 0)
@@ -64,11 +69,58 @@ def test_runs_on_either_side_are_possible_indicators(tmp_path):
     assert all(h["tier"] == "possible" for h in g["hits"] + u["hits"])
     assert "seq 40" in g["hits"][0]["excerpt"] and "seq 80" in u["hits"][0]["excerpt"]
     assert out["verdict"]["level"] == "SUSPICIOUS"   # one evidence class, possible tier
+    assert "disagree" in out["verdict"]["rationale"] and "exploitation attempted" not in out["verdict"]["rationale"]
     assert out["offbox"]["forwarded"][0]["sha256"] and out["offbox"]["shared"] == 120 - 8 - 6
     md = (root / "report.md").read_text()
     assert "## Off-box comparison" in md and "Gone from the box | 1 run(s) found" in md
     html = (root / "report.html").read_text()
     assert "Off-box comparison" in html and "#hunts/EDGE-HUNT-0027" in html
+
+
+def test_a_deleted_stretch_with_repeated_messages_is_still_one_run(tmp_path):
+    """Every third line is the same logout. Twelve forwarded lines gone from the box and nine
+    local lines never forwarded both include logouts. A logout pairs only with a copy in its
+    own stretch, so each stretch is one run with every line counted. (A logout used to pair
+    with any copy anywhere in the log, which split both stretches into runs of two.)"""
+    m = _logout_every(3)
+    gone, unsent = set(range(40, 52)), set(range(80, 89))
+    local = [_local(i, T0 + timedelta(minutes=i), m) for i in range(140) if i not in gone]
+    fwd = [_forwarded(i, T0 + timedelta(minutes=i), m) for i in range(140) if i not in unsent]
+    root = _case(tmp_path, local)
+    (tmp_path / "siem.log").write_text("\n".join(fwd) + "\n")
+    out = analyze(root, forwarded=[tmp_path / "siem.log"])
+    g, u = _det(out, "offbox-gone-from-box"), _det(out, "offbox-never-forwarded")
+    assert g["status"] == "hit" and g["hit_count"] == 1 and g["hits"][0]["extra"]["lines"] == 12
+    assert u["status"] == "hit" and u["hit_count"] == 1 and u["hits"][0]["extra"]["lines"] == 9
+    assert "seq 40" in g["hits"][0]["excerpt"] and "seq 80" in u["hits"][0]["excerpt"]
+
+
+def test_rotation_with_repeated_messages_is_not_deletion(tmp_path):
+    """Every tenth line is the same logout and the box has rotated away its first 40 lines. A
+    rotated logout must not pair with a later copy on the box and pull the rotated lines into
+    the comparison, where they would read as deleted."""
+    m = _logout_every(10)
+    local = [_local(i, T0 + timedelta(minutes=i), m) for i in range(40, 120)]
+    root = _case(tmp_path, local)
+    (tmp_path / "siem.log").write_text("\n".join(_forwarded(i, T0 + timedelta(minutes=i), m) for i in range(120)) + "\n")
+    out = analyze(root, forwarded=[tmp_path / "siem.log"])
+    assert _det(out, "offbox-gone-from-box")["status"] == "no-hit"
+    assert _det(out, "offbox-never-forwarded")["status"] == "no-hit"
+    assert out["offbox"]["before_box"]["lines"] == 40
+
+
+def test_lines_the_collector_received_late_are_not_deletion(tmp_path):
+    """Eight lines reached the SIEM thirty lines late. Each message occurs once in each copy,
+    so they are the same lines wherever they sit: no run on either side."""
+    local = [_local(i, T0 + timedelta(minutes=i)) for i in range(120)]
+    order = [i for i in range(120) if i not in range(40, 48)]
+    at = order.index(77) + 1
+    order[at:at] = list(range(40, 48))
+    root = _case(tmp_path, local)
+    (tmp_path / "siem.log").write_text("\n".join(_forwarded(i, T0 + timedelta(minutes=i)) for i in order) + "\n")
+    out = analyze(root, forwarded=[tmp_path / "siem.log"])
+    assert _det(out, "offbox-gone-from-box")["status"] == "no-hit"
+    assert _det(out, "offbox-never-forwarded")["status"] == "no-hit"
 
 
 def test_identical_copies_evaluate_with_no_hit(tmp_path):

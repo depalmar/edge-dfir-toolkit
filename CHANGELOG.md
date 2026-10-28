@@ -1,5 +1,36 @@
 # Changelog
 
+## 0.14.1 - 2026-10-28 - Repeated messages and the off-box verdict
+
+- **Fixed: a deletion that included a repeated message was missed.** The
+  off-box comparison counted messages as a bag. A deleted logout "found" a copy
+  of the same logout hundreds of lines away, so it looked kept. That split the
+  deleted stretch into pieces shorter than the five-line minimum. A synthetic
+  Junos log with 12 lines deleted came back `NO-INDICATORS-FOUND`.
+  - **The fix.** The copies are now lined up in order, like a patience diff.
+    Messages that occur once in each copy anchor the comparison and cut it into
+    short stretches. A repeated message pairs only with a copy in its own
+    stretch.
+  - **Loose pairs.** Those pairs, and once-only lines the collector received
+    out of order, are `loose`: they neither end a run nor count toward one.
+- **Fixed: rotation with repeated messages.** The same bag counting let a
+  rotated-away logout pair with a later copy on the box. That pulled rotated
+  lines into the comparison. Depending on spacing, it raised false "gone from
+  the box" runs or reported the copies as not comparable. The comparison now
+  starts at the first anchored line, and the leading stretch pairs from the
+  end.
+- **Not comparable, said plainly.** A log of nothing but a few repeated
+  messages has no anchors, so it is not compared. The reason now says so.
+- **Known limit.** When a deleted stretch and a never-forwarded stretch touch,
+  a repeated message in one can pair with a copy in the other, and each run
+  counts fewer lines than it holds. This is stated in `offbox.py`.
+- **Verdict wording.** When only the off-box comparison fires, the verdict no
+  longer reads "often exploitation attempted". It says that the SIEM's copy and
+  the box disagree, and points to the benign causes listed in each finding. The
+  site's verdict ladder and the guide's tier table say the same.
+- Three regression tests pin each fix: repeated messages in a deleted stretch,
+  rotation with repeated messages, and lines received late.
+
 ## 0.14.0 - 2026-10-28 - The SIEM's copy against the box
 
 - **`analyze --forwarded`.** Give the analyzer the device's syslog as the SIEM

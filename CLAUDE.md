@@ -132,6 +132,11 @@ the logs on the box (EDGE-HUNT-0027) and lists gaps in the forwarded stream
 - It lines the copies up by message, never by clock, and only between the
   first and last line they share, so rotation and a clock in another zone
   are not deletion.
+- It lines them up in order (a patience diff anchored on messages that occur
+  once in each copy). A repeated message pairs only within its own stretch,
+  and such a `loose` pair neither ends a run nor counts toward one. Never go
+  back to counting messages as a bag: a deleted logout then "finds" a copy
+  hundreds of lines away and splits the run.
 - One-sided runs of `RUN_MIN` or more lines are `possible`, in their own
   evidence class (`offbox-logs`).
 - It says not-evaluated when the copies share fewer than `MIN_SHARED` lines

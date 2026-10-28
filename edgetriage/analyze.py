@@ -126,8 +126,13 @@ def verdict(results: list[dict[str, Any]]) -> dict[str, Any]:
         why = "possible indicators corroborated across evidence classes: " + ", ".join(sorted(classes_possible))
     elif by_tier["possible"]:
         level = "SUSPICIOUS"
-        why = "possible indicator (often exploitation attempted, success not shown): " + \
-              ", ".join(sorted({r["id"] for r in by_tier["possible"]}))
+        ids = ", ".join(sorted({r["id"] for r in by_tier["possible"]}))
+        if classes_possible == {"offbox-logs"}:
+            # Only the off-box comparison fired: say what was seen, not "an attempt".
+            why = ("possible indicator: the SIEM's copy of the device's syslog and the logs on the box disagree "
+                   "(lines deleted locally, or never forwarded; each finding lists the benign causes): " + ids)
+        else:
+            why = "possible indicator (often exploitation attempted, success not shown): " + ids
     else:
         level = "NO-INDICATORS-FOUND"
         why = "no detection fired. This is not a finding that the device is clean; read the evidence gaps."

@@ -157,8 +157,10 @@ python -m edgetriage analyze cases/IR-YYYY-NNN --window-start 2026-09-01T00:00:0
 
 `--forwarded` takes the device's syslog as your SIEM or collector received it,
 for the same hours: raw lines, or JSON or CSV with a `Message` field. The
-analyzer lines it up with the logs on the box by message, not by clock, and
-reports two things as possible indicators:
+analyzer lines it up with the logs on the box by message and in order, like a
+diff, never by clock. A message repeated throughout the log, such as a logout,
+only pairs with a copy nearby. The analyzer reports two things as possible
+indicators:
 - runs of forwarded lines that are gone from the box;
 - runs of local lines the SIEM never received.
 
@@ -178,7 +180,7 @@ Read the report in this order:
 
 | Tier | Typically means |
 |---|---|
-| `possible` | exploitation attempted, or a lead that needs a second signal |
+| `possible` | exploitation attempted, a lead that needs a second signal, or the SIEM's copy of the logs disagreeing with the box |
 | `likely` | post-exploitation artefact with a plausible benign explanation |
 | `confirmed` | artefact with no legitimate reason to exist on the device |
 

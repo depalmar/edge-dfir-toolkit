@@ -3,10 +3,19 @@ logs left on the box (EDGE-HUNT-0027), plus the gaps in the forwarded stream
 (EDGE-HUNT-0009).
 
 The two copies are lined up by content, not by clock. Each line is reduced to
-the message after its syslog header, and a forwarded line counts as still on
-the box when a local line carries the same message. The comparison only runs
-between the first and the last line the copies share, so rotation at either
-end, and a device clock in another time zone, never read as deletion.
+the message after its syslog header. Messages that occur once in each copy
+are certainly the same line, and the longest chain of them in order (a
+patience diff) cuts both copies into short stretches. A repeated message, such
+as a logout, pairs only with a copy of itself in the same stretch, so a deleted
+stretch that includes common messages is still one run. Repeated messages used
+to pair with any copy anywhere in the log, which split such stretches into runs
+too short to report. The comparison only runs between the first and the last
+anchored line, so rotation at either end, and a device clock in another time
+zone, never read as deletion.
+
+Known limit: when a deleted stretch and a never-forwarded stretch touch, a
+repeated message in one can pair with a copy in the other, and each run counts
+fewer lines than it holds.
 
 When the copies share too few lines - the device forwards a different format,
 or logs locally and remotely at different levels - the comparison says it was
@@ -27,7 +36,8 @@ import io
 import json
 import re
 import statistics
-from collections import Counter
+from bisect import bisect_left
+from collections import Counter, defaultdict, deque
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -57,7 +67,7 @@ _BSD = re.compile(r"\b([A-Z][a-z]{2})\s+(\d{1,2})\s+(\d{2}):(\d{2}):(\d{2})\b")
 GONE_NOTE = ("A run of lines the SIEM received that are no longer on the box, with lines the two copies share on "
              "both sides. Deletion after forwarding is one explanation (AA25-239A: review forwarded logs for "
              "\"Evidence of clearing locally stored logs\"). Others are a facility or level the device forwards but "
-             "does not keep locally, and duplicate messages lined up out of order. Read the run before calling it "
+             "does not keep locally, and repeated messages the collector received out of order. Read the run before calling it "
              "tampering. See EDGE-HUNT-0027.")
 UNSENT_NOTE = ("A run of lines on the box that the SIEM never received, with shared lines on both sides. Forwarding "
                "blocked during hands-on activity is one explanation (Mandiant on CVE-2025-0282: the threat actor "
@@ -202,37 +212,87 @@ def local_sources(view: EvidenceView, patterns: list[str] | None) -> list[Source
 
 
 # --------------------------------------------------------------------------- comparison
-def _match(lines: list[Line], other: Counter) -> list[bool | None]:
-    """True shared, False one-sided, None too generic to line up."""
-    left = Counter(other)
-    out: list[bool | None] = []
-    for ln in lines:
-        if len(ln.key) < MIN_KEY:
-            out.append(None)
-        elif left[ln.key] > 0:
-            left[ln.key] -= 1
-            out.append(True)
+SHARED, LOOSE, ONE_SIDED = "shared", "loose", "one-sided"
+_RANK = {None: 0, ONE_SIDED: 1, LOOSE: 2, SHARED: 3}
+
+
+def _in_order(pairs: list[tuple[int, int]]) -> list[tuple[int, int]]:
+    """The longest chain of pairs in order on both sides (pairs come sorted by the first index)."""
+    tails: list[int] = []
+    tail_at: list[int] = []
+    prev = [-1] * len(pairs)
+    for k, (_i, j) in enumerate(pairs):
+        p = bisect_left(tails, j)
+        if p == len(tails):
+            tails.append(j)
+            tail_at.append(k)
         else:
-            out.append(False)
-    return out
+            tails[p] = j
+            tail_at[p] = k
+        prev[k] = tail_at[p - 1] if p else -1
+    out, k = [], tail_at[-1] if tail_at else -1
+    while k >= 0:
+        out.append(pairs[k])
+        k = prev[k]
+    return out[::-1]
 
 
-def _runs(flags: list[bool | None]) -> tuple[tuple[int, int] | None, list[tuple[int, int]], float]:
-    """(span of shared lines, one-sided runs inside it, share of the span that is shared)."""
-    idx = [i for i, f in enumerate(flags) if f is True]
+def _pair(fwd: list[Line], local: list[Line]) -> tuple[list[str | None], list[str | None]]:
+    """Line one local log up with the forwarded copy and flag every line on both sides.
+
+    A message that occurs once in each copy is the same line. The longest chain of such
+    pairs in order on both sides is `shared`, and it cuts the copies into stretches. A
+    repeated message (a logout, a keepalive) pairs only with a copy of itself in the same
+    stretch; a once-only message out of order (delivered late) has its partner elsewhere.
+    Both are `loose`: neither copy says which line is which, so a loose line never ends a
+    run and never counts toward one. Whatever is left is `one-sided`. Messages shorter than
+    MIN_KEY are None. Before the first shared line the copies are paired from the end, so
+    the box's oldest line meets its own copy and not an older one rotated away."""
+    fk = [ln.key if len(ln.key) >= MIN_KEY else None for ln in fwd]
+    lk = [ln.key if len(ln.key) >= MIN_KEY else None for ln in local]
+    cf, cl = Counter(k for k in fk if k), Counter(k for k in lk if k)
+    once = {k: j for j, k in enumerate(lk) if k and cl[k] == 1 and cf[k] == 1}
+    pairs = [(i, once[k]) for i, k in enumerate(fk) if k in once]
+    ff = [None if k is None else ONE_SIDED for k in fk]
+    lf = [None if k is None else ONE_SIDED for k in lk]
+    for i, j in pairs:
+        ff[i] = lf[j] = LOOSE
+    chain = _in_order(pairs)
+    for i, j in chain:
+        ff[i] = lf[j] = SHARED
+    bounds = [(-1, -1)] + chain + [(len(fk), len(lk))]
+    for n, ((a0, b0), (a1, b1)) in enumerate(zip(bounds, bounds[1:])):
+        step = -1 if n == 0 else 1
+        free: dict[str, deque[int]] = defaultdict(deque)
+        for j in range(b0 + 1, b1)[::step]:
+            if lf[j] == ONE_SIDED:
+                free[lk[j]].append(j)
+        for i in range(a0 + 1, a1)[::step]:
+            if ff[i] == ONE_SIDED and free.get(fk[i]):
+                j = free[fk[i]].popleft()
+                ff[i] = lf[j] = LOOSE
+    return ff, lf
+
+
+def _runs(flags: list[str | None]) -> tuple[tuple[int, int] | None, list[tuple[int, int]], float]:
+    """(span from the first to the last shared line, one-sided runs inside it, share of the
+    span with a partner on the other side). A run ends only at a shared line."""
+    idx = [i for i, f in enumerate(flags) if f == SHARED]
     if not idx:
         return None, [], 0.0
     lo, hi = idx[0], idx[-1]
     inside = [f for f in flags[lo:hi + 1] if f is not None]
-    share = sum(1 for f in inside if f) / len(inside) if inside else 0.0
-    runs, start = [], None
+    share = sum(1 for f in inside if f != ONE_SIDED) / len(inside) if inside else 0.0
+    runs: list[tuple[int, int]] = []
+    start, end, n = None, None, 0
     for i in range(lo, hi + 1):
-        if flags[i] is False:
+        if flags[i] == ONE_SIDED:
             start = i if start is None else start
-        elif flags[i] is True and start is not None:
-            if sum(1 for f in flags[start:i] if f is False) >= RUN_MIN:
-                runs.append((start, i - 1))
-            start = None
+            end, n = i, n + 1
+        elif flags[i] == SHARED:
+            if start is not None and end is not None and n >= RUN_MIN:
+                runs.append((start, end))
+            start, end, n = None, None, 0
     return (lo, hi), runs, share
 
 
@@ -240,12 +300,14 @@ def _span_text(a: Line, b: Line) -> str:
     return f"{a.shown or f'line {a.n}'} to {b.shown or f'line {b.n}'}"
 
 
-def _run_hit(lines: list[Line], flags: list[bool | None], run: tuple[int, int], source: str, what: str) -> dict[str, Any]:
+def _run_hit(lines: list[Line], flags: list[str | None], run: tuple[int, int], source: str, what: str) -> dict[str, Any]:
     a, b = lines[run[0]], lines[run[1]]
-    n = sum(1 for f in flags[run[0]:run[1] + 1] if f is False)
-    h = asdict(Hit(source, f"{n} {what}, {_span_text(a, b)}", line=a.n,
+    inside = flags[run[0]:run[1] + 1]
+    n, loose = inside.count(ONE_SIDED), inside.count(LOOSE)
+    also = f"; {loose} repeated line(s) inside it have a copy on the other side and are not counted" if loose else ""
+    h = asdict(Hit(source, f"{n} {what}, {_span_text(a, b)}{also}", line=a.n,
                    ts=a.shown if a.year_known else None, tz_known=False, excerpt=excerpt(a.raw),
-                   extra={"lines": n, "end": b.shown, "end_line": b.n}))
+                   extra={"lines": n, "loose_inside": loose, "end": b.shown, "end_line": b.n}))
     h["tier"] = "possible"
     return h
 
@@ -288,16 +350,20 @@ def compare(view: EvidenceView, forwarded: list[Path], local_patterns: list[str]
         for ln in lines:
             ln.n = len(fwd) + 1
             fwd.append(ln)
-    fwd_keys = Counter(ln.key for ln in fwd if len(ln.key) >= MIN_KEY)
+    fwd_count = Counter(ln.key for ln in fwd if len(ln.key) >= MIN_KEY)
     local, comparable = [], []
     for src in local_sources(view, local_patterns):
         lines = read_local(src)
-        flags = _match(lines, fwd_keys)
-        shared = sum(1 for f in flags if f)
-        entry = {"source": src.label(), "lines": len(lines), "shared": shared, "comparable": shared >= MIN_SHARED}
+        # a cheap count first: most files in a bundle share nothing with the forwarded copy
+        common = sum((Counter(ln.key for ln in lines if len(ln.key) >= MIN_KEY) & fwd_count).values())
+        ff, lf = _pair(fwd, lines) if common >= MIN_SHARED else ([], [])
+        anchored = lf.count(SHARED)
+        entry = {"source": src.label(), "lines": len(lines),
+                 "shared": sum(1 for f in lf if f in (SHARED, LOOSE)) if lf else common,
+                 "anchored": anchored, "comparable": anchored >= MIN_SHARED}
         local.append(entry)
         if entry["comparable"]:
-            comparable.append((src, lines, flags))
+            comparable.append((src, lines, ff, lf))
     gaps, floor = stream_gaps(fwd, window_start)
     out: dict[str, Any] = {"forwarded": files, "local": local, "gaps": gaps,
                            "gap_floor_seconds": int(floor) if floor else None,
@@ -307,17 +373,18 @@ def compare(view: EvidenceView, forwarded: list[Path], local_patterns: list[str]
         out["reason"] = "the forwarded copy has no lines"
         return out
     if not comparable:
-        out["reason"] = (f"no local log shares {MIN_SHARED} or more messages with the forwarded copy; the device "
-                         "probably forwards a different format than it keeps, or the copies cover different hours")
+        out["reason"] = (f"no local log shares {MIN_SHARED} or more once-only messages, in order, with the forwarded "
+                         "copy; the device probably forwards a different format than it keeps, the copies cover "
+                         "different hours, or the log repeats the same few messages")
         return out
-    local_keys = Counter(ln.key for _s, lines, _f in comparable for ln in lines if len(ln.key) >= MIN_KEY)
-    fflags = _match(fwd, local_keys)
+    fflags = [max((c[2][i] for c in comparable), key=_RANK.__getitem__) for i in range(len(fwd))]
     span, runs, share = _runs(fflags)
-    out["shared"] = sum(1 for f in fflags if f)
+    out["shared"] = sum(1 for f in fflags if f in (SHARED, LOOSE))
     if span:
         a, b = fwd[span[0]], fwd[span[1]]
         out["span"] = {"from": a.shown, "to": b.shown, "first_line": a.n, "last_line": b.n}
-        before = [ln for ln in fwd[:span[0]] if len(ln.key) >= MIN_KEY]
+        first = next(i for i, f in enumerate(fflags) if f in (SHARED, LOOSE))
+        before = [ln for ln in fwd[:first] if len(ln.key) >= MIN_KEY]
         if before:
             out["before_box"] = {"lines": len(before), "from": before[0].shown, "to": before[-1].shown}
     gone = out["gone_from_box"]
@@ -329,8 +396,7 @@ def compare(view: EvidenceView, forwarded: list[Path], local_patterns: list[str]
         gone["hits"] = [_run_hit(fwd, fflags, r, "forwarded copy", "forwarded lines not on the box") for r in runs]
     unsent = out["never_forwarded"]
     reasons, hits, evaluated = [], [], False
-    for src, lines, _f in comparable:
-        lflags = _match(lines, fwd_keys)
+    for src, lines, _ff, lflags in comparable:
         _span, lruns, lshare = _runs(lflags)
         if lshare < MIN_SHARE:
             reasons.append(f"{src.label()}: only {lshare:.0%} of its lines in the shared span were forwarded")
