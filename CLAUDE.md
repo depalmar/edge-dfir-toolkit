@@ -274,6 +274,12 @@ correction in `docs/VERIFICATION.md`.
 
 ## Where the sharp edges are
 
+- CI runs Python 3.11. An f-string expression there cannot contain a
+  backslash (a regex inside `{...}` breaks collection on 3.11 and passes on
+  3.12+). Before committing, run `python3.11 -m py_compile` on what you
+  changed, and run the suite without piping it into `tail`, which hides its
+  exit code.
+
 - `SSHTransport` has only been exercised against a scripted fake channel
   (`test_ssh_transport_handles_pager_echo_and_ansi`). Prompt and pager regexes
   in each profile are untested against real devices. The maintainer has no
