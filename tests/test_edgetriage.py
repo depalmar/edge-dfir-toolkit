@@ -193,7 +193,10 @@ def test_benign_is_never_called_clean(fx, tmp_path):
     assert "not a finding that the device is clean" in f["verdict"]["rationale"]
     kinds = {g["kind"] for g in f["evidence_gaps"]}
     assert {"detection-not-evaluated", "standing"} <= kinds
-    assert "CLEAN" not in (root / "report.md").read_text().upper().replace("NOT A FINDING THAT THE DEVICE IS CLEAN", "")
+    md = (root / "report.md").read_text()
+    # the playbook's quoted do-not list may warn against calling a device clean; the report's own words never do
+    own = md.split("From the playbook, do not:")[0] + "## Evidence gaps" + md.split("## Evidence gaps", 1)[1]
+    assert "CLEAN" not in own.upper().replace("NOT A FINDING THAT THE DEVICE IS CLEAN", "")
 
 
 def test_rebooted_device_reports_volatile_loss(fx, tmp_path):
