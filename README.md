@@ -113,6 +113,10 @@ python -m edgetriage collect --profile panos --host 192.0.2.10 --user ir-readonl
 # Add the tech support file you exported through the web UI
 python -m edgetriage ingest cases/IR-2026-031 --label tsf --bundle ~/Downloads/techsupport.tgz
 
+# A hypervisor snapshot's memory or a vendor core dump: analyze reads it as memory
+# (memory-safe pack rules, your --memory-yara rules, published indicators as text)
+python -m edgetriage ingest cases/IR-2026-031 --label mem --bundle snapshot.lime --evidence-class memory
+
 # Analyze, then build a timeline and an LLM brief. --forwarded (optional) lines the
 # SIEM's copy of the device's syslog up with the logs on the box; --activity (optional)
 # tests its gaps against what the device did, from sign-in, firewall or flow logs

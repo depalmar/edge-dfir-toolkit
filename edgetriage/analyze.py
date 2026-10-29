@@ -103,12 +103,18 @@ ENGINES = {"log_regex": run_log_regex, "path_exists": run_path_exists, "yara": r
 
 # --------------------------------------------------------------------------- scoring
 def verdict(results: list[dict[str, Any]]) -> dict[str, Any]:
+    """The verdict from the strongest hits. A hit marked corroborates=False (a published indicator
+    found as text in memory, a memory match on a rule that already hit as a file) keeps its own
+    tier but never counts as the second evidence class."""
     by_tier: dict[str, list[dict[str, Any]]] = {t: [] for t in TIERS}
+    counted: dict[str, list[dict[str, Any]]] = {t: [] for t in TIERS}   # the hits that may corroborate
     for r in results:
         for h in r["hits"]:
             by_tier[h["tier"]].append(r)
-    classes_possible = {r["evidence_class"] for r in by_tier["possible"]}
-    classes_likely = {r["evidence_class"] for r in by_tier["likely"]}
+            if h.get("corroborates", True):
+                counted[h["tier"]].append(r)
+    classes_possible = {r["evidence_class"] for r in counted["possible"]}
+    classes_likely = {r["evidence_class"] for r in counted["likely"]}
     if by_tier["confirmed"]:
         level = "COMPROMISED"
         why = "confirmed indicator: " + ", ".join(sorted({r["id"] for r in by_tier["confirmed"]}))
@@ -127,8 +133,8 @@ def verdict(results: list[dict[str, Any]]) -> dict[str, Any]:
     elif by_tier["possible"]:
         level = "SUSPICIOUS"
         ids = ", ".join(sorted({r["id"] for r in by_tier["possible"]}))
-        if classes_possible == {"offbox-logs"}:
-            # Only the off-box checks fired: say what was seen, not "an attempt".
+        if {r["evidence_class"] for r in by_tier["possible"]} <= {"offbox-logs", "memory"}:
+            # Only the off-box or memory checks fired: say what was seen, not "an attempt".
             fired = {r["id"] for r in by_tier["possible"]}
             seen = []
             if fired & {"offbox-gone-from-box", "offbox-never-forwarded"}:
@@ -136,6 +142,13 @@ def verdict(results: list[dict[str, Any]]) -> dict[str, Any]:
                             "(lines deleted locally, or never forwarded)")
             if "offbox-silent-while-active" in fired:
                 seen.append("forwarding went quiet while another source shows the device active")
+            if "memory-yara" in fired:
+                seen.append("a pack's YARA rule matches in a memory image")
+            if "memory-yara-own" in fired:
+                seen.append("your YARA rules match in a memory image")
+            if "memory-indicators" in fired:
+                seen.append("published network indicators appear as text in a memory image, a lead that does not "
+                            "corroborate (the device may have logged or refused the connection)")
             why = "possible indicator: " + "; ".join(seen) + " (each finding lists the benign causes): " + ids
         else:
             why = "possible indicator (often exploitation attempted, success not shown): " + ids
@@ -165,7 +178,9 @@ def _needs(det: dict[str, Any], view: EvidenceView) -> tuple[str, str]:
     if globs:
         if det["type"] == "yara":
             parts.append("a file to scan: a recovered binary or an ingested image"
-                         + ("" if globs == ["**"] else f" matching {', '.join(globs)}"))
+                         + ("" if globs == ["**"] else f" matching {', '.join(globs)}")
+                         + (" (a memory image is not a file to this rule; the memory checks read it)"
+                            if view.memory_images() else ""))
             close.append("ingest the recovered files or a disk image with edgetriage ingest")
         else:
             parts.append(f"a file matching {', '.join(globs)}")
@@ -257,10 +272,14 @@ def analyze(case_root: Path, *, platform_id: str | None = None, all_packs: bool 
             baseline: dict[str, str] | None = None, window_start: str | None = None,
             pack_dir: Path = PACK_DIR, forwarded: list[Path] | None = None,
             forwarded_local: list[str] | None = None, activity: list[Path] | None = None,
-            activity_match: list[str] | None = None, activity_field: str | None = None) -> dict[str, Any]:
+            activity_match: list[str] | None = None, activity_field: str | None = None,
+            memory_yara: list[Path] | None = None, memory_symbols: Path | None = None,
+            ioc_dir: Path | None = None) -> dict[str, Any]:
     """forwarded: the device's syslog as the SIEM received it. When given, the off-box
     checks run beside the packs (see offbox.py). activity: another source's record of what
-    the device did, against which the forwarded stream's gaps are tested."""
+    the device did, against which the forwarded stream's gaps are tested. When the case
+    holds a memory image, the memory checks run too (see memory.py): memory_yara adds the
+    operator's rules, memory_symbols lets Volatility 3 run."""
     view = EvidenceView(case_root)
     platform_id = platform_id or view.manifest.get("platform_id")
     packs = packs_for(platform_id, load_packs(pack_dir), all_packs)
@@ -298,12 +317,32 @@ def analyze(case_root: Path, *, platform_id: str | None = None, all_packs: bool 
         off_rows = offbox.results(off)
         for key in ("gone_from_box", "never_forwarded", "silent_while_active"):   # the hits live in detections, once
             off[key] = {k: v for k, v in off[key].items() if k != "hits"} | {"runs": len(off[key]["hits"])}
+    mem, mem_rows = None, []
+    if view.memory_images():
+        from . import memory
+        scanned = memory.scan(view, platform_id, packs, own=[Path(p) for p in memory_yara] if memory_yara else None,
+                              ioc_dir=Path(ioc_dir) if ioc_dir else memory.IOC_DIR)
+        rule_of = {d["id"]: d.get("rule") for p in packs for d in p.get("detect", [])}
+        file_hits = {(rule_of[r["id"]], h["extra"].get("rule")) for r in results if r["type"] == "yara" for h in r["hits"]}
+        mem_rows = memory.results(scanned, file_hits)
+        mem = memory.summary(scanned)
+        mem["volatility"] = memory.volatility(view.memory_images(), Path(memory_symbols) if memory_symbols else None,
+                                              Path(case_root) / "memory")
     gaps = evidence_gaps(view, results, window_start)
     at = next((i for i, g in enumerate(gaps) if g["kind"] == "standing"), len(gaps))
     for r in off_rows:
         if r["status"] == "not-evaluated":
             kind = "offbox-activity-missing" if r["id"] == "offbox-silent-while-active" else "offbox-not-compared"
             gaps.insert(at, {"kind": kind, "detail": f"{r['id']}: {r['reason']}"})
+            at += 1
+    for r in mem_rows:
+        if r["status"] == "not-evaluated":
+            gaps.insert(at, {"kind": "memory-not-scanned", "detail": f"{r['id']}: {r['reason']}", "close": r["close"]})
+            at += 1
+    for im in (mem or {}).get("images", []):
+        if im.get("error"):
+            gaps.insert(at, {"kind": "memory-read-incomplete",
+                             "detail": f"{im['ref']}: {im['error']}; nothing past that offset was scanned"})
             at += 1
     out = {
         "case_id": view.manifest["case_id"],
@@ -313,14 +352,16 @@ def analyze(case_root: Path, *, platform_id: str | None = None, all_packs: bool 
         "packs_applied": [p["id"] for p in packs],
         "baseline_supplied": baseline is not None,
         "window_start": window_start,
-        "verdict": verdict(results + off_rows),
-        "detections": results + off_rows,
+        "verdict": verdict(results + off_rows + mem_rows),
+        "detections": results + off_rows + mem_rows,
         "evidence_gaps": gaps,
     }
     ms = Path(case_root) / "manifest.sha256"
     out["manifest_sha256"] = ms.read_text().split()[0] if ms.is_file() else None
     if off is not None:
         out["offbox"] = off
+    if mem is not None:
+        out["memory"] = mem
     dump_json(Path(case_root) / "findings.json", out)
     (Path(case_root) / "report.md").write_text(render_report(out, view.manifest), encoding="utf-8")
     (Path(case_root) / "report.html").write_text(render_html(out, view.manifest), encoding="utf-8")
@@ -389,6 +430,8 @@ def render_report(f: dict[str, Any], m: dict[str, Any]) -> str:
         if r.get("notes"):
             L += ["", f"> {r['notes'].strip()}"]
         L.append("")
+    if f.get("memory"):
+        L += memory_markdown(f["memory"])
     if f.get("offbox"):
         L += offbox_markdown(f["offbox"])
     return "\n".join(L) + "\n"
@@ -450,6 +493,65 @@ def _gap_activity(g: dict[str, Any]) -> str:
     return f": {' and '.join(x['file'] for x in g['activity'])} do not span it"
 
 
+def _size(n: int) -> str:
+    for unit, k in (("GiB", 1 << 30), ("MiB", 1 << 20), ("KiB", 1 << 10)):
+        if n >= k:
+            return f"{n / k:.1f} {unit}"
+    return f"{n} bytes"
+
+
+def _vol_text(v: dict[str, Any]) -> str:
+    if v["status"] != "ran":
+        return f"{v['ref']}: not run - {v['reason']}"
+    parts = [f"{p['name']} {p['rows']} row(s)" if p["status"] == "ok" else f"{p['name']} {p['status']} ({p.get('reason')})"
+             for p in v["plugins"]]
+    return (f"{v['ref']}: Volatility {v.get('version') or '(version not reported)'} with symbols {v['symbols']}: "
+            + ", ".join(parts) + ". The outputs are in the case's memory folder, hashed in volatility.json; "
+            "the analyzer does not score them")
+
+
+MEMORY_INTRO = ("Each memory image in the case, read in pieces that overlap so a match across a seam is seen whole. The "
+                "file detections do not read these images. A match shows the bytes were in memory, not where they came "
+                "from, and a raw image keeps physical pages in no order, so no hit is weak evidence.")
+
+
+def memory_rows(mm: dict[str, Any]) -> list[tuple[str, str]]:
+    """The memory checks as (label, value) pairs, shared by report.md and report.html."""
+    rows = [("Images", "; ".join(
+        f"{i['ref']}: {i['detail']}{', gzip-compressed' if i['compressed'] else ''}, {_size(i['bytes_read'])} read"
+        + (f", {i['error']}" if i.get("error") else "") + (f", sha256 {i['sha256'][:16]}" if i.get("sha256") else "")
+        for i in mm["images"]))]
+    y = mm["yara"]
+    rows.append(("Pack rules run", ", ".join(f"{r['rule']} ({r['detection']})" for r in y["rules_run"]) or "none"))
+    if y["rules_not_run"]:
+        rows.append(("Pack rules not run", "; ".join(f"{r['rule']} ({Path(r['file']).name}) reads {r['why']}"
+                                                     for r in y["rules_not_run"])
+                     + ". A memory image keeps none of these, so such a rule cannot be true there."))
+    if mm.get("own"):
+        o = mm["own"]
+        rows.append(("Your rules", ", ".join(Path(p).name for p in o["files"])
+                     + ("" if o["status"] == "evaluated" else f": not evaluated - {o['reason']}")))
+    ind = mm["indicators"]
+    rows.append(("Indicators", (f"{ind['values']} published network value(s) from {', '.join(ind['sets'])}, searched as "
+                                "ASCII and UTF-16LE text" if ind["values"] else "none for this platform")
+                 + (f"; {ind['skipped']} not searchable as text" if ind.get("skipped") else "")
+                 + ". Binary forms, such as an address inside a socket structure, are not searched: four bytes match by chance."))
+    if mm.get("banners"):
+        rows.append(("Kernel banners", "; ".join(f"{b['banner']} (x{b['count']})" for b in mm["banners"])
+                     + ". Volatility 3 needs symbols built for this exact kernel."))
+    elif any(i["bytes_read"] for i in mm["images"]):
+        rows.append(("Kernel banners", "none found: the image may not hold a Linux kernel, or not the page with its banner"))
+    if mm.get("volatility"):
+        rows.append(("Volatility 3", "; ".join(_vol_text(v) for v in mm["volatility"]) + "."))
+    return rows
+
+
+def memory_markdown(mm: dict[str, Any]) -> list[str]:
+    L = ["## Memory", "", MEMORY_INTRO, "", "| | |", "|---|---|"]
+    L += [f"| {k} | {v.replace('|', '/')} |" for k, v in memory_rows(mm)]
+    return L + [""]
+
+
 def offbox_markdown(o: dict[str, Any]) -> list[str]:
     L = ["## Off-box comparison", "",
          "The device's syslog as the SIEM received it, lined up by message, in order, with the logs left on the box "
@@ -484,6 +586,8 @@ GAP_CLOSE = {
     "offbox-activity-missing": "Export what the device did across the gap hours from a source it does not control - IdP or "
                                "RADIUS sign-ins through it, sessions from its inside address on the next firewall, flows to "
                                "or from it - and pass it with --activity; --activity-match keeps only records naming the device.",
+    "memory-not-scanned": "Read the reason: install yara-python, or pass rules written for memory with --memory-yara.",
+    "memory-read-incomplete": "Check the image against its acquisition hash; re-acquire or re-copy it if it is truncated.",
 }
 _LIGHT = ("--bg:#fbfbfa;--panel:#fff;--panel-2:#fbfbfa;--ink:#1c1b19;--ink-2:#3d3a35;--muted:#6b6862;--faint:#a09b90;"
           "--line:#e4e1db;--line-soft:#f0ede8;--accent:#5e3a24;--accent-soft:#f2e9e2;--on-accent:#fff;--crit:#a12b2b;"
@@ -698,14 +802,18 @@ def render_html(f: dict[str, Any], m: dict[str, Any]) -> str:
         finds.append(f'<article class="find"><div class="fh"><div><div class="fid">{esc(r["id"])}</div><div class="ft">{esc(r["title"])}</div>'
                      f'<div class="small muted">{meta_line}</div></div><div><span class="badge tier-{t}">{t}</span> '
                      + (f'<a href="{SITE_URL}#hunts/{_quote(r["hunt"])}">Hunt record &#8594;</a>' if r.get("hunt") else
+                        "" if r.get("pack") == "MEMORY" else   # the memory checks have no catalog record
                         f'<a href="{SITE_URL}#detections/{_quote(r["id"])}">Detection record &#8594;</a>')
                      + f'</div></div>{"".join(hits)}'
                      + (f'<p class="note">{esc(r["notes"].strip())}</p>' if r.get("notes") else "") + "</article>")
     if not finds:
         finds.append('<p class="note">No detection fired. That is not a finding that the device is clean: read the evidence gaps above.</p>')
-    offbox_html = ""
+    extra_html = ""
+    if f.get("memory"):
+        extra_html = (f'<h2>Memory</h2><p class="note">{esc(MEMORY_INTRO)}</p><dl class="meta">'
+                       + "".join(f"<dt>{esc(k)}</dt><dd>{esc(val)}</dd>" for k, val in memory_rows(f["memory"])) + "</dl>")
     if f.get("offbox"):
-        offbox_html = ('<h2>Off-box comparison</h2><p class="note">The device\'s syslog as the SIEM received it, lined up by '
+        extra_html += ('<h2>Off-box comparison</h2><p class="note">The device\'s syslog as the SIEM received it, lined up by '
                        'message, in order, with the logs left on the box. Runs on one side only appear under Findings as possible '
                        f'indicators. <a href="{SITE_URL}#hunts/EDGE-HUNT-0027">EDGE-HUNT-0027 &#8594;</a></p><dl class="meta">'
                        + "".join(f"<dt>{esc(k)}</dt><dd>{esc(val)}</dd>" for k, val in offbox_rows(f["offbox"])) + "</dl>")
@@ -741,14 +849,14 @@ def render_html(f: dict[str, Any], m: dict[str, Any]) -> str:
 <dl class="meta">{meta}</dl></div>
 {nexts}
 <h2>How the verdict was reached</h2>
-<p class="note">Each detection sits in its evidence class and tier. Likely hits in two different classes corroborate each other; repeated hits in one class would not.</p>
+<p class="note">Each detection sits in its evidence class and tier. Likely hits in two different classes corroborate each other; repeated hits in one class would not, and neither does a published indicator found as text in memory, which is a lead.</p>
 <div class="vg">{"".join(grid)}</div>
 <p class="small muted">filled: hit · dashed: not evaluated, a gap · struck: ran, no hit · tinted row: a class with a likely hit</p>
 <h2>Evidence gaps - what this analysis could not see</h2>
 <div class="gaps">{gap_html}</div>
 <h2>Findings</h2>
 {"".join(finds)}
-{offbox_html}
+{extra_html}
 <h2>Collection</h2>
 <div class="strip" role="img" aria-label="{esc(strip_cap)}">{"".join(strip)}</div>
 <p class="small muted">{esc(strip_cap)} Green ran; dashed did not run; olive waits for a person; red failed. Hover a block for the step.</p>

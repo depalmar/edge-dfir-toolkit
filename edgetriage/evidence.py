@@ -6,9 +6,12 @@ import re
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, Iterator
+from typing import TYPE_CHECKING, Any, Iterator
 
 from .custody import Case
+
+if TYPE_CHECKING:
+    from .memory import Image
 
 
 @lru_cache(maxsize=512)
@@ -49,6 +52,7 @@ class EvidenceView:
         self.root = self.case.root
         self.manifest: dict[str, Any] = self.case.load()
         self._files: list[Source] | None = None
+        self._memory: list["Image"] = []
 
     # -- steps --------------------------------------------------------------
     def step(self, step_id: str) -> dict[str, Any] | None:
@@ -70,10 +74,15 @@ class EvidenceView:
     # -- files --------------------------------------------------------------
     def all_files(self) -> list[Source]:
         """Every collected or ingested file, keyed by the path it had on the device
-        (fetched files) or inside its bundle (ingested archives)."""
+        (fetched files) or inside its bundle (ingested archives). Memory images are not
+        files: an ingest that declares the memory class and holds LiME, an ELF core or raw
+        bytes goes to memory_images() instead, because a file rule's size limit, header
+        check or hash can only ever say no-hit against one."""
         if self._files is not None:
             return self._files
+        from .memory import IMAGE_FORMATS, Image, sniff   # memory imports checks, which import this module
         found: list[Source] = []
+        self._memory = []
         files_root = self.root / "files"
         if files_root.is_dir():
             for p in sorted(files_root.rglob("*")):
@@ -84,15 +93,26 @@ class EvidenceView:
             bdir = self.root / "bundles" / b["label"]
             if b.get("extracted_to"):
                 ex = self.root / b["extracted_to"]
-                for p in sorted(ex.rglob("*")):
-                    if p.is_file():
-                        found.append(Source("file", f"[{b['label']}]/{p.relative_to(ex).as_posix()}", p))
+                cands = [(f"[{b['label']}]/{p.relative_to(ex).as_posix()}", p, None)
+                         for p in sorted(ex.rglob("*")) if p.is_file()]
             else:
                 p = bdir / b["source_name"]
-                if p.is_file():
-                    found.append(Source("file", f"[{b['label']}]/{b['source_name']}", p))
+                cands = [(f"[{b['label']}]/{b['source_name']}", p, b.get("sha256"))] if p.is_file() else []
+            mem = "memory" in (b.get("evidence_classes") or [])
+            for ref, p, digest in cands:
+                if mem:
+                    s = sniff(p)
+                    if s["format"] in IMAGE_FORMATS:
+                        self._memory.append(Image(b["label"], ref, p, digest, s["format"], s["compressed"], s["detail"]))
+                        continue
+                found.append(Source("file", ref, p))
         self._files = found
         return found
+
+    def memory_images(self) -> list["Image"]:
+        """The memory images in the case (see all_files)."""
+        self.all_files()
+        return self._memory
 
     def files(self, patterns: list[str]) -> list[Source]:
         regs = [glob_regex(p.lstrip("/")) for p in patterns]

@@ -28,7 +28,10 @@ def test_verdict_ladder_matches_the_analyzer():
     assert [lvl for lvl, _, _ in bs.LADDER] == list(bs.RESP_VERDICTS)
     for level, _, scenarios in bs.LADDER:
         for sc in scenarios:
-            results = [{"id": f"d{i}", "evidence_class": cls, "hits": [{"tier": tier}]} for i, (tier, cls) in enumerate(sc)]
+            # a third element "lead" marks a hit that never corroborates (an indicator found as text in memory)
+            results = [{"id": f"d{i}", "evidence_class": x[1],
+                        "hits": [{"tier": x[0], **({"corroborates": False} if x[2:] == ("lead",) else {})}]}
+                       for i, x in enumerate(sc)]
             assert verdict(results)["level"] == level, (level, sc)
     d = bs.load()
     doc, _ = bs.page(d)

@@ -1,5 +1,39 @@
 # Changelog
 
+## 0.17.0 - 2026-10-29 - Memory images
+
+A memory image ingested with `--evidence-class memory` (a LiME capture, an ELF
+core file or raw bytes, gzip-compressed or not) is now read as memory:
+
+- **Not as a file.** Before, the file YARA detections scanned a dump like any
+  other file. Their size limits, header checks and whole-file hashes cannot be
+  true of memory, so they said "no hit" when they could never have matched.
+  The file detections no longer see an image, and say they were not
+  evaluated. A text file ingested as memory, such as a scanner's report, stays
+  a file.
+- **Three memory checks** run beside the packs, reading each image once in
+  64 MiB pieces that overlap by 1 MiB:
+  - `memory-yara`: the packs' YARA rules whose condition reads nothing but
+    their strings, scored at most likely. The report lists every other rule as
+    not run, with what it reads.
+  - `memory-yara-own`: rules written for memory, passed with `--memory-yara`.
+  - `memory-indicators`: the platform's published network indicators found as
+    ASCII or UTF-16LE text, whole addresses only, with the publisher's role.
+- **Leads do not corroborate.** A hit can now be marked as one that never
+  counts as a second evidence class. Every `memory-indicators` hit is one: the
+  device may hold an address because it logged the connection a log detection
+  found. So is a memory match on a rule that already hit as a file in the
+  case. The Start page's verdict ladder says so, and its test checks it.
+- **Volatility 3**, only with `--memory-symbols`: a fixed set of Linux plugins
+  runs with `--offline`. The outputs are kept in the case's `memory/` folder,
+  hashed and not re-run, and not scored. The report lists any Linux kernel
+  banners found in the image, to choose the symbols.
+- **Custody.** A memory ingest is extracted only when it starts like an
+  archive. `is_zipfile` looks for a zip directory near the end of a file, and
+  a dump holding a cached zip there would have been replaced by its fragment.
+- The Cisco ASA core-dump and IOS XE text-segment steps tell you to ingest
+  with `--evidence-class memory`.
+
 ## 0.16.2 - 2026-10-29 - A report a responder can act on
 
 From a review of a full synthetic case's report, read as a responder would:

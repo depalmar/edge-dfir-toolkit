@@ -1181,8 +1181,10 @@ LADDER = [
      [[("likely", "web-logs")], [("likely", "web-logs"), ("likely", "web-logs")],
       [("possible", "web-logs"), ("possible", "auth-logs")]]),
     ("SUSPICIOUS", "A <b>possible</b> hit in one class: often an attempt, success not shown, or off-box logs that "
-     "do not add up (the SIEM&#39;s copy disagreeing with the box, or going quiet while the device was busy).",
-     [[("possible", "web-logs")], [("possible", "web-logs"), ("possible", "web-logs")], [("possible", "offbox-logs")]]),
+     "do not add up (the SIEM&#39;s copy disagreeing with the box, or going quiet while the device was busy). A "
+     "published indicator found as text in memory is a lead and never counts as the second class.",
+     [[("possible", "web-logs")], [("possible", "web-logs"), ("possible", "web-logs")], [("possible", "offbox-logs")],
+      [("possible", "web-logs"), ("possible", "memory", "lead")]]),
     ("NO-INDICATORS-FOUND", "Nothing fired. Not a finding that the device is clean: read the evidence gaps.", [[]]),
 ]
 BEFORE_YOU_TOUCH = [

@@ -739,6 +739,28 @@ it, and cyber.gov.au timed out). Five quotes matched except for a final full sto
 | `base-phishing-resistant-mfa`, `base-logs-offbox`, `base-disable-unused` (cyber.gc.ca ITSM.80.101) | Trailing full stop removed from each quote | The page lists them as bullet items without one: the raw HTML reads "...administrative access to devices</li>" |
 | `f5-mgmt-not-internet`, `f5-decommission-eos` (cyber.gc.ca AL25-014) | Trailing full stop removed from each quote | Same: list items without a full stop |
 
+## 2026-10-29 - the memory component (0.17.0)
+
+Every constant and command the memory checks depend on was read from its
+primary source, not remembered:
+
+| Item | Value used | Basis |
+|---|---|---|
+| LiME header | magic `0x4C694D45`; magic, version, s_addr, e_addr, 8 reserved bytes | LiME `src/lime.h`: "#define LIME_MAGIC 0x4C694D45 //LiME" and the packed `lime_mem_range_header` struct |
+| ELF core | `e_type` 4 at offset 16; `EI_DATA` 1 little-endian, 2 big-endian | `/usr/include/elf.h`: "#define ET_CORE 4 /* Core file */", "#define EI_DATA 5" |
+| Linux kernel banner | the string `Linux version ` | Linux `init/version-timestamp.c`: `linux_banner = "Linux version " UTS_RELEASE ...` |
+| Volatility 3 CLI | `-q --offline --cache-path DIR -s DIR -r json -f FILE PLUGIN` | `vol --help` of Volatility 3 Framework 2.28.2, installed and run in the sandbox |
+| Volatility plugin names | the nine in `VOL_PLUGINS`, newest name first | The plugin list printed by the same `vol --help`; 2.28.2 lists both `linux.malware.*` and the older names |
+| Volatility failure | exit 1; stderr ends "Unable to validate the plugin requirements: [...]" | `linux.pslist.PsList` run against a zero-filled file with an empty symbol directory |
+| Volatility JSON | a list of rows, each with `__children` | `banners.Banners` run against a synthetic file holding a banner; no symbols needed |
+| Volatility cache path | must exist and be absolute | The first run with a relative, missing `--cache-path` failed in `symbol_cache.py` with FileNotFoundError |
+
+The pack rules that can run against memory were found by parsing every rule's
+condition, not by reading them: 3 of the 22 read nothing but their strings
+(`test_only_rules_that_read_nothing_but_strings_run_against_memory` pins the
+split). The Volatility runner has not been run against a real appliance image
+with symbols.
+
 ## Device verification
 
 | Date | Platform / release | Step | Change | Basis |

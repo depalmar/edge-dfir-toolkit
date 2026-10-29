@@ -269,7 +269,8 @@ steps:
       Per Cisco's forensic guide: `copy system:memory/text ftp:` to a server you
       control and `verify /md5 system:memory/text`. Some of these commands need
       `service internal`, which is a configuration change: record when you set
-      it and run `no service internal` afterwards. Ingest the copy.
+      it and run `no service internal` afterwards. Ingest the copy with
+      `--evidence-class memory`.
     references:
       - https://sec.cloudapps.cisco.com/security/center/resources/forensic_guides/iosxe_forensic_guide.html
 

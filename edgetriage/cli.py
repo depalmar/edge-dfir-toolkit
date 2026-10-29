@@ -132,6 +132,11 @@ def cmd_ingest(a) -> int:
     m["ingested"].append(rec)
     digest = case.save(m)
     print(f"[+] ingested {rec['source_name']} sha256={rec['sha256']} verified={rec['copy_verified']}")
+    if "memory" in rec["evidence_classes"] and not rec["extracted_to"]:
+        from .memory import IMAGE_FORMATS, sniff
+        s = sniff(case.root / "bundles" / rec["label"] / rec["source_name"])
+        print(f"    memory: {s['detail']}{', gzip-compressed' if s['compressed'] else ''}"
+              + ("" if s["format"] in IMAGE_FORMATS else " - analyze reads it as a file, not a memory image"))
     if rec["extract_rejected"]:
         print(f"    {len(rec['extract_rejected'])} archive member(s) refused (recorded in manifest):")
         for r in rec["extract_rejected"][:10]:
@@ -147,7 +152,9 @@ def cmd_analyze(a) -> int:
                   forwarded=[Path(p) for p in a.forwarded] if a.forwarded else None,
                   forwarded_local=a.forwarded_local,
                   activity=[Path(p) for p in a.activity] if a.activity else None,
-                  activity_match=a.activity_match, activity_field=a.activity_field)
+                  activity_match=a.activity_match, activity_field=a.activity_field,
+                  memory_yara=[Path(p) for p in a.memory_yara] if a.memory_yara else None,
+                  memory_symbols=Path(a.memory_symbols) if a.memory_symbols else None)
     v = out["verdict"]
     print(f"VERDICT: {v['level']}\n  {v['rationale']}")
     for r in out["detections"]:
@@ -164,6 +171,12 @@ def cmd_analyze(a) -> int:
         s = o["silent_while_active"]
         print(f"  activity: {s['runs']} gap(s) with the device active elsewhere" if s["status"] == "evaluated"
               else f"  activity: gaps not tested - {s.get('reason')}")
+    if out.get("memory"):
+        mm = out["memory"]
+        read = sum(i["bytes_read"] for i in mm["images"])
+        state = {r["id"]: r["status"] for r in out["detections"] if r.get("pack") == "MEMORY"}
+        print(f"  memory: {len(mm['images'])} image(s), {read} bytes read; "
+              + "; ".join(f"{k} {v}" for k, v in state.items()))
     print(f"  report: {Path(a.case) / 'report.md'}")
     return 0
 
@@ -250,6 +263,12 @@ def build_parser() -> argparse.ArgumentParser:
                    help="keep only activity records naming this address or host (whole token; repeatable)")
     z.add_argument("--activity-field", metavar="NAME",
                    help="the activity files' time field, when it is not one of the common names")
+    z.add_argument("--memory-yara", action="append", metavar="FILE",
+                   help="YARA rules written for memory, run over every memory image in the case (repeatable); "
+                        "the packs' own rules run there only when their condition reads nothing but strings")
+    z.add_argument("--memory-symbols", metavar="DIR",
+                   help="Volatility 3 symbols for the image's kernel; with them, a fixed set of Linux plugins runs "
+                        "offline and their outputs are kept in the case, unscored")
     z.set_defaults(fn=cmd_analyze)
 
     t = sub.add_parser("timeline", help="write timeline.jsonl / timeline.csv from findings")

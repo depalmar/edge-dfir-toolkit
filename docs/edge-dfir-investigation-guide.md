@@ -82,7 +82,8 @@ device will, and nothing running inside the guest can interfere with it. Take
 it before the first live command. On hardware, the vendor's own core dump is
 the only route. It is break-glass and runs after everything else, because
 LINE DANCER turned a dump request into a reload. Ingest a snapshot or dump
-with `--evidence-class memory`.
+with `--evidence-class memory`; Memory images, under Analysis, says what
+`analyze` does with it.
 
 ### When a step fails
 
@@ -206,6 +207,7 @@ Everything the toolkit knows about a case is in one folder. Archive it whole.
 | `files/` | Files pulled from the device, under the step that pulled them |
 | `bundles/` | Ingested exports and vendor bundles, extracted regular-file-only |
 | `findings.json`, `report.md`, `report.html` | The analysis: verdict, findings, evidence gaps |
+| `memory/` | Volatility 3 outputs for each memory image, with `volatility.json` listing their hashes (only with `--memory-symbols`) |
 | `timeline.jsonl`, `timeline.csv` | Device events and your own collection steps on one axis |
 | `llm_brief.md` | The prompt for a model, with every record numbered and hashed |
 
@@ -258,6 +260,47 @@ happens anyway, such as an SNMP sample or a ping, shows the device was up,
 not that it was busy, so export only events the device caused.
 `--activity-match` keeps the records that name the device's address or host
 name as a whole token, so `192.0.2.1` does not match `192.0.2.10`.
+
+### Memory images
+
+An ingest that declares `--evidence-class memory` and holds a LiME capture,
+an ELF core file or raw bytes is read as a memory image, gzip-compressed or
+not. A text file ingested the same way, such as a scanner's report, stays a
+file. The file detections never read an image: a file rule's size limit,
+header check or whole-file hash cannot be true of memory, so against an image
+it could only ever say no hit.
+
+```bash
+python -m edgetriage ingest cases/IR-YYYY-NNN --label mem --bundle snapshot.lime --evidence-class memory
+python -m edgetriage analyze cases/IR-YYYY-NNN [--memory-yara memory-rules.yar] [--memory-symbols symbols/]
+```
+
+`analyze` reads each image once, in 64 MiB pieces that overlap by 1 MiB so a
+match across a seam is seen whole, and reports three checks beside the packs:
+- `memory-yara`: the platform packs' YARA rules whose condition reads nothing
+  but their strings. Every other rule is listed as not run, with what it reads
+  (the file's size, bytes at fixed offsets, a module, where its strings sit).
+  A pack rule scores at most likely here.
+- `memory-yara-own`: rules written for memory that you pass with
+  `--memory-yara`, scored possible.
+- `memory-indicators`: the platform's published network indicators found as
+  ASCII or UTF-16LE text, each with the publisher's role. It is a lead and
+  never corroborates: the device may hold the address because it logged or
+  refused the connection a log detection already found. An address stored as
+  four bytes, inside a socket structure, is not searched.
+
+A match shows that the bytes were in memory, not where they came from. A raw
+image keeps physical pages in no order, so the strings of one program can sit
+far apart, and a rule that needs several of them can miss: no hit is weak
+evidence. Offsets in the report are offsets in the image file.
+
+The Memory section of the report also lists the Linux kernel banners found in
+the image. Volatility 3 needs symbols built for that exact kernel, and without
+`--memory-symbols` the analyzer does not run it. With them, a fixed set of
+Linux plugins runs offline: processes and their arguments, modules and hidden
+modules, the syscall table, malfind, netfilter hooks, sockets and bash
+history. The outputs are kept in the case's `memory/` folder with their
+hashes. The analyzer does not read or score them, so read them yourself.
 
 `report.md` and `report.html` hold the same findings, in the order to read
 them:

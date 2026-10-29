@@ -27,7 +27,7 @@ python -m pytest -q tests/                    # suite against synthetic fixtures
 python tests/make_fixtures.py /tmp/fx         # regenerate fixtures to poke at by hand
 python -m edgetriage plan --profile <name> [--allow-bundle] [--break-glass]
 python -m edgetriage collect --profile <name> --case-id X --replay /tmp/fx/<fixture>
-python -m edgetriage analyze cases/X [--baseline b.json] [--window-start ISO] [--forwarded siem.jsonl] [--activity signins.jsonl]
+python -m edgetriage analyze cases/X [--baseline b.json] [--window-start ISO] [--forwarded siem.jsonl] [--activity signins.jsonl] [--memory-yara r.yar] [--memory-symbols DIR]
 python artifacts/scripts/build_site.py --check   # site data contract, writes nothing
 python artifacts/scripts/build_site.py           # docs/site/index.html (CI does this; never commit it)
 python artifacts/scripts/mappings.py [--check]   # MAPPINGS.md is generated
@@ -91,6 +91,26 @@ not just first (`tmsh list apm session delete all` once passed).
 **A parser that sees nothing must say so.** Every coded check returns
 not-evaluated when it parsed zero rows. The ASA and IOS XE checks have tests
 that feed them an error message.
+
+**Memory images are not files.** An ingest that declares `memory` and sniffs
+as LiME, an ELF core or raw bytes is read only by `edgetriage/memory.py`; the
+file detections never see it, because a file rule's size limit, header check
+or whole-file hash can only say no-hit against memory. Text ingested as memory
+(a scanner's report) stays a file.
+- Only rules whose condition reads nothing but their strings run against
+  memory (`layout_reads`); the rest are listed with the reason. Never strip a
+  `filesize` or header guard to make a rule run there - write a memory rule.
+- A pack rule's tier is capped at likely in memory.
+- `memory-indicators` hits, and a memory match on a rule that already hit as a
+  file, carry `corroborates: False`: `verdict()` scores their tier but never
+  counts them as a second evidence class.
+- Rule matches are deduplicated by the absolute offset of each string match,
+  never by counting matches per piece; indicators by which piece owns the
+  offset, so their neighbours are there for the boundary check.
+- Text only: an address as four bytes in a socket structure matches by chance.
+- A memory ingest extracts only when it starts like an archive.
+- Volatility 3 runs only with `--memory-symbols`, always with `--offline`, and
+  its outputs are recorded and hashed, never parsed or scored.
 
 **Ids are permanent.** `EDGE-0004` and `EDGE-PACK-0006` never change meaning.
 New entries take the next free id. Pack files are named `<id>-<slug>.yml` and
@@ -285,6 +305,10 @@ correction in `docs/VERIFICATION.md`.
   in each profile are untested against real devices. The maintainer has no
   hardware lab: verify on vendor virtual editions or from contributed, sanitized
   replay captures, and record any correction in `docs/VERIFICATION.md`.
+- The Volatility runner has been exercised against a fake `vol` in tests and
+  against Volatility 3 2.28.2's own failure path (rc 1, "Unable to validate the
+  plugin requirements"), never against a real appliance image with symbols. Its
+  `--cache-path` must exist and be absolute.
 - Several profile commands are `medium` or `low` confidence for the same reason.
   `edge-triage plan` prints `[unverified]` beside the low ones.
 - The ASA region parser was once written against an invented format and

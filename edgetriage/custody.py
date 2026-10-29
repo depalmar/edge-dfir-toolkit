@@ -121,7 +121,7 @@ class Case:
             "extract_rejected": [],
             "evidence_classes": evidence_classes or ["bundle"],
         }
-        if extract and _is_archive(dest):
+        if extract and _is_archive(dest, strict="memory" in rec["evidence_classes"]):
             out = dest_dir / "extracted"
             try:
                 rec["extract_rejected"] = safe_extract(dest, out)
@@ -132,7 +132,15 @@ class Case:
         return rec
 
 
-def _is_archive(p: Path) -> bool:
+def _is_archive(p: Path, strict: bool = False) -> bool:
+    """strict, for memory images: a zip only when the file starts like one. is_zipfile looks for
+    the end-of-directory record near the end of the file, and a dump can hold a cached zip there;
+    extracting it would replace the image with whatever the fragment held."""
+    if strict:
+        with open(p, "rb") as fh:
+            if fh.read(4) == b"PK\x03\x04":
+                return zipfile.is_zipfile(p)
+        return tarfile.is_tarfile(p)
     return zipfile.is_zipfile(p) or tarfile.is_tarfile(p)
 
 

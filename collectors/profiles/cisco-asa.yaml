@@ -233,8 +233,10 @@ steps:
       record it, retry once, and if there is still no output "document and inform CISA".
       Follow CISA's procedure for your exact model and release, scan the dump with
       RayDetect (ASA 5500-X only; it cannot detect RayInitiator in Firepower dumps), and
-      ingest the dump and the scanner output:
-        edge-triage ingest <case> --label coredump --bundle <file>
+      ingest the dump and the scanner output, each declaring the memory class (analyze
+      reads the dump as a memory image and the scanner's text report as a file):
+        edge-triage ingest <case> --label coredump --bundle <file> --evidence-class memory
+        edge-triage ingest <case> --label raydetect --bundle <output> --evidence-class memory
     references:
       - https://www.cisa.gov/news-events/directives/supplemental-direction-ed-25-03-core-dump-and-hunt-instructions
       - https://www.ncsc.gov.uk/static-assets/documents/malware-analysis-reports/RayInitiator-LINE-VIPER/ncsc-mar-rayinitiator-line-viper.pdf
