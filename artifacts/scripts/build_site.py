@@ -1350,8 +1350,11 @@ def render_coverage(d: dict, data: dict) -> str:
                          for n, t, bad, h in trust)
 
     # 2a. confidence, library by library
+    pack_conf = {p["id"]: p["confidence"] for p in data["packs"]}   # a detection carries its pack's confidence
     rows = [("Collection steps", conf_counts(steps, conf=lambda st: st.confidence, unv=lambda st: st.unverified), "#plans"),
-            ("Artifacts", conf_counts(arts), "#artifacts"), ("Hunts", conf_counts(data["hunts"]), "#hunts"),
+            ("Artifacts", conf_counts(arts), "#artifacts"),
+            ("Detections", conf_counts(dets, conf=lambda x: pack_conf.get(x["pack"], "low")), "#detections"),
+            ("Hunts", conf_counts(data["hunts"]), "#hunts"),
             ("Threat intel", conf_counts(data["intel"]), "#intel"), ("Hardening", conf_counts(data["hardening"]), "#hardening")]
     conf_html = "".join(f'<a class="crow" href="{h}"><span>{e(n)}</span>{conf_bar(c)}<span class="ctot">{sum(c.values())}</span></a>'
                         for n, c, h in rows)
@@ -1625,6 +1628,10 @@ CSS = r"""
   --crit:#a12b2b;--high:#b4611c;--med:#8a7320;--low:#5c7a4a;
   --conf-strong:#3d5a80;--conf-mid:#5d7189;--conf-bg:#eef2f7;--alert-bg:#fdf6f2;
   --code-bg:#f6f4f0;--shadow:rgba(28,27,25,.07);--shadow-lg:rgba(28,27,25,.16);--hdr:150px;--ink-2:#3d3a35;
+  /* ordinal ramps, one hue light to dark, validated against the panel (dataviz --ordinal):
+     confidence in slate, forensic value in the accent's brown. --bar is the one-series bar. */
+  --cf-lo:#9fb6d3;--cf-mid:#5b7fae;--cf-hi:#2b4a73;--cf-lo-ink:#1c1b19;--cf-mid-ink:#fff;--cf-hi-ink:#fff;
+  --val-lo:#c9a98f;--val-mid:#9a6a4b;--val-hi:#5e3a24;--bar:#8a5a3c;--kv-a:#a0522d;--kv-b:#2f6db5;
   --sans:system-ui,"Segoe UI Variable Text","Segoe UI",-apple-system,BlinkMacSystemFont,Roboto,"Helvetica Neue",Arial,sans-serif;
   --mono:ui-monospace,"Cascadia Mono","Cascadia Code","SF Mono",SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
   --fs-xs:12px;--fs-sm:13px;--fs-base:14.5px;--fs-md:16px;--fs-lg:20px;--fs-xl:24px}
@@ -1636,14 +1643,18 @@ CSS = r"""
   --accent:#ddc4b0;--accent-hover:#ecd9ca;--accent-soft:#3b2c22;--accent-border:#86664f;--on-accent:#1a1310;
   --crit:#f28c85;--high:#eaa965;--med:#d9c364;--low:#a6d18c;
   --conf-strong:#9ec0e0;--conf-mid:#7e94ab;--conf-bg:#253341;--alert-bg:#33261f;
-  --code-bg:#312e2a;--shadow:rgba(0,0,0,.35);--shadow-lg:rgba(0,0,0,.55);--ink-2:#ddd8d0}
+  --code-bg:#312e2a;--shadow:rgba(0,0,0,.35);--shadow-lg:rgba(0,0,0,.55);--ink-2:#ddd8d0;
+  --cf-lo:#4a6688;--cf-mid:#7294c0;--cf-hi:#adc8e8;--cf-lo-ink:#fff;--cf-mid-ink:#1c1b19;--cf-hi-ink:#1c1b19;
+  --val-lo:#7a5641;--val-mid:#a98064;--val-hi:#ddc4b0;--bar:#c9a184;--kv-a:#c06e40;--kv-b:#4a86d0}
 @media (prefers-color-scheme:dark){:root:not([data-theme=light]){
   --bg:#1e1c1a;--panel:#2a2825;--panel-2:#312e2a;--hover:#38352f;
   --ink:#f4f1ec;--muted:#bab4aa;--faint:#928b81;--line:#5d5851;--line-soft:#403d38;--field:#7e786f;
   --accent:#ddc4b0;--accent-hover:#ecd9ca;--accent-soft:#3b2c22;--accent-border:#86664f;--on-accent:#1a1310;
   --crit:#f28c85;--high:#eaa965;--med:#d9c364;--low:#a6d18c;
   --conf-strong:#9ec0e0;--conf-mid:#7e94ab;--conf-bg:#253341;--alert-bg:#33261f;
-  --code-bg:#312e2a;--shadow:rgba(0,0,0,.35);--shadow-lg:rgba(0,0,0,.55);--ink-2:#ddd8d0}}
+  --code-bg:#312e2a;--shadow:rgba(0,0,0,.35);--shadow-lg:rgba(0,0,0,.55);--ink-2:#ddd8d0;
+  --cf-lo:#4a6688;--cf-mid:#7294c0;--cf-hi:#adc8e8;--cf-lo-ink:#fff;--cf-mid-ink:#1c1b19;--cf-hi-ink:#1c1b19;
+  --val-lo:#7a5641;--val-mid:#a98064;--val-hi:#ddc4b0;--bar:#c9a184;--kv-a:#c06e40;--kv-b:#4a86d0}}
 *{box-sizing:border-box}
 html{scroll-padding-top:var(--hdr)}
 body{margin:0;background:var(--bg);color:var(--ink);font:var(--fs-base)/1.55 var(--sans);-webkit-text-size-adjust:100%}
@@ -1699,7 +1710,7 @@ h1{margin:0;font-size:var(--fs-lg);font-weight:600;letter-spacing:-.01em}
 .fv.on{background:var(--accent-soft)}
 .fv.on .box{background:var(--accent);border-color:var(--accent);box-shadow:inset 0 0 0 2px var(--panel)}
 .fv input:focus-visible+.box{outline:2px solid var(--accent);outline-offset:1px}
-.fv .fl{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fv .fl{flex:1;min-width:0;overflow-wrap:anywhere;line-height:1.3}
 .fv .fc{font-family:var(--mono);font-size:var(--fs-xs);color:var(--muted)}
 .fv.zero{color:var(--muted)}
 .more{background:none;border:0;color:var(--accent);font-size:var(--fs-xs);padding:3px 8px}
@@ -1735,6 +1746,29 @@ main{padding:20px 28px 60px;min-width:0}
 .seg.on{box-shadow:inset 0 0 0 2px var(--ink)}
 .seg-live,.seg-confirmed{background:var(--crit)}.seg-rotating,.seg-likely{background:var(--high)}
 .seg-stable,.seg-possible{background:var(--med)}.seg-off-box{background:var(--conf-strong)}
+.dkey2{display:flex;flex-wrap:wrap;gap:4px 6px;margin:6px 0 2px}
+.dk{display:inline-flex;align-items:center;gap:6px;background:none;border:1px solid transparent;border-radius:999px;padding:2px 9px;font:inherit;font-size:var(--fs-xs);color:var(--ink-2);cursor:pointer}
+.dk:hover{background:var(--hover)}.dk.on{border-color:var(--accent);background:var(--accent-soft)}.dk b{font-weight:600;color:var(--ink)}.dk .pct{color:var(--muted)}
+.dk .sw{width:10px;height:10px}
+.vizbox{margin:10px 0 14px}
+.vizgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(290px,100%),1fr));gap:12px;margin-top:10px}
+.hbc{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px;min-width:0}
+.hbc-h{display:flex;flex-direction:column;gap:1px;margin-bottom:8px}.hbc-h b{font-size:var(--fs-sm);font-weight:600}.hbc-h span{font-size:var(--fs-xs);color:var(--muted);line-height:1.4}
+.hbl{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:1px}
+.hbl-r{display:grid;grid-template-columns:minmax(0,10em) minmax(0,1fr) 3.2ch;gap:8px;align-items:center;width:100%;background:none;border:0;padding:3px 5px;border-radius:6px;font:inherit;color:var(--ink);text-align:left;text-decoration:none}
+button.hbl-r,a.hbl-r{cursor:pointer}button.hbl-r:hover,a.hbl-r:hover{background:var(--hover)}.hbl-r.on{background:var(--accent-soft);box-shadow:inset 0 0 0 1px var(--accent-border)}
+.hbl-l{font-size:var(--fs-xs);color:var(--ink-2);overflow-wrap:anywhere;line-height:1.3}
+.hbl-t{display:block;height:10px;background:var(--line-soft);border-radius:0 4px 4px 0;overflow:hidden}.hbl-t i{display:block;height:100%;min-width:2px;background:var(--bar);border-radius:0 4px 4px 0}
+.hbl-n{font-size:var(--fs-xs);color:var(--muted);text-align:right;font-variant-numeric:tabular-nums}
+.hbl.stack{gap:4px}.hbl.stack .hbl-r{grid-template-columns:minmax(0,1fr) 3.2ch;row-gap:3px}.hbl.stack .hbl-l{grid-column:1/-1;font-size:var(--fs-sm);color:var(--ink)}
+.kyw{grid-column:1/-1}
+.kyr{list-style:none;margin:0 0 8px;padding:18px 0 0;display:flex;align-items:flex-end;gap:6px;height:150px;border-bottom:1px solid var(--line)}
+.kyr li{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;min-width:0;position:relative}
+.kyc{display:flex;flex-direction:column;width:min(24px,100%);gap:2px;border-radius:4px 4px 0 0;overflow:hidden}.kyc i{display:block;min-height:2px}
+.kyn{font-size:var(--fs-xs);color:var(--ink-2);margin-bottom:3px;font-variant-numeric:tabular-nums}
+.kyy{position:absolute;bottom:-20px;font-size:var(--fs-xs);color:var(--muted);font-variant-numeric:tabular-nums}
+.kyw .skey{margin-top:24px}
+.ka{background:var(--kv-a)}.kb{background:var(--kv-b)}  /* a two-part split, validated as a pair in both themes */
 .tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px}
 .tile{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px;text-align:left;display:flex;flex-direction:column;gap:2px}
 button.tile:hover{border-color:var(--accent)}
@@ -1776,7 +1810,12 @@ code.loc{display:inline-block;max-width:100%;background:var(--code-bg);border:1p
 .lc{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:15px 16px;cursor:pointer;display:flex;flex-direction:column;gap:9px;box-shadow:0 1px 2px var(--shadow);transition:border-color .12s,box-shadow .12s,transform .12s}
 .lc:hover{border-color:var(--accent-border);box-shadow:0 4px 14px var(--shadow);transform:translateY(-1px)}
 .lc.sel{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
-.lc-h{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+/* card head: the id line and the badges share a row that wraps, so the title always gets the
+   card's full width (a badge beside the title squeezed it into a few words a line) */
+.lc-h{display:flex;flex-direction:column;gap:3px;min-width:0}
+.lc-top{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:4px 10px;min-width:0}
+.lc-top .id{flex:1 1 16ch;min-width:0;overflow-wrap:anywhere}
+.lc-top .badges{margin-left:auto;justify-content:flex-end}
 .lc-t{min-width:0}
 .dist .seg.hd{min-width:0}
 .ioc-c{border-color:var(--crit);color:var(--crit)}
@@ -1839,7 +1878,7 @@ h4{margin:14px 0 6px;font-size:var(--fs-xs);letter-spacing:.07em;text-transform:
 .t-likely{color:var(--high);border-color:var(--high)}.t-confirmed{color:var(--on-accent);background:var(--crit);border-color:var(--crit)}
 .sh-yes{color:var(--low);border-color:currentColor}.sh-restricted{color:var(--med);border-color:currentColor}.sh-no{color:var(--crit);border-color:currentColor}
 .mem{color:var(--muted)}
-.chip{display:inline-block;font-size:var(--fs-xs);background:var(--line-soft);border-radius:6px;padding:1px 7px;color:var(--ink);text-decoration:none;border:1px solid transparent}
+.chip{display:inline-block;max-width:100%;font-size:var(--fs-xs);background:var(--line-soft);border-radius:6px;padding:1px 7px;color:var(--ink);text-decoration:none;border:1px solid transparent;overflow-wrap:anywhere}
 .chip.mono{font-family:var(--mono);font-size:var(--fs-xs);word-break:break-all}
 a.chip.mono{color:var(--ink)}
 a.chip.mono:hover{border-color:var(--accent-border)}
@@ -2157,7 +2196,7 @@ details.fold{margin:8px 0 20px}details.fold summary{font-size:var(--fs-sm);color
 .pr{font-weight:600}.pr-critical{color:var(--on-accent);background:var(--crit);border-color:var(--crit)}
 .pr-high{color:var(--high);border-color:currentColor}.pr-medium{color:var(--med);border-color:currentColor}
 ol.steps{padding-left:20px;margin:0}ol.steps li{margin:6px 0;line-height:1.55}
-.dist .seg.hd:nth-child(odd){background:var(--conf-strong)}.dist .seg.hd:nth-child(even){background:var(--conf-mid)}
+.seg-critical{background:var(--crit)}.seg-high{background:var(--high)}.seg-medium{background:var(--med)}
 .callout.inf{border-left-color:var(--med);margin:12px 0}
 .srcs{padding-left:18px}.srcs li{margin:6px 0}
 .srcs blockquote{margin:6px 0 0;padding:6px 10px;border-left:3px solid var(--line);color:var(--ink-2);font-size:var(--fs-sm);font-style:italic;background:var(--panel-2);border-radius:0 6px 6px 0}
@@ -2170,9 +2209,11 @@ ol.steps{padding-left:20px;margin:0}ol.steps li{margin:6px 0;line-height:1.55}
 mark{background:color-mix(in srgb,var(--med) 30%,transparent);color:inherit;border-radius:2px;padding:0 1px}
 b.bad,.bad{color:var(--crit)}b.good,.good{color:var(--low)}
 .sw{display:inline-block;width:10px;height:8px;border-radius:2px;flex:none}
-.cs-high{background:var(--conf-strong)}.cs-medium{background:var(--conf-mid)}.cs-low{background:var(--crit)}
+.cs-high{background:var(--cf-hi);color:var(--cf-hi-ink)}.cs-medium{background:var(--cf-mid);color:var(--cf-mid-ink)}.cs-low{background:var(--cf-lo);color:var(--cf-lo-ink)}
+.vv-high{background:var(--val-hi)}.vv-medium{background:var(--val-mid)}.vv-low{background:var(--val-lo)}
 .cbar{display:flex;gap:2px;height:20px;border-radius:5px;overflow:hidden;background:var(--line-soft)}.cbar.h18{height:18px}
-.cs{display:flex;align-items:center;padding:0 7px;font-size:var(--fs-xs);color:var(--on-accent);white-space:nowrap;overflow:hidden;min-width:4px;font-variant-numeric:tabular-nums}
+.cs{display:flex;align-items:center;padding:0 7px;font-size:var(--fs-xs);white-space:nowrap;overflow:hidden;min-width:4px;font-variant-numeric:tabular-nums}
+.cs.cs-high{color:var(--cf-hi-ink)}.cs.cs-medium{color:var(--cf-mid-ink)}.cs.cs-low{color:var(--cf-lo-ink)}
 .skey{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:var(--fs-xs);color:var(--muted)}.skey span{display:inline-flex;align-items:center;gap:5px}
 .lhead .about{margin:-8px 0 14px}.lhead .about summary{margin:0;font-size:var(--fs-sm)}.lhead .about p{max-width:90ch;color:var(--ink-2);margin:6px 0 0}
 .lede{margin:0 0 12px}
@@ -2241,10 +2282,14 @@ a.locl:hover code.loc{border-color:var(--accent-border)}
 .c-main .lead{display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}
 .row.sel .c-main .desc,.row.sel .c-main .lead{display:block}
 .rows.compact .c-main .desc,.rows.compact .c-main .lead{display:none}
-.grp{position:sticky;top:var(--hdr);z-index:2;display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px;padding:8px 16px;background:var(--panel-2);border-top:1px solid var(--line);border-bottom:1px solid var(--line-soft)}
+.grp{position:sticky;top:var(--hdr);z-index:2;display:grid;grid-template-columns:24px 120px minmax(0,1fr) 92px 86px 64px 104px;gap:4px 14px;align-items:center;padding:8px 16px;background:var(--panel-2);border-top:1px solid var(--line);border-bottom:1px solid var(--line-soft)}
+.grp .gname{grid-column:1/5;display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 10px;min-width:0}
 .grp a{font-size:var(--fs-sm);font-weight:600;color:var(--ink);text-decoration:none}.grp a:hover{text-decoration:underline}
-.grp .gm{font-size:var(--fs-xs);color:var(--muted)}.grp .vbar2{width:110px;height:6px;margin-left:auto}
+.grp .gm{font-size:var(--fs-xs);color:var(--muted)}
+.grp .g-vol{grid-column:5}.grp .g-val{grid-column:6}.grp .g-conf{grid-column:7}
+.gbar{display:flex;gap:2px;height:7px;border-radius:4px;overflow:hidden;background:var(--line-soft)}.gbar>span{display:block;height:100%}
 @container (max-width:860px){
+  .grp{display:flex;flex-wrap:wrap}.grp .gcol{display:none}
   .row{grid-template-columns:24px minmax(0,1fr) 92px;gap:4px 12px}
   .row .c-pick,.row .c-main{grid-row:1/span 3}
   .row .c-plat,.row .c-val{display:none}
@@ -2284,7 +2329,7 @@ a.locl:hover code.loc{border-color:var(--accent-border)}
 .ttile{display:flex;flex-direction:column;gap:4px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px;text-decoration:none;color:var(--ink-2);font-size:var(--fs-sm);line-height:1.4}
 .ttile:hover{border-color:var(--accent)}
 .ttile b{font-size:var(--fs-xl);font-weight:600;line-height:1.1;color:var(--ink);font-variant-numeric:tabular-nums}.ttile b.bad{color:var(--crit)}
-.cov2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(400px,100%),1fr));gap:12px;margin:12px 0}
+.cov2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(400px,100%),1fr));gap:12px;margin:12px 0;align-items:start}
 .cov2>.card{min-width:0}
 .ch{display:block;font-size:var(--fs-sm);font-weight:600;margin-bottom:10px}
 .crows{display:flex;flex-direction:column;gap:7px;margin-bottom:10px}
@@ -2436,7 +2481,8 @@ ul.arts>li:first-child{border-top:0}
 .cvs-t{display:flex;flex-direction:column;align-items:flex-start;gap:2px;border:1px solid var(--line);border-radius:10px;padding:8px 10px;background:var(--panel-2);text-align:left;font:inherit;color:var(--ink)}
 button.cvs-t{cursor:pointer}button.cvs-t:hover{background:var(--hover)}
 .cvs-t b{font-size:var(--fs-lg)}.cvs-t span{font-size:var(--fs-xs);color:var(--muted)}
-.cvs-cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:6px 24px}
+.cvs-cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(280px,100%),1fr));gap:6px 24px}.cvs-cols>div{min-width:0}
+.cvs-l .links{min-width:0}.cvs-l .links a{max-width:100%}
 .cvs-cols h4{margin:8px 0 4px}
 .cvs-l{list-style:none;margin:0;padding:0}.cvs-l li{padding:6px 0;border-top:1px solid var(--line-soft)}
 .cvs-r{display:flex;flex-direction:column;align-items:flex-start;background:none;border:0;padding:0;font:inherit;color:var(--ink);cursor:pointer;text-align:left}
@@ -2504,7 +2550,8 @@ function para(t){ return t ? '<p>' + rich(t) + '</p>' : ''; }
 function codeblk(t, wrap){ return '<div class="codewrap"><button class="copy" type="button">Copy</button><pre' + (wrap ? ' class="wrap"' : '') + '><code>' + esc(t) + '</code></pre></div>'; }
 function att(a){ return (a || []).map(function(t){ var p = t.split('.'); return '<a class="chip mono" href="https://attack.mitre.org/techniques/' + p[0] + '/' + (p[1] ? p[1] + '/' : '') + '" rel="noopener" target="_blank" title="MITRE ATT&CK">' + esc(t) + '</a>'; }).join(''); }
 function list(a){ return a && a.length ? '<ul>' + a.map(function(x){ return '<li>' + rich(x) + '</li>'; }).join('') + '</ul>' : ''; }
-function hd(id, title, sub, badges){ return '<div class="lc-h"><div class="lc-t"><span class="id">' + esc(id) + '</span><h3>' + hl(title, TOKS) + '</h3>' + (sub ? '<div class="lc-sub">' + sub + '</div>' : '') + '</div><div class="badges">' + (badges || '') + '</div></div>'; }
+function hd(id, title, sub, badges){ return '<div class="lc-h"><div class="lc-top"><span class="id">' + esc(id) + '</span>' + (badges ? '<div class="badges">' + badges + '</div>' : '') +
+  '</div><div class="lc-t"><h3>' + hl(title, TOKS) + '</h3>' + (sub ? '<div class="lc-sub">' + sub + '</div>' : '') + '</div></div>'; }
 var IMP = {'none':'imp-none','vendor-bundle':'imp-bundle','break-glass':'imp-bg'};
 var TYPEN = {log_regex:'log pattern', check:'coded check', yara:'YARA', path_exists:'path exists'};
 function runsStrip(x){
@@ -2855,9 +2902,19 @@ detections: {
     type:x.type, check:x.check, rule:x.rule, pattern:x.pattern, sigma_rules:x.sigma.map(function(r){ return RULE[r] ? RULE[r].file : r; }), cves:x.cves, attack:x.attack, notes:x.notes}; },
   summary:function(shown){
     var n = shown.filter(function(x){ return x.sigma.length; }).length, ny = shown.filter(function(x){ return x.type === 'yara'; }).length, st = S.detections.sel.runs || [];
+    var plats = S.detections.sel.platform || [];
     return dist('detections', 'tier', ORD.tier, 'Tiers of the detections shown', shown) +
       '<p class="muted small sumline">' + n + ' of ' + shown.length + ' shown carry a Sigma rule for your SIEM; ' + ny + (ny === 1 ? ' is a YARA file scan. ' : ' are YARA file scans. ') +
-      '<button type="button" class="lnkbtn" data-f="runs" data-v="siem">' + (st.indexOf('siem') >= 0 ? 'Show all' : 'Show only those') + '</button></p>';
+      '<button type="button" class="lnkbtn" data-f="runs" data-v="siem">' + (st.indexOf('siem') >= 0 ? 'Show all' : 'Show only those') + '</button></p>' +
+      vizBox('detections',
+        kevYears('Exploited CVEs by the year CISA added them to KEV', 'Each column is the KEV entries on ' + (plats.length ? plats.map(pab).join(', ') : 'the watched platforms') +
+          ' added that year, split by whether a detection here names the CVE. It dates exploitation, not the toolkit.',
+          function(c){ return (c.detections || []).length > 0; }, ['with a detection here', 'without one'], plats) +
+        hbars('Platforms', 'Detections shown, by the platform they run on.', rowsOf(countBy(shown, function(x){ return x.platforms; }), pab, PORDER), 'platform', 'detections') +
+        hbars('Evidence class', 'What each detection reads. Corroboration counts across classes, never within one.', rowsOf(countBy(shown, function(x){ return [x.evidence]; })), 'evidence', 'detections') +
+        hbars('Where they run', 'Every detection runs in the analyzer; some also ship as a Sigma rule or a YARA scan.', rowsOf(countBy(shown, function(x){ return x.runs; }), function(v){ return RUNS[v] || v; }, ['analyzer', 'siem', 'yara']), 'runs', 'detections') +
+        hbars('Detection type', 'How each one matches.', rowsOf(countBy(shown, function(x){ return [x.type]; }), function(v){ return TYPEN[v] || v; }), 'type', 'detections') +
+        hbars('CVEs with the most detections', 'Top eight among those shown. Click to filter to one CVE.', rowsOf(countBy(shown, function(x){ return x.cves; })).slice(0, 8), 'cve', 'detections'));
   }
 },
 
@@ -2997,10 +3054,30 @@ hardening: {
     function on(k, v){ return st[k] && st[k].length === 1 && st[k][0] === v && Object.keys(st).filter(function(x){ return st[x].length; }).length === 1; }
     function tile(num, label, k, v, warn){ return '<button type="button" class="tile' + (warn ? (num > 0 ? ' warn' : ' ok') : '') + (on(k, v) ? ' on' : '') + '" data-only="' + k + '" data-v="' + v + '"><b>' + num + '</b><span>' + esc(label) + '</span></button>'; }
     var plats = {}; all.forEach(function(c){ if (c.platform !== 'ALL') plats[c.platform] = 1; });
+    var shown = LAST.hardening || all, pl = (st.platform || []).filter(function(p){ return p !== 'ALL'; });
+    /* who each control cites, by the publisher's kind: a government authority, the platform's
+       vendor, or a research team. A control can cite several. */
+    function kind(u){ var h = (u.match(/^https?:\/\/([^\/]+)/) || [])[1] || ''; h = h.replace(/^www\./, '');
+      if (/(^|\.)(cisa|nsa|fbi|ic3|defense)\.gov$|\.gov\.(au|uk)$|cyber\.gc\.ca$|ncsc\.(gov\.uk|nl)$|aivd\.nl$|cyber\.gov\.au$/.test(h)) return 'gov';
+      if (/paloaltonetworks|fortinet|fortiguard|cisco\.com$|checkpoint|netscaler|citrix|f5\.com$|juniper|ivanti|sonicwall/.test(h)) return 'vendor';
+      return 'research'; }
+    var cites = countBy(shown, function(c){ var k = {}; c.sources.forEach(function(s){ k[kind(s.url)] = 1; }); return Object.keys(k); });
+    var top = shown.filter(function(c){ return c.blunts.length; }).sort(function(a, b){ return b.blunts.length - a.blunts.length || (a.control < b.control ? -1 : 1); }).slice(0, 8)
+      .map(function(c){ return {v:c.id, label:c.control, n:c.blunts.length, href:'#hardening/' + c.id, tip:c.blunts.join(', ')}; });
     return '<div class="tiles">' + tile(n('platform', 'ALL'), 'baseline controls - start here, they apply to every platform', 'platform', 'ALL') +
       tile(n('category', 'exposure'), 'about what faces the internet - the management interface first', 'category', 'exposure', true) +
       tile(n('priority', 'critical'), 'critical-priority controls', 'priority', 'critical', true) +
-      '<div class="tile"><b>' + Object.keys(plats).length + '</b><span>platforms with their own controls</span></div></div>';
+      '<div class="tile"><b>' + Object.keys(plats).length + '</b><span>platforms with their own controls</span></div></div>' +
+      vizBox('hardening',
+        kevYears('Exploited CVEs by the year CISA added them to KEV', 'Each column is the KEV entries on ' + (pl.length ? pl.map(pab).join(', ') : 'the watched platforms') +
+          ' added that year, split by whether a control here names the CVE in what it would have blunted, as its source ties them.',
+          function(c){ return (c.hardening || []).length > 0; }, ['a control here names it', 'no control names it'], pl) +
+        hbars('Priority', 'Controls shown, by the priority the toolkit gives them.', rowsOf(countBy(shown, function(c){ return [c.priority]; }), null, ['critical', 'high', 'medium']), 'priority', 'hardening') +
+        hbars('Category', 'What each control changes.', rowsOf(countBy(shown, function(c){ return [c.category]; }), function(v){ return HCAT[v] || v; }), 'category', 'hardening') +
+        hbars('Applies to', 'Baseline controls apply to every platform.', rowsOf(countBy(shown, function(c){ return [c.platform]; }), function(v){ return v === 'ALL' ? 'Every platform (baseline)' : pab(v); }, PORDER), 'platform', 'hardening') +
+        hbars('Who the controls cite', 'Controls citing at least one source of each kind. A control can cite several.',
+          rowsOf(cites, function(v){ return {gov:'A government authority', vendor:'The platform vendor', research:'A research team'}[v]; }, ['gov', 'vendor', 'research'])) +
+        hbars('Controls that would have blunted the most', 'CVEs, campaigns and implants each control\'s own sources tie it to. Click to open the control.', top, null, null, true));
   }
 }
 };
@@ -3034,8 +3111,10 @@ function bodSteps(c){
     'Where the playbook\'s order and CISA\'s steps differ, an agency bound by the directive follows the directive.</p>';
 }
 var CWEN = {}; D.cves.forEach(function(c){ Object.keys(c.cwe_names).forEach(function(k){ if (!CWEN[k]) CWEN[k] = c.cwe_names[k]; }); });
+/* The CNA's weakness name in full (it wraps), or its own short form when it gives one in
+   quotes: "... ('OS Command Injection')". It used to be cut at 32 characters. */
 function cweShort(id){ var n = CWEN[id] || '', m = n.match(/\('([^']+)'\)/);
-  return id + (m ? ' ' + m[1] : n ? ' ' + (n.length <= 34 ? n : n.slice(0, 32).replace(/\s+\S*$/, '') + '…') : ''); }
+  return id + (m ? ' ' + m[1] : n ? ' ' + n : ''); }
 var TRIN = {yes:'Flagged for triage', 'no-after':'Not flagged', 'no-before':'Added before BOD 26-04', none:'Not in KEV'};
 var CVEIX = {}; D.cves.forEach(function(c){ CVEIX[c.id] = c; });
 var XPN = {before:'Exploited before the CVE record was published', dated:'Earliest exploitation dated', reported:'Reported exploited; start not dated',
@@ -3254,12 +3333,14 @@ LIB.hunts = {
     hypothesis:h.hypothesis, data:h.data, data_detail:h.data_detail, method:h.method, normal:h.normal, suspicious:h.suspicious,
     cves:h.cves, attack:h.attack, confidence:h.confidence, unverified:h.unv, sources:h.sources.map(function(s){ return s.url; })}; },
   summary:function(shown){
-    var c = {}, sel = S.hunts.sel.data || [], tot = 0;
-    shown.forEach(function(h){ h.data.forEach(function(d){ c[d] = (c[d] || 0) + 1; tot++; }); });
-    var segs = Object.keys(HDATA).filter(function(k){ return c[k]; }).map(function(k){
-      return '<button type="button" class="seg hd' + (sel.indexOf(k) >= 0 ? ' on' : '') + '" style="flex:' + c[k] + '" data-f="data" data-v="' + k + '" title="' + esc(HDATA[k]) + ': ' + c[k] + ' - click to filter" aria-label="' + esc(HDATA[k]) + ': ' + c[k] + '"><b>' + c[k] + '</b>' +
-        (c[k] / tot >= .12 ? ' <span>' + esc(HSHORT[k] || k) + '</span>' : '') + '</button>'; });
-    return segs.length ? '<div class="distcap"><span>Data the hunts shown need (a hunt can need several)</span><span>Click a segment to filter</span></div><div class="dist" role="group" aria-label="Data the hunts need">' + segs.join('') + '</div>' : '';
+    /* nine kinds of data with no order between them: labelled bars in one colour, not a
+       stacked bar whose narrow segments lose their names */
+    var data = rowsOf(countBy(shown, function(h){ return h.data; }), function(k){ return HDATA[k] || k; });
+    var plat = rowsOf(countBy(shown, function(h){ return h.platforms; }), function(p){ return p === 'ALL' ? 'Any edge device' : pab(p); });
+    var conf = rowsOf(countBy(shown, function(h){ return [h.confidence]; }), null, ORD.hml);   // the facet's own values, so a click filters to the same set
+    return vizBox('hunts', hbars('Data the hunts shown need', 'A hunt can need several. Click a row to show only the hunts that use it.', data, 'data', 'hunts') +
+      hbars('Platforms', 'Hunts written for any edge device count once, as their own row.', plat, 'platform', 'hunts') +
+      hbars('Confidence', 'How well the hunt rests on its quoted sources.', conf, 'confidence', 'hunts'));
   }
 };
 
@@ -3291,12 +3372,54 @@ function shown(n){ var st = S[n]; return LIB[n].items.filter(function(i){ return
 
 function dist(n, k, order, label, list_){
   var c = {}, tot = list_.length || 1; list_.forEach(function(i){ var v = i[k]; c[v] = (c[v] || 0) + 1; });
-  var sel = S[n].sel[k] || [];
-  var segs = order.filter(function(v){ return c[v]; }).map(function(v){
+  var sel = S[n].sel[k] || [], ks = order.filter(function(v){ return c[v]; });
+  var segs = ks.map(function(v){
     return '<button type="button" class="seg seg-' + v + (sel.indexOf(v) >= 0 ? ' on' : '') + '" style="flex:' + c[v] + '" data-f="' + k + '" data-v="' + v + '" title="' + v + ': ' + c[v] + ' - click to filter" aria-label="' + v + ': ' + c[v] + '"><b>' + c[v] + '</b>' +
-      (c[v] / tot >= .12 ? ' <span>' + esc(v) + '</span>' : '') + '</button>'; });
-  return segs.length ? '<div class="distcap"><span>' + esc(label) + '</span><span>Click a segment to filter</span></div><div class="dist" role="group" aria-label="' + esc(label) + '">' + segs.join('') + '</div>' : '';
+      (c[v] / tot >= .14 ? ' <span>' + esc(v) + '</span>' : '') + '</button>'; });
+  /* the legend names every segment, so a segment too narrow for its label is never anonymous */
+  var key = '<div class="dkey2">' + ks.map(function(v){ return '<button type="button" class="dk' + (sel.indexOf(v) >= 0 ? ' on' : '') + '" data-f="' + k + '" data-v="' + v + '">' +
+    '<i class="sw seg-' + v + '"></i>' + esc(v) + ' <b>' + c[v] + '</b><span class="pct">' + Math.round(c[v] / tot * 100) + '%</span></button>'; }).join('') + '</div>';
+  return segs.length ? '<div class="distcap"><span>' + esc(label) + '</span><span>Click a segment or a key to filter</span></div><div class="dist" role="group" aria-label="' + esc(label) + '">' + segs.join('') + '</div>' + key : '';
 }
+
+/* ---------------------------------------------------------------- small charts
+   One series per chart, so one colour (--bar): length carries the count and a label names every
+   row. Rows that map to a facet filter on click, like the distribution bars. */
+function hbars(title, sub, rows, f, n, stack){
+  if (!rows.length) return '';
+  var mx = Math.max.apply(null, rows.map(function(r){ return r.n; }).concat([1])), sel = f && n ? (S[n].sel[f] || []) : [];
+  return '<div class="hbc"><div class="hbc-h"><b>' + esc(title) + '</b>' + (sub ? '<span>' + esc(sub) + '</span>' : '') + '</div><ul class="hbl' + (stack ? ' stack' : '') + '">' + rows.map(function(r){
+    var inner = '<span class="hbl-l">' + esc(r.label) + '</span><span class="hbl-t"><i style="width:' + (r.n / mx * 100).toFixed(1) + '%"></i></span><span class="hbl-n">' + r.n + '</span>',
+        tip = esc(r.label + ': ' + r.n + (r.tip ? ' - ' + r.tip : '') + (f ? ' - click to filter' : ''));
+    return '<li>' + (f ? '<button type="button" class="hbl-r' + (sel.indexOf(String(r.v)) >= 0 ? ' on' : '') + '" data-f="' + f + '" data-v="' + esc(r.v) + '" title="' + tip + '">' + inner + '</button>'
+      : r.href ? '<a class="hbl-r" href="' + esc(r.href) + '" title="' + tip + '">' + inner + '</a>' : '<div class="hbl-r" title="' + tip + '">' + inner + '</div>') + '</li>';
+  }).join('') + '</ul></div>';
+}
+function countBy(list_, f){ var c = {}; list_.forEach(function(x){ (f(x) || []).forEach(function(v){ c[v] = (c[v] || 0) + 1; }); }); return c; }
+function rowsOf(c, label, order){ var ks = order ? order.filter(function(k){ return c[k]; }) : Object.keys(c).sort(function(a, b){ return c[b] - c[a] || (a < b ? -1 : 1); });
+  return ks.map(function(k){ return {v:k, label:label ? label(k) : k, n:c[k]}; }); }
+
+/* Exploited CVEs by the year CISA added them to KEV, split by whether the toolkit has the thing
+   named (a detection, a hardening control). A trend in exploitation, never in the toolkit's age. */
+function kevYears(title, sub, hasIt, words, plats){
+  var by = {}, lo = 9999, hi = 0;
+  D.cves.forEach(function(c){
+    if (!c.added) return;
+    if (plats && plats.length && !(c.platforms || []).some(function(p){ return plats.indexOf(p) >= 0; })) return;
+    var y = +c.added.slice(0, 4); lo = Math.min(lo, y); hi = Math.max(hi, y);
+    var o = by[y] = by[y] || {a:0, b:0}; if (hasIt(c)) o.a++; else o.b++;
+  });
+  if (!hi) return '';
+  var mx = 1, ys = []; for (var y = lo; y <= hi; y++){ var o = by[y] || {a:0, b:0}; ys.push([y, o]); mx = Math.max(mx, o.a + o.b); }
+  var cols = ys.map(function(e){ var y = e[0], o = e[1], t = o.a + o.b, tip = y + ': ' + t + ' exploited CVE' + (t === 1 ? '' : 's') + ' added to KEV; ' + o.a + ' ' + words[0] + ', ' + o.b + ' ' + words[1];
+    return '<li title="' + esc(tip) + '"><span class="kyn">' + (t || '') + '</span><span class="kyc" style="height:' + (t / mx * 100).toFixed(1) + '%">' +
+      (o.b ? '<i class="kb" style="flex:' + o.b + '"></i>' : '') + (o.a ? '<i class="ka" style="flex:' + o.a + '"></i>' : '') + '</span><span class="kyy">' + y + '</span></li>'; }).join('');
+  var tot = ys.reduce(function(s, e){ return s + e[1].a + e[1].b; }, 0), got = ys.reduce(function(s, e){ return s + e[1].a; }, 0);
+  return '<div class="hbc kyw"><div class="hbc-h"><b>' + esc(title) + '</b><span>' + esc(sub) + '</span></div><ol class="kyr" role="img" aria-label="' + esc(ys.map(function(e){ return e[0] + ': ' + e[1].a + ' ' + words[0] + ', ' + e[1].b + ' ' + words[1]; }).join('; ')) + '">' + cols + '</ol>' +
+    '<div class="skey"><span><i class="sw ka"></i>' + esc(words[0]) + ' (' + got + ')</span><span><i class="sw kb"></i>' + esc(words[1]) + ' (' + (tot - got) + ')</span></div></div>';
+}
+var VIZOPEN = {};
+function vizBox(n, inner){ return inner ? '<details class="cvstats vizbox" data-viz="' + n + '"' + (VIZOPEN[n] === false ? '' : ' open') + '><summary>Stats and trends</summary><div class="vizgrid">' + inner + '</div></details>' : ''; }
 
 function renderRail(n){
   var L = LIB[n], st = S[n], h = '';
@@ -3370,13 +3493,23 @@ function rowsHtml(L, st, items, sel){
   });
   return out.join('');
 }
+/* The platform's row in a grouped table. Each small bar sits under the column it summarises
+   (volatility, forensic value, confidence) and says so in its title; one bar at the row's end
+   used to read as a confidence chart while it counted volatility. */
 function groupHead(pid, items){
-  var g = items.filter(function(x){ return x.platform === pid; }), c = {};
-  g.forEach(function(x){ c[x.volatility] = (c[x.volatility] || 0) + 1; });
-  var vs = ORD.vol.filter(function(v){ return c[v]; });
-  return '<div class="grp"><a href="#platforms/' + pid + '">' + esc(PN[pid]) + '</a><span class="gm">' + g.length + (g.length === 1 ? ' artifact' : ' artifacts') + ' &#183; ' +
-    vs.map(function(v){ return c[v] + ' ' + v; }).join(', ') + '</span><span class="vbar2" aria-hidden="true">' +
-    vs.map(function(v){ return '<span class="vb vb-' + v + '" style="flex:' + c[v] + '"></span>'; }).join('') + '</span></div>';
+  var g = items.filter(function(x){ return x.platform === pid; });
+  function count(f){ var c = {}; g.forEach(function(x){ var v = f(x); c[v] = (c[v] || 0) + 1; }); return c; }
+  function mini(what, c, order, cls, word){
+    var ks = order.filter(function(v){ return c[v]; }), txt = what + ': ' + ks.map(function(v){ return c[v] + ' ' + (word ? word(v) : v); }).join(', ');
+    return '<span class="gbar" role="img" aria-label="' + esc(txt) + '" title="' + esc(txt) + '">' +
+      ks.map(function(v){ return '<span class="' + cls + v + '" style="flex:' + c[v] + '"></span>'; }).join('') + '</span>'; }
+  var vol = count(function(x){ return x.volatility; }), val = count(function(x){ return x.value; }),
+      cf = count(function(x){ return x.unv ? 'low' : x.confidence; });
+  return '<div class="grp"><span class="gname"><a href="#platforms/' + pid + '">' + esc(PN[pid]) + '</a><span class="gm">' + g.length + (g.length === 1 ? ' artifact' : ' artifacts') + ' &#183; ' +
+    ORD.vol.filter(function(v){ return vol[v]; }).map(function(v){ return vol[v] + ' ' + v; }).join(', ') + '</span></span>' +
+    '<span class="gcol g-vol">' + mini('Volatility', vol, ORD.vol, 'vb vb-') + '</span>' +
+    '<span class="gcol g-val">' + mini('Forensic value', val, ORD.hml, 'vv-') + '</span>' +
+    '<span class="gcol g-conf">' + mini('Confidence', cf, ORD.hml, 'cs-', function(v){ return v === 'low' ? 'low or unverified' : v; }) + '</span></div>';
 }
 function syncControls(n){
   var P = $('tab-' + n), st = S[n], q = P.querySelector('.q'), u = P.querySelector('.unvT'), c = P.querySelector('.cmpT'), g = P.querySelector('.grpT');
@@ -3597,6 +3730,9 @@ document.querySelectorAll('.panel.lib').forEach(function(P){
   var c = P.querySelector('.cmpT'); if (c) c.addEventListener('click', function(){ S[n].compact = !S[n].compact; store('edt-compact', S[n].compact ? '1' : '0'); syncControls(n); renderLib(n); });
   var g = P.querySelector('.grpT'); if (g) g.addEventListener('click', function(){ S[n].group = !S[n].group; store('edt-group', S[n].group ? '1' : '0'); syncControls(n); renderLib(n); });
   P.querySelectorAll('[data-exp]').forEach(function(x){ x.addEventListener('click', function(){ exportLib(n, x.dataset.exp); }); });
+  P.addEventListener('toggle', function(ev){   /* toggle does not bubble: listen in capture */
+    var d = ev.target; if (d && d.matches && d.matches('details.vizbox')) VIZOPEN[d.dataset.viz] = d.open;
+  }, true);
   P.addEventListener('change', function(ev){
     var t = ev.target;
     if (t.classList.contains('pick')){ var id = t.closest('.item').dataset.id; if (t.checked) S[n].picks[id] = 1; else delete S[n].picks[id]; updatePicked(n); }

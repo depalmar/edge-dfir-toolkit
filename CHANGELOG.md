@@ -1,5 +1,39 @@
 # Changelog
 
+## 0.15.1 - 2026-10-29 - Charts that say what they count
+
+- **Confidence charts.**
+  - **Coverage page.** High and medium were two near-identical slates, and low
+    or unverified used the critical red that means "confirmed" elsewhere. They
+    are now one slate ramp, light to dark, validated as an ordinal scale against
+    both themes, with ink chosen per step. Detections, the largest library, is
+    on the chart now: each detection carries its pack's confidence.
+  - **Artifact groups.** The one bar on each platform row counted volatility
+    but sat under the Value and Confidence headers. Each of those columns now
+    has its own small bar, under its header and named in its label.
+- **Legends.** Every distribution bar (tiers, volatility, priority) now has a
+  legend naming each segment with its count and share, so a segment too narrow
+  for a label is never anonymous.
+- **Hunts.** The data-sources bar alternated two blue-greys and dropped the
+  names of small segments. It is labelled bars now, one per kind of data, beside
+  platform and confidence charts. Rows still filter on click.
+- **Stats and trends** on Detections and Hardening. A collapsible panel with:
+  - exploited CVEs by the year CISA added them to KEV, split by whether the
+    toolkit has a detection (or a hardening control) naming each one;
+  - counts by platform, evidence class, where detections run, type and the
+    CVEs with the most detections;
+  - for hardening: priority, category, platform, the kind of source each
+    control cites, and the controls whose sources tie them to the most CVEs and
+    campaigns.
+  The two-part split's colours are validated as a pair in both themes.
+- **Cards.** Badges now share the id line instead of the title's, so a title
+  gets the card's full width. Two badges once squeezed a CVE id into three
+  lines and left most of the card blank.
+- **Cut-off text.** Weakness names are shown in full; they used to be cut at 32
+  characters. Long filter labels and chips wrap instead of ending in "…", and
+  the CVE page's actor chips can no longer run past their column.
+- Two browser tests pin these.
+
 ## 0.15.0 - 2026-10-29 - Testing a silence against what the device did
 
 - **`analyze --activity`.** A gap in the forwarded stream used to be listed

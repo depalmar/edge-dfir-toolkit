@@ -597,3 +597,51 @@ def test_cve_stats_badges_filter_and_platforms_link_back(browser, tmp_path):
     page.locator("#drawer").wait_for(state="visible")
     mine = [c["id"] for c in data["cves"] if pid in c["platforms"]]
     assert page.locator("#dBody a[href^='#cves/']").count() == len(mine)
+
+
+def test_charts_name_every_value_and_sit_under_their_column(browser, tmp_path):
+    """Regressions from a review of the charts:
+    - a narrow stacked segment showed a bare number, so every distribution bar has a legend
+      naming each segment;
+    - the hunts' data bar alternated two near-identical colours and dropped small labels, so it
+      is labelled bars, one per kind of data;
+    - an artifact group's only bar sat under the Value and Confidence headers while it counted
+      volatility, so each column now has its own bar, named in its label;
+    - the CVE weakness names were cut at 32 characters."""
+    url = _build(tmp_path)
+    page = browser.new_page(viewport={"width": 1440, "height": 900})
+    page.goto(url + "#detections")
+    page.locator("#tab-detections .dist").wait_for()
+    segs = page.locator("#tab-detections .dist .seg").count()
+    assert segs and page.locator("#tab-detections .dkey2 .dk").count() == segs
+    assert page.locator("#tab-detections .vizbox .hbc").count() >= 5
+    assert page.locator("#tab-detections .kyr li").count() >= 3   # a column per KEV year
+    page.goto(url + "#hunts")
+    rows = page.locator("#tab-hunts .hbl-r")
+    rows.first.wait_for()
+    labels = [rows.nth(i).locator(".hbl-l").inner_text().strip() for i in range(rows.count())]
+    assert all(labels) and "NetFlow" in labels
+    rows.filter(has_text="NetFlow").first.click()
+    assert "data=netflow" in page.url
+    page.goto(url + "#artifacts")
+    grp = page.locator("#tab-artifacts .grp").first
+    grp.wait_for()
+    names = [grp.locator(c + " .gbar").get_attribute("aria-label") for c in (".g-vol", ".g-val", ".g-conf")]
+    assert names[0].startswith("Volatility:") and names[1].startswith("Forensic value:") and names[2].startswith("Confidence:")
+    page.goto(url + "#cves")
+    page.locator("#tab-cves .cvs-l").first.wait_for()
+    assert "…" not in page.locator("#tab-cves .cvstats").inner_text()
+
+
+def test_card_titles_get_the_full_card_width(browser, tmp_path):
+    """Badges share the id line, never the title's: two badges beside a CVE id once squeezed
+    it into three lines and left most of the card blank."""
+    url = _build(tmp_path)
+    page = browser.new_page(viewport={"width": 1440, "height": 900})
+    page.goto(url + "#cves")
+    card = page.locator("#tab-cves .lc").first
+    card.wait_for()
+    w_card = card.bounding_box()["width"]
+    w_title = card.locator("h3").bounding_box()["width"]
+    assert card.locator(".lc-top .badges").count() == 1 or card.locator(".lc-top").count() == 1
+    assert w_title > 0.75 * w_card
