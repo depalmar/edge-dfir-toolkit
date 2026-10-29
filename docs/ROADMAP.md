@@ -33,10 +33,10 @@ Ordered by value. Effort figures are judgment, not measurement.
 ## Phase 2 - breadth
 
 - Profiles for SonicWall (TSR + image mode) and FortiManager. Check Point, F5,
-  Juniper and IOS XE landed in 0.3.0. SMA 1000 (EDGE-0011, 0.18.0) gives root
-  over SSH, so a read-only profile for its logs, `conf.json`, the setuid
-  listing and `/tmp` is possible once a contributed capture or an 8200v
-  evaluation confirms the paths and prompts.
+  Juniper and IOS XE landed in 0.3.0. SMA 1000 (EDGE-0011) has a read-only
+  profile since 0.18.1, unvalidated: a contributed capture or an 8200v
+  evaluation would confirm its prompt, whether SFTP is offered, and the paths
+  on releases after Volexity's.
 - Packs still missing: Junos Evolved PTX (CVE-2026-21902, once primary
   indicators exist). J-Web and IOS XE SNMP landed in 0.6.0 at low confidence;
   raise them when a second source or Juniper's own advisory is read.

@@ -128,6 +128,7 @@ detect:
     tier: likely
     evidence_class: config
     sources:
+      steps: [unit_conf]
       files: ["**/unit/conf.json"]
     pattern: '"/__api__/log(in|out)"'
     attack: [T1505.003, T1090]
@@ -144,6 +145,7 @@ detect:
     tier: possible
     evidence_class: config
     sources:
+      steps: [unit_conf]
       files: ["**/unit/conf.json"]
     pattern: '"rewrite"\s*:\s*"/workplace/(error|dialogs/errorDialog)\.jsp"'
     attack: [T1505.003]
@@ -161,6 +163,7 @@ detect:
     tier: likely
     evidence_class: persistence
     sources:
+      steps: [workplace_init]
       files: ["**/etc/init.d/workplace"]
     pattern: 'python3 /usr/lib/python3\.11/site-packages/deploy_new\.py'
     attack: [T1037.004]
@@ -228,6 +231,101 @@ detect:
       lib.sh was a script to launch tcpdump and save captured traffic in the same
       directory". The name is generic, so possible; the captures beside it, and
       the directory credentials in them, are the finding.
+
+  - id: sma1000-uta0533-files-listed
+    title: UTA0533's file names in the appliance's own listings
+    type: log_regex
+    tier: likely
+    evidence_class: filesystem
+    sources:
+      steps: [tmp_listing, fetch_uta0533_files]
+    pattern: '(/usr/bin/xzfind|\bhypdate\.b64|\b1234\.sh|\bagent_wp[89]\.(jar|log))\b'
+    exclude: ['No such file or directory', 'cannot access']
+    attack: [T1068, T1548.001, T1105]
+    notes: >-
+      The names Volexity found - ROOTRUN at /usr/bin/xzfind, the CVE-2026-15410
+      exploit in hypdate.b64, the couchdb-owned 1234.sh, the agents' JARs and
+      their logs linked to /dev/null - read from the /tmp listing and from the
+      fetch step's own ls, so they are seen even where SFTP is missing. ls's
+      "No such file" lines name the same paths and are excluded. The names are
+      the actor's choice; Volexity's YARA rules and the setuid check find
+      renamed copies.
+
+  - id: sma1000-knuckleball-listed
+    title: KNUCKLEBALL's file name in the appliance's own listings
+    type: log_regex
+    tier: likely
+    evidence_class: persistence
+    sources:
+      steps: [site_packages_listing, fetch_uta0533_files]
+    pattern: '\bdeploy_new\.py\b'
+    exclude: ['No such file or directory', 'cannot access']
+    attack: [T1037.004]
+    notes: >-
+      deploy_new.py in the site-packages listing or the fetch step's ls, the
+      name Volexity found KNUCKLEBALL under. Excludes ls's "No such file" lines.
+
+  - id: sma1000-couchdb-owned-tmp-file
+    title: A file in /tmp or /var/tmp owned by the internal database service's account
+    type: log_regex
+    tier: possible
+    evidence_class: filesystem
+    sources:
+      steps: [tmp_listing]
+    pattern: '^-[rwxsStT-]{9}[.+@]?\s+\d+\s+couchdb\s'
+    attack: [T1068]
+    notes: >-
+      Volexity: the files in /tmp were owned by the database service's
+      unprivileged account, which "indicated the threat actor could write and
+      likely execute files through that service context"; its 1234.sh was
+      "-rwx--x--x 1 couchdb daemon". Whether CouchDB writes files there in
+      normal use is not published, so possible.
+
+  - id: sma1000-tcpdump-writing-to-tmp
+    title: A running tcpdump writing its capture into /tmp or /var/tmp
+    type: log_regex
+    tier: possible
+    evidence_class: process
+    sources:
+      steps: [ps]
+    pattern: '\btcpdump\b.*\s-w\s+/(var/)?tmp/'
+    attack: [T1040]
+    notes: >-
+      Volexity: on the second appliance lib.sh started tcpdump to capture
+      unencrypted LDAP, "equivalent to" a command that writes into /var/tmp with
+      -w and rotates with -C 100 -W 10. An administrator's own capture to /tmp
+      matches too, so possible.
+
+  - id: sma1000-deleted-jar-held-open
+    title: A process holding open a deleted JAR from /tmp or /var/tmp
+    type: log_regex
+    tier: possible
+    evidence_class: process
+    sources:
+      steps: [open_fds]
+    pattern: '-> /(var/)?tmp/\S+\.jar \(deleted\)'
+    attack: [T1055, T1070.004]
+    notes: >-
+      The toolkit's inference, not a published indicator. Volexity says
+      KNUCKLEBALL writes its two JARs to /tmp, injects them into the workplace
+      JVM and deletes them; if the JVM keeps a JAR open, its descriptor shows the
+      path with "(deleted)". Whether it does is not reported.
+
+  - id: sma1000-setuid-outside-expected
+    title: A setuid binary outside Volexity's expected list
+    type: check
+    check: sma1000_setuid_outside_expected
+    args: {step: setuid_listing}
+    tier: possible
+    evidence_class: integrity
+    attack: [T1548.001]
+    notes: >-
+      Compares the setuid listing - the profile's find / -perm -4000, or an
+      ingested setuid-listing*.txt - with the eleven binaries Volexity says "may
+      show up legitimately". ROOTRUN was one more. The list comes from
+      Volexity's appliances and may not cover every release, so possible. Not
+      evaluated when the listing holds no path, so a failed find is never read
+      as a pass.
 
   - id: sma1000-orangetail-yara
     title: ORANGETAIL, or the user-agent-gated Suo5 agent (Volexity)

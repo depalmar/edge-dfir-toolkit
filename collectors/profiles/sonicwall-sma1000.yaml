@@ -1,0 +1,288 @@
+# Collection profile - SonicWall SMA 1000 series (6210, 7210, 8200v)
+# Platform: EDGE-0011 (artifacts/catalog/sonicwall-sma1000.yml)
+#
+# Runs in the appliance's SSH shell as root. SonicWall: enable SSH in AMC for
+# named hosts, log in as "root" with "the same password that is used for the
+# admin account in AMC". Enabling SSH is a configuration change: record it.
+# The 12.5 guide's "Enable shell access" box, when cleared, "prevents all shell
+# access via the serial console and SSH", and then nothing here can run.
+#
+# Nobody has run this profile on an appliance. Every path comes from SonicWall's
+# advisories or from Volexity's investigation of two compromised appliances
+# (2026); the commands are ordinary Linux utilities whose presence on the
+# appliance is not documented, so no step is high confidence. The prompt
+# pattern is a guess at a root shell's. find, ls and the /tmp file names are
+# the ones Volexity's post shows; ps and the /proc reads are not shown there.
+#
+# Files are fetched over SFTP. SonicWall documents SCP for file transfer, not
+# SFTP; where the SFTP subsystem is missing the fetch steps report unavailable
+# and the files must be copied off with scp and ingested.
+#
+# Nothing in this profile restarts the workplace JVM, where UTA0533's Suo5 and
+# ORANGETAIL agents lived and their JARs were deleted. Memory acquisition is a
+# manual break-glass step and, like every break-glass step, comes last: do it
+# before anything restarts the service or the appliance. On Volexity's second
+# appliance a reboot "likely removed memory-resident backdoors".
+#
+# The shell is a full root shell, so the allow-list is a set of fixed commands:
+# no pipes, no redirection, no substitution, and find may not delete or exec.
+
+profile: sonicwall-sma1000
+platform_id: EDGE-0011
+display: SonicWall SMA 1000 (root shell over SSH)
+transports: [ssh, replay]
+
+cli:
+  prompt: '[\w.@:~/\[\]-]+ ?[#$]'
+  pager: null
+  session_setup: []
+  # Allow rules must match the whole command (the engine uses fullmatch). Each
+  # rule is a fixed list of commands, not a grammar with free arguments.
+  allow:
+    - 'date -u|uptime|ps auxww|find / -perm -4000'
+    - 'cat /proc/net/tcp6?'
+    - 'cat /var/lib/unit/conf\.json|cat /etc/init\.d/workplace'
+    - 'ls -la /tmp /var/tmp|ls -la /var/log/aventail|ls -la /usr/lib/python3\.11/site-packages|ls -l /proc/\*/fd'
+    - 'ls -1d /var/log/aventail/(extraweb_access|access_servers|ctrl-service)\.log\*'
+    - 'ls -1d /usr/bin/xzfind /usr/lib/python3\.11/site-packages/deploy_new\.py /tmp/hypdate\.b64 /tmp/1234\.sh /tmp/agent_wp8\.jar /tmp/agent_wp9\.jar /var/tmp/lib\.sh'
+  deny:
+    - '^(rm|mv|cp|dd|chmod|chown|chattr|touch|kill|pkill|reboot|shutdown|halt|poweroff|systemctl|service|tcpdump|curl|wget|nc|python3?|perl|sh|bash|su|sudo)\b'
+    - '\s-(delete|exec|execdir|ok|okdir|fprint|fprint0|fprintf|fls)\b'
+    - '[;&`<>|]|\$\(|\$\{'
+
+expected_evidence: [identity, memory, process, integrity, config, web-logs, system-logs, filesystem, persistence]
+
+# Runs of this profile against a real device or a vendor virtual edition, each
+# {release, date, basis}. Empty: the CLI warns and live collection needs
+# --accept-unvalidated. Add an entry only with the run recorded in
+# docs/VERIFICATION.md (Device verification).
+validated_on: []
+
+steps:
+  - id: date_utc
+    tier: V0
+    kind: command
+    cmd: date -u
+    purpose: Device clock in UTC.
+    confidence: medium
+
+  - id: uptime
+    tier: V0
+    kind: command
+    cmd: uptime
+    purpose: >-
+      Time since boot. If the appliance has restarted since the suspected
+      window, agents injected into the workplace JVM are gone from memory; on
+      Volexity's second appliance a reboot "likely removed memory-resident
+      backdoors".
+    confidence: medium
+    references:
+      - https://www.volexity.com/blog/2026/07/17/proxying-to-compromise-sonicwall-secure-mobile-access-0-day-exploitation/
+
+  - id: hotfix_version
+    tier: V0
+    kind: manual
+    purpose: The appliance's release and platform-hotfix build, which decides exposure to each SMA 1000 advisory.
+    instructions: |
+      Read the release and platform-hotfix build from AMC and record it in the
+      case notes. SonicWall's fixed builds:
+        CVE-2025-23006            12.4.3-02854 and higher
+        CVE-2025-40602            12.4.3-03245, 12.5.0-02283 and higher
+        CVE-2026-15409, -15410    12.4.3-03453, 12.5.0-02835 and higher
+        CVE-2026-83548, -83549    12.4.3-03526, 12.5.0-02952 and higher
+    references:
+      - https://psirt.global.sonicwall.com/vuln-detail/SNWLID-2026-0016
+      - https://psirt.global.sonicwall.com/vuln-detail/SNWLID-2026-0008
+
+  - id: ps
+    tier: V2
+    kind: command
+    cmd: ps auxww
+    purpose: >-
+      Process list. The workplace.startup.CommandStartup JVM is the process
+      KNUCKLEBALL injects its agents into (Volexity); a tcpdump writing into
+      /tmp or /var/tmp is the capture Volexity's lib.sh started. Neither source
+      shows ps on the appliance.
+    confidence: low
+    unverified: true
+    references:
+      - https://www.volexity.com/blog/2026/07/17/proxying-to-compromise-sonicwall-secure-mobile-access-0-day-exploitation/
+
+  - id: open_fds
+    tier: V2
+    kind: command
+    cmd: ls -l /proc/*/fd
+    timeout: 300
+    purpose: >-
+      Every process's open files. Volexity says KNUCKLEBALL deletes the two
+      JARs after injecting them; whether the JVM keeps a deleted JAR open is
+      this toolkit's expectation, not something Volexity reports, so a JAR in
+      /tmp shown as "(deleted)" is a lead, not a finding.
+    confidence: low
+    unverified: true
+
+  - id: tcp_sockets
+    tier: V2
+    kind: command
+    cmd: cat /proc/net/tcp
+    purpose: >-
+      The kernel's IPv4 TCP socket table. Volexity: "Look for unexpected
+      connections from SonicWall SMA appliances". Kept as recorded; the
+      analyzer does not parse it.
+    confidence: low
+    unverified: true
+    references:
+      - https://www.volexity.com/blog/2026/07/17/proxying-to-compromise-sonicwall-secure-mobile-access-0-day-exploitation/
+
+  - id: tcp6_sockets
+    tier: V2
+    kind: command
+    cmd: cat /proc/net/tcp6
+    purpose: The IPv6 TCP socket table, kept beside the IPv4 one.
+    confidence: low
+    unverified: true
+
+  - id: setuid_listing
+    tier: P1
+    kind: command
+    cmd: find / -perm -4000
+    timeout: 900
+    purpose: >-
+      Every setuid binary. Volexity's own command, with its list of binaries
+      that "may show up legitimately"; ROOTRUN was one more, as /usr/bin/xzfind.
+      Walks the whole filesystem, so it is slow. Volexity's alone.
+    confidence: low
+    unverified: true
+    references:
+      - https://www.volexity.com/blog/2026/07/17/proxying-to-compromise-sonicwall-secure-mobile-access-0-day-exploitation/
+
+  - id: unit_conf
+    tier: P2
+    kind: command
+    cmd: cat /var/lib/unit/conf.json
+    purpose: >-
+      The NGINX Unit configuration. SonicWall: routes for /__api__/login or
+      /__api__/logout "do not exist in legitimate configuration"; Volexity found
+      them, proxied to http://127.0.0.1:8085, on both compromised appliances.
+    confidence: medium
+    references:
+      - https://psirt.global.sonicwall.com/vuln-detail/SNWLID-2026-0008
+
+  - id: workplace_init
+    tier: P7
+    kind: command
+    cmd: cat /etc/init.d/workplace
+    purpose: >-
+      The workplace service's startup script, to which UTA0533 added the line
+      that starts KNUCKLEBALL. The path is Volexity's alone.
+    confidence: low
+    unverified: true
+    references:
+      - https://www.volexity.com/blog/2026/07/17/proxying-to-compromise-sonicwall-secure-mobile-access-0-day-exploitation/
+
+  - id: site_packages_listing
+    tier: P7
+    kind: command
+    cmd: ls -la /usr/lib/python3.11/site-packages
+    purpose: >-
+      The Python package directory where Volexity found KNUCKLEBALL
+      (deploy_new.py). A later release may ship another Python version, and
+      then this path does not exist. The path is Volexity's alone.
+    confidence: low
+    unverified: true
+
+  - id: tmp_listing
+    tier: P6
+    kind: command
+    cmd: ls -la /tmp /var/tmp
+    purpose: >-
+      Volexity: "Examine SonicWall SMA appliances for unexpected files in
+      /var/tmp and /tmp". Owners matter: its /tmp files were owned by the
+      internal database service's account (couchdb), and the agents' logs were
+      links to /dev/null.
+    confidence: low
+    unverified: true
+    references:
+      - https://www.volexity.com/blog/2026/07/17/proxying-to-compromise-sonicwall-secure-mobile-access-0-day-exploitation/
+
+  - id: aventail_log_listing
+    tier: P6
+    kind: command
+    cmd: ls -la /var/log/aventail
+    purpose: Inventory of the appliance's log directory, so missing or truncated logs are visible. The directory is Volexity's.
+    confidence: low
+    unverified: true
+
+  - id: fetch_extraweb
+    tier: P4
+    kind: fetch
+    list_cmd: ls -1d /var/log/aventail/extraweb_access.log*
+    purpose: >-
+      External web requests, including the /wsproxy bypass and the actor's
+      /__api__ routes (SonicWall's and Volexity's indicators).
+    confidence: medium
+    references:
+      - https://psirt.global.sonicwall.com/vuln-detail/SNWLID-2026-0008
+
+  - id: fetch_access_servers
+    tier: P4
+    kind: fetch
+    list_cmd: ls -1d /var/log/aventail/access_servers.log*
+    purpose: WebSocket proxy activity, with each connection's backend host and client address (Volexity alone).
+    confidence: low
+    unverified: true
+
+  - id: fetch_ctrl_service
+    tier: P5
+    kind: fetch
+    list_cmd: ls -1d /var/log/aventail/ctrl-service.log*
+    purpose: >-
+      What the control service ran as root, including hotfix removals; SonicWall
+      lists "hotfix rollbacks with path traversal names" here.
+    confidence: medium
+    references:
+      - https://psirt.global.sonicwall.com/vuln-detail/SNWLID-2026-0008
+
+  - id: fetch_uta0533_files
+    tier: P7
+    provides: [filesystem, persistence]
+    kind: fetch
+    list_cmd: ls -1d /usr/bin/xzfind /usr/lib/python3.11/site-packages/deploy_new.py /tmp/hypdate.b64 /tmp/1234.sh /tmp/agent_wp8.jar /tmp/agent_wp9.jar /var/tmp/lib.sh
+    purpose: >-
+      The files Volexity found, fetched when present so Volexity's YARA rules
+      can read them. ls prints only the paths that exist; "No such file" for
+      each is the expected clean result. The paths are Volexity's alone.
+    confidence: low
+    unverified: true
+    references:
+      - https://www.volexity.com/blog/2026/07/17/proxying-to-compromise-sonicwall-secure-mobile-access-0-day-exploitation/
+
+  - id: memory_acquisition
+    tier: X
+    kind: manual
+    impact: break-glass
+    purpose: The appliance's memory, where the injected agents live. Do it before anything restarts the workplace service or the appliance.
+    instructions: |
+      Volexity: "Using SSH access to the devices, Volexity collected system memory
+      (RAM) with Volexity Surge Collect Pro". Use the Linux memory tool your team
+      trusts; it runs on the appliance and writes to it. For an 8200v, a
+      hypervisor snapshot with memory is an alternative (the toolkit's
+      suggestion, not SonicWall's). Copy the image off and ingest it:
+        edge-triage ingest <case> --label mem --bundle <image> --evidence-class memory
+      analyze then runs Volexity's ORANGETAIL, KNUCKLEBALL, ROOTRUN and
+      user-agent rules over it.
+    references:
+      - https://www.volexity.com/blog/2026/07/17/proxying-to-compromise-sonicwall-secure-mobile-access-0-day-exploitation/
+
+  - id: disk_image
+    tier: X
+    kind: manual
+    impact: break-glass
+    purpose: Full disk image, before any re-image or re-deploy.
+    instructions: |
+      Volexity "gathered select files and full disk images"; how is not
+      published. SonicWall's instruction for an appliance with indicators is to
+      re-image (hardware) or re-deploy (virtual) it, which destroys the disk:
+      image first. For an 8200v the hypervisor holds the disk.
+    references:
+      - https://psirt.global.sonicwall.com/vuln-detail/SNWLID-2026-0008

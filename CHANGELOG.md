@@ -1,5 +1,46 @@
 # Changelog
 
+## 0.18.1 - 2026-10-29 - SonicWall SMA 1000 collection profile
+
+`sonicwall-sma1000`: a read-only collection over the appliance's root SSH shell.
+It is unvalidated, so live use needs `--accept-unvalidated`.
+
+- **Guard.**
+  - A root shell gets the strictest guard: six allow rules, each a fixed list
+    of commands with no free arguments.
+  - Pipes, redirection and substitution are refused.
+  - `find` may not delete, exec or write.
+  - A regression test refuses thirteen smuggled forms.
+- **Steps.**
+  - Clock and uptime.
+  - The process list, every process's open files and the TCP tables.
+  - Volexity's `find / -perm -4000`.
+  - `conf.json` and `/etc/init.d/workplace`.
+  - Listings of `/tmp`, `/var/tmp`, site-packages and `/var/log/aventail`.
+  - SFTP fetches of the three logs and of Volexity's file names where present.
+  - The platform-hotfix version, read from AMC by hand.
+  - Memory and disk imaging as manual break-glass steps, last; nothing before
+    them restarts the workplace JVM.
+- **What the steps feed.**
+  - The `conf.json` and startup-script checks now read the profile's output
+    as well as ingested files.
+  - Six new detections in EDGE-PACK-0036:
+    - UTA0533's and KNUCKLEBALL's file names in the appliance's own
+      listings, with ls's "No such file" lines excluded;
+    - `/tmp` files owned by couchdb (possible);
+    - a tcpdump writing into `/tmp` or `/var/tmp` (possible);
+    - a deleted JAR held open (possible, the toolkit's inference);
+    - setuid binaries outside Volexity's expected list.
+- **The setuid comparison is a coded check.** A listing that holds no path is
+  *not evaluated*, so a failed `find` is never read as a pass.
+- **What is not known.**
+  - SonicWall documents SCP for file transfer, not SFTP.
+  - The prompt pattern is a guess.
+  - ps and the `/proc` reads are not shown in Volexity's post.
+  - No step is high confidence. Eleven rest on one source or none, so they are
+    low and marked unverified, which `plan` prints. Five rest on SonicWall and
+    Volexity together and are medium.
+
 ## 0.18.0 - 2026-10-29 - SonicWall SMA 1000
 
 A new platform, `EDGE-0011`, separate from the SMA 100 series (`EDGE-0006`):

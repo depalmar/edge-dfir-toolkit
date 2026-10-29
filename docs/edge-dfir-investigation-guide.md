@@ -155,15 +155,17 @@ and logs through the management UI and `ingest` them. GTIG advises disk images
 because the rootkit hides from on-box tools; physical units may need
 SonicWall's help.
 
-**SonicWall SMA 1000.** No collection profile yet. SSH in as root with the AMC
-admin password; enabling SSH in AMC is a configuration change, so record it.
-Capture memory first: UTA0533's web shell and tunnel live only in the workplace
-JVM, and on a rebooted appliance Volexity found them gone. Then copy
-`/var/log/aventail/`, `/var/lib/unit/conf.json`, `/etc/init.d/workplace`,
-`/tmp`, `/var/tmp` and the output of Volexity's `find / -perm -4000` off with
-scp and `ingest` them. For the CVE-2025-23006 check, save the AMC Management
-message log as a text file named `amc-management-messages.txt`; SonicWall names
-the view, not a file.
+**SonicWall SMA 1000.** The `sonicwall-sma1000` profile logs in as root with the
+AMC admin password; enabling SSH in AMC is a configuration change, so record it.
+Nobody has run the profile on an appliance yet, so live use needs
+`--accept-unvalidated`. Nothing it runs restarts the workplace JVM, where
+UTA0533's web shell and tunnel lived; capture memory straight after it (the
+break-glass step) and before anything restarts the service, because on a
+rebooted appliance Volexity found them gone. Its file fetches use SFTP, but
+SonicWall documents SCP: if they report unavailable, copy `/var/log/aventail/`
+off with scp and `ingest` it. For the CVE-2025-23006 check, save the AMC
+Management message log as a text file named `amc-management-messages.txt`;
+SonicWall names the view, not a file.
 
 **Check Point Gaia.** Collect in Expert mode; entering Expert from Clish asks
 for a second password, so the collection account needs `/bin/bash` as its

@@ -520,11 +520,11 @@ def ivanti_image(path: Path, compromised: bool) -> None:
 
 
 # ----------------------------------------------------------------- SonicWall SMA 1000
-def sma1000_files(path: Path, compromised: bool) -> None:
-    """Files copied off over SSH, as the guide's SMA 1000 note lists them. The compromised
-    log lines take the shape of Volexity's published samples with documentation
-    addresses; the configuration lines are SonicWall's and Volexity's published values.
-    Binaries and scripts are placeholders, so Volexity's YARA rules never match here."""
+def _sma1000_members(compromised: bool) -> dict[str, bytes]:
+    """Files as they sit on the appliance. The compromised log lines take the shape of
+    Volexity's published samples with documentation addresses; the configuration lines
+    are SonicWall's and Volexity's published values. Binaries and scripts are
+    placeholders, so Volexity's YARA rules never match here."""
     web = ['198.51.100.20 - - [28/Jun/2026:09:00:00 -0000] "GET /wsproxy?bmID=1207&serviceType=SSH'
            '&host=198.51.100.30&port=22 HTTP/1.1" 101 - "-" -',
            '198.51.100.20 - - [28/Jun/2026:09:00:05 -0000] "GET /workplace/access/home HTTP/1.1" 200 1024 "-" -']
@@ -568,11 +568,66 @@ def sma1000_files(path: Path, compromised: bool) -> None:
     members["var/lib/unit/conf.json"] = json.dumps(conf, indent=2).encode()
     members["etc/init.d/workplace"] = init.encode()
     members["amc-management-messages.txt"] = ("\n".join(amc) + "\n").encode()
+    return members
+
+
+def sma1000_files(path: Path, compromised: bool) -> None:
+    """The files the guide's SMA 1000 note lists, copied off with scp and ingested as one archive."""
     with tarfile.open(path, "w:gz") as tf:
-        for name, raw in members.items():
+        for name, raw in _sma1000_members(compromised).items():
             info = tarfile.TarInfo(name)
             info.size = len(raw)
             tf.addfile(info, io.BytesIO(raw))
+
+
+def sma1000(root: Path, malicious: bool) -> None:
+    """Replay of the sonicwall-sma1000 profile. The /tmp names, owners and the tcpdump
+    command take the shape of Volexity's post; the setuid list is Volexity's own."""
+    from edgetriage.checks.sonicwall import SETUID_EXPECTED
+    files = _sma1000_members(malicious)
+    uta = ["/usr/bin/xzfind", "/usr/lib/python3.11/site-packages/deploy_new.py", "/tmp/hypdate.b64", "/tmp/1234.sh",
+           "/tmp/agent_wp8.jar", "/tmp/agent_wp9.jar", "/var/tmp/lib.sh"]
+    present = set(uta[:4] + uta[6:]) if malicious else set()
+    listing = "".join(f"{p}\n" if p in present else f"ls: cannot access '{p}': No such file or directory\n" for p in uta)
+    tmp = ("/tmp:\ntotal 8\ndrwxrwxrwt 4 root root 4096 Oct 29 14:00 .\ndrwxr-xr-x 20 root root 4096 Oct  1 09:00 ..\n"
+           "-rw-r--r-- 1 root root 13 Oct 29 10:00 placeholder.tmp\n")
+    vtmp = "\n/var/tmp:\ntotal 4\ndrwxrwxrwt 2 root root 4096 Oct 29 14:00 .\n-rw-r--r-- 1 root root 13 Oct 29 10:00 placeholder.tmp\n"
+    ps = ("USER PID %CPU %MEM COMMAND\nroot 1 0.0 0.1 /sbin/init\n"
+          "root 2210 1.2 8.0 java workplace.startup.CommandStartup\n")
+    fds = "/proc/2210/fd:\ntotal 0\nlr-x------ 1 root root 64 Oct 29 14:00 3 -> /usr/local/workplace/lib/fixture.jar\n"
+    setuid = sorted(SETUID_EXPECTED) + ["find: '/proc/4410/task/4410/fd/5': No such file or directory"]
+    site = "total 8\n-rw-r--r-- 1 root root 26 Oct  1 09:00 placeholder.py\n"
+    if malicious:
+        tmp += ("-rwx--x--x 1 couchdb daemon 123 Jun 29 06:50 1234.sh\n"
+                "-rw-r--r-- 1 couchdb daemon 4096 Jun 30 01:00 hypdate.b64\n"
+                "lrwxrwxrwx 1 root root 9 Jun 28 17:20 agent_wp8.log -> /dev/null\n"
+                "lrwxrwxrwx 1 root root 9 Jun 28 17:20 agent_wp9.log -> /dev/null\n")
+        vtmp += "-rwxr-xr-x 1 root root 120 Jul  2 03:00 lib.sh\n"
+        ps += "root 4410 0.0 0.1 tcpdump -i any port 389 -w /var/tmp/fixture.pcap -C 100 -W 10\n"
+        fds += "lr-x------ 1 root root 64 Oct 29 14:00 9 -> /tmp/agent_wp9.jar (deleted)\n"
+        setuid.append("/usr/bin/xzfind")
+        site += "-rw-r--r-- 1 root root 81476 Jun 22 10:14 deploy_new.py\n"
+        files["tmp/1234.sh"] = b"# fixture-only placeholder\n"
+    tcp = "  sl  local_address rem_address   st tx_queue rx_queue tr tm->when retrnsmt   uid  timeout inode\n"
+    logs = ["extraweb_access.log", "access_servers.log", "ctrl-service.log"]
+    write_cmds(root, {
+        "date -u": "Thu Oct 29 14:02:11 UTC 2026\n",
+        "uptime": " 14:02:11 up 9 days,  3:10,  1 user,  load average: 0.20, 0.15, 0.10\n",
+        "ps auxww": ps,
+        "ls -l /proc/*/fd": fds,
+        "cat /proc/net/tcp": tcp,
+        "cat /proc/net/tcp6": tcp,
+        "find / -perm -4000": "\n".join(setuid) + "\n",
+        "cat /var/lib/unit/conf.json": files["var/lib/unit/conf.json"],
+        "cat /etc/init.d/workplace": files["etc/init.d/workplace"],
+        "ls -la /usr/lib/python3.11/site-packages": site,
+        "ls -la /tmp /var/tmp": tmp + vtmp,
+        "ls -la /var/log/aventail": "total 12\n" + "".join(f"-rw-r--r-- 1 root root 512 Oct 29 14:00 {n}\n" for n in logs),
+        **{f"ls -1d /var/log/aventail/{n}*": f"/var/log/aventail/{n}\n" for n in logs},
+        "ls -1d " + " ".join(uta): listing,
+    })
+    write_files(root, {"/" + k: v for k, v in files.items()
+                       if k.startswith("var/log/aventail/") or "/" + k in present})
 
 
 def main(out: Path) -> None:
@@ -612,6 +667,8 @@ def main(out: Path) -> None:
     (out / "benign.php").write_bytes(BENIGN_PHP)
     sma1000_files(out / "sma1000-files-uta0533.tgz", True)
     sma1000_files(out / "sma1000-files-benign.tgz", False)
+    sma1000(out / "sma1000-compromised", True)
+    sma1000(out / "sma1000-benign", False)
 
 
 if __name__ == "__main__":

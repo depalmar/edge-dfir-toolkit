@@ -8,6 +8,7 @@ products: [SMA 6210, SMA 7210, SMA 8200v]
 os_base: Linux
 customer_shell: "yes"
 memory_acquisition: customer
+profile: sonicwall-sma1000
 collection:
   - method: SSH as root, then copy logs and files off with scp
     impact: none
@@ -51,7 +52,7 @@ artifacts:
     forensic_value: high
     evidence_type: [initial-access, persistence, timeline]
     confidence: high
-    collected_by: manual
+    collected_by: fetch_extraweb
     description: >-
       Volexity: "The log captures the external web interaction" with the
       appliance, including the /wsproxy bypass and requests to the actor's web
@@ -74,7 +75,7 @@ artifacts:
     forensic_value: medium
     evidence_type: [initial-access, timeline]
     confidence: medium
-    collected_by: manual
+    collected_by: fetch_access_servers
     description: >-
       Volexity: holds "information related to the /wsproxy and WebSockets
       activity", including "details related to the attacking IP address and
@@ -95,7 +96,7 @@ artifacts:
     forensic_value: high
     evidence_type: [execution, timeline]
     confidence: high
-    collected_by: manual
+    collected_by: fetch_ctrl_service
     description: >-
       Volexity: "contained key information related to command execution and
       privilege escalation (run as root)" and "would capture the files that
@@ -116,7 +117,7 @@ artifacts:
     forensic_value: high
     evidence_type: [persistence, configuration]
     confidence: high
-    collected_by: manual
+    collected_by: unit_conf
     description: >-
       The NGINX Unit configuration. KNUCKLEBALL added two routes to it through the
       local control socket. On Volexity's second appliance they were still there
@@ -137,7 +138,7 @@ artifacts:
     forensic_value: high
     evidence_type: [persistence]
     confidence: medium
-    collected_by: manual
+    collected_by: workplace_init
     description: >-
       The legitimate startup script for the workplace service, to which UTA0533
       added a line that starts KNUCKLEBALL.
@@ -157,7 +158,7 @@ artifacts:
     forensic_value: high
     evidence_type: [persistence, defense-evasion]
     confidence: medium
-    collected_by: manual
+    collected_by: setuid_listing
     description: >-
       Volexity recommends checking "for any unexpected setuid binaries, outside of
       those that are expected on the system, by running the command find /
@@ -180,7 +181,7 @@ artifacts:
     forensic_value: high
     evidence_type: [execution, credential-access]
     confidence: medium
-    collected_by: manual
+    collected_by: tmp_listing
     description: >-
       Where UTA0533 staged its exploit and scripts, and where it captured LDAP
       traffic with tcpdump.
@@ -202,7 +203,7 @@ artifacts:
     forensic_value: high
     evidence_type: [persistence, execution]
     confidence: medium
-    collected_by: manual
+    collected_by: memory_acquisition
     description: >-
       KNUCKLEBALL injects its two agents into this process through the Java Attach
       API and deletes the JARs, so a running appliance holds them only in memory.
@@ -257,9 +258,10 @@ references:
     url: https://psirt.global.sonicwall.com/vuln-detail/SNWLID-2025-0002
     accessed: "2026-10-29"
 notes: >-
-  No collection profile yet: nobody has run one against an appliance, and
-  SonicWall publishes no read-only command set. Copy the files named here over
-  SSH and ingest them. Distinct from the SMA 100 series (EDGE-0006): SonicWall
+  The sonicwall-sma1000 profile collects these over SSH but has not been run on
+  an appliance (validated_on is empty), and SonicWall publishes no read-only
+  command set; its paths are SonicWall's and Volexity's. Where SFTP is missing,
+  copy the files named here off with scp and ingest them. Distinct from the SMA 100 series (EDGE-0006): SonicWall
   says these vulnerabilities "do not affect SSL-VPN running on SonicWall
   firewalls or the SMA 100 Series product line". Volexity also reports that the
   control service's password is derived from /sys/class/dmi/id/product_uuid,

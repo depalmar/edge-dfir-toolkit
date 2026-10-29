@@ -330,6 +330,10 @@ correction in `docs/VERIFICATION.md`.
   compressed bytes and silently passed; `test_rotated_gzip_logs_are_read` pins it.
 - Vendor diagnostic bundles must not phone home. `cpinfo` runs with `-D -d`;
   check any new bundle command for a default upload.
+- The SMA 1000 profile is a full root shell, so its allow-list is fixed
+  commands only. Its fetches use SFTP while SonicWall documents SCP; without
+  SFTP they report unavailable, and the guide says to scp and ingest. Its
+  setuid comparison is a coded check so a failed `find` is not evaluated.
 - Junos `file list` appends type markers (`*`, `|`, `/`). Listing patterns end in
   `[*/|@=]?\s*$`; an anchor on the bare name once matched nothing.
 - `safe_extract` refuses links but records them. The FortiOS symlink check reads

