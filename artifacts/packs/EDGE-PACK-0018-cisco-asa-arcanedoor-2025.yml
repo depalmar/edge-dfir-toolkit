@@ -18,7 +18,9 @@ summary: >-
   not clear a device; Cisco separately reports the actor disabled checkheaps.
   CISA's ED 25-03 grep of the lina text section is the on-box implant check;
   RayInitiator itself still needs a core dump. Absence of the suppressed syslog
-  IDs is an off-box hunt, not an on-box check.
+  IDs is an off-box hunt, not an on-box check. NCSC's YARA rules for
+  RayInitiator and LINE VIPER and CISA's for FIRESTARTER run against an
+  ingested core dump, disk image or memory image.
 confidence: high
 references:
   - title: Cisco - Detection guide for continued attacks against Cisco firewalls (v1.2, 24 April 2026)
@@ -39,6 +41,9 @@ references:
   - title: NCSC - RayInitiator and LINE VIPER malware analysis report (v1.1)
     url: https://www.ncsc.gov.uk/static-assets/documents/malware-analysis-reports/RayInitiator-LINE-VIPER/ncsc-mar-rayinitiator-line-viper.pdf
     accessed: "2026-10-23"
+  - title: CISA and NCSC - AR26-113A FIRESTARTER Backdoor (YARA rules for a disk image or core dump)
+    url: https://www.cisa.gov/news-events/analysis-reports/ar26-113a
+    accessed: "2026-10-29"
 
 detect:
   - id: asa-lina-text-implant-grep
@@ -115,3 +120,76 @@ detect:
       so the hit reports the gap between its readings; the rule for gaps under
       five minutes is the toolkit's. A hit is a reason to repeat the procedure
       by hand, not a verdict.
+
+  - id: asa-rayinitiator-code-yara
+    title: NCSC's RayInitiator bootkit stage rules match a memory image or recovered file
+    type: yara
+    tier: confirmed
+    evidence_class: memory
+    rule: 05-cisco-asa-ftd/asa_rayinitiator_ncsc.yar
+    sources:
+      files: ["**"]
+    attack: [T1542.003]
+    notes: >-
+      NCSC's four rules for the GRUB bootkit's stage code, each with "Precision:
+      No false positives have been identified." NCSC does not say which artefact
+      holds that code; for a core dump it points to its Appendix 1 script, which
+      looks for the hook in lina's WebVPN XML element handler table, as CISA's
+      RayDetect does. No hit does not clear RayInitiator: run RayDetect on the
+      dump as well (CISA: confident for 5500-X on 9.12 and 9.14 only). Held at
+      likely in memory.
+
+  - id: asa-line-viper-code-yara
+    title: NCSC's LINE VIPER rules match a memory image or recovered file
+    type: yara
+    tier: confirmed
+    evidence_class: memory
+    rule: 05-cisco-asa-ftd/asa_line_viper_ncsc.yar
+    sources:
+      files: ["**"]
+    attack: [T1620, T1140, T1573, T1095]
+    notes: >-
+      NCSC's five rules for LINE VIPER's code - its shellcode deobfuscation and
+      initial execution, its RSA and AES routines and its ICMP tasking payloads -
+      each with "Precision: No false positives have been identified." LINE VIPER
+      runs in memory, so the rules need a core dump or memory image of lina.
+      NCSC: a dump attempt after which "the device immediately reboots without
+      producing a core dump" could itself "indicate that LINE VIPER was
+      deployed". Held at likely in memory. CISA's lina text grep
+      (asa-lina-text-implant-grep) is the on-box check.
+
+  - id: asa-firestarter-injector-yara
+    title: CISA's FIRESTARTER injector rule matches a disk image, core dump or recovered file
+    type: yara
+    tier: confirmed
+    evidence_class: persistence
+    rule: 05-cisco-asa-ftd/asa_firestarter_injector_cisa.yar
+    sources:
+      files: ["**"]
+    attack: [T1543, T1542]
+    notes: >-
+      CISA_261290_01 "Detects CISCO Firepower FIRESTARTER injector samples": the
+      lina_cs ELF, at /usr/bin/lina_cs or staged as
+      /opt/cisco/platform/logs/var/log/svc_samcore.log in FXOS, where the ASA CLI
+      cannot list it. CISA and NCSC: "Use the YARA rules to detect FIRESTARTER
+      malware against either a disk image or core dump of a device." Several of
+      its strings are paths that need not be unique to the malware; it needs
+      five of its seven. Held at likely in memory.
+
+  - id: asa-firestarter-shellcode-yara
+    title: CISA's FIRESTARTER shellcode rule matches a core dump or memory image
+    type: yara
+    tier: confirmed
+    evidence_class: memory
+    rule: 05-cisco-asa-ftd/asa_firestarter_shellcode_cisa.yar
+    sources:
+      files: ["**"]
+    attack: [T1055, T1620]
+    notes: >-
+      CISA_261290_02 "Detects CISCO Firepower FIRESTARTER_shellcode samples".
+      CISA: FIRESTARTER "injects a block of shellcode 0x200 bytes before the end
+      of the library's text segment" (libstdc++ in LINA), so the shellcode is in
+      LINA's memory and in a core dump of it. Its third string is one byte
+      shorter than the same instruction run in NCSC's RayInitiator rule; the
+      condition needs three of four, so it does not depend on that string. Held
+      at likely in memory.

@@ -280,7 +280,11 @@ match across a seam is seen whole, and reports three checks beside the packs:
 - `memory-yara`: the platform packs' YARA rules whose condition reads nothing
   but their strings. Every other rule is listed as not run, with what it reads
   (the file's size, bytes at fixed offsets, a module, where its strings sit).
-  A pack rule scores at most likely here.
+  A pack rule scores at most likely here. For Cisco ASA these are the
+  publishers' own rules for memory and core dumps: NCSC's for LINE DANCER,
+  RayInitiator and LINE VIPER, and CISA's for FIRESTARTER. For Ivanti they are
+  Volexity's rules for the 2026 exploit request and privilege-escalation script,
+  and for PySoxy.
 - `memory-yara-own`: rules written for memory that you pass with
   `--memory-yara`, scored possible.
 - `memory-indicators`: the platform's published network indicators found as

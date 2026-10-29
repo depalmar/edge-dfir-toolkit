@@ -761,6 +761,31 @@ condition, not by reading them: 3 of the 22 read nothing but their strings
 split). The Volatility runner has not been run against a real appliance image
 with symbols.
 
+## 2026-10-29 - the publishers' memory rules (0.17.1)
+
+Every rule was copied in code from the publisher's own copy, read on 29 October 2026:
+
+| Source | Copy read | Rules taken | Licence |
+|---|---|---|---|
+| NCSC Malware Tipper, Line Dancer (TLP:CLEAR, 2024) | ncsc-tip-line-dancer.pdf, sha256 821c2f1e...a755c | `Line_Dancer` | Crown copyright; NCSC's site terms put content under OGL v3.0 unless stated otherwise |
+| NCSC MAR, RayInitiator & LINE VIPER (2025) | ncsc-mar-rayinitiator-line-viper.pdf, sha256 34512371...2ab3fd | all nine rules | The report: "Detection mechanisms such as rules, signatures and scripts are licensed under the terms of the Open Government Licence v3.0" |
+| CISA and NCSC AR26-113A, FIRESTARTER (23 April 2026) | The page's Table 1, via a rendered fetch (cisa.gov refuses the sandbox); stix-FIRESTARTER.json for comparison | `CISA_261290_01`, `CISA_261290_02` | US government publication |
+| Volexity threat-intel, 2026-10-13 Ivanti | rules.yar at commit 68329642, sha256 1446b808...19bca | both rules | BSD 2-Clause, notice carried in each file |
+| Volexity threat-intel, 2024-01-10 Ivanti Connect Secure | indicators/yara.yar at the same commit, sha256 4a727e38...4381b | `hacktool_py_pysoxy` | BSD 2-Clause |
+
+| Item | Decision | Basis |
+|---|---|---|
+| NCSC rules, wrapped lines | Rejoined: descriptions and hex with a space, rule names and base64 with nothing | pdftotext puts each wrapped continuation in column 0 while rule lines are indented. The joined base64 strings are the base64 of the rule's own hex routine at alignments 0, 1 and 2, and the three regexes match the base64 of the [19]-gap pattern; `test_line_viper_joins_are_proven_by_the_rules_own_bytes` pins it |
+| CISA rules | Page text used; the STIX copy agrees | The STIX `rule_content` has the same strings, conditions and meta, including `tool_type = "unknownk"`, and mis-indents `strings:` |
+| CISA_261290_02 `$3` | Reproduced as published, noted in the file | It reads `B9 D0 01 00 F3 A4`; NCSC's RayInitiator stage 3 deploy rule has `B9 D0 01 00 00 F3 A4` for the same run. The condition needs 3 of 4 |
+| Volexity `exploit_log_ivanti_rce`, `exploit_py_ivanti_oct26` | Taken | Their `scan_context` is "file,memory" and "memory"; the live post says the script "is executed via exec(), meaning the raw script is only ever stored in memory" and quotes the `X-DSCGI-PATH` header (both checked against the raw page) |
+| Volexity `hacktool_py_pysoxy` | Taken | The live post: the attacker "created and executed a number of files from the system's /tmp/ directory"; "By carving files from the disk images" Volexity found "a copy of PySoxy" |
+| Volexity GLASSTOKEN, reGeorg | Left out | The post places GLASSTOKEN on "external-facing web servers" and an internal server, not the appliance |
+| Volexity COMPLYSHELL | Left out | The post never names it or where it was found; Mandiant's LIGHTWIRE rule already covers the compcheckresult.cgi webshell |
+| CISA RayDetect | Not a rule source | ray_detect.py parses the ELF core's segments for the hook; the `yara/` directory it reads is not in the repository |
+| NCSC Line Runner Tipper | No rules | It publishes detection guidance, no YARA |
+| A summariser's quote of the Volexity 2026 post | Checked against the raw page, then used | The first text search missed it: the page sets exec() as code, so stripping the tags left a space before the comma. The sentence is on the page word for word |
+
 ## Device verification
 
 | Date | Platform / release | Step | Change | Basis |

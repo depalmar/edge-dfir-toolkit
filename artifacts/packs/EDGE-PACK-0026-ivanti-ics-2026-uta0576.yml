@@ -18,7 +18,9 @@ summary: >-
   Volexity's primary detection - "large numbers of network requests for
   /dana-na/auth/url_default/welcome.cgi" with an X-DSCGI-PATH header naming
   another script - needs a reverse proxy that logs request headers; the
-  appliance's own logs are not shown to carry it.
+  appliance's own logs are not shown to carry it. Volexity's own YARA rule for
+  that header also reads memory images and recorded files, and its rule for the
+  in-memory privilege-escalation script reads memory images.
 confidence: medium
 references:
   - title: Ivanti - security advisory, Ivanti Connect Secure CVE-2026-104935
@@ -27,6 +29,9 @@ references:
   - title: Volexity - Chained exploitation of Ivanti Connect Secure zero-days (13 October 2026)
     url: https://www.volexity.com/blog/2026/10/13/a-series-of-unauthenticated-events-chained-exploitation-of-ivanti-connect-secure-zero-days/
     accessed: "2026-10-23"
+  - title: Volexity threat-intel - YARA rules for the October 2026 Ivanti exploitation (BSD 2-Clause)
+    url: https://github.com/volexity/threat-intel/tree/main/2026/2026-10-13%20Ivanti
+    accessed: "2026-10-29"
 
 detect:
   - id: ivanti-icscap-tooling
@@ -79,3 +84,37 @@ detect:
       actions"; the actor wrote its LDAP tooling to /tmp/ml.py and /tmp/rq5.py
       and recovered commands "explicitly delete /tmp/rq5.py and /tmp/rr.py".
       Absence means little. Evaluated against a snapshot or image.
+
+  - id: ivanti-uta0576-rce-request-yara
+    title: The CVE-2026-104935 exploit request in memory or a recorded file
+    type: yara
+    tier: possible
+    evidence_class: web-logs
+    rule: 03-ivanti-connect-secure/ivanti_uta0576_rce_request_volexity.yar
+    sources:
+      files: ["**"]
+    attack: [T1190]
+    notes: >-
+      Volexity's exploit_log_ivanti_rce "Identifies files or memory regions
+      containing request headers matching RCE vulnerability for Ivanti" (its
+      scan_context is "file,memory"): the X-DSCGI-PATH header naming
+      /home/webserver/htdocs/dana/fb/smb/wu.cgi. It shows a request reached the
+      device, not that it succeeded, so possible. The memory checks run it over
+      every memory image; as a file rule it finds the header in anything else
+      ingested that recorded it, such as a packet capture or a reverse proxy's log.
+
+  - id: ivanti-uta0576-eop-python-yara
+    title: UTA0576's privilege-escalation script in memory
+    type: yara
+    tier: confirmed
+    evidence_class: memory
+    rule: 03-ivanti-connect-secure/ivanti_uta0576_eop_python_volexity.yar
+    sources:
+      files: ["**"]
+    attack: [T1068, T1059.006]
+    notes: >-
+      Volexity's exploit_py_ivanti_oct26, "Detection for EoP vuln implementation
+      in Python used by UTA0576", written for memory (scan_context "memory"):
+      Volexity says the delivered script is executed via exec() and "only ever
+      stored in memory". A memory hit is held at likely, as every pack rule is
+      there; that cap is the toolkit's, not Volexity's.

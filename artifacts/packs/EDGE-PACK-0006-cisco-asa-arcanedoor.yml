@@ -96,3 +96,23 @@ detect:
     flags: [ignorecase]
     attack: [T1562.002]
     notes: ArcaneDoor disabled syslog. Confirm against the change record before treating as malicious.
+
+  - id: asa-line-dancer-code-yara
+    title: NCSC's LINE DANCER code rule matches a memory image or recovered file
+    type: yara
+    tier: confirmed
+    evidence_class: memory
+    rule: 05-cisco-asa-ftd/asa_line_dancer_ncsc.yar
+    sources:
+      files: ["**"]
+    attack: [T1055, T1620]
+    notes: >-
+      NCSC's rule Line_Dancer "Targets code sections of Line Dancer, a shellcode
+      loader targeting Cisco ASA devices." NCSC: "Line Dancer has only been seen
+      in memory", in a 20KB region that "cannot be dumped with a copy
+      system:memory/text CLI command", so the rule needs a memory image that
+      holds it - an ASAv snapshot, or a core dump, which LINE DANCER could turn
+      into a reload. The memory checks run it over every memory image, where a
+      hit is held at likely; as a file rule it reads anything else ingested.
+      NCSC states no false-positive rate for this rule. No hit is not a clean
+      result: a reboot removes LINE DANCER.

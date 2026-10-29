@@ -13,3 +13,18 @@ hunting rules credit Mandiant; the OVERSTEP hash rule uses the SHA-256 values
 GTIG published. The Ivanti SPAWN-family, PHASEJAM and DRYHOOK rules
 (03-ivanti-connect-secure/ivanti_spawn_family_mandiant_2025.yar) are Mandiant's,
 as published by Google Threat Intelligence Group in 2025.
+
+The LINE DANCER, RayInitiator and LINE VIPER YARA rules
+(05-cisco-asa-ftd/asa_line_dancer_ncsc.yar, asa_rayinitiator_ncsc.yar,
+asa_line_viper_ncsc.yar) are the UK National Cyber Security Centre's, from its
+2024 Malware Tipper and 2025 malware analysis report. (c) Crown copyright.
+Contains public sector information licensed under the Open Government Licence
+v3.0: https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/
+
+The FIRESTARTER YARA rules (05-cisco-asa-ftd/asa_firestarter_*_cisa.yar) are
+CISA's, from Malware Analysis Report AR26-113A, published with the NCSC.
+
+The Ivanti rules ivanti_uta0576_rce_request_volexity.yar,
+ivanti_uta0576_eop_python_volexity.yar and ivanti_pysoxy_volexity.yar are
+Volexity's, from github.com/volexity/threat-intel, Copyright 2022 by Volexity,
+Inc., under the BSD 2-Clause licence, whose full text each file carries.

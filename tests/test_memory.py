@@ -24,7 +24,34 @@ from edgetriage.custody import Case  # noqa: E402
 from edgetriage.evidence import EvidenceView  # noqa: E402
 
 JUNOS = "EDGE-0008"
+ASA, IVANTI = "EDGE-0005", "EDGE-0003"
 PEL = [b"pel_client_init", b"pel_server_init", b"pel_send_msg", b"pel_recv_msg"]   # Mandiant's hunting rule needs 4
+PUBLISHED = {   # file -> (author meta, rule names): the publishers' own memory and core-dump rules
+    "05-cisco-asa-ftd/asa_line_dancer_ncsc.yar": ("NCSC", {"Line_Dancer"}),
+    "05-cisco-asa-ftd/asa_rayinitiator_ncsc.yar": ("NCSC", {
+        "RayInitiator_stage_1_search_for_booting_kernel_string", "RayInitiator_stage_2_identify_syscall_table",
+        "RayInitiator_stage_3_install_phase_search_for_client_cert_fail_string",
+        "RayInitiator_stage_3_deploy_phase_copy_LINE_VIPER_shellcode_stub"}),
+    "05-cisco-asa-ftd/asa_line_viper_ncsc.yar": ("NCSC", {
+        "LINE_VIPER_shellcode_deobfuscation_routine", "LINE_VIPER_shellcode_initial_execution",
+        "LINE_VIPER_rsa_encrypted_random_aes_key_generation", "LINE_VIPER_aes_encrypted_tasking_and_exfiltration",
+        "LINE_VIPER_icmp_tasking_shellcode_payloads"}),
+    "05-cisco-asa-ftd/asa_firestarter_injector_cisa.yar": ("CISA Code & Media Analysis", {"CISA_261290_01"}),
+    "05-cisco-asa-ftd/asa_firestarter_shellcode_cisa.yar": ("CISA Code & Media Analysis", {"CISA_261290_02"}),
+    "03-ivanti-connect-secure/ivanti_uta0576_rce_request_volexity.yar": ("threatintel@volexity.com", {"exploit_log_ivanti_rce"}),
+    "03-ivanti-connect-secure/ivanti_uta0576_eop_python_volexity.yar": ("threatintel@volexity.com", {"exploit_py_ivanti_oct26"}),
+    "03-ivanti-connect-secure/ivanti_pysoxy_volexity.yar": ("threatintel@volexity.com", {"hacktool_py_pysoxy"}),
+}
+MEMORY_RULES = set().union(*(names for _, names in PUBLISHED.values()))
+
+
+def hex_strings(rule_file: str, rule: str) -> list[bytes]:
+    """A rule's plain hex strings, read from the repository's copy (nothing retyped here)."""
+    import re
+    text = (ROOT / rule_file).read_text()
+    body = text[text.index("rule " + rule):]
+    body = body[:body.index("\n}") + 2]
+    return [bytes.fromhex(h.replace(" ", "")) for h in re.findall(r"=\s*\{([0-9A-Fa-f ]+)\}", body)]
 
 
 def lime(body: bytes) -> bytes:
@@ -105,7 +132,7 @@ def test_only_rules_that_read_nothing_but_strings_run_against_memory():
         conds.update(memory.rule_conditions(Path(f).read_text()))
     assert all(c is not None for c in conds.values())
     safe = {n for n, c in conds.items() if memory.layout_reads(c) is None}
-    assert safe == {"PANOS_UPSTYLE_Payload", "M_Hunting_PacketEncryptionLayer_1", "M_Hunting_TINYSHELL_5"}
+    assert safe == {"PANOS_UPSTYLE_Payload", "M_Hunting_PacketEncryptionLayer_1", "M_Hunting_TINYSHELL_5"} | MEMORY_RULES
     assert "the file's size" in memory.layout_reads(conds["Junos_UNC3886_TINYSHELL_Published_Strings"])
     assert "bytes at fixed offsets" in memory.layout_reads(conds["u42_apt_linux_PEERSTITCH_fortigate_implant"])
     assert "a module" in memory.layout_reads(conds["SonicWall_SMA_OVERSTEP_Published_Hash"])
@@ -281,6 +308,106 @@ def test_a_memory_ingest_is_not_mistaken_for_a_zip(tmp_path):
     rec = json.loads((root / "manifest.json").read_text())["ingested"][0]
     assert rec["extracted_to"] is None
     assert [i.format for i in EvidenceView(root).memory_images()] == ["lime"]
+
+
+# ------------------------------------------------------------------ the publishers' own memory rules
+def test_publishers_memory_rules_are_reproduced_and_credited():
+    """Each rule keeps its author, compiles, reads only its strings, and the file carries the
+    publisher's licence terms: OGL v3.0 for NCSC, Volexity's BSD 2-Clause notice in full."""
+    yara = pytest.importorskip("yara")
+    for rel, (author, names) in PUBLISHED.items():
+        text = (ROOT / rel).read_text()
+        compiled = yara.compile(filepath=str(ROOT / rel))
+        assert {r.identifier for r in compiled} == names, rel
+        assert all(r.meta.get("author") == author for r in yara.compile(filepath=str(ROOT / rel))), rel
+        assert all(memory.layout_reads(c) is None for c in memory.rule_conditions(text).values()), rel
+        if author == "NCSC":
+            assert "Open Government Licence v3.0" in text and "nationalarchives.gov.uk" in text
+        if "volexity" in author:
+            assert "Copyright 2022 by Volexity, Inc." in text and "The 2-Clause BSD License" in text
+            assert 'scan_context = "' in text and "memory" in text.split('scan_context = "')[1].split('"')[0]
+
+
+def test_line_viper_joins_are_proven_by_the_rules_own_bytes():
+    """The NCSC PDF wraps the LINE VIPER strings; the rejoined base64 strings must be the base64
+    of the same rule's hex bytes at the three byte alignments, and the regexes must match the
+    base64 of the hex pattern. A wrong join breaks one or the other."""
+    import base64
+    import re
+    rel = "05-cisco-asa-ftd/asa_line_viper_ncsc.yar"
+    text = (ROOT / rel).read_text()
+    deob = text[text.index("rule LINE_VIPER_shellcode_deobfuscation_routine"):]
+    deob = deob[:deob.index("\n}")]
+    (h,) = hex_strings(rel, "LINE_VIPER_shellcode_deobfuscation_routine")
+    b64 = re.findall(r'\$ = "([A-Za-z0-9+/]+)"', deob)
+    assert [next(a for a in range(3) if s in base64.b64encode(b"\0" * a + h).decode()) for s in b64] == [0, 1, 2]
+    init = text[text.index("rule LINE_VIPER_shellcode_initial_execution"):]
+    init = init[:init.index("\n}")]
+    m = re.search(r"\{([0-9A-F ]+)\[19\]([0-9A-F ]+)\}", init)
+    h1, h2 = (bytes.fromhex(x.replace(" ", "")) for x in m.groups())
+    gap = bytes(range(19))
+    for a, rx in enumerate(re.findall(r"\$ = /(.+?)/\n", init)):
+        assert re.search(rx.replace("\\/", "/"), base64.b64encode(b"\0" * a + h1 + gap + h2).decode()), rx
+
+
+def test_line_viper_code_in_an_asa_core_dump_is_found_in_memory(tmp_path, small_pieces):
+    """A gzip-compressed ELF core holding LINE VIPER's deobfuscation routine (the rule's own hex
+    bytes): the memory checks find it at likely; the file rule does not read the image."""
+    pytest.importorskip("yara")
+    (code,) = hex_strings("05-cisco-asa-ftd/asa_line_viper_ncsc.yar", "LINE_VIPER_shellcode_deobfuscation_routine")
+    core = b"\x7fELF\x02\x01\x01" + b"\0" * 9 + struct.pack("<H", 4) + b"\0" * 46
+    body = core + plant(9000, [(6000, code)])
+    src = tmp_path / "core.gz"
+    src.write_bytes(gzip.compress(body))
+    case = Case(tmp_path / "IR-ASA-CORE")
+    m = Case.new_manifest("IR-ASA-CORE", "tester", ASA, None)
+    m["ingested"].append(case.ingest(src, "coredump", evidence_classes=["memory"]))
+    case.save(m)
+    out = analyze(case.root, ioc_dir=ioc_dir(tmp_path))
+    assert out["memory"]["images"][0]["format"] == "elf-core" and out["memory"]["images"][0]["compressed"]
+    h = next(h for h in row(out, "memory-yara")["hits"] if h["extra"]["rule"] == "LINE_VIPER_shellcode_deobfuscation_routine")
+    assert h["tier"] == "likely" and h["extra"]["detection"] == "asa-line-viper-code-yara"
+    assert h["extra"]["offset"] == len(core) + 6000
+    assert row(out, "asa-line-viper-code-yara")["status"] == "not-evaluated"
+    assert out["verdict"]["level"] == "LIKELY-COMPROMISED"
+    assert {"CVE-2025-20333", "CVE-2025-20362"} <= set(row(out, "memory-yara")["cves"])
+
+
+def test_firestarter_injector_on_a_disk_image_is_confirmed(tmp_path):
+    """Ingested as a file (a disk image's lina_cs), CISA's injector rule fires at the pack's tier."""
+    pytest.importorskip("yara")
+    s = hex_strings("05-cisco-asa-ftd/asa_firestarter_injector_cisa.yar", "CISA_261290_01")
+    data = b"\0".join([b"\x7fELF"] + s[:5]) + b"\0" * 64          # five of seven, as the condition needs
+    src = tmp_path / "lina_cs"
+    src.write_bytes(data)
+    case = Case(tmp_path / "IR-FS")
+    m = Case.new_manifest("IR-FS", "tester", ASA, None)
+    m["ingested"].append(case.ingest(src, "fxos", evidence_classes=["filesystem"]))
+    case.save(m)
+    out = analyze(case.root)
+    r = row(out, "asa-firestarter-injector-yara")
+    assert r["status"] == "hit" and r["hits"][0]["tier"] == "confirmed"
+    assert out["verdict"]["level"] == "COMPROMISED"
+    assert "memory" not in out
+
+
+def test_uta0576_exploit_header_in_memory_is_possible(tmp_path, small_pieces):
+    """Volexity's request-header rule shows a request reached the device; the verdict stays SUSPICIOUS."""
+    pytest.importorskip("yara")
+    hdr = b"POST /dana-na/auth/url_default/welcome.cgi HTTP/1.1\r\nX-DSCGI-PATH: /home/webserver/htdocs/dana/fb/smb/wu.cgi\r\n"
+    src = tmp_path / "ics.lime"
+    src.write_bytes(lime(plant(8000, [(5000, hdr)])))
+    case = Case(tmp_path / "IR-ICS")
+    m = Case.new_manifest("IR-ICS", "tester", IVANTI, None)
+    m["ingested"].append(case.ingest(src, "mem", evidence_classes=["memory"]))
+    case.save(m)
+    out = analyze(case.root, ioc_dir=ioc_dir(tmp_path))
+    h = next(h for h in row(out, "memory-yara")["hits"] if h["extra"]["rule"] == "exploit_log_ivanti_rce")
+    assert h["tier"] == "possible" and h["extra"]["detection"] == "ivanti-uta0576-rce-request-yara"
+    assert "X-DSCGI-PATH: /home/webserver/htdocs/dana/fb/smb/wu.cgi" in h["excerpt"]
+    assert out["verdict"]["level"] == "SUSPICIOUS"
+    not_run = {r["rule"] for r in out["memory"]["yara"]["rules_not_run"]}
+    assert "M_APT_Installer_SPAWNANT_1" in not_run                      # Mandiant's file rules stay file rules
 
 
 # ------------------------------------------------------------------ Volatility 3

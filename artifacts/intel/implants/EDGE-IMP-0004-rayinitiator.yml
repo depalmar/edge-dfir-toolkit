@@ -18,7 +18,7 @@ artifacts:
 anti_forensics:
   - Persists below the operating system
   - "LINE VIPER (NCSC): a core-dump request reboots the device; copying system:/text reboots it; verify of system:/text returns the legitimate firmware's hash"
-detections: [asa-lina-text-implant-grep]
+detections: [asa-lina-text-implant-grep, asa-rayinitiator-code-yara, asa-line-viper-code-yara]
 gap: >-
   LINE VIPER has a published on-box check: CISA's grep of the lina text section
   (asa-lina-text-implant-grep; RayDetect's README says that part of CISA's
@@ -26,7 +26,11 @@ gap: >-
   device"). RayInitiator itself needs a core dump analysed with RayDetect, which CISA states is
   confident only for ASA 5500-X running 9.12 and 9.14 - not Firepower or ASAv.
   The toolkit records the dump as a manual break-glass step and ingests the
-  result but does not run the scanner. Cisco separately documents firmware_update.log on
+  result but does not run the scanner. It does run NCSC's YARA rules for the
+  bootkit stages and LINE VIPER over an ingested dump or memory image
+  (asa-rayinitiator-code-yara, asa-line-viper-code-yara); NCSC does not say which
+  artefact holds the stage code, so their silence does not clear the device.
+  Cisco separately documents firmware_update.log on
   disk0, written when a fixed release finds and removes ROMMON persistence on
   the same models (asa-firmware-update-log); Cisco does not name that mechanism,
   so the toolkit does not count it as a RayInitiator detection.

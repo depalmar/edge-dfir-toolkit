@@ -60,11 +60,12 @@ Ordered by value. Effort figures are judgment, not measurement.
   device-sourced transfers, against exported data.
 - Memory images (0.17.0): the packs' string-only YARA rules, the operator's
   memory rules and the published network indicators run over every image, and
-  Volatility 3 runs with operator-supplied symbols, unscored. Next: rules
-  written for memory from the vendors' and researchers' own publications (most
-  pack rules guard on file size or an ELF header, so only three run on memory
-  today), and parsers for Volatility outputs once they are pinned against a
-  real appliance image.
+  Volatility 3 runs with operator-supplied symbols, unscored. 0.17.1 added the
+  publishers' own memory and core-dump rules for Cisco ASA (NCSC, CISA) and
+  Ivanti (Volexity), so 18 pack rules run on memory. Next: the same for the
+  other platforms wherever their publishers have released memory rules, and
+  parsers for Volatility outputs once they are pinned against a real
+  appliance image.
 - Mandiant's FRAMESTING rule (left out: its published string is ambiguous) once
   Mandiant's own copy of the rule can be read without the blog's line wrapping.
 - A real or replayed FortiOS `diagnose sys process dump` capture to pin the

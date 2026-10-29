@@ -30,11 +30,12 @@ artifacts:
 anti_forensics:
   - Survives warm reloads and software upgrades
   - Rewrites itself to disk only during a graceful reboot
-detections: [asa-fxos-lina-cs-process]
+detections: [asa-fxos-lina-cs-process, asa-firestarter-injector-yara, asa-firestarter-shellcode-yara]
 gap: >-
   The two file paths Talos lists are in the FXOS base operating system; the
-  profile has no read-only command that lists them, so only the process check
-  runs.
+  profile has no read-only command that lists them. CISA's YARA rules for the
+  injector and the shellcode run when a disk image or core dump is ingested;
+  without one, only the process check runs.
 confidence: high
 references:
   - title: Cisco Talos - UAT-4356 FIRESTARTER (23 April 2026)

@@ -100,6 +100,12 @@ or whole-file hash can only say no-hit against memory. Text ingested as memory
 - Only rules whose condition reads nothing but their strings run against
   memory (`layout_reads`); the rest are listed with the reason. Never strip a
   `filesize` or header guard to make a rule run there - write a memory rule.
+- Memory rules come from publishers who say they are for memory or core dumps
+  (Volexity's `scan_context`, CISA's "disk image or core dump", NCSC's
+  in-memory implants). Copy them from the publisher's own file in code and
+  reproduce them as published, typos included; a PDF's wrapped lines are
+  rejoined and the join proven (`test_line_viper_joins_are_proven_by_the_rules_own_bytes`).
+  Keep each publisher's licence terms in the rule file and in NOTICE.
 - A pack rule's tier is capped at likely in memory.
 - `memory-indicators` hits, and a memory match on a rule that already hit as a
   file, carry `corroborates: False`: `verdict()` scores their tier but never

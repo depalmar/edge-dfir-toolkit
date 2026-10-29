@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.17.1 - 2026-10-29 - The publishers' own memory rules
+
+Fifteen YARA rules that their publishers wrote for memory or core dumps, each
+copied from the publisher's own file and credited on the publisher's terms:
+
+- **Cisco ASA / FTD.**
+  - NCSC: LINE DANCER (2024 Malware Tipper), RayInitiator's four bootkit stages
+    and LINE VIPER's five code routines (2025 report). OGL v3.0.
+  - CISA: the FIRESTARTER injector and shellcode (AR26-113A, with the NCSC),
+    for "a disk image or core dump". The STIX bundle CISA publishes carries the
+    same rules.
+- **Ivanti Connect Secure.** Volexity: the CVE-2026-104935 request header and
+  UTA0576's in-memory privilege-escalation script (October 2026), and PySoxy
+  (January 2024). BSD 2-Clause, with Volexity's notice in each file.
+- Every one reads only its strings, so the memory checks run them over each
+  memory image: 12 rules for the ASA and 3 for Ivanti, where none ran before.
+  They are also ordinary file rules, so a disk image or recovered file is
+  scanned too.
+- The NCSC rules come from PDFs that wrap long lines. They were extracted in
+  code and the wraps rejoined; a test proves the joins against the rules' own
+  bytes (each LINE VIPER base64 string is the base64 of its hex routine).
+- Left out, with the reason recorded in `VERIFICATION.md`: Volexity's 2024
+  rules for webshells on web servers (GLASSTOKEN, reGeorg), and COMPLYSHELL,
+  which its post does not place on the appliance. RayDetect is a script, not a
+  rule set, and stays a manual step.
+- The LINE DANCER, RayInitiator and FIRESTARTER implant records list the new
+  detections; their gaps say what the rules do and do not settle.
+
 ## 0.17.0 - 2026-10-29 - Memory images
 
 A memory image ingested with `--evidence-class memory` (a LiME capture, an ELF

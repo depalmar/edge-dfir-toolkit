@@ -9,6 +9,11 @@ Detection packs: `EDGE-PACK-0006`, `EDGE-PACK-0018`, `EDGE-PACK-0019` (see `arti
 |---|---|---|
 | `asa_cve_2023_20269_default_group_session.yml` | Sigma | clientless SSL VPN sessions through `DefaultADMINGroup` or `DefaultL2LGroup` (Cisco's CVE-2023-20269 indicator) |
 | `asa_vpn_authentication_rejections.yml` | Sigma | the rejection messages Cisco lists for spraying and the CVE-2024-20481 flood; feed to a rate threshold |
+| `asa_line_dancer_ncsc.yar` | YARA | NCSC's rule for LINE DANCER's code sections (2024) |
+| `asa_rayinitiator_ncsc.yar` | YARA | NCSC's four rules for the RayInitiator GRUB bootkit's stage code (2025) |
+| `asa_line_viper_ncsc.yar` | YARA | NCSC's five rules for LINE VIPER's code (2025) |
+| `asa_firestarter_injector_cisa.yar` | YARA | CISA's rule for the FIRESTARTER injector, `lina_cs` (AR26-113A, 2026) |
+| `asa_firestarter_shellcode_cisa.yar` | YARA | CISA's rule for the shellcode FIRESTARTER injects into LINA (AR26-113A, 2026) |
 
 ## Notes
 
@@ -21,3 +26,11 @@ FXOS `lina_cs` process, `firmware_update.log` on disk0, the checkheaps counter,
 and a core dump scanned with CISA's RayDetect. Order matters: memory state is
 collected before anything that could reload the device, and a Firepower device
 is not power-cycled before `lina_cs` is checked.
+
+The YARA rules are the publishers' own and read only their strings, so `analyze`
+runs them over every core dump or memory image ingested with
+`--evidence-class memory`, and over any other file ingested. CISA and NCSC
+publish them for "a disk image or core dump" (FIRESTARTER). A core dump is
+break-glass on the ASA, and NCSC reports that a dump attempt which reboots the
+device instead could itself mean LINE VIPER. NCSC does not say which artefact
+holds RayInitiator's stage code, so no hit there does not replace RayDetect.

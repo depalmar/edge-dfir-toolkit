@@ -32,6 +32,9 @@ references:
   - title: Volexity - active exploitation of two Ivanti Connect Secure zero-days (exploit requests absent from appliance logs)
     url: https://www.volexity.com/blog/2024/01/10/active-exploitation-of-two-zero-day-vulnerabilities-in-ivanti-connect-secure-vpn/
     accessed: "2026-10-23"
+  - title: Volexity threat-intel - YARA rules for the January 2024 Ivanti post (PySoxy; BSD 2-Clause)
+    url: https://github.com/volexity/threat-intel/tree/main/2024/2024-01-10%20Ivanti%20Connect%20Secure/indicators
+    accessed: "2026-10-29"
   - title: Assetnote (now Searchlight Cyber) - detection and exploitation of the Ivanti auth bypass and RCE (source for the traversal paths and endpoints)
     url: https://www.slcyber.io/research/high-signal-detection-and-exploitation-of-ivantis-pulse-connect-secure-auth-bypass-rce
     accessed: "2026-10-22"
@@ -101,3 +104,19 @@ detect:
       SafariiOS". Only a parameter in the query string reaches a URI log, and
       Mandiant does not say which method the actor used. Mandiant does not say
       whether legitimate clients send that value, so this is possible.
+
+  - id: ivanti-pysoxy-yara
+    title: PySoxy, the SOCKS5 proxy UTA0178 ran from /tmp, in memory or a recovered file
+    type: yara
+    tier: likely
+    evidence_class: filesystem
+    rule: 03-ivanti-connect-secure/ivanti_pysoxy_volexity.yar
+    sources:
+      files: ["**"]
+    attack: [T1090]
+    notes: >-
+      Volexity's hacktool_py_pysoxy (scan_context "file,memory"). Volexity
+      recovered "a copy of PySoxy" it believes was /tmp/s.py by carving the
+      appliance's disk images. PySoxy is public, so the rule finds any copy, not
+      only UTA0178's; held at likely, since a public tool is not attribution. The
+      memory checks run it over every memory image.

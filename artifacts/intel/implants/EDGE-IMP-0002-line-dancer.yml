@@ -20,7 +20,7 @@ anti_forensics:
   - Disabled syslog
   - Forced a reboot instead of a core dump
   - Memory-only; erased by reload
-detections: [asa-lina-multiple-exec-regions, asa-syslog-disabled]
+detections: [asa-lina-multiple-exec-regions, asa-syslog-disabled, asa-line-dancer-code-yara]
 confidence: high
 references:
   - title: Cisco Talos - ArcaneDoor
