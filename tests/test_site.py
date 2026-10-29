@@ -661,3 +661,24 @@ def test_guide_workflow_figure_is_drawn_and_named(browser, tmp_path):
     phone.goto(url + "#guide")
     phone.locator("#tab-guide .wfig").wait_for()
     assert phone.evaluate("document.documentElement.scrollWidth") <= 390
+
+
+def test_intel_trend_overlap_infrastructure_and_hardening(browser, tmp_path):
+    """The intel charts add exploitation by year, overlap (labelled as not identity), the
+    publishers' own roles per record, and hardening in two kinds that are never mixed: a
+    control whose source names the record, and a control joined through a CVE."""
+    url = _build(tmp_path)
+    page = browser.new_page(viewport={"width": 1440, "height": 900})
+    page.goto(url + "#intel")
+    charts = page.locator("#tab-intel details.charts")
+    charts.wait_for()
+    text = charts.inner_text()
+    for title in ("Exploitation tied to each actor, by year", "Where actors overlap", "Infrastructure, by the record",
+                  "Hardening that would have blunted each actor"):
+        assert title.lower() in text.lower(), title
+    assert "not shared identity" in text and "toolkit's grouping" in text
+    assert page.locator("#tab-intel .ytbl .ycell").count() >= 7
+    page.goto(url + "#intel/EDGE-TA-0006")   # UNC3886: hardening sources name it directly
+    drawer = page.locator("text=Hardening that would have blunted it").first
+    drawer.wait_for()
+    assert page.locator("text=Named by the control's own source").count() >= 1

@@ -2027,6 +2027,14 @@ footer{max-width:1440px;margin:0 auto;padding:22px 28px 40px;color:var(--muted);
 .charts{margin:14px 0 4px}.charts>summary{cursor:pointer;font-weight:600;font-size:var(--fs-md);margin-bottom:8px}
 .chg{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px}.chp{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px;min-width:0}
 .chp.wide{grid-column:1/-1}.chp h4{margin:0 0 8px;font-size:var(--fs-sm);color:var(--ink-2)}
+.ytbl{border-collapse:separate;border-spacing:3px;font-size:var(--fs-xs)}.ytbl th{font-weight:500;color:var(--muted);text-align:center;padding:0 4px;font-variant-numeric:tabular-nums}
+.ytbl tbody th{text-align:left;white-space:nowrap;padding-right:10px}.ytbl tbody th a{color:var(--ink)}
+.ytbl td{width:44px;height:26px;padding:0;background:var(--line-soft);border-radius:5px;text-align:center}
+.ycell{display:flex;align-items:center;justify-content:center;width:100%;height:26px;border-radius:5px;text-decoration:none;font-weight:600;font-variant-numeric:tabular-nums}
+.ovl{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(320px,100%),1fr));gap:10px 28px}.ovl>*{min-width:0}.ovl-v{margin:4px 0 8px;padding-left:18px}
+.tbl.infra td,.tbl.infra th{font-variant-numeric:tabular-nums}.hbl-t.inl{display:inline-block;width:70px;vertical-align:middle}
+.hbl-t .two{display:flex;gap:2px;height:100%}.hbl-t .two i{display:block;height:100%;min-width:2px;background:none}.hbl-t .two i.ka{background:var(--kv-a)}.hbl-t .two i.kb{background:var(--kv-b)}
+.sw.ka{background:var(--kv-a)}.sw.kb{background:var(--kv-b)}
 .tl{display:grid;gap:3px;padding-right:16px}.tlr{display:grid;grid-template-columns:150px minmax(0,1fr);align-items:center;gap:8px;font-size:var(--fs-sm);min-height:20px}
 .tlr>a,.tlr>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.tlr.un>a,.tlr.un>span{color:var(--muted)}
 .tlk{position:relative;height:18px;border-bottom:1px dashed var(--line-soft)}.tlh .tlk{border-bottom:1px solid var(--line);height:16px}
@@ -2748,7 +2756,124 @@ function intelCharts(){
   return '<details class="charts"' + (window.innerWidth > 760 ? ' open' : '') + '><summary>Timeline, attribution and indicators</summary><div class="chg">' +
     '<section class="chp wide"><h4>Reporting timeline</h4>' + tl + '</section>' +
     '<section class="chp wide">' + attr + '</section>' +
-    '<section class="chp wide">' + ioc + '</section></div></details>';
+    '<section class="chp wide">' + ioc + '</section>' +
+    '<section class="chp wide">' + intelTrend(actors) + '</section>' +
+    '<section class="chp wide">' + intelOverlap(actors) + '</section>' +
+    '<section class="chp wide">' + intelInfra() + '</section>' +
+    '<section class="chp wide">' + intelHardening(actors) + '</section></div></details>';
+}
+
+/* ---- intel: what each record is tied to, from the records' own fields ---- */
+function cvesOf(i){   // an actor's CVEs are the CVE records that name it; an implant's are its own list
+  return i.kind === 'actor' ? D.cves.filter(function(c){ return (c.actors || []).indexOf(i.id) >= 0; }).map(function(c){ return c.id; }) : (i.cves || []).slice();
+}
+function namesOf(i){   // what a hardening source might call the record: its name, aliases and (for an actor) its implants'
+  var n = [i.name].concat(i.aliases || []);
+  if (i.kind === 'actor') (i.implants || []).forEach(function(x){ var m = INTEL[x]; if (m) n = n.concat([m.name], m.aliases || []); });
+  return n.map(function(s){ return String(s).toLowerCase(); });
+}
+/* Hardening tied to a record, in two kinds that are never mixed: a control whose own source names
+   the actor or implant, and a control whose source ties it to a CVE the record is tied to - a join
+   of two records, labelled as one. */
+function hardeningFor(i){
+  var names = namesOf(i), cv = cvesOf(i), direct = [], via = [];
+  D.hardening.forEach(function(c){
+    var bl = c.blunts.map(function(b){ return String(b).toLowerCase(); });
+    if (bl.some(function(b){ return names.indexOf(b) >= 0; })) direct.push(c);
+    else { var hit = c.blunts.filter(function(b){ return cv.indexOf(b) >= 0; }); if (hit.length) via.push({c:c, cves:hit}); }
+  });
+  return {direct:direct, via:via};
+}
+function hardSec(i){
+  var h = hardeningFor(i);
+  if (!h.direct.length && !h.via.length) return sec('Hardening', '<p class="muted small">No hardening control here names this ' + i.kind +
+    ' or a CVE tied to it. The baseline controls still apply: <a href="#hardening?platform=ALL">baseline</a>.</p>');
+  var out = '';
+  if (h.direct.length) out += '<p class="small"><i class="sw ka"></i> <b>Named by the control\'s own source</b></p><div class="links">' +
+    h.direct.map(function(c){ return lnk('#hardening/' + c.id, c.control); }).join('') + '</div>';
+  if (h.via.length) out += '<p class="small"><i class="sw kb"></i> <b>Through a CVE tied to this ' + i.kind + '</b> <span class="muted">- a join of two records: the control\'s ' +
+    'source ties it to the CVE, and this record ties the CVE to the ' + i.kind + '</span></p><ul class="srcs">' + h.via.map(function(x){
+      return '<li>' + lnk('#hardening/' + x.c.id, x.c.control) + ' <span class="small muted">via ' + x.cves.map(function(id){ return '<a href="#cves/' + id + '">' + id + '</a>'; }).join(', ') + '</span></li>'; }).join('') + '</ul>';
+  return sec('Hardening that would have blunted it', out);
+}
+function intelTrend(actors){
+  var rows = actors.map(function(a){ var by = {}; cvesOf(a).forEach(function(id){ var c = CVEIX[id]; if (c && c.added){ var y = +c.added.slice(0, 4); (by[y] = by[y] || []).push(id); } }); return [a, by]; });
+  var ys = []; rows.forEach(function(r){ Object.keys(r[1]).forEach(function(y){ ys.push(+y); }); });
+  if (!ys.length) return '';
+  var lo = Math.min.apply(null, ys), hi = Math.max.apply(null, ys.concat([+D.built.slice(0, 4)])), yrs = [];
+  for (var y = lo; y <= hi; y++) yrs.push(y);
+  function step(n){ return n >= 3 ? 'cs-high' : n === 2 ? 'cs-medium' : 'cs-low'; }   // the validated one-hue ramp: more is darker
+  return '<h4>Exploitation tied to each actor, by year</h4><p class="muted small">The CVEs each actor record is tied to, by the year CISA added them to KEV. ' +
+    'That dates CISA\'s listing, not the start of exploitation: each CVE record quotes the primary sources\' own earliest dates where they give one.</p>' +
+    '<div class="scroll"><table class="ytbl"><thead><tr><th></th>' + yrs.map(function(y){ return '<th>' + y + '</th>'; }).join('') + '</tr></thead><tbody>' +
+    rows.map(function(r){ var a = r[0], by = r[1];
+      return '<tr><th><a href="#intel/' + a.id + '">' + esc(a.name) + '</a></th>' + yrs.map(function(y){ var l = by[y] || [];
+        return '<td>' + (l.length ? '<a class="ycell ' + step(l.length) + '" href="#cves/' + l[0] + '" title="' + esc(a.name + ', ' + y + ': ' + l.join(', ')) + '">' + l.length + '</a>' : '') + '</td>'; }).join('') + '</tr>'; }).join('') +
+    '</tbody></table></div><div class="skey"><span><i class="sw cs-low"></i>1 CVE</span><span><i class="sw cs-medium"></i>2</span><span><i class="sw cs-high"></i>3 or more</span></div>';
+}
+function intelOverlap(actors){
+  var cv = {}, pl = {}; actors.forEach(function(a){ cv[a.id] = cvesOf(a); pl[a.id] = a.platforms; });
+  var pairs = [];
+  actors.forEach(function(a, i){ actors.slice(i + 1).forEach(function(b){
+    var sc = cv[a.id].filter(function(x){ return cv[b.id].indexOf(x) >= 0; }), sp = pl[a.id].filter(function(x){ return pl[b.id].indexOf(x) >= 0; });
+    if (sc.length || sp.length) pairs.push({a:a, b:b, cves:sc, plats:sp}); }); });
+  pairs.sort(function(x, y){ return y.cves.length - x.cves.length || y.plats.length - x.plats.length; });
+  /* infrastructure: the same value in more than one publisher's set, and /24 neighbourhoods holding
+     addresses from more than one set. The /24 grouping is the toolkit's arithmetic, not a role. */
+  var where = {}, nb = {};
+  D.iocs.forEach(function(s){ s.ind.forEach(function(v){
+    var k = v[0] + ' ' + v[1]; (where[k] = where[k] || {}); where[k][s.id] = v;
+    if (v[0] === 'ipv4'){ var n = v[1].split('.').slice(0, 3).join('.') + '.0/24'; (nb[n] = nb[n] || {}); nb[n][s.id] = (nb[n][s.id] || 0) + 1; } }); });
+  var shared = Object.keys(where).filter(function(k){ return Object.keys(where[k]).length > 1; });
+  var hoods = Object.keys(nb).filter(function(n){ return Object.keys(nb[n]).length > 1; });
+  function setName(id){ var s = IOC[id]; return s.publisher + ' ' + s.published; }
+  return '<h4>Where actors overlap</h4><p class="muted small">Shared targets, not shared identity. The toolkit never merges two clusters ' +
+    'unless the reporters themselves equate them, so read an overlap as a lead for your own hunting.</p>' +
+    '<div class="ovl">' + (pairs.length ? '<ul class="cvs-l">' + pairs.map(function(p){
+      return '<li><a href="#intel/' + p.a.id + '">' + esc(p.a.name) + '</a> and <a href="#intel/' + p.b.id + '">' + esc(p.b.name) + '</a>' +
+        '<div class="small muted">' + (p.cves.length ? p.cves.length + (p.cves.length === 1 ? ' CVE' : ' CVEs') + ' in common' : 'no CVE in common') +
+        (p.plats.length ? ' · ' + p.plats.length + (p.plats.length === 1 ? ' platform' : ' platforms') + ': ' + esc(p.plats.map(function(x){ return ABBR[x] || PN[x]; }).join(', ')) : '') + '</div>' +
+        (p.cves.length ? '<div class="links">' + p.cves.map(function(id){ return lnk('#cves/' + id, id, 'cve'); }).join('') + '</div>' : '') + '</li>'; }).join('') + '</ul>'
+      : '<p class="small muted">No two actor records share a CVE or a platform.</p>') +
+    '<div><b class="ch">Shared infrastructure</b><p class="small">' + (shared.length ? shared.length + (shared.length === 1 ? ' value appears' : ' values appear') +
+      ' in more than one publisher\'s set:' : 'No value appears in two publishers\' sets.') + '</p>' +
+      (shared.length ? '<ul class="small ovl-v">' + shared.map(function(k){ var t = k.split(' '); return '<li><code>' + esc(defang(t[0], t.slice(1).join(' '))) + '</code> - ' +
+        Object.keys(where[k]).map(function(id){ return esc(setName(id) + ' (' + (ROLE[where[k][id][2]] || where[k][id][2]) + ')'); }).join('; ') + '</li>'; }).join('') + '</ul>' : '') +
+      '<p class="small">' + (hoods.length ? hoods.length + (hoods.length === 1 ? ' /24 holds' : ' /24s hold') + ' addresses from more than one set: ' +
+        hoods.map(function(n){ return '<code>' + esc(n.replace(/\./g, '[.]')) + '</code> (' + Object.keys(nb[n]).map(setName).map(esc).join('; ') + ')'; }).join(', ')
+        : 'No /24 holds addresses from two different sets.') + ' A shared /24 is the toolkit\'s grouping; it says nothing about who controls the block.</p></div></div>';
+}
+function intelInfra(){
+  var NET = ['ipv4', 'ipv6', 'domain', 'url'], HASH = ['sha256', 'sha1', 'md5'];
+  var groups = {};
+  D.iocs.forEach(function(s){ var owner = (s.actors || [])[0] || (s.implants || [])[0] || '-'; (groups[owner] = groups[owner] || []).push(s); });
+  var rows = Object.keys(groups).map(function(k){ var c = {net:0, hash:0, acct:0, other:0, own:0, unk:0, sets:groups[k].length};
+    groups[k].forEach(function(s){ s.ind.forEach(function(v){ if (NET.indexOf(v[0]) >= 0){ c.net++; if (v[2] === 'actor-controlled') c.own++; if (v[2] === 'unknown') c.unk++; }
+      else if (HASH.indexOf(v[0]) >= 0) c.hash++; else if (v[0] === 'account') c.acct++; else c.other++; }); });
+    return [k, c]; }).sort(function(x, y){ return (y[1].net + y[1].hash + y[1].acct + y[1].other) - (x[1].net + x[1].hash + x[1].acct + x[1].other); });
+  return '<h4>Infrastructure, by the record its publisher ties it to</h4><p class="muted small">What each record\'s published indicators are, and how much of ' +
+    'its network infrastructure the publisher itself calls actor-controlled. A publisher that gave no roles shows 0 actor-controlled and every value under role not stated: that is silence, not a finding.</p>' +
+    '<div class="scroll"><table class="tbl infra"><thead><tr><th>Record</th><th>Sets</th><th>Addresses, domains, URLs</th><th>File hashes</th><th>Accounts</th><th>Other</th>' +
+    '<th>Actor-controlled, by the publisher</th><th>Role not stated</th></tr></thead><tbody>' + rows.map(function(r){ var k = r[0], c = r[1], m = INTEL[k];
+      var pct = c.net ? Math.round(100 * c.own / c.net) : null;
+      return '<tr><th>' + (m ? '<a href="#intel/' + k + '">' + esc(m.name) + '</a>' : '<span class="muted">no actor or implant record</span>') + '</th><td>' + c.sets + '</td><td>' + c.net + '</td><td>' + c.hash +
+        '</td><td>' + c.acct + '</td><td>' + c.other + '</td><td>' + (pct === null ? '<span class="muted">-</span>' :
+        '<span class="hbl-t inl" title="' + c.own + ' of ' + c.net + '"><i style="width:' + pct + '%"></i></span> ' + c.own + ' (' + pct + '%)') + '</td><td>' +
+        (c.net ? c.unk + (c.unk === c.net ? ' <span class="muted small">(all: the publisher gave no roles)</span>' : '') : '<span class="muted">-</span>') + '</td></tr>'; }).join('') +
+    '</tbody></table></div>';
+}
+function intelHardening(all){
+  var recs = all.concat(D.intel.filter(function(i){ return i.kind === 'implant'; }));
+  var rows = recs.map(function(i){ var h = hardeningFor(i); return {i:i, d:h.direct.length, v:h.via.length}; }).filter(function(r){ return r.d + r.v; })
+    .sort(function(a, b){ return (b.d + b.v) - (a.d + a.v) || (a.i.name < b.i.name ? -1 : 1); });
+  var mx = Math.max.apply(null, rows.map(function(r){ return r.d + r.v; }).concat([1]));
+  return '<h4>Hardening that would have blunted each actor and implant</h4><p class="muted small">Two kinds, never mixed. <i class="sw ka"></i> the control\'s own ' +
+    'source names the actor or implant. <i class="sw kb"></i> the control\'s source ties it to a CVE that the actor or implant record is tied to: a join of two ' +
+    'records, so check both before relying on it. Each record\'s drawer lists the controls.</p><ul class="hbl">' + rows.map(function(r){
+      return '<li><a class="hbl-r" href="#intel/' + r.i.id + '" title="' + esc(r.i.name + ': ' + r.d + ' named by the source, ' + r.v + ' through a CVE') + '"><span class="hbl-l">' + esc(r.i.name) +
+        '</span><span class="hbl-t"><span class="two" style="width:' + ((r.d + r.v) / mx * 100).toFixed(1) + '%">' + (r.d ? '<i class="ka" style="flex:' + r.d + '"></i>' : '') +
+        (r.v ? '<i class="kb" style="flex:' + r.v + '"></i>' : '') + '</span></span><span class="hbl-n">' + (r.d + r.v) + '</span></a></li>'; }).join('') + '</ul>' +
+    '<div class="skey"><span><i class="sw ka"></i>named by the control\'s source</span><span><i class="sw kb"></i>through a CVE (a join)</span></div>';
 }
 function iocChip(i){ var n = i.iocs.reduce(function(t, x){ return t + IOC[x].ind.length; }, 0);
   return n ? '<span class="chip ioc-c" title="Indicators from the publishers\' own files">' + n + (n === 1 ? ' indicator' : ' indicators') + '</span>' : ''; }
@@ -3041,6 +3166,7 @@ intel: {
         ['Implants', i.implants.map(function(x){ return lnk('#intel/' + x, INTEL[x] ? INTEL[x].name : x, 'implant'); })],
         ['Detections', i.packs.length ? i.packs.map(function(x){ return lnk('#detections?pack=' + x, x, 'mono'); }) : ['<span class="chip ghost">no detection pack yet</span>']],
         ['Hunts', hl_]], true);
+      h += hardSec(i);
     } else {
       h = facts([['Kind', b('implant', 'kind-implant')], ['Type', b(i.type, 'itype')], ['Resides', b(i.resides, 'res res-' + i.resides)],
         ['Survives reboot', b(i.reboot, 'surv surv-' + i.reboot)], ['Survives upgrade', b(i.upgrade, 'surv surv-' + i.upgrade)],
@@ -3051,6 +3177,7 @@ intel: {
       h += para(i.summary);
       if (i.cves.length) h += '<div class="links">' + chips(i.cves, 'cve') + '</div>';
       if (!i.detections.length) h += sec('Detection coverage', '<div class="links">' + b('coverage gap', 'gap-b') + '</div>' + (i.gap ? '<p class="note">' + rich(i.gap) + '</p>' : ''));
+      h += hardSec(i);
       h += sec('Artifacts', list(i.artifacts));
       h += sec('Anti-forensics', list(i.anti_forensics));
       h += connects([['Platforms', plats],

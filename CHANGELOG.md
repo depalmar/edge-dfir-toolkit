@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.16.0 - 2026-10-29 - Threat intel: trends, overlap, infrastructure, hardening
+
+- **Exploitation by year.** A grid of the CVEs each actor record is tied to, by
+  the year CISA added them to KEV, on the validated one-hue ramp. Every cell
+  opens the CVE. It is labelled as dating CISA's listing, not the start of
+  exploitation; the CVE records quote the primary sources' own earliest dates.
+- **Where actors overlap.**
+  - Pairs of actors that share CVEs or platforms, with the CVEs linked.
+  - Values that appear in more than one publisher's set.
+  - /24 neighbourhoods holding addresses from more than one set. That grouping
+    is the toolkit's arithmetic and says nothing about who controls a block.
+  - The section says plainly that this is shared targets, not shared identity:
+    clusters are never merged unless the reporters equate them.
+- **Infrastructure by record.** For each actor or implant that a set is tied
+  to: its addresses, file hashes, accounts and other indicators, then how many
+  its publisher calls actor-controlled, and how many have no stated role. A
+  publisher that gave no roles is shown as silence, not as "0% actor-controlled".
+- **Hardening for each actor and implant**, in two kinds that are never mixed:
+  - controls whose own source names the record, an alias or one of its
+    implants;
+  - controls whose source ties them to a CVE that the record is tied to. This is
+    a join of two records and is labelled as one.
+  The chart ranks both, and every actor and implant drawer lists the controls
+  under the same two headings.
+- A browser test pins the four sections and the drawer's split.
+
 ## 0.15.2 - 2026-10-29 - The guide, end to end
 
 - **A workflow figure** opens the guide. It shows the order a case moves in
