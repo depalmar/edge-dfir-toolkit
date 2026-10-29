@@ -786,6 +786,22 @@ Every rule was copied in code from the publisher's own copy, read on 29 October 
 | NCSC Line Runner Tipper | No rules | It publishes detection guidance, no YARA |
 | A summariser's quote of the Volexity 2026 post | Checked against the raw page, then used | The first text search missed it: the page sets exec() as code, so stripping the tags left a space before the comma. The sentence is on the page word for word |
 
+## 2026-10-29 - memory rules for the other platforms (0.17.2)
+
+Read on 29 October 2026, each from the publisher's own copy:
+
+| Source | Copy read | Decision | Basis |
+|---|---|---|---|
+| Volexity threat-intel, 2024-04-12 Palo Alto Networks GlobalProtect | indicators/rules.yar at commit 68329642, sha256 875b0286...4664 | `hacktool_golang_reversessh_fahrj`, `susp_any_jarischf_user_path` taken (file and memory); `susp_any_gost_arguments` taken as a file rule | The live post shows the binary fetched to /tmp/lowdp and run with "nohup /tmp/lowdp -l -p 31289", output written to the GlobalProtect u.css, named reverse-sshx64 with SHA256 161fd76c...77a6, the hash1 of both rules; and script versions that fetch GOST "to establish SOCKS5 and RTCP tunnels" |
+| Same file, `apt_malware_py_upstyle` | - | Not added again | `PANOS_UPSTYLE_Payload` already carries its strings and condition, and the memory checks already run it |
+| JSCU-NL, COATHANGER | iocs/coathanger.yar at commit 9ea1c95f, sha256 65724284...ee0c | Both rules taken as file rules | The README lists "YARA rules as provided in the advisory"; both conditions check an ELF header and a size under 5 MB. Apache 2.0 |
+| NCSC-NL, citrix-2025 | core-dump-checks/iocs.yar at commit a1b0b5f0, sha256 fc071672...0389 | Not copied; the guide, the NetScaler profile and the rules README point to it for `--memory-yara` | EUPL v1.2; the maintainer chose to point to the file rather than vendor it. 33 single-string rules for "IOCs related to CVE-2025-5349, CVE-2025-5777 and CVE-2025-6543", each with its own `confidence_level`; six are IP addresses and several are ordinary Python strings |
+| Volexity threat-intel, 2026-07-17 SonicWall | rules.yar (UTA0533) | Not added | The post: UTA0533 compromised "SonicWall SMA 1000 series appliances"; the catalog's EDGE-0006 is the SMA 100 series |
+| Volexity threat-intel, 2026-06-04 VerdantBamboo | rules.yar (BRICKSTORM, PLENET, AGENTPSD) | Not added | The post places them on an Egnyte Storage Sync appliance and a pfSense firewall, neither a catalog platform |
+| GTIG, OVERSTEP (16 July 2025) | The post's code block | Not added | `G_Backdoor_OVERSTEP_1` checks an ELF header and size, and its `$s4` is wrapped across three lines in the page, so the exact string is not certain. The hash rule and path checks already cover OVERSTEP's files |
+| Mandiant, CVE-2022-42475 (BOLDMOVE) | The post's HTML | Nothing to add | No rule blocks on the page |
+| F5 K000160486 (c05d5254) | Rendered fetch | Nothing to add | Indicators and the System Scanner, no YARA |
+
 ## Device verification
 
 | Date | Platform / release | Step | Change | Basis |

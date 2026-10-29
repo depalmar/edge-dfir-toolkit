@@ -62,10 +62,10 @@ Ordered by value. Effort figures are judgment, not measurement.
   memory rules and the published network indicators run over every image, and
   Volatility 3 runs with operator-supplied symbols, unscored. 0.17.1 added the
   publishers' own memory and core-dump rules for Cisco ASA (NCSC, CISA) and
-  Ivanti (Volexity), so 18 pack rules run on memory. Next: the same for the
-  other platforms wherever their publishers have released memory rules, and
-  parsers for Volatility outputs once they are pinned against a real
-  appliance image.
+  Ivanti (Volexity); 0.17.2 added PAN-OS (Volexity) and pointed NetScaler at
+  NCSC-NL's EUPL rules, so 20 pack rules run on memory. Next: a SonicWall SMA
+  1000 platform, for which Volexity's UTA0533 rules are ready, and parsers for
+  Volatility outputs once they are pinned against a real appliance image.
 - Mandiant's FRAMESTING rule (left out: its published string is ambiguous) once
   Mandiant's own copy of the rule can be read without the blog's line wrapping.
 - A real or replayed FortiOS `diagnose sys process dump` capture to pin the

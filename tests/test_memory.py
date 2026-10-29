@@ -41,8 +41,23 @@ PUBLISHED = {   # file -> (author meta, rule names): the publishers' own memory 
     "03-ivanti-connect-secure/ivanti_uta0576_rce_request_volexity.yar": ("threatintel@volexity.com", {"exploit_log_ivanti_rce"}),
     "03-ivanti-connect-secure/ivanti_uta0576_eop_python_volexity.yar": ("threatintel@volexity.com", {"exploit_py_ivanti_oct26"}),
     "03-ivanti-connect-secure/ivanti_pysoxy_volexity.yar": ("threatintel@volexity.com", {"hacktool_py_pysoxy"}),
+    "01-panos-globalprotect/panos_reverse_ssh_volexity.yar": ("threatintel@volexity.com", {
+        "hacktool_golang_reversessh_fahrj", "susp_any_jarischf_user_path"}),
 }
 MEMORY_RULES = set().union(*(names for _, names in PUBLISHED.values()))
+FILE_ONLY = {   # publishers' rules that check a file's size or header: they never run against memory
+    "01-panos-globalprotect/panos_gost_arguments_volexity.yar": ("threatintel@volexity.com", {"susp_any_gost_arguments"}),
+    "02-fortinet-fortios/fortios_coathanger_jscu.yar": ("NLD MIVD - JSCU", {"COATHANGER_beacon", "COATHANGER_files"}),
+}
+
+
+def text_strings(rule_file: str, rule: str) -> list[bytes]:
+    """A rule's plain text strings, read from the repository's copy (nothing retyped here)."""
+    import re
+    text = (ROOT / rule_file).read_text()
+    body = text[text.index("rule " + rule):]
+    body = body[:body.index("\n}") + 2]
+    return [s.encode() for s in re.findall(r'\$\w*\s*=\s*"([^"\\]*)"', body)]
 
 
 def hex_strings(rule_file: str, rule: str) -> list[bytes]:
@@ -313,19 +328,25 @@ def test_a_memory_ingest_is_not_mistaken_for_a_zip(tmp_path):
 # ------------------------------------------------------------------ the publishers' own memory rules
 def test_publishers_memory_rules_are_reproduced_and_credited():
     """Each rule keeps its author, compiles, reads only its strings, and the file carries the
-    publisher's licence terms: OGL v3.0 for NCSC, Volexity's BSD 2-Clause notice in full."""
+    publisher's licence terms: OGL v3.0 for NCSC, Volexity's BSD 2-Clause notice in full,
+    Apache 2.0 for JSCU-NL. A file-only rule is checked to read more than its strings."""
+    import re
     yara = pytest.importorskip("yara")
-    for rel, (author, names) in PUBLISHED.items():
+    for rel, (author, names) in (PUBLISHED | FILE_ONLY).items():
         text = (ROOT / rel).read_text()
         compiled = yara.compile(filepath=str(ROOT / rel))
         assert {r.identifier for r in compiled} == names, rel
         assert all(r.meta.get("author") == author for r in yara.compile(filepath=str(ROOT / rel))), rel
-        assert all(memory.layout_reads(c) is None for c in memory.rule_conditions(text).values()), rel
+        reads = [memory.layout_reads(c) for c in memory.rule_conditions(text).values()]
+        assert all(r is None for r in reads) if rel in PUBLISHED else all(r for r in reads), rel
+        if "JSCU" in author:
+            assert "Apache License, Version 2.0" in text
         if author == "NCSC":
             assert "Open Government Licence v3.0" in text and "nationalarchives.gov.uk" in text
         if "volexity" in author:
             assert "Copyright 2022 by Volexity, Inc." in text and "The 2-Clause BSD License" in text
-            assert 'scan_context = "' in text and "memory" in text.split('scan_context = "')[1].split('"')[0]
+            contexts = re.findall(r'scan_context = "([^"]+)"', text)
+            assert contexts and all(("memory" in c) == (rel in PUBLISHED) for c in contexts), rel
 
 
 def test_line_viper_joins_are_proven_by_the_rules_own_bytes():
@@ -408,6 +429,62 @@ def test_uta0576_exploit_header_in_memory_is_possible(tmp_path, small_pieces):
     assert out["verdict"]["level"] == "SUSPICIOUS"
     not_run = {r["rule"] for r in out["memory"]["yara"]["rules_not_run"]}
     assert "M_APT_Installer_SPAWNANT_1" in not_run                      # Mandiant's file rules stay file rules
+
+
+def test_reverse_ssh_on_a_panos_memory_image_is_likely(tmp_path, small_pieces):
+    """Four of reverse-ssh's function names (the rule's own strings) in a PAN-OS image."""
+    pytest.importorskip("yara")
+    names = text_strings("01-panos-globalprotect/panos_reverse_ssh_volexity.yar", "hacktool_golang_reversessh_fahrj")[:4]
+    src = tmp_path / "fw.lime"
+    src.write_bytes(lime(plant(9000, [(5000 + 40 * i, s) for i, s in enumerate(names)])))
+    case = Case(tmp_path / "IR-PAN")
+    m = Case.new_manifest("IR-PAN", "tester", "EDGE-0001", None)
+    m["ingested"].append(case.ingest(src, "mem", evidence_classes=["memory"]))
+    case.save(m)
+    out = analyze(case.root, ioc_dir=ioc_dir(tmp_path))
+    h = next(h for h in row(out, "memory-yara")["hits"] if h["extra"]["rule"] == "hacktool_golang_reversessh_fahrj")
+    assert h["tier"] == "likely" and h["extra"]["detection"] == "panos-3400-reverse-ssh-yara"
+    not_run = {r["rule"]: r["why"] for r in out["memory"]["yara"]["rules_not_run"]}
+    assert not_run["susp_any_gost_arguments"] == "the file's size"        # Volexity's scan_context is "file"
+
+
+def test_coathanger_rules_read_files_not_memory(tmp_path):
+    """JSCU-NL's rules check for an ELF header: they fire on a recovered binary and are listed as
+    not run against a memory image holding the same bytes."""
+    pytest.importorskip("yara")
+    names = text_strings("02-fortinet-fortios/fortios_coathanger_jscu.yar", "COATHANGER_files")[:4]
+    elf = b"\x7fELF\x02\x01\x01" + b"\0" * 9 + struct.pack("<H", 2) + b"\0" * 46 + b"\0".join(names) + b"\0" * 64
+    src = tmp_path / "smartctl"
+    src.write_bytes(elf)
+    case = Case(tmp_path / "IR-FGT")
+    m = Case.new_manifest("IR-FGT", "tester", "EDGE-0002", None)
+    m["ingested"].append(case.ingest(src, "image", evidence_classes=["filesystem"]))
+    case.save(m)
+    out = analyze(case.root)
+    r = row(out, "fortios-coathanger-jscu-yara")
+    assert r["status"] == "hit" and r["hits"][0]["tier"] == "confirmed"
+    raw = tmp_path / "fgt.raw"
+    raw.write_bytes(plant(4096, [(100, elf)]))
+    case2 = Case(tmp_path / "IR-FGT-MEM")
+    m2 = Case.new_manifest("IR-FGT-MEM", "tester", "EDGE-0002", None)
+    m2["ingested"].append(case2.ingest(raw, "mem", evidence_classes=["memory"]))
+    case2.save(m2)
+    out2 = analyze(case2.root, ioc_dir=ioc_dir(tmp_path))
+    assert {"COATHANGER_beacon", "COATHANGER_files"} <= {r["rule"] for r in out2["memory"]["yara"]["rules_not_run"]}
+    assert row(out2, "fortios-coathanger-jscu-yara")["status"] == "not-evaluated"
+
+
+def test_a_rules_own_confidence_is_shown_beside_the_hit(tmp_path, small_pieces):
+    """NCSC-NL's rules rate themselves (confidence_level); the hit carries the publisher's rating."""
+    pytest.importorskip("yara")
+    rules = tmp_path / "rated.yar"
+    rules.write_text('rule Rated { meta: confidence_level = "medium" strings: $a = "edge-rated-marker" condition: $a }\n'
+                     'rule Unrated { strings: $a = "edge-plain-marker" condition: $a }\n')
+    out = analyze(mem_case(tmp_path, lime(plant(9000, [(5000, b"edge-rated-marker"), (7000, b"edge-plain-marker")]))),
+                  memory_yara=[rules], ioc_dir=ioc_dir(tmp_path))
+    by = {h["extra"]["rule"]: h for h in row(out, "memory-yara-own")["hits"]}
+    assert by["Rated"]["detail"].endswith("the rule's own confidence: medium")
+    assert by["Rated"]["extra"]["rule_confidence"] == "medium" and "rule_confidence" not in by["Unrated"]["extra"]
 
 
 # ------------------------------------------------------------------ Volatility 3

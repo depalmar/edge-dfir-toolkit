@@ -159,3 +159,20 @@ detect:
     evidence_class: integrity
     attack: [T1554]
     notes: Requires --baseline from a clean device or image of the same build. Without it this detection is not evaluated.
+
+  - id: fortios-coathanger-jscu-yara
+    title: MIVD and AIVD's COATHANGER rules match a recovered file
+    type: yara
+    tier: confirmed
+    evidence_class: persistence
+    rule: 02-fortinet-fortios/fortios_coathanger_jscu.yar
+    sources:
+      files: ["**"]
+    attack: [T1554, T1071]
+    notes: >-
+      The advisory's own rules, as JSCU-NL publishes them: COATHANGER_beacon (the
+      code that builds its "GET / HTTP/2" beacon) and COATHANGER_files (four of
+      its file names in an ELF under 5 MB). File rules - each checks for an ELF
+      header - so they read a disk image or recovered binaries, not a memory
+      image. COATHANGER hides its files on a running device, so the image has to
+      come from outside it.

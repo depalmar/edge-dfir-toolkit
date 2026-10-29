@@ -19,3 +19,9 @@ it to your raw-message field in the Sigma pipeline. Keyword rules need no mappin
 
 
 The memory-disclosure signature (non-printable bytes inside authentication-failure lines in ns.log) is implemented as a coded check, `netscaler_auth_nonprintable`, because Lucene-family backends cannot express it reliably in Sigma.
+
+Core dumps: NCSC-NL's own YARA rules for NetScaler packet-engine core files
+(`core-dump-checks/iocs.yar` in github.com/NCSC-NL/citrix-2025, CVE-2025-5349,
+CVE-2025-5777 and CVE-2025-6543) are EUPL-licensed and not copied here. Copy
+the `NSPPE-*` files off `/var/core`, ingest them with `--evidence-class memory`
+and pass NCSC-NL's file to `analyze` with `--memory-yara`.

@@ -1,5 +1,35 @@
 # Changelog
 
+## 0.17.2 - 2026-10-29 - Memory rules for the other platforms
+
+A survey of every other platform's publishers for rules written for memory or
+core dumps, with each decision recorded in `VERIFICATION.md`:
+
+- **PAN-OS.** Volexity's rules for the reverse-SSH tool UTA0218 ran on
+  GlobalProtect firewalls after CVE-2024-3400 (scan context file and memory),
+  and its file-only rule for GOST tunnel arguments in small scripts. Volexity's
+  UPSTYLE rule was already in the pack with the same strings and condition.
+- **FortiOS.** MIVD and AIVD's COATHANGER rules, as JSCU-NL publishes them
+  (Apache 2.0). They check for an ELF header, so they are file rules for a disk
+  image or recovered binaries; the memory checks list them as not run.
+- **NetScaler.** NCSC-NL's 33 rules for packet-engine core dumps are licensed
+  under the EUPL and are not copied in. The guide, the NetScaler profile's
+  `core_list` step and the rules README say how to download them and pass them
+  with `--memory-yara`.
+- **A rule's own confidence.** A memory hit on a rule that rates itself
+  (`confidence_level`, as NCSC-NL's do, or `confidence`) now shows that rating
+  beside the toolkit's tier.
+- **Not added, with the reason:**
+  - Volexity's UTA0533 rules: they are for the SonicWall SMA 1000 series, and
+    the catalog's platform is the SMA 100 series.
+  - VerdantBamboo's BRICKSTORM rules: they are for an Egnyte appliance and a
+    pfSense firewall, neither of them a platform here.
+  - GTIG's OVERSTEP rule: a file rule with a string the blog wraps across
+    lines; the existing hash rule and path checks cover the files.
+  - F5, IOS XE and FortiOS BOLDMOVE: no published rules.
+
+Twenty pack rules now run on memory.
+
 ## 0.17.1 - 2026-10-29 - The publishers' own memory rules
 
 Fifteen YARA rules that their publishers wrote for memory or core dumps, each

@@ -255,6 +255,20 @@ def _owned(rel: int, first: bool, last: bool) -> bool:
     return (rel >= m or first) and (rel < CHUNK - OVERLAP + m or last)
 
 
+def _rule_confidence(match: Any) -> str | None:
+    """The confidence a rule states for itself (NCSC-NL's rules carry confidence_level), so a
+    hit shows the publisher's rating beside the toolkit's tier."""
+    meta = getattr(match, "meta", None) or {}
+    v = meta.get("confidence_level") or meta.get("confidence")
+    return str(v) if v not in (None, "") else None
+
+
+def _confidence_note(d: dict[str, Any], conf: str | None) -> None:
+    if conf:
+        d["detail"] += f"; the rule's own confidence: {conf}"
+        d["extra"]["rule_confidence"] = conf
+
+
 def _context(data: bytes, off: int, length: int, wide: bool) -> str:
     """The text around a match. Memory is mostly padding, so runs of bytes that are not printable
     ASCII are shown as one separator rather than as \\x00 after \\x00."""
@@ -336,7 +350,8 @@ def scan(view: Any, platform_id: str | None, packs: list[dict[str, Any]], own: l
                             key = f"{own_file[m.namespace]}::{m.rule}"
                         # A rule matches once per piece; its string matches have offsets in the image, so the
                         # pieces' overlap is removed by keeping each offset once.
-                        f = out[kind]["found"].setdefault(img.ref, {}).setdefault(key, {"offsets": set(), "excerpt": None})
+                        f = out[kind]["found"].setdefault(img.ref, {}).setdefault(
+                            key, {"offsets": set(), "excerpt": None, "confidence": _rule_confidence(m)})
                         insts = sorted((i for s in m.strings for i in s.instances), key=lambda i: i.offset)
                         for i in insts:
                             if len(f["offsets"]) < 1000:
@@ -438,6 +453,7 @@ def results(mem: dict[str, Any], file_hits: set[tuple[str, str]] | None = None) 
                                                         "pack": r["pack"], "offset": offs[0] if offs else None,
                                                         "string_matches": len(offs)}))
             d["tier"] = r["tier"]
+            _confidence_note(d, f.get("confidence"))
             if (file, rule) in file_hits:
                 d["corroborates"] = False
                 d["detail"] += "; the same rule hit as a file in this case, so this match does not count again"
@@ -457,6 +473,7 @@ def results(mem: dict[str, Any], file_hits: set[tuple[str, str]] | None = None) 
                                extra={"rule": rule, "file": file, "offset": offs[0] if offs else None,
                                       "string_matches": len(offs)}))
                 d["tier"] = "possible"
+                _confidence_note(d, f.get("confidence"))
                 own_hits.append(d)
         rows.append(_row("memory-yara-own", "Your YARA rules match in a memory image", "possible", mem["own"],
                          own_hits, OWN_NOTE, [], []))

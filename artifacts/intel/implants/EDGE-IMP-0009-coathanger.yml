@@ -24,7 +24,7 @@ anti_forensics:
   - preload.so hooks file and process calls to hide anything with GID 90 and any path containing "ld.so.preload" or ".bd.key"
   - Persists through upgrade ("The malware survives a firmware upgrade")
   - The advisory warns the hidden folder name (.bd.key) and the process name (httpsd) vary between samples
-detections: [fortios-fs-hash-baseline, fortios-coathanger-smartctl, fortios-coathanger-httpsd-socket, fortios-coathanger-preload-map]
+detections: [fortios-fs-hash-baseline, fortios-coathanger-smartctl, fortios-coathanger-httpsd-socket, fortios-coathanger-preload-map, fortios-coathanger-jscu-yara]
 gap: >-
   The CLI checks key on names the advisory says vary (httpsd, .bd.key), and an
   implant that has not reached its C2 shows no socket. /data2/.bd.key and

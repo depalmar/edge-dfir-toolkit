@@ -138,7 +138,9 @@ with memory first, then export logs and configuration, then (and only then) the
 external Integrity Checker, which reboots the appliance.
 
 **NetScaler.** Live response works, but image the disks (break-glass) before
-anyone reboots: anything on the memory-disk root is lost.
+anyone reboots: anything on the memory-disk root is lost. Packet-engine core
+files under `/var/core` can be copied off and scanned with NCSC-NL's
+core-dump rules (Memory images, under Analysis, says how).
 
 **Cisco ASA / FTD.** The memory-region check runs before anything else. Do not
 request a core dump until it has been reviewed; then follow the CISA ED 25-03
@@ -296,7 +298,21 @@ match across a seam is seen whole, and reports three checks beside the packs:
 A match shows that the bytes were in memory, not where they came from. A raw
 image keeps physical pages in no order, so the strings of one program can sit
 far apart, and a rule that needs several of them can miss: no hit is weak
-evidence. Offsets in the report are offsets in the image file.
+evidence. Offsets in the report are offsets in the image file. A rule that
+states its own confidence, as NCSC-NL's do, has it shown beside the hit.
+
+NetScaler has no memory rule in the packs. NCSC-NL publishes its own for the
+packet engine's core dumps, the `NSPPE-*` files the `core_list` step lists
+under `/var/core`: `core-dump-checks/iocs.yar` in
+github.com/NCSC-NL/citrix-2025, "for IOCs related to CVE-2025-5349,
+CVE-2025-5777 and CVE-2025-6543". It is licensed under the EUPL, so the
+toolkit does not carry a copy. Download it, copy the core files off the
+device, ingest them with `--evidence-class memory`, and pass the rules with
+`--memory-yara`. NCSC-NL warns that "Some of these checks are meant to hunt for
+compromises, while other checks verify if you are compromised". Six of the
+rules are IP addresses, and a few (`python3 -c`, `base64.b64decode`) are
+ordinary Python strings, so scan the core files themselves rather than a
+whole-VM snapshot.
 
 The Memory section of the report also lists the Linux kernel banners found in
 the image. Volatility 3 needs symbols built for that exact kernel, and without

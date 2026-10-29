@@ -14,6 +14,8 @@ Detection packs: `EDGE-PACK-0001`, `EDGE-PACK-0002`, `EDGE-PACK-0025`, `EDGE-PAC
 | `panos_upstyle_backdoor.yar` | YARA | UPSTYLE payload and its .pth loader |
 | `panos_cve_2025_0108_unauth_traversal.yml` | Sigma | CVE-2025-0108 double-encoded traversal out of /unauth/ (discoverer's request shape) |
 | `panos_cve_2025_0108_0111_threat_id.yml` | Sigma | Threat IDs 510000 and 510001 for CVE-2025-0108 and CVE-2025-0111 |
+| `panos_reverse_ssh_volexity.yar` | YARA | Volexity's rules for the reverse-SSH tool UTA0218 ran after CVE-2024-3400; file and memory |
+| `panos_gost_arguments_volexity.yar` | YARA | Volexity's rule for GOST tunnel arguments in small scripts; files only |
 
 ## Notes
 

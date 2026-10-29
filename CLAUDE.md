@@ -105,7 +105,9 @@ or whole-file hash can only say no-hit against memory. Text ingested as memory
   in-memory implants). Copy them from the publisher's own file in code and
   reproduce them as published, typos included; a PDF's wrapped lines are
   rejoined and the join proven (`test_line_viper_joins_are_proven_by_the_rules_own_bytes`).
-  Keep each publisher's licence terms in the rule file and in NOTICE.
+  Keep each publisher's licence terms in the rule file and in NOTICE. A
+  copyleft licence (NCSC-NL's EUPL) is not vendored: point to the publisher's
+  file for `--memory-yara` instead, as the NetScaler notes do.
 - A pack rule's tier is capped at likely in memory.
 - `memory-indicators` hits, and a memory match on a rule that already hit as a
   file, carry `corroborates: False`: `verdict()` scores their tier but never

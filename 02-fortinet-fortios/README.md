@@ -13,6 +13,7 @@ Detection packs: `EDGE-PACK-0003`, `EDGE-PACK-0023`, `EDGE-PACK-0024`, `EDGE-PAC
 | `fortios_cve_2022_41328_hs20_icon_traversal.yml` | Sigma | hs20-icon upload with a traversal path - logged only when it fails (Mandiant) |
 | `fortios_forticloud_sso_admin_login.yml` | Sigma | administrator login through FortiCloud SSO (CVE-2025-59718, CVE-2026-24858) |
 | `fortios_sso_principal_admin_add.yml` | Sigma | local administrator created by an e-mail-form FortiCloud user (CVE-2026-24858) |
+| `fortios_coathanger_jscu.yar` | YARA | MIVD and AIVD's COATHANGER rules as JSCU-NL publishes them; recovered files and disk images only |
 
 ## Notes
 

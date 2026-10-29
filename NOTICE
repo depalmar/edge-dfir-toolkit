@@ -25,6 +25,15 @@ The FIRESTARTER YARA rules (05-cisco-asa-ftd/asa_firestarter_*_cisa.yar) are
 CISA's, from Malware Analysis Report AR26-113A, published with the NCSC.
 
 The Ivanti rules ivanti_uta0576_rce_request_volexity.yar,
-ivanti_uta0576_eop_python_volexity.yar and ivanti_pysoxy_volexity.yar are
-Volexity's, from github.com/volexity/threat-intel, Copyright 2022 by Volexity,
-Inc., under the BSD 2-Clause licence, whose full text each file carries.
+ivanti_uta0576_eop_python_volexity.yar and ivanti_pysoxy_volexity.yar, and the
+PAN-OS rules panos_reverse_ssh_volexity.yar and panos_gost_arguments_volexity.yar,
+are Volexity's, from github.com/volexity/threat-intel, Copyright 2022 by
+Volexity, Inc., under the BSD 2-Clause licence, whose full text each file carries.
+
+The COATHANGER YARA rules (02-fortinet-fortios/fortios_coathanger_jscu.yar) are
+MIVD and AIVD's, as published by JSCU-NL in github.com/JSCU-NL/COATHANGER under
+the Apache License, Version 2.0.
+
+NCSC-NL's NetScaler core-dump rules (github.com/NCSC-NL/citrix-2025) are
+licensed under the EUPL v1.2 and are not included; the guide says how to pass
+them to analyze.

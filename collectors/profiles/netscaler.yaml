@@ -157,7 +157,10 @@ steps:
       core file" is "The same crash, with the evidence attached", and "Core files
       land in the directory for the current boot, so looking only in
       /var/core/1 misses anything that arrived after a reboot; use find
-      /var/core -name 'NSPPE-*' instead."
+      /var/core -name 'NSPPE-*' instead." NCSC-NL's core-dump rules
+      (github.com/NCSC-NL/citrix-2025, core-dump-checks) scan these files once
+      they are copied off the device: ingest them with --evidence-class memory
+      and pass the rules to analyze with --memory-yara.
     confidence: low
     unverified: true
     references:
