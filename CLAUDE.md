@@ -229,7 +229,11 @@ directory (run the parser with `python -I`). Each value keeps the publisher's
 role - most published addresses are compromised third parties, VPN exits or
 shared hosting, not the actor - and every set states when it was valid. Store
 values refanged; the site defangs them. Never infer a role the publisher did
-not state; use `unknown`.
+not state; use `unknown`. VirusTotal is links only: each published address, domain,
+URL and hash links to VirusTotal's own page, and nothing from a VirusTotal report
+(verdict counts, dates, labels) is copied into the repository or the site. That is
+the maintainer's decision under VirusTotal's terms. Curation lookups stay out of
+the record.
 
 **Attribution is reported, never computed.** An actor profile carries two
 confidences: `link_confidence` is ours and measures provenance (one reporting

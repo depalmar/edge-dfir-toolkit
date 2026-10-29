@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.16.1 - 2026-10-29 - VirusTotal, links only
+
+- **Every published address, domain, URL and hash** in the indicator tables
+  links to VirusTotal's own page for that value.
+- **Nothing from a VirusTotal report is copied** into the repository or the
+  site: no verdict counts, dates or labels. That is the maintainer's decision
+  under VirusTotal's terms, recorded in CLAUDE.md.
+- **The indicator note** says that a VirusTotal page with no detections does
+  not make a value safe.
+
 ## 0.16.0 - 2026-10-29 - Threat intel: trends, overlap, infrastructure, hardening
 
 - **Exploitation by year.** A grid of the CVEs each actor record is tied to, by

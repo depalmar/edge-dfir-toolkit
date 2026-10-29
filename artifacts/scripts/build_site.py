@@ -2881,6 +2881,16 @@ document.addEventListener('click', function(ev){
   var a = ev.target.closest('[data-dj]'); if (!a) return; ev.preventDefault();
   var t = document.getElementById(a.dataset.dj); if (t) scrollBody(t);
 });
+/* A link to VirusTotal's own page for a published value. The toolkit copies nothing from VirusTotal:
+   what the page shows is VirusTotal's, as of whenever the reader opens it. */
+function vtLink(t, v){
+  var base = 'https://www.virustotal.com/gui/';
+  if (t === 'ipv4' || t === 'ipv6') return base + 'ip-address/' + encodeURIComponent(v);
+  if (t === 'domain') return base + 'domain/' + encodeURIComponent(v);
+  if (t === 'sha256' || t === 'sha1' || t === 'md5') return base + 'file/' + encodeURIComponent(v);
+  if (t === 'url') return base + 'search/' + encodeURIComponent(v);
+  return null;
+}
 function iocBlock(ids){
   return ids.map(function(id){
     var s = IOC[id], rc = {}; s.ind.forEach(function(i){ rc[i[2]] = (rc[i[2]] || 0) + 1; });
@@ -2891,7 +2901,8 @@ function iocBlock(ids){
       '<button type="button" class="chip btnchip copy" data-copy="' + esc(s.ind.map(function(i){ return i[1]; }).join('\n')) + '">Copy values</button></div></div>';
     var roles = '<div class="links">' + Object.keys(ROLE).filter(function(k){ return rc[k]; }).map(function(k){ return '<span class="chip role role-' + k + '">' + rc[k] + ' ' + esc(ROLE[k]) + '</span>'; }).join('') + '</div>';
     var tbl = '<details class="iocd" open><summary>' + s.ind.length + ' values (defanged) - click to collapse</summary><div class="scroll iocs"><table class="ioct"><tbody>' +
-      s.ind.map(function(i){ return '<tr><td class="muted">' + esc(i[0]) + '</td><td><code>' + esc(defang(i[0], i[1])) + '</code></td><td><span class="chip role role-' + i[2] + '">' + esc(ROLE[i[2]] || i[2]) + '</span></td><td class="small">' + esc(i[3]) + '</td></tr>'; }).join('') +
+      s.ind.map(function(i){ var vt = vtLink(i[0], i[1]); return '<tr><td class="muted">' + esc(i[0]) + '</td><td><code>' + esc(defang(i[0], i[1])) + '</code></td><td><span class="chip role role-' + i[2] + '">' + esc(ROLE[i[2]] || i[2]) + '</span></td><td class="small">' + esc(i[3]) + '</td>' +
+        '<td>' + (vt ? '<a class="vt small" href="' + esc(vt) + '" rel="noopener noreferrer" target="_blank" title="VirusTotal\'s own report for this value, at VirusTotal">VirusTotal</a>' : '') + '</td></tr>'; }).join('') +
       '</tbody></table></div></details>';
     return head + '<div class="callout inf"><b>Staleness.</b> ' + rich(s.staleness) + '</div>' + roles + tbl + '</div>';
   }).join('');
@@ -3189,7 +3200,7 @@ intel: {
     h = jump + h;
     h += '<div id="dj-resp"></div>' + sec('Response', resp.length ? '<div class="links">' + resp.map(function(p){ return lnk('#response/' + PLAT[p].response, 'Contain and recover - ' + PN[p]); }).join('') + '</div>' : '<p class="muted small">No playbook for these platforms yet.</p>');
     h += '<div id="dj-ind"></div>';
-    if (i.iocs.length) h += sec('Indicators', '<p class="muted small">Parsed from each publisher\'s own file or table, with the publisher\'s role for every value. Most published addresses are not the actor\'s own machines - read the roles before blocking or attributing.</p>' + iocBlock(i.iocs));
+    if (i.iocs.length) h += sec('Indicators', '<p class="muted small">Parsed from each publisher\'s own file or table, with the publisher\'s role for every value. Most published addresses are not the actor\'s own machines - read the roles before blocking or attributing. The VirusTotal links open VirusTotal\'s own report; nothing from it is copied here, and a page with no detections does not make a value safe.</p>' + iocBlock(i.iocs));
     else h += sec('Indicators', '<p class="muted small">No machine-readable indicators are published for this ' + i.kind + ', or none the toolkit could parse from the publisher\'s own file.</p>');
     return h + refs(i.references);
   },

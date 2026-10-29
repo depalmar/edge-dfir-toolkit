@@ -682,3 +682,7 @@ def test_intel_trend_overlap_infrastructure_and_hardening(browser, tmp_path):
     drawer = page.locator("text=Hardening that would have blunted it").first
     drawer.wait_for()
     assert page.locator("text=Named by the control's own source").count() >= 1
+    # VirusTotal is links only: a row links to VirusTotal's own page and copies nothing from it
+    vt = page.locator("a.vt").first
+    assert vt.get_attribute("href").startswith("https://www.virustotal.com/gui/")
+    assert "noreferrer" in vt.get_attribute("rel")
