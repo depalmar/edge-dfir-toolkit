@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "edgetriage"
-version = "0.16.1"
+version = "0.16.2"
 description = "Forensic triage for compromised edge devices: VPN concentrators, firewalls and gateways."
 readme = "README.md"
 license = {text = "Apache-2.0"}

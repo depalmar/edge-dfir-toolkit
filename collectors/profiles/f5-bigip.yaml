@@ -281,6 +281,7 @@ steps:
 
   - id: system_scanner
     tier: X
+    provides: [integrity]   # its purpose names it an integrity check; the tier alone would file it as memory
     kind: manual
     impact: break-glass
     purpose: F5 System Scanner, the vendor's file-integrity check (writes a report to the device).

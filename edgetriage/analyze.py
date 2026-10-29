@@ -145,6 +145,59 @@ def verdict(results: list[dict[str, Any]]) -> dict[str, Any]:
     return {"level": level, "rationale": why}
 
 
+def _needs(det: dict[str, Any], view: EvidenceView) -> tuple[str, str]:
+    """What a detection that was not evaluated needed, from its own sources, and how to close it."""
+    src = det.get("sources") or {}
+    steps = {s["step_id"]: s for s in view.manifest.get("steps", [])}
+    parts, close = [], []
+    for sid in src.get("steps") or []:
+        s = steps.get(sid)
+        if s is None:
+            parts.append(f"step {sid}, which this case does not hold")
+            close.append("collect it, or ingest the same output from an export")
+        elif s["status"] != "ok":
+            parts.append(f"step {sid} (`{s.get('cmd')}`), which was {s['status']}")
+            close.append("re-run the step, or record why it cannot run")
+        else:
+            parts.append(f"step {sid} (`{s.get('cmd')}`), whose output it could not read")
+            close.append("check the output against the profile's expected format")
+    globs = src.get("files") or []
+    if globs:
+        if det["type"] == "yara":
+            parts.append("a file to scan: a recovered binary or an ingested image"
+                         + ("" if globs == ["**"] else f" matching {', '.join(globs)}"))
+            close.append("ingest the recovered files or a disk image with edgetriage ingest")
+        else:
+            parts.append(f"a file matching {', '.join(globs)}")
+            close.append("ingest an export or image that holds it")
+    if not parts:
+        return ("evidence its coded check could not find; its notes say what it reads",
+                "Collect or ingest the evidence this detection reads.")
+    uniq = list(dict.fromkeys(close))
+    return "needs " + ", or ".join(parts), (uniq[0][0].upper() + uniq[0][1:] + "".join("; or " + c for c in uniq[1:]) + ".")
+
+
+IMPACT_FLAG = {"vendor-bundle": "--allow-bundle", "break-glass": "--break-glass"}
+
+
+def _class_close(cls: str, m: dict[str, Any]) -> str:
+    """How to fill a missing evidence class: the profile's own steps for it (and the flag each
+    needs), or an ingest that declares the class."""
+    from .profiles import TIER_CLASS, get_profile
+    ran = {s["step_id"]: s.get("status") for s in m.get("steps", [])}
+    try:
+        steps = [s for s in get_profile(m["profile"]).steps if cls in s.classes] if m.get("profile") else []
+    except Exception:   # an unknown or renamed profile: fall back to the ingest route
+        steps = []
+    ingest = f"ingest an export or the vendor tool's output with edgetriage ingest <case> --label <name> --bundle <file> --evidence-class {cls}"
+    if not steps:
+        lead = f"No step in the {m['profile']} plan provides {cls} evidence, so " if m.get("profile") else ""
+        return (lead + ingest + ".") if lead else ingest[0].upper() + ingest[1:] + "."
+    named = "; ".join(f"{s.id}" + (f" (needs {IMPACT_FLAG[s.impact]})" if s.impact in IMPACT_FLAG else "")
+                      + (f", which was {ran[s.id]}" if s.id in ran else ", not run") for s in steps)
+    return f"The {m['profile']} plan's {cls} steps: {named}. Run them, or {ingest}."
+
+
 def evidence_gaps(view: EvidenceView, results: list[dict[str, Any]],
                   window_start: str | None) -> list[dict[str, str]]:
     gaps: list[dict[str, str]] = []
@@ -152,16 +205,23 @@ def evidence_gaps(view: EvidenceView, results: list[dict[str, Any]],
     covered = view.covered_classes()
     for cls in m.get("expected_evidence", []):
         if cls not in covered:
-            gaps.append({"kind": "missing-evidence-class", "detail": f"no {cls} evidence in the case"})
+            gaps.append({"kind": "missing-evidence-class", "detail": f"no {cls} evidence in the case",
+                         "close": _class_close(cls, m)})
     for s in m.get("steps", []):
         if s["status"] == "pending-manual":
             gaps.append({"kind": "manual-step-pending", "detail": f"{s['step_id']}: {s['purpose']}"})
         elif s["status"] in ("unavailable", "error", "refused"):
             gaps.append({"kind": "step-failed", "detail": f"{s['step_id']} ({s['status']}): {s.get('error')}"})
+    groups: dict[tuple[str, str], list[dict[str, Any]]] = {}   # detections that need the same thing are one gap
     for r in results:
         if r["status"] == "not-evaluated":
-            gaps.append({"kind": "detection-not-evaluated",
-                         "detail": f"{r['id']} ({r['pack']}): required evidence not in case"})
+            groups.setdefault((r.get("needs") or "required evidence not in case", r.get("close") or ""), []).append(r)
+    for (need, close), rs in groups.items():
+        g = {"kind": "detection-not-evaluated",
+             "detail": f"{', '.join(r['id'] for r in rs)} ({', '.join(dict.fromkeys(r['pack'] for r in rs))}): {need}"}
+        if close:
+            g["close"] = close
+        gaps.append(g)
     pf = m.get("preflight", {})
     if pf.get("rebooted_since_incident") == "yes":
         gaps.append({"kind": "volatile-lost", "detail": "device rebooted since the incident: memory-only implants and memory-disk files are gone"})
@@ -175,9 +235,13 @@ def evidence_gaps(view: EvidenceView, results: list[dict[str, Any]],
                 if ts:
                     earliest = ts if earliest is None or ts < earliest else earliest
                     break
-        if earliest is None or earliest[:19] > window_start[:19]:
+        if earliest is None:
             gaps.append({"kind": "log-retention",
-                         "detail": f"earliest on-box log line {earliest or 'n/a'} is after the window start {window_start}; use off-box copies"})
+                         "detail": f"no on-box log line with a dated timestamp was found, so nothing on the box is known to reach back "
+                                   f"to the window start {window_start}; use off-box copies"})
+        elif earliest[:19] > window_start[:19]:
+            gaps.append({"kind": "log-retention",
+                         "detail": f"the earliest on-box log line, {earliest}, is after the window start {window_start}; use off-box copies"})
     gaps.append({"kind": "standing", "detail": "on-box evidence on a compromised appliance may be tampered with; corroborate with off-box telemetry (SIEM, NetFlow, IdP, AD)"})
     pv = m.get("profile_validation")   # absent in cases collected before 0.8.0
     if pv is not None and not pv.get("validated_on"):
@@ -213,14 +277,18 @@ def analyze(case_root: Path, *, platform_id: str | None = None, all_packs: bool 
                 d = asdict(h)
                 d["tier"] = h.extra.get("tier", det["tier"])
                 tiered.append(d)
-            results.append({
+            row = {
                 "pack": pack["id"], "pack_name": pack["name"], "cves": pack.get("cves", []),
+                "pack_confidence": pack.get("confidence"), "pack_unverified": bool(pack.get("unverified")),
                 "id": det["id"], "title": det["title"], "type": det["type"], "tier": det["tier"],
                 "evidence_class": det["evidence_class"], "attack": det.get("attack", []),
                 "status": "not-evaluated" if not evaluated else ("hit" if hits else "no-hit"),
                 "hit_count": len(hits), "hits": tiered[:MAX_HITS_KEPT],
                 "notes": det.get("notes"),
-            })
+            }
+            if not evaluated:   # say what it needed and how to get it, not "required evidence not in case"
+                row["needs"], row["close"] = _needs(det, view)
+            results.append(row)
     off, off_rows = None, []
     if forwarded:
         from . import offbox
@@ -249,6 +317,8 @@ def analyze(case_root: Path, *, platform_id: str | None = None, all_packs: bool 
         "detections": results + off_rows,
         "evidence_gaps": gaps,
     }
+    ms = Path(case_root) / "manifest.sha256"
+    out["manifest_sha256"] = ms.read_text().split()[0] if ms.is_file() else None
     if off is not None:
         out["offbox"] = off
     dump_json(Path(case_root) / "findings.json", out)
@@ -257,11 +327,23 @@ def analyze(case_root: Path, *, platform_id: str | None = None, all_packs: bool 
     return out
 
 
+def _prov(r: dict[str, Any]) -> str:
+    """How far to trust the detection itself: its pack's confidence, and unverified when it is."""
+    c = r.get("pack_confidence")
+    return (f"pack confidence {c}" + (", unverified" if r.get("pack_unverified") else "")) if c else ""
+
+
 def render_report(f: dict[str, Any], m: dict[str, Any]) -> str:
+    """report.md, in the order the guide reads a report: the verdict and what to do next, the
+    evidence gaps, then the findings."""
     v = f["verdict"]
     hit = [r for r in f["detections"] if r["status"] == "hit"]
     ne = [r for r in f["detections"] if r["status"] == "not-evaluated"]
     clean = [r for r in f["detections"] if r["status"] == "no-hit"]
+    cat = _catalog_entry(f.get("platform_id"))
+    steps = {s["step_id"]: s for s in m.get("steps", [])}
+    items, donot = next_steps(v["level"], cat)
+    stem = cat.get("response")
     L = [
         f"# Edge triage report - {f['case_id']}",
         "",
@@ -269,28 +351,39 @@ def render_report(f: dict[str, Any], m: dict[str, Any]) -> str:
         f"{v['rationale']}",
         "",
         "| | |", "|---|---|",
-        f"| Platform | {f['platform_id']} |",
+        f"| Platform | {cat['name'] + ' (' + str(f['platform_id']) + ')' if cat.get('name') else f['platform_id']} |",
         f"| Profile | {m.get('profile') or NO_PROFILE} |",
         f"| Target | {(m.get('target') or {}).get('host', 'n/a')} |",
         f"| Collected | {_collected(m)} |",
-        f"| Analyzed | {f['analyzed_utc']} (edgetriage {f['tool_version']}) |",
+        f"| Analyzed | {_hms(f['analyzed_utc'])} UTC (edgetriage {f['tool_version']}) |",
         f"| Packs | {', '.join(f['packs_applied']) or 'none'} |",
         f"| Detections | {len(hit)} hit, {len(clean)} no hit, {len(ne)} not evaluated |",
-        "",
-        "## Findings",
-        "",
     ]
+    if f.get("manifest_sha256"):
+        L.append(f"| Case manifest | sha256 {f['manifest_sha256']} |")
+    L += ["", "## What to do next", ""] + [f"- {x}" for x in items]
+    if stem:
+        L.append(f"- The {cat.get('name', 'platform')} playbook, read with this verdict: {SITE_URL}#response/{_quote(str(stem))}?verdict={_quote(v['level'])}")
+    if donot:
+        L += ["", f"From the playbook, do not:"] + [f"- **{d['action']}.** {d['because']}" for d in donot]
+    L += ["", "## Evidence gaps", "", "What this analysis could not see. Read these before the findings.", ""]
+    for g in f["evidence_gaps"]:
+        L.append(f"- **{g['kind']}** - {g['detail']}")
+        close = g.get("close") or GAP_CLOSE.get(g["kind"])
+        if close:
+            L.append(f"  Close it: {close}")
+    L += ["", "## Findings", ""]
     if not hit:
-        L.append("No detection fired.")
+        L.append("No detection fired. That is not a finding that the device is clean: read the evidence gaps above.")
     for r in sorted(hit, key=lambda r: -max(TIERS.index(h["tier"]) for h in r["hits"])):
         top = max((h["tier"] for h in r["hits"]), key=TIERS.index)
-        L += [f"### [{top.upper()}] {r['title']}",
-              f"`{r['id']}` - {r['pack']} {' '.join(r['cves'])} - {r['hit_count']} hit(s), evidence class {r['evidence_class']}",
-              ""]
+        meta = " - ".join(x for x in [r["pack"] + (f" ({_prov(r)})" if _prov(r) else ""), " ".join(r["cves"]),
+                                       f"{r['hit_count']} hit(s), evidence class {r['evidence_class']}"] if x)
+        L += [f"### [{top.upper()}] {r['title']}", f"`{r['id']}` - {meta}", ""]
         for h in r["hits"][:10]:
-            where = f"{h['source']}" + (f":{h['line']}" if h.get("line") else "")
-            ts = f" ts={h['ts']}{'' if h.get('tz_known') else ' (device-local)'}" if h.get("ts") else ""
-            L.append(f"- {where}{ts} - {h['detail']}")
+            ts = f" - {h['ts']}{'' if h.get('tz_known') else ' (device-local)'}" if h.get("ts") else ""
+            detail = f" - {h['detail']}" if h.get("detail") and h["detail"] != r["title"] else ""
+            L.append(f"- {_where(h, steps)}{ts}{detail}")
             if h.get("excerpt"):
                 L.append(f"  `{h['excerpt'][:200]}`")
         if r.get("notes"):
@@ -298,13 +391,7 @@ def render_report(f: dict[str, Any], m: dict[str, Any]) -> str:
         L.append("")
     if f.get("offbox"):
         L += offbox_markdown(f["offbox"])
-    L += ["## Evidence gaps", "", "What this analysis could not see. Read before acting on the verdict.", ""]
-    for g in f["evidence_gaps"]:
-        L.append(f"- **{g['kind']}** - {g['detail']}")
-    L += ["", "## Detections not evaluated", ""]
-    L += [f"- `{r['id']}` - {r['title']}" for r in ne] or ["None."]
-    L.append("")
-    return "\n".join(L)
+    return "\n".join(L) + "\n"
 
 
 def _dur(seconds: int) -> str:
@@ -428,7 +515,7 @@ h2{font-size:var(--fs-md);margin:26px 0 8px}
 .v-likely-compromised{color:var(--high)}.v-suspicious{color:var(--med)}.v-no-indicators-found{color:var(--muted)}
 .rat{font-size:var(--fs-md);margin:10px 0 6px;overflow-wrap:anywhere}
 .sbar{display:flex;gap:2px;height:20px;border-radius:5px;overflow:hidden;margin-top:12px;background:var(--line-soft)}
-.s-hit{background:var(--crit)}.s-no-hit{background:var(--low)}.s-not-evaluated{background:var(--med)}
+.s-hit{background:var(--crit)}.s-no-hit{background:color-mix(in srgb,var(--muted) 45%,var(--panel))}.s-not-evaluated{background:var(--med)}
 .cap{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;font-size:var(--fs-xs);color:var(--muted);margin-top:4px}
 .meta{flex:1 1 320px;display:grid;grid-template-columns:auto 1fr;gap:6px 14px;margin:0;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 16px;font-size:var(--fs-sm)}
 .meta dt{color:var(--muted)}.meta dd{margin:0;overflow-wrap:anywhere}
@@ -451,6 +538,9 @@ h2{font-size:var(--fs-md);margin:26px 0 8px}
 .kind{font-family:var(--mono);font-size:11px;border:1px solid currentColor;border-radius:20px;padding:1px 7px;color:var(--high)}
 .kind.std{color:var(--muted)}.close{color:var(--low);font-weight:600}
 .find{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:10px 0}
+.next{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:12px;padding:4px 18px 12px;margin:18px 0 6px}
+.next h2{margin:12px 0 6px}.next ul{margin:4px 0 8px;padding-left:20px}.next li{margin:3px 0}.dnh{margin:10px 0 2px;font-weight:600;font-size:var(--fs-sm)}
+.dn li{font-size:var(--fs-sm)}.prov{font-size:var(--fs-xs);color:var(--muted)}.prov.unv{color:var(--high)}.hitl .w code{font-size:var(--fs-xs)}
 .fh{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:flex-start}
 .fid{font-family:var(--mono);font-size:var(--fs-xs);color:var(--muted)}.ft{font-size:var(--fs-md);font-weight:600;margin:2px 0}
 .badge{display:inline-block;font-size:var(--fs-xs);font-weight:600;border-radius:20px;padding:1px 8px;border:1px solid currentColor}
@@ -474,6 +564,45 @@ def _catalog_entry(platform_id: str | None) -> dict[str, Any]:
         if d.get("id") == platform_id:
             return d
     return {}
+
+
+def _where(h: dict[str, Any], steps: dict[str, dict[str, Any]]) -> str:
+    """Where a hit came from, in words a responder can re-check: the command and the line."""
+    src, line = str(h.get("source", "")), h.get("line")
+    if src.startswith("step:"):
+        s = steps.get(src[5:], {})
+        what = f"`{s['cmd']}` (step {src[5:]})" if s.get("cmd") else f"step {src[5:]}"
+    else:
+        what = src
+    return what + (f", line {line}" if line else "")
+
+
+def _playbook(stem: str | None) -> dict[str, Any]:
+    p = REPO_ROOT / "artifacts" / "response" / f"{stem}.yml"
+    return (yaml.safe_load(p.read_text()) or {}) if stem and p.is_file() else {}
+
+
+def next_steps(level: str, cat: dict[str, Any], top: int = 3) -> tuple[list[str], list[dict[str, str]]]:
+    """What to do next, by verdict, with the platform playbook's own do-not list quoted (the
+    playbook is a sourced record; the report adds no advice of its own beyond the guide's)."""
+    pb = _playbook(cat.get("response"))
+    name = cat.get("name") or "this platform"
+    if level in ("COMPROMISED", "LIKELY-COMPROMISED"):
+        items = ["Preserve before you act: the case folder may be the only copy of what the device held. Do not reboot, upgrade or "
+                 "factory-reset it until the playbook's preservation steps are done.",
+                 f"Follow the {name} response playbook in its order: preserve, contain, rotate, eradicate, recover, verify.",
+                 "Treat the credentials the device held as exposed"
+                 + (": " + "; ".join(c["what"] for c in (pb.get("credential_exposure") or [])[:top]) + "." if pb.get("credential_exposure") else ".")]
+    elif level == "SUSPICIOUS":
+        items = ["Find the second signal before you escalate: a hit in a different evidence class is what raises the verdict, "
+                 "and the off-box hunts are where most second signals come from.",
+                 "Close the evidence gaps listed here first; several of them are where a second signal would be.",
+                 "Do not reboot or upgrade the device while the question is open."]
+    else:
+        items = ["Close the evidence gaps listed here before closing the case. This verdict means no indicators in the evidence "
+                 "available; it is not a finding that the device is clean.",
+                 "Pull the off-box copies the gaps name (SIEM syslog, sign-ins, the next firewall's sessions) and run the platform's hunts."]
+    return items, (pb.get("do_not") or [])[:top]
 
 
 def _hms(ts: str | None) -> str:
@@ -519,7 +648,11 @@ def render_html(f: dict[str, Any], m: dict[str, Any]) -> str:
             ("Preflight", f'rebooted: {pf.get("rebooted_since_incident", "unknown")} · upgraded: {pf.get("patched_since_incident", "unknown")}')]
     if m.get("clock_skew"):
         rows.append(("Clock", str(m["clock_skew"])))
+    if f.get("manifest_sha256"):
+        rows.append(("Case manifest", "sha256 " + f["manifest_sha256"]))
     meta = "".join(f"<dt>{esc(k)}</dt><dd>{esc(val)}</dd>" for k, val in rows)
+    steps_by = {s["step_id"]: s for s in (m.get("steps") or [])}
+    items, donot = next_steps(level, cat)
 
     classes = sorted({r["evidence_class"] for r in dets}, key=lambda c: CLASS_ORDER.index(c) if c in CLASS_ORDER else 99)
     grid = ['<div class="vgr h"><span>Evidence class</span><span>possible</span><span>likely</span><span>confirmed</span></div>']
@@ -539,8 +672,8 @@ def render_html(f: dict[str, Any], m: dict[str, Any]) -> str:
 
     gap_html = "".join(
         f'<div class="gap"><span class="kind{" std" if g["kind"] in ("standing", "unvalidated-profile") else ""}">{esc(g["kind"])}</span>'
-        f'<p>{esc(str(g["detail"]))}</p>'
-        + (f'<p><span class="close">Close it:</span> {esc(GAP_CLOSE[g["kind"]])}</p>' if g["kind"] in GAP_CLOSE else "")
+        f'<p>{re.sub(r"`([^`]+)`", r"<code>\1</code>", esc(str(g["detail"])))}</p>'
+        + (f'<p><span class="close">Close it:</span> {esc(g.get("close") or GAP_CLOSE[g["kind"]])}</p>' if g.get("close") or g["kind"] in GAP_CLOSE else "")
         + "</div>" for g in gaps)
 
     finds = []
@@ -548,13 +681,15 @@ def render_html(f: dict[str, Any], m: dict[str, Any]) -> str:
         t = top_tier(r)
         hits = []
         for h in r["hits"][:10]:
-            where = str(h.get("source", "")) + (f':{h["line"]}' if h.get("line") else "")
-            when = (str(h["ts"]).replace("T", " ") + ("" if h.get("tz_known") else " (device-local)")) if h.get("ts") else "no timestamp"
-            hits.append(f'<div class="hitl"><span class="w">{esc(where)} · {esc(when)}</span>'
-                        + (f'<div>{esc(str(h["detail"]))}</div>' if h.get("detail") else "")
+            where = re.sub(r"`([^`]+)`", r"<code>\1</code>", esc(_where(h, steps_by)))   # the command, as a literal
+            when = (" · " + esc(str(h["ts"]).replace("T", " ") + ("" if h.get("tz_known") else " (device-local)"))) if h.get("ts") else ""
+            hits.append(f'<div class="hitl"><span class="w">{where}{when}</span>'
+                        + (f'<div>{esc(str(h["detail"]))}</div>' if h.get("detail") and h["detail"] != r["title"] else "")
                         + (f'<pre><code>{esc(str(h["excerpt"]))}</code></pre>' if h.get("excerpt") else "") + "</div>")
         n = r["hit_count"]
-        meta_line = " · ".join(esc(x) for x in [r["pack"], " ".join(r["cves"]), r["evidence_class"], f'{n} hit{"" if n == 1 else "s"}'] if x)
+        cves = " ".join(f'<a href="{SITE_URL}#cves/{_quote(c)}">{esc(c)}</a>' for c in r["cves"])
+        prov = f' <span class="prov{" unv" if r.get("pack_unverified") or r.get("pack_confidence") == "low" else ""}">{esc(_prov(r))}</span>' if _prov(r) else ""
+        meta_line = " · ".join(x for x in [esc(r["pack"]) + prov, cves, esc(r["evidence_class"]), f'{n} hit{"" if n == 1 else "s"}'] if x)
         finds.append(f'<article class="find"><div class="fh"><div><div class="fid">{esc(r["id"])}</div><div class="ft">{esc(r["title"])}</div>'
                      f'<div class="small muted">{meta_line}</div></div><div><span class="badge tier-{t}">{t}</span> '
                      + (f'<a href="{SITE_URL}#hunts/{_quote(r["hunt"])}">Hunt record &#8594;</a>' if r.get("hunt") else
@@ -581,8 +716,11 @@ def render_html(f: dict[str, Any], m: dict[str, Any]) -> str:
     strip_cap = (f"{len(steps)} steps in order of volatility, {_hms(min(times))[11:]} to {_hms(max(times))[11:]} UTC."
                  if times else f"{len(steps)} steps in order of volatility.")
     stem = cat.get("response")
-    respond = (f'<a href="{SITE_URL}#response/{_quote(str(stem))}?verdict={_quote(level)}">Respond: playbook with the {esc(level)} lens &#8594;</a><br>'
-               if stem else "")
+    respond = (f'<li><a href="{SITE_URL}#response/{_quote(str(stem))}?verdict={_quote(level)}">The {esc(cat.get("name", "platform"))} playbook, '
+               f'read with the {esc(level)} lens &#8594;</a></li>' if stem else "")
+    nexts = ('<section class="next"><h2>What to do next</h2><ul>' + "".join(f"<li>{esc(x)}</li>" for x in items) + respond + "</ul>"
+             + (f'<p class="dnh">From the playbook, do not:</p><ul class="dn">' + "".join(
+                 f'<li><b>{esc(d["action"])}.</b> {esc(d["because"])}</li>' for d in donot) + "</ul>" if donot else "") + "</section>")
     n_packs = len(f["packs_applied"])
     return f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -596,6 +734,7 @@ def render_html(f: dict[str, Any], m: dict[str, Any]) -> str:
 <div class="sbar" role="img" aria-label="{esc(summary)}">{sbar}</div>
 <div class="cap"><span>{len(dets)} detections from {n_packs} pack{"" if n_packs == 1 else "s"}</span><span>{esc(summary)}</span></div></section>
 <dl class="meta">{meta}</dl></div>
+{nexts}
 <h2>How the verdict was reached</h2>
 <p class="note">Each detection sits in its evidence class and tier. Likely hits in two different classes corroborate each other; repeated hits in one class would not.</p>
 <div class="vg">{"".join(grid)}</div>
@@ -608,6 +747,6 @@ def render_html(f: dict[str, Any], m: dict[str, Any]) -> str:
 <h2>Collection</h2>
 <div class="strip" role="img" aria-label="{esc(strip_cap)}">{"".join(strip)}</div>
 <p class="small muted">{esc(strip_cap)} Green ran; dashed did not run; olive waits for a person; red failed. Hover a block for the step.</p>
-<p class="acts">{respond}findings.json and report.md sit beside this file; <code>edgetriage timeline</code> and <code>edgetriage brief</code> add timeline.jsonl and llm_brief.md to the same case folder.</p>
+<p class="acts">findings.json and report.md sit beside this file; <code>edgetriage timeline</code> and <code>edgetriage brief</code> add timeline.jsonl and llm_brief.md to the same case folder.</p>
 </main></body></html>
 """

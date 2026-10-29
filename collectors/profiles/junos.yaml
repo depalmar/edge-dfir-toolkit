@@ -83,6 +83,7 @@ steps:
 
   - id: jmrt_integrity_check
     tier: B
+    provides: [integrity]   # its purpose names it an integrity check; the tier alone would file it as bundle
     kind: command
     impact: vendor-bundle
     cmd: request system malware-scan integrity-check

@@ -85,6 +85,12 @@ class Step:
     confidence: str = "medium"           # how sure we are the command exists as written
     unverified: bool = False
     references: list[str] = field(default_factory=list)
+    provides: list[str] = field(default_factory=list)  # evidence classes, when the tier's default is wrong for the step
+
+    @property
+    def classes(self) -> list[str]:
+        """The evidence classes a successful run of this step puts in the case."""
+        return list(self.provides) or [TIER_CLASS.get(self.tier, "other")]
 
     @property
     def order_key(self) -> int:
@@ -167,7 +173,11 @@ def _step(raw: dict[str, Any], pname: str) -> Step:
         timeout=int(raw.get("timeout", 120)),
         confidence=raw.get("confidence", "medium"), unverified=bool(raw.get("unverified", False)),
         references=list(raw.get("references", [])),
+        provides=list(raw.get("provides", [])),
     )
+    bad = [c for c in s.provides if c not in set(TIER_CLASS.values())]
+    if bad:
+        raise ProfileError(f"{pname}/{s.id}: provides names unknown evidence classes {bad}")
     if s.kind == "command" and not s.cmd:
         raise ProfileError(f"{pname}/{s.id}: command step needs cmd")
     if s.kind == "fetch" and not (s.paths or s.list_cmd):

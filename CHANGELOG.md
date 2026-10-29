@@ -1,5 +1,43 @@
 # Changelog
 
+## 0.16.2 - 2026-10-29 - A report a responder can act on
+
+From a review of a full synthetic case's report, read as a responder would:
+
+- **Reading order.** `report.md` now follows the order the guide reads a
+  report: verdict, what to do next, evidence gaps, then findings. The separate
+  "Detections not evaluated" list is gone; it repeated the gaps.
+- **What to do next**, in both reports, by verdict. It quotes the platform
+  playbook's do-not list and the credentials it says to treat as exposed, and
+  links the playbook read with the verdict. The link used to be the last line
+  of the HTML.
+- **Gaps say what they need.**
+  - A detection that was not evaluated names the step that failed and its
+    command, or the file it had nothing to scan, and how to close the gap. It
+    used to say "required evidence not in case".
+  - Detections that need the same thing are one gap.
+  - A missing evidence class names the plan's steps that would provide it and
+    the flag each needs.
+  - "earliest on-box log line n/a" reads as what it means.
+- **Findings.**
+  - Each hit names the command and line that produced it.
+  - Each finding shows its pack's confidence, and unverified where it is.
+  - CVEs link to the site.
+  - A hit no longer repeats its finding's title or prints "no timestamp".
+  - In the HTML, "no hit" is a neutral grey; green read as good news.
+- **Custody.** The case manifest's sha256 is in `findings.json` and in both
+  report headers.
+- **Fixed: evidence classes no step could provide.** Junos's JMRT integrity
+  check counted only as a bundle, and F5's System Scanner as memory, so their
+  integrity gap could never close. A step may now declare `provides`, which
+  only those two do, as their documented purposes state. Manifests record each
+  step's classes. Classes no step provides (Check Point config and filesystem,
+  F5 filesystem, IOS XE persistence) stay gaps, and their hint gives the
+  ingest route.
+- **The guide** has a worked example: a synthetic Junos case read line by line,
+  with what to tell the incident lead. A test regenerates the case and fails
+  if any quoted line no longer matches what the tool prints.
+
 ## 0.16.1 - 2026-10-29 - VirusTotal, links only
 
 - **Every published address, domain, URL and hash** in the indicator tables

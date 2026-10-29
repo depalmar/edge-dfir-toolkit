@@ -128,8 +128,8 @@ class EvidenceView:
         from .profiles import TIER_CLASS
         covered = set()
         for s in self.manifest.get("steps", []):
-            if s.get("status") == "ok":
-                covered.add(TIER_CLASS.get(s["tier"], "other"))
+            if s.get("status") == "ok":   # a step names its classes; cases collected before 0.16.2 fall back to the tier
+                covered.update(s.get("classes") or [TIER_CLASS.get(s["tier"], "other")])
         for b in self.manifest.get("ingested", []):
             covered.update(b.get("evidence_classes") or ["bundle"])
         return covered

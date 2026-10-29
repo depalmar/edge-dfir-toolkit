@@ -103,7 +103,7 @@ def collect(profile: Profile, transport: Transport, case: Case, *, case_id: str,
 def _run_step(step: Step, skip: str | None, transport: Transport, case: Case,
               variables: dict[str, str], profile: Profile) -> dict[str, Any]:
     rec: dict[str, Any] = {
-        "step_id": step.id, "tier": step.tier, "kind": step.kind, "impact": step.impact,
+        "step_id": step.id, "tier": step.tier, "kind": step.kind, "impact": step.impact, "classes": step.classes,
         "purpose": step.purpose, "status": None, "started_utc": utcnow(), "ended_utc": None,
         "cmd": None, "output": None, "sha256": None, "bytes": None, "error": None, "files": [],
     }

@@ -1285,3 +1285,59 @@ def test_report_html_is_self_contained_and_escaped(fx, tmp_path):
     doc2 = render_html(f2, m)
     assert "<script>" not in doc2 and "<img" not in doc2 and "evil.example/\">" not in doc2
     assert "&lt;script&gt;alert(1)&lt;/script&gt;" in doc2
+
+
+# ------------------------------------------------------------------ report review (0.16.2)
+def test_report_reads_in_the_guides_order_and_says_what_each_gap_needs(fx, tmp_path):
+    """A responder reads the next steps and the gaps before the findings. A detection that was
+    not evaluated says what it needed (the failed step and its command, or a file to scan), and
+    detections that need the same thing are one gap. A hit says which command produced it."""
+    root = run(fx, tmp_path, "junos", "junos-compromised")
+    out = analyze(root, window_start="2026-10-01T00:00:00")
+    md = (root / "report.md").read_text()
+    assert md.index("## What to do next") < md.index("## Evidence gaps") < md.index("## Findings")
+    assert "## Detections not evaluated" not in md   # merged into the gaps, not listed twice
+    assert ("junos-jweb-php-log-anonymous, junos-jweb-php-log-session-null (EDGE-PACK-0020): needs step jweb_php_log "
+            "(`file show /var/jail/sess/php.log | no-more`), which was unavailable") in md
+    assert "needs a file to scan: a recovered binary or an ingested image" in md
+    assert "jmrt_integrity_check (needs --allow-bundle), not run" in md
+    assert "`file list /var/tmp detail | no-more` (step listing_var_tmp), line 3" in md
+    assert "pack confidence low, unverified" in md   # the J-Web pack rests on one source
+    assert "From the playbook, do not:" in md and "Run JMRT quick-scan" in md
+    assert "earliest on-box log line n/a" not in md
+    assert out["manifest_sha256"] == (root / "manifest.sha256").read_text().split()[0]
+    html = (root / "report.html").read_text()
+    assert "What to do next" in html and "no timestamp" not in html
+    assert ".s-no-hit{background:var(--low)}" not in html   # "no hit" is not painted as good news
+
+
+def test_a_step_can_name_the_evidence_classes_it_provides(tmp_path):
+    """A bundle-tier or break-glass step whose own purpose names its evidence says so, so its
+    class can be covered; the tier alone filed JMRT's integrity check as a bundle and F5's
+    System Scanner as memory. An unknown class is refused."""
+    jmrt = next(s for s in get_profile("junos").steps if s.id == "jmrt_integrity_check")
+    scan = next(s for s in get_profile("f5-bigip").steps if s.id == "system_scanner")
+    assert jmrt.classes == ["integrity"] and scan.classes == ["integrity"]
+    src = (ROOT / "collectors" / "profiles" / "junos.yaml").read_text().replace("provides: [integrity]", "provides: [integrty]")
+    bad = tmp_path / "junos.yaml"
+    bad.write_text(src)
+    with pytest.raises(ProfileError, match="unknown evidence classes"):
+        load_profile(bad)
+
+
+def test_the_guides_worked_example_matches_what_the_tool_prints(fx, tmp_path):
+    """The guide quotes a report for a synthetic Junos case. Every quoted line must still be in
+    a fresh report for that case (a line ending in "..." is a prefix), so the example cannot
+    drift from the tool."""
+    guide = (ROOT / "docs" / "edge-dfir-investigation-guide.md").read_text()
+    block = guide.split("### A worked example", 1)[1].split("```text\n", 1)[1].split("```", 1)[0]
+    root = run(fx, tmp_path, "junos", "junos-compromised", case_id="IR-2026-EX1", preflight={"rebooted_since_incident": "no", "patched_since_incident": "no"})
+    analyze(root, window_start="2026-10-01T00:00:00")
+    lines = [x.rstrip() for x in (root / "report.md").read_text().splitlines()]   # a Markdown line break is two trailing spaces
+    quoted = [ln.rstrip() for ln in block.splitlines() if ln.strip() and ln.strip() != "..."]
+    assert len(quoted) >= 10
+    for ln in quoted:
+        if ln.endswith("..."):
+            assert any(x.startswith(ln[:-3].rstrip()) for x in lines), ln
+        else:
+            assert ln in lines, ln

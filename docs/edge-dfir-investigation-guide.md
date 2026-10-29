@@ -259,13 +259,20 @@ not that it was busy, so export only events the device caused.
 `--activity-match` keeps the records that name the device's address or host
 name as a whole token, so `192.0.2.1` does not match `192.0.2.10`.
 
-Read the report in this order:
+`report.md` and `report.html` hold the same findings, in the order to read
+them:
 
-1. **Evidence gaps.** What the analysis could not see. A detection that was
-   `not-evaluated` did not pass; it never ran.
-2. **Verdict.** `COMPROMISED`, `LIKELY-COMPROMISED`, `SUSPICIOUS` or
-   `NO-INDICATORS-FOUND`. There is no "clean".
-3. **Findings.** Each hit with its source, line and excerpt.
+1. **Verdict and what to do next.** The verdict is `COMPROMISED`,
+   `LIKELY-COMPROMISED`, `SUSPICIOUS` or `NO-INDICATORS-FOUND`; there is no
+   "clean". The next steps quote the platform playbook's do-not list.
+2. **Evidence gaps.** What the analysis could not see. A detection that was
+   `not-evaluated` did not pass; it never ran. Each gap says what it needed
+   (the step that failed, the file it had nothing to scan) and how to close it.
+3. **Findings, strongest first.** Each hit gives the command and line that
+   produced it, an excerpt, and the confidence of the pack behind it.
+
+The header also carries the case manifest's sha256, so a report can be tied to
+the exact case folder it came from.
 
 | Tier | Typically means |
 |---|---|
@@ -275,6 +282,72 @@ Read the report in this order:
 
 The verdict follows from the strongest evidence, and corroboration counts only
 across different evidence classes; repeated hits in one class do not raise it.
+
+### A worked example
+
+A synthetic Junos case, built from the toolkit's own test fixtures (nothing in
+it came from a real device):
+
+```bash
+python tests/make_fixtures.py fx
+python -m edgetriage collect --profile junos --case-id IR-2026-EX1 --replay fx/junos-compromised \
+    --operator analyst --rebooted no --patched no
+python -m edgetriage analyze cases/IR-2026-EX1 --window-start 2026-10-01T00:00:00
+```
+
+The parts of `report.md` that matter, in the order to read them (`...` marks
+lines left out):
+
+```text
+**Verdict: COMPROMISED**
+likely indicators corroborated across evidence classes (filesystem, persistence): junos-login-record-backups, junos-syslog-conf-backup, junos-unc3886-null-fifo, junos-unc3886-payload-files
+...
+## What to do next
+- Preserve before you act: the case folder may be the only copy of what the device held. Do not reboot, upgrade or factory-reset it until the playbook's preservation steps are done.
+...
+From the playbook, do not:
+- **Run JMRT quick-scan with its default clean action before collecting.** It deletes the malicious files and kills the processes it finds.
+...
+## Evidence gaps
+- **missing-evidence-class** - no integrity evidence in the case
+  Close it: The junos plan's integrity steps: jmrt_integrity_check (needs --allow-bundle), not run. ...
+- **detection-not-evaluated** - junos-unc3886-tinyshell-yara, junos-tinyshell-mandiant-hunting (EDGE-PACK-0010): needs a file to scan: a recovered binary or an ingested image
+- **detection-not-evaluated** - junos-jweb-php-log-anonymous, junos-jweb-php-log-session-null (EDGE-PACK-0020): needs step jweb_php_log (`file show /var/jail/sess/php.log | no-more`), which was unavailable, or a file matching **/php.log*
+...
+## Findings
+...
+### [LIKELY] Backup copies of the login records
+`junos-login-record-backups` - EDGE-PACK-0010 (pack confidence high) - CVE-2025-21590 - 2 hit(s), evidence class persistence
+- `file list /var/log detail | no-more` (step listing_var_log), line 5
+  `-rw-r--r--  1 root  wheel    4410 Oct 14 07:10 wtmp0`
+...
+### [POSSIBLE] File named by a 64-character hex digest in /var/tmp or the J-Web jail
+`junos-jweb-hex-named-upload` - EDGE-PACK-0020 (pack confidence low, unverified) - ...
+```
+
+How to read it:
+
+1. **The verdict and why.** `COMPROMISED` rests on likely hits in two
+   evidence classes, filesystem and persistence, which corroborate each
+   other. The two possible process hits did not raise it; one class of
+   possible hits never would.
+2. **What to do next comes before anything else.** The do-not lines are
+   quoted from the Junos playbook. The first is the one that would destroy
+   this evidence: JMRT quick-scan's default action deletes what it finds.
+3. **The gaps say what the verdict cannot see.** The integrity check never
+   ran (it writes to the device, so it needs `--allow-bundle`), so nothing
+   here says whether veriexec is intact. No recovered binary was scanned, so
+   TINYSHELL's presence is unknown, not ruled out. The J-Web log step failed,
+   so J-Web exploitation is unexamined. Each gap ends with how to close it.
+4. **Then the findings, strongest first.** Each names the command and line to
+   re-check by hand, and how far to trust the detection behind it. The
+   leftover `wtmp0` means the login records themselves may have been altered,
+   so weigh the session list accordingly. The J-Web finding comes from a
+   low-confidence, single-source pack: read the file before you count it.
+5. **What to tell the incident lead.** "Compromised. The artifacts match
+   tradecraft Mandiant reports for UNC3886; that is a lead, not attribution.
+   Credentials the router held are exposed. The integrity check, a binary
+   scan and the J-Web logs are still outstanding."
 
 `--baseline` takes a `{path: sha256}` JSON from a known-good device of the
 same build. The hash comparison refuses to run without one rather than call
