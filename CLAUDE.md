@@ -14,8 +14,9 @@ A triage toolkit for compromised edge devices. Three layers:
 - `artifacts/` - the platform catalog (`EDGE-NNNN`) and detection packs
   (`EDGE-PACK-NNNN`) the analyzer runs, plus their schemas and the validator.
 
-The numbered `0N-*` directories hold Sigma and YARA rules per platform. Packs
-reference the YARA files there.
+The numbered `NN-*` directories (01 to 11, numbered by when a platform was
+added) hold Sigma and YARA rules per platform. Packs reference the YARA files
+there; glob them as `[0-9][0-9]-*`, never `0*`.
 
 ## Commands
 

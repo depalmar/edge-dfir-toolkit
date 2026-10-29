@@ -1,0 +1,30 @@
+title: SonicWall SMA 1000 Hotfix Removal Given a Path Outside the Rollback Directory (CVE-2026-15410)
+id: d12912bc-1af2-443f-926a-c5094dde0e71
+status: experimental
+description: |
+  The control service's sysCtrl.execRemoveHotfix calls /usr/local/bin/remove_hotfix,
+  which builds the rollback path from the caller's input and runs it, so a name
+  such as ../../../../../tmp/1234.sh runs a file of the caller's choosing as root.
+  SonicWall lists "hotfix rollbacks with path traversal names" in ctrl-service.log
+  as an indicator; Volexity published both the INFO and the ERROR line.
+references:
+  - https://psirt.global.sonicwall.com/vuln-detail/SNWLID-2026-0008
+  - https://www.volexity.com/blog/2026/07/17/proxying-to-compromise-sonicwall-secure-mobile-access-0-day-exploitation/
+author: Raymond DePalma (edge-dfir-toolkit)
+date: 2026-10-29
+tags:
+  - attack.privilege_escalation
+  - attack.t1068
+  - attack.execution
+  - attack.t1059.004
+  - cve.2026-15410
+logsource:
+  product: sonicwall
+  service: sma1000_ctrl_service
+detection:
+  selection:
+    Message|re: '(running hotfix removal for: ?|/remove_hotfix\W+)[^ ]*\.\./'
+  condition: selection
+falsepositives:
+  - None published. A hotfix name is a file name inside the rollback directory.
+level: critical

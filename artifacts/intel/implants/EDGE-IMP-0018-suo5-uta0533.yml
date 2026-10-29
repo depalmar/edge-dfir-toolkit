@@ -1,0 +1,38 @@
+id: EDGE-IMP-0018
+name: Suo5
+aliases: []
+platforms: [EDGE-0011]
+actors: [EDGE-TA-0008]
+cves: [CVE-2026-15409, CVE-2026-15410]
+type: tunneler
+resides: memory
+survives_reboot: "no"
+survives_upgrade: unknown
+summary: >-
+  Volexity: "a version of suo5.jsp, an open-source HTTP forwarding proxy tool
+  that has been modified to include the previously mentioned gating logic based
+  on the user agent of the request", delivered as agent_wp8.jar, which overrides
+  com/aventail/jsp/workplace/error_jsp in the workplace JVM. Reached at
+  /workplace/error.jsp and through the /__api__/login route KNUCKLEBALL adds.
+  Volexity saw UTA0533 use Suo5 and ORANGETAIL "attempting to pivot further into
+  the customer network". This record is UTA0533's modified build; the tool
+  itself is public.
+artifacts:
+  - agent_wp8.jar in /tmp while KNUCKLEBALL injects it
+  - The overridden error_jsp class in the workplace JVM
+  - Requests to /__api__/login or /workplace/error.jsp carrying the actor's user agent
+anti_forensics:
+  - "Volexity: the payload class is gated on a user agent, \"to prevent passive detection\""
+detections: [sma1000-orangetail-yara, sma1000-uta0533-user-agent-yara, sma1000-api-route-access, sma1000-unit-api-routes, sma1000-unit-rewrite-to-hijacked-page]
+gap: >-
+  The rules match this build's user-agent gate, which a stock Suo5 does not
+  have. Like ORANGETAIL it lives in the workplace JVM, so without a memory image
+  only its routes and the requests to them are visible.
+confidence: medium
+references:
+  - title: Volexity - Proxying to compromise, SonicWall Secure Mobile Access 0-day exploitation (17 July 2026)
+    url: https://www.volexity.com/blog/2026/07/17/proxying-to-compromise-sonicwall-secure-mobile-access-0-day-exploitation/
+    accessed: "2026-10-29"
+  - title: Volexity threat-intel - YARA rules for UTA0533
+    url: https://github.com/volexity/threat-intel/tree/main/2026/2026-07-17%20SonicWall
+    accessed: "2026-10-29"

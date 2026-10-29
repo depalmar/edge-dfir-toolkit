@@ -58,7 +58,7 @@ def test_site_runs_without_errors(browser, tmp_path):
     page.goto(url)
     # a first visit lands on Start, with one tile per platform
     page.locator("#tab-start").wait_for(state="visible")
-    assert page.locator("#tab-start .ptile").count() == 10
+    assert page.locator("#tab-start .ptile").count() == 11
     page.goto(f"{url}#artifacts")
     page.locator("#tab-artifacts").wait_for(state="visible")
     shown, total = _counts(page, "artifacts")
@@ -115,7 +115,7 @@ def test_guide_has_contents_and_section_links(browser, tmp_path):
     assert page.locator(".toc a").count() >= 8
     assert page.locator(".toc a.on").inner_text() == "Analysis"
     # every platform has a note, and each note links into the libraries
-    assert page.locator("#tab-guide .pnote").count() == 10
+    assert page.locator("#tab-guide .pnote").count() == 11
     page.locator("#g-note-EDGE-0008 a", has_text="detections").click()
     page.wait_for_url("**#detections?platform=EDGE-0008")
 
@@ -178,7 +178,7 @@ def test_intel_indicators_and_charts(browser, tmp_path):
     page.goto(f"{url}#intel")
     page.locator(".charts .tl").wait_for(state="visible")
     assert page.locator(".charts .tlr").count() >= 8
-    assert page.locator(".charts .amx tbody tr").count() == 7
+    assert page.locator(".charts .amx tbody tr").count() == 8
     page.goto(f"{url}#intel/EDGE-TA-0003")
     page.locator("#drawer").wait_for(state="visible")
     body = page.locator("#dBody")
@@ -331,9 +331,9 @@ def test_coverage_readiness_and_kev_ledger(browser, tmp_path):
     page = browser.new_page(viewport={"width": 1440, "height": 900})
     page.goto(f"{url}#coverage/kev")
     page.locator("#tab-coverage").wait_for(state="visible")
-    assert page.locator("#cov-ready [role=table] .rrow:not(.rhead)").count() == 10
+    assert page.locator("#cov-ready [role=table] .rrow:not(.rhead)").count() == 11
     labels = page.locator("#cov-ready .rc").evaluate_all("els => els.map(e => e.getAttribute('aria-label'))")
-    assert len(labels) == 80 and all(lab.endswith((": yes", ": no")) for lab in labels)
+    assert len(labels) == 88 and all(lab.endswith((": yes", ": no")) for lab in labels)
     assert page.locator("#cov-kev table.kev tbody tr").count() == len(triaged)
     page.wait_for_function("() => window.scrollY > 0")
     top = page.evaluate("document.getElementById('cov-kev').getBoundingClientRect().top")
@@ -378,7 +378,7 @@ def test_artifact_rows_group_highlight_and_link(browser, tmp_path):
     page = browser.new_page(viewport={"width": 1440, "height": 900})
     page.goto(f"{url}#artifacts")
     page.locator("#tab-artifacts .grp").first.wait_for(state="visible")
-    assert page.locator("#tab-artifacts .grp").count() == 10
+    assert page.locator("#tab-artifacts .grp").count() == 11
     assert page.locator("#tab-artifacts .row.item[role=button], #tab-artifacts .row.item[tabindex]").count() == 0
     assert page.locator("#tab-artifacts .row.item a.locl").count() == page.locator("#tab-artifacts .row.item").count()
     page.goto(f"{url}#artifacts?platform=EDGE-0005")
@@ -403,7 +403,7 @@ def test_record_drawer_facts_sections_and_connections(browser, tmp_path):
     page.goto(f"{url}#artifacts/EDGE-0005.10")
     page.locator("#drawer").wait_for(state="visible")
     assert page.locator("#dBody .dfacts dt").all_inner_texts()[:3] == ["Class", "Volatility", "Forensic value"]
-    assert page.locator("#dPos").inner_text().endswith(" of 92")
+    assert page.locator("#dPos").inner_text().endswith(" of 101")
     if sys.modules["build_site"].git_dates():                 # F21: the file's last commit date, when history is present
         assert "Last changed" in page.locator("#dBody .dfacts dt").all_inner_texts()
     assert "How it connects" in page.locator("#dBody .dsecs button").all_inner_texts()

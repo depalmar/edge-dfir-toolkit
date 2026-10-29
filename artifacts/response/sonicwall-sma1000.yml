@@ -1,0 +1,112 @@
+# Containment and recovery - EDGE-0011 SonicWall SMA 1000
+# Schema: ../schema/response.schema.json
+
+platform_id: EDGE-0011
+name: SonicWall SMA 1000 series
+confidence: medium
+
+preserve_first:
+  - step: Capture memory over SSH before anything restarts
+    detail: >-
+      UTA0533's Suo5 and ORANGETAIL agents live in the workplace JVM and
+      KNUCKLEBALL deletes their JARs. Volexity collected RAM over SSH, and on the
+      appliance that had been rebooted it "assesses that the reboot likely removed
+      memory-resident backdoors and potentially other volatile artifacts". SSH is
+      root with the AMC admin password (SonicWall's SSH article).
+  - step: Copy the logs, configuration and staging directories off the appliance
+    detail: >-
+      /var/log/aventail/ (extraweb_access.log, access_servers.log,
+      ctrl-service.log), /var/lib/unit/conf.json, /etc/init.d/workplace,
+      /usr/lib/python3.11/site-packages/, /tmp, /var/tmp, and the output of find /
+      -perm -4000. Volexity "gathered select files and full disk images" as well.
+  - step: Save the AMC Management message log
+    detail: SonicWall lists its CVE-2025-23006 indicators there; the view is not a file, so save its contents as text.
+  - step: Pull the off-box records of what the appliance connected to
+    detail: Volexity saw authentication attempts from the appliance to other systems (EDGE-HUNT-0028).
+
+contain:
+  - step: Restrict the management consoles and SSH to trusted management hosts
+    detail: >-
+      SonicWall's workarounds for CVE-2025-23006 and CVE-2025-40602: restrict AMC
+      and CMC "to trusted sources", SSH "only via VPN or specific admin IPs". The
+      2026 advisories list no workaround.
+    when: COMPROMISED, LIKELY-COMPROMISED, SUSPICIOUS
+  - step: Stop the appliance reaching anything but the services its users need
+    detail: >-
+      The toolkit's suggestion from what Volexity saw: UTA0533 used Suo5 and
+      ORANGETAIL "attempting to pivot further into the customer network", and
+      captured LDAP on the appliance.
+    when: COMPROMISED, LIKELY-COMPROMISED
+
+credential_exposure:
+  - what: User and administrator passwords
+    why: SonicWall's recommended actions if IoCs are present.
+    action: SonicWall - "Change all user & administrator passwords." The AMC admin password is also the SSH root password.
+  - what: TOTP tokens
+    why: SonicWall's recommended actions if IoCs are present.
+    action: SonicWall - "Reset TOTP tokens".
+  - what: Directory credentials that crossed the appliance in cleartext
+    why: >-
+      Volexity: UTA0533 used tcpdump on the appliance, "inspecting unencrypted
+      LDAP traffic to extract usernames and passwords".
+    action: Rotate the directory bind account and the passwords of users who authenticated through the appliance while it was compromised.
+
+eradicate:
+  - step: Re-image hardware appliances or re-deploy virtual ones
+    detail: SonicWall - "If IOCs are present on the system", "Re-image (hardware) or re-deploy (virtual) appliances."
+    when: COMPROMISED, LIKELY-COMPROMISED
+
+recover:
+  - step: Bring the replacement up on 12.4.3-03526 or 12.5.0-02952 (platform-hotfix) or later
+    detail: >-
+      The fixed releases in SNWLID-2026-0016 (CVE-2026-83548 and CVE-2026-83549),
+      later than those for CVE-2026-15409 and CVE-2026-15410 (12.4.3-03453,
+      12.5.0-02835).
+  - step: Ask SonicWall Technical Support to review the system for indicators
+    detail: SonicWall's SNWLID-2026-0016 tells every organization on an affected version to do so.
+
+verify:
+  - step: Re-read the replacement's conf.json routes, setuid listing, workplace startup script, /tmp and /var/tmp
+  - step: Hunt the network for authentication from the appliance over the dwell period
+    detail: EDGE-HUNT-0028.
+
+do_not:
+  - action: Reboot the appliance, restart its services or install a hotfix before memory is captured
+    because: >-
+      The agents exist only in the workplace JVM. On Volexity's second appliance
+      a reboot "likely removed memory-resident backdoors and potentially other
+      volatile artifacts".
+  - action: Read a quiet log for /__api__/login and /__api__/logout as clean
+    because: Volexity - "These paths are arbitrary and could be anything".
+  - action: Trust the agents' own logs in /tmp
+    because: KNUCKLEBALL clears them and links them to /dev/null before injection.
+  - action: Clean the appliance in place and return it to service
+    because: SonicWall's instruction for an appliance with IoCs is to re-image or re-deploy it.
+
+vendor_guidance:
+  - title: SonicWall - SNWLID-2026-0008, SMA1000 multiple vulnerabilities (CVE-2026-15409, CVE-2026-15410)
+    url: https://psirt.global.sonicwall.com/vuln-detail/SNWLID-2026-0008
+    accessed: "2026-10-29"
+  - title: SonicWall - SNWLID-2026-0016, SMA1000 multiple vulnerabilities (CVE-2026-83548, CVE-2026-83549)
+    url: https://psirt.global.sonicwall.com/vuln-detail/SNWLID-2026-0016
+    accessed: "2026-10-29"
+  - title: SonicWall - SNWLID-2025-0002 (CVE-2025-23006)
+    url: https://psirt.global.sonicwall.com/vuln-detail/SNWLID-2025-0002
+    accessed: "2026-10-29"
+  - title: SonicWall - SNWLID-2025-0019 (CVE-2025-40602)
+    url: https://psirt.global.sonicwall.com/vuln-detail/SNWLID-2025-0019
+    accessed: "2026-10-29"
+  - title: SonicWall - Enabling and obtaining SSH access to the SonicWall / Aventail appliance
+    url: https://www.sonicwall.com/support/knowledge-base/enabling-and-obtaining-ssh-access-to-the-sonicwall-aventail-appliance/170502393231037/
+    accessed: "2026-10-29"
+
+references:
+  - title: Volexity - Proxying to compromise, SonicWall Secure Mobile Access 0-day exploitation (17 July 2026)
+    url: https://www.volexity.com/blog/2026/07/17/proxying-to-compromise-sonicwall-secure-mobile-access-0-day-exploitation/
+    accessed: "2026-10-29"
+notes: >-
+  SonicWall's recommended actions in SNWLID-2026-0008 also include "Perform a
+  thorough forensic analysis of the system to determine if any indicators of
+  compromise (IoCs) are present" before deciding to re-image. The TOTP and
+  password steps are SonicWall's; the directory-credential step follows from
+  Volexity's LDAP capture.

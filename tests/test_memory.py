@@ -43,6 +43,11 @@ PUBLISHED = {   # file -> (author meta, rule names): the publishers' own memory 
     "03-ivanti-connect-secure/ivanti_pysoxy_volexity.yar": ("threatintel@volexity.com", {"hacktool_py_pysoxy"}),
     "01-panos-globalprotect/panos_reverse_ssh_volexity.yar": ("threatintel@volexity.com", {
         "hacktool_golang_reversessh_fahrj", "susp_any_jarischf_user_path"}),
+    "11-sonicwall-sma1000/sma1000_orangetail_volexity.yar": ("threatintel@volexity.com", {
+        "apt_webshell_java_orangetail_b", "apt_webshell_java_orangetail"}),
+    "11-sonicwall-sma1000/sma1000_knuckleball_volexity.yar": ("threatintel@volexity.com", {"apt_malware_python_knuckleball"}),
+    "11-sonicwall-sma1000/sma1000_rootrun_volexity.yar": ("threatintel@volexity.com", {"apt_malware_linux_rootrun"}),
+    "11-sonicwall-sma1000/sma1000_uta0533_user_agent_volexity.yar": ("threatintel@volexity.com", {"apt_malware_any_uta0533_ua"}),
 }
 MEMORY_RULES = set().union(*(names for _, names in PUBLISHED.values()))
 FILE_ONLY = {   # publishers' rules that check a file's size or header: they never run against memory
@@ -51,22 +56,24 @@ FILE_ONLY = {   # publishers' rules that check a file's size or header: they nev
 }
 
 
+def rule_body(rule_file: str, rule: str) -> str:
+    """One rule's text, found by its exact name: orangetail must not find orangetail_b."""
+    import re
+    text = (ROOT / rule_file).read_text()
+    body = text[re.search(rf"^rule\s+{re.escape(rule)}\b", text, re.M).start():]
+    return body[:body.index("\n}") + 2]
+
+
 def text_strings(rule_file: str, rule: str) -> list[bytes]:
     """A rule's plain text strings, read from the repository's copy (nothing retyped here)."""
     import re
-    text = (ROOT / rule_file).read_text()
-    body = text[text.index("rule " + rule):]
-    body = body[:body.index("\n}") + 2]
-    return [s.encode() for s in re.findall(r'\$\w*\s*=\s*"([^"\\]*)"', body)]
+    return [s.encode() for s in re.findall(r'\$\w*\s*=\s*"([^"\\]*)"', rule_body(rule_file, rule))]
 
 
 def hex_strings(rule_file: str, rule: str) -> list[bytes]:
     """A rule's plain hex strings, read from the repository's copy (nothing retyped here)."""
     import re
-    text = (ROOT / rule_file).read_text()
-    body = text[text.index("rule " + rule):]
-    body = body[:body.index("\n}") + 2]
-    return [bytes.fromhex(h.replace(" ", "")) for h in re.findall(r"=\s*\{([0-9A-Fa-f ]+)\}", body)]
+    return [bytes.fromhex(h.replace(" ", "")) for h in re.findall(r"=\s*\{([0-9A-Fa-f ]+)\}", rule_body(rule_file, rule))]
 
 
 def lime(body: bytes) -> bytes:
@@ -143,7 +150,8 @@ def test_only_rules_that_read_nothing_but_strings_run_against_memory():
     check, a whole-file hash or a string offset describes a file, not memory."""
     import glob
     conds = {}
-    for f in sorted(glob.glob(str(ROOT / "0*" / "*.yar"))):
+    rule_files = sorted(glob.glob(str(ROOT / "[0-9][0-9]-*" / "*.yar")))   # 10- and 11- too, not only 0*
+    for f in rule_files:
         conds.update(memory.rule_conditions(Path(f).read_text()))
     assert all(c is not None for c in conds.values())
     safe = {n for n, c in conds.items() if memory.layout_reads(c) is None}
@@ -153,7 +161,7 @@ def test_only_rules_that_read_nothing_but_strings_run_against_memory():
     assert "a module" in memory.layout_reads(conds["SonicWall_SMA_OVERSTEP_Published_Hash"])
     assert "where its strings sit" in memory.layout_reads(conds["M_Hunting_CredTheft_WARPWIRE_strings"])
     yara = pytest.importorskip("yara")
-    for f in sorted(glob.glob(str(ROOT / "0*" / "*.yar"))):     # the parser sees every rule YARA compiles
+    for f in rule_files:     # the parser sees every rule YARA compiles
         assert {r.identifier for r in yara.compile(filepath=f)} <= set(conds), f
 
 
@@ -446,6 +454,24 @@ def test_reverse_ssh_on_a_panos_memory_image_is_likely(tmp_path, small_pieces):
     assert h["tier"] == "likely" and h["extra"]["detection"] == "panos-3400-reverse-ssh-yara"
     not_run = {r["rule"]: r["why"] for r in out["memory"]["yara"]["rules_not_run"]}
     assert not_run["susp_any_gost_arguments"] == "the file's size"        # Volexity's scan_context is "file"
+
+
+def test_orangetail_in_an_sma1000_image_is_likely(tmp_path, small_pieces):
+    """Four of the ORANGETAIL agent wrapper's strings (the rule's own) in an SMA 1000 image.
+    KNUCKLEBALL deletes the JARs once injected, so this is where the agents are found. Every
+    SMA 1000 pack rule reads only its strings, so none is listed as not run."""
+    pytest.importorskip("yara")
+    names = text_strings("11-sonicwall-sma1000/sma1000_orangetail_volexity.yar", "apt_webshell_java_orangetail")[:4]
+    src = tmp_path / "sma.lime"
+    src.write_bytes(lime(plant(9000, [(5000 + 40 * i, s) for i, s in enumerate(names)])))
+    case = Case(tmp_path / "IR-SMA")
+    m = Case.new_manifest("IR-SMA", "tester", "EDGE-0011", None)
+    m["ingested"].append(case.ingest(src, "mem", evidence_classes=["memory"]))
+    case.save(m)
+    out = analyze(case.root, ioc_dir=ioc_dir(tmp_path))
+    h = next(h for h in row(out, "memory-yara")["hits"] if h["extra"]["rule"] == "apt_webshell_java_orangetail")
+    assert h["tier"] == "likely" and h["extra"]["detection"] == "sma1000-orangetail-yara"
+    assert out["memory"]["yara"]["rules_not_run"] == []
 
 
 def test_coathanger_rules_read_files_not_memory(tmp_path):

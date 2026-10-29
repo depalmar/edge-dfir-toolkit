@@ -1,0 +1,269 @@
+# Edge platform catalog entry
+# EDGE-0011 - SonicWall SMA 1000
+
+id: EDGE-0011
+name: SonicWall SMA 1000 series
+vendor: SonicWall
+products: [SMA 6210, SMA 7210, SMA 8200v]
+os_base: Linux
+customer_shell: "yes"
+memory_acquisition: customer
+collection:
+  - method: SSH as root, then copy logs and files off with scp
+    impact: none
+    description: >-
+      SonicWall: SSH "is used for secure command line interface access and for
+      transferring files using Secure Copy (SCP)"; log in as root with "the same
+      password that is used for the admin account in AMC". SSH is enabled in AMC
+      (Services, SSH, Configure) for named host ranges, which is a configuration
+      change - record it. The 12.5 guide also has an "Enable shell access" box
+      that, when cleared, "prevents all shell access via the serial console and
+      SSH".
+    confidence: high
+  - method: Memory acquisition over SSH
+    impact: break-glass
+    description: >-
+      Volexity: "Using SSH access to the devices, Volexity collected system memory
+      (RAM) with Volexity Surge Collect Pro". A memory tool runs on the appliance
+      and writes to it. Do it before anything restarts the workplace service or the
+      appliance: UTA0533's agents live in that JVM and their JARs are deleted.
+    confidence: medium
+  - method: Full disk image
+    impact: break-glass
+    description: >-
+      Volexity "gathered select files and full disk images". How it imaged them is
+      not published; the 8200v is a virtual appliance, so the hypervisor's disk is
+      one route.
+    confidence: medium
+anti_forensics:
+  - technique: Agent log files linked to /dev/null before injection
+    seen_in: KNUCKLEBALL (UTA0533, 2026)
+  - technique: Implant JARs written to /tmp, injected into the workplace JVM, then deleted
+    seen_in: KNUCKLEBALL (UTA0533, 2026)
+  - technique: Implant pages return 404 unless the request carries the actor's user agent
+    seen_in: ORANGETAIL and Suo5 (UTA0533, 2026)
+response: sonicwall-sma1000
+hardening: sonicwall-sma1000
+artifacts:
+  - locator: /var/log/aventail/extraweb_access.log
+    class: web-logs
+    volatility: rotating
+    forensic_value: high
+    evidence_type: [initial-access, persistence, timeline]
+    confidence: high
+    collected_by: manual
+    description: >-
+      Volexity: "The log captures the external web interaction" with the
+      appliance, including the /wsproxy bypass and requests to the actor's web
+      shell routes.
+    seen_in: [UTA0533]
+    provides: >-
+      External requests to the appliance's web services, with method, path, query
+      and status.
+    normal: >-
+      Not described by either source.
+    suspicious: >-
+      SonicWall: "requests to /__api__/login or /__api__/logout with http 200
+      status" and "requests to /wsproxy with suspicious host parameters with 101
+      http status". Volexity's samples: host=0.0.0.0, ports 1050 and 8188, a bmID
+      starting -3389.
+    basis: vendor
+  - locator: /var/log/aventail/access_servers.log
+    class: web-logs
+    volatility: rotating
+    forensic_value: medium
+    evidence_type: [initial-access, timeline]
+    confidence: medium
+    collected_by: manual
+    description: >-
+      Volexity: holds "information related to the /wsproxy and WebSockets
+      activity", including "details related to the attacking IP address and
+      evidence of exploitation".
+    seen_in: [UTA0533]
+    provides: >-
+      Each WebSocket connection: its backend host and port, the client address,
+      and the Sec-WebSocket-Key that ties its lines together.
+    normal: >-
+      Not described by either source.
+    suspicious: >-
+      "Socket connected to backend success host = 0.0.0.0 and port =1050" in
+      Volexity's sample: a tunnel to a service on the appliance itself.
+    basis: researcher
+  - locator: /var/log/aventail/ctrl-service.log
+    class: system-logs
+    volatility: rotating
+    forensic_value: high
+    evidence_type: [execution, timeline]
+    confidence: high
+    collected_by: manual
+    description: >-
+      Volexity: "contained key information related to command execution and
+      privilege escalation (run as root)" and "would capture the files that
+      UTA0533 executed through CVE-2026-15410".
+    seen_in: [UTA0533]
+    provides: >-
+      What the control service ran, including hotfix removals and the commands
+      behind them.
+    normal: >-
+      Not described by either source.
+    suspicious: >-
+      SonicWall: "hotfix rollbacks with path traversal names", as in Volexity's
+      "running hotfix removal for:../../../../../tmp/1234.sh".
+    basis: vendor
+  - locator: /var/lib/unit/conf.json
+    class: config
+    volatility: stable
+    forensic_value: high
+    evidence_type: [persistence, configuration]
+    confidence: high
+    collected_by: manual
+    description: >-
+      The NGINX Unit configuration. KNUCKLEBALL added two routes to it through the
+      local control socket. On Volexity's second appliance they were still there
+      after a reboot, when the implants were no longer loaded.
+    seen_in: [UTA0533]
+    provides: >-
+      Every route the web front end serves, its rewrite target and its proxy.
+    normal: >-
+      SonicWall: routes for /__api__/login or /__api__/logout "do not exist in
+      legitimate configuration".
+    suspicious: >-
+      Those routes (SonicWall), or any unexpected route, "such as those going to
+      http://127.0.0.1:8085" (Volexity).
+    basis: vendor
+  - locator: /etc/init.d/workplace
+    class: persistence
+    volatility: stable
+    forensic_value: high
+    evidence_type: [persistence]
+    confidence: medium
+    collected_by: manual
+    description: >-
+      The legitimate startup script for the workplace service, to which UTA0533
+      added a line that starts KNUCKLEBALL.
+    seen_in: [KNUCKLEBALL]
+    provides: >-
+      What runs when the workplace service starts.
+    normal: >-
+      Not published; compare with the same file on a clean appliance of the same
+      build.
+    suspicious: >-
+      The line "python3 /usr/lib/python3.11/site-packages/deploy_new.py"
+      (Volexity), or any line starting a script nobody can account for.
+    basis: researcher
+  - locator: find / -perm -4000 (setuid listing)
+    class: integrity
+    volatility: stable
+    forensic_value: high
+    evidence_type: [persistence, defense-evasion]
+    confidence: medium
+    collected_by: manual
+    description: >-
+      Volexity recommends checking "for any unexpected setuid binaries, outside of
+      those that are expected on the system, by running the command find /
+      -perm -4000". ROOTRUN was one, as /usr/bin/xzfind.
+    seen_in: [ROOTRUN]
+    provides: >-
+      Every setuid binary on the appliance.
+    normal: >-
+      Volexity's list of binaries that "may show up legitimately":
+      /usr/lib/mysql/plugin/auth_pam_tool_dir/auth_pam_tool,
+      /usr/libexec/ssh-keysign, /usr/local/workplace/conf, /usr/bin/umount,
+      /usr/bin/su, /usr/bin/mount, /usr/bin/newgrp, /usr/bin/at, /usr/bin/ping,
+      /usr/bin/sudo, /usr/bin/ping6.
+    suspicious: >-
+      Anything else, above all /usr/bin/xzfind.
+    basis: researcher
+  - locator: /tmp and /var/tmp
+    class: filesystem
+    volatility: stable
+    forensic_value: high
+    evidence_type: [execution, credential-access]
+    confidence: medium
+    collected_by: manual
+    description: >-
+      Where UTA0533 staged its exploit and scripts, and where it captured LDAP
+      traffic with tcpdump.
+    seen_in: [UTA0533, KNUCKLEBALL]
+    provides: >-
+      Staged files, their owners and timestamps.
+    normal: >-
+      Not published.
+    suspicious: >-
+      Files owned by the internal database service's account (Volexity: the files
+      in /tmp "were owned by the unprivileged account used by the appliance's
+      internal database service"), /tmp/hypdate.b64, /tmp/1234.sh, the
+      agent_wp8 and agent_wp9 JARs or their logs linked to /dev/null, and packet
+      captures with their launcher in /var/tmp.
+    basis: researcher
+  - locator: Memory of the workplace.startup.CommandStartup JVM
+    class: memory
+    volatility: live
+    forensic_value: high
+    evidence_type: [persistence, execution]
+    confidence: medium
+    collected_by: manual
+    description: >-
+      KNUCKLEBALL injects its two agents into this process through the Java Attach
+      API and deletes the JARs, so a running appliance holds them only in memory.
+      On the appliance that had been rebooted, "Memory and application testing
+      indicated that Suo5 and ORANGETAIL were not actively loaded".
+    seen_in: [ORANGETAIL, Suo5, KNUCKLEBALL]
+    provides: >-
+      The injected classes, and the requests they served.
+    normal: >-
+      Not published.
+    suspicious: >-
+      A match for Volexity's ORANGETAIL or user-agent rules in the image
+      (scan_context "file,memory").
+    basis: researcher
+  - locator: AMC > Management message log
+    class: system-logs
+    volatility: rotating
+    forensic_value: medium
+    evidence_type: [initial-access]
+    confidence: medium
+    collected_by: manual
+    description: >-
+      The console view SonicWall points to for CVE-2025-23006. SonicWall names the
+      view, not a file; save its contents as amc-management-messages*.txt and
+      ingest it.
+    seen_in: [CVE-2025-23006]
+    provides: >-
+      Management-console messages, including exceptions.
+    normal: >-
+      Not published.
+    suspicious: >-
+      SonicWall's "possible IoCs": "Caught exception while trying to setup the
+      ApplyDialogPreparer: java.lang.NullPointerException" and "Caught exception
+      while trying to deserialization: java.lang.RuntimeException:
+      InvocationTargetException: java.lang.reflect.InvocationTargetException".
+    basis: vendor
+confidence: medium
+references:
+  - title: SonicWall - SNWLID-2026-0008, SMA1000 multiple vulnerabilities (CVE-2026-15409, CVE-2026-15410), 14 July 2026
+    url: https://psirt.global.sonicwall.com/vuln-detail/SNWLID-2026-0008
+    accessed: "2026-10-29"
+  - title: Volexity - Proxying to compromise, SonicWall Secure Mobile Access 0-day exploitation (17 July 2026)
+    url: https://www.volexity.com/blog/2026/07/17/proxying-to-compromise-sonicwall-secure-mobile-access-0-day-exploitation/
+    accessed: "2026-10-29"
+  - title: SonicWall - Enabling and obtaining SSH access to the SonicWall / Aventail appliance
+    url: https://www.sonicwall.com/support/knowledge-base/enabling-and-obtaining-ssh-access-to-the-sonicwall-aventail-appliance/170502393231037/
+    accessed: "2026-10-29"
+  - title: SonicWall - SMA 1000 12.5 Administration Guide, Enabling SSH Access from Remote Hosts
+    url: https://www.sonicwall.com/support/technical-documentation/docs/sma_1000-12-5-admin_guide/Content/Administration/enabling-ssh-access-from-remote-hosts.htm
+    accessed: "2026-10-29"
+  - title: SonicWall - SNWLID-2025-0002, SMA1000 pre-authentication remote command execution (CVE-2025-23006)
+    url: https://psirt.global.sonicwall.com/vuln-detail/SNWLID-2025-0002
+    accessed: "2026-10-29"
+notes: >-
+  No collection profile yet: nobody has run one against an appliance, and
+  SonicWall publishes no read-only command set. Copy the files named here over
+  SSH and ingest them. Distinct from the SMA 100 series (EDGE-0006): SonicWall
+  says these vulnerabilities "do not affect SSL-VPN running on SonicWall
+  firewalls or the SMA 100 Series product line". Volexity also reports that the
+  control service's password is derived from /sys/class/dmi/id/product_uuid,
+  which on the physical appliances it saw was "a common value seen across many
+  different systems belonging to different customers", and that the /wsproxy
+  bypass is what exposes that service outside the appliance.
+last_modified: "2026-10-29"

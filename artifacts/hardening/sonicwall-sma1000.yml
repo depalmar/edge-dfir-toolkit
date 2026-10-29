@@ -1,0 +1,159 @@
+# Prevention and hardening - EDGE-0011 SonicWall SMA 1000 series
+# Schema: ../schema/hardening.schema.json
+#
+# Every control is SonicWall's own: its PSIRT advisories, its knowledge-base
+# article on securing the network configuration (updated January 22, 2025) and
+# the SMA 1000 12.5 Administration Guide. SonicWall gives console steps, not CLI
+# syntax, for each.
+
+platform_id: EDGE-0011
+name: SonicWall SMA 1000 series
+summary: >-
+  Four advisories since January 2025 have fixed exploited flaws on this line,
+  and four of their six CVEs are in the Appliance Management Console. The
+  controls that matter:
+  stay on the latest platform-hotfix, keep the AMC, CMC and SSH off the
+  internet, and give the logs an accurate clock.
+last_modified: "2026-10-29"
+
+controls:
+  - id: sma1000-current-hotfix
+    control: Run 12.4.3-03526 or 12.5.0-02952 (platform-hotfix) or later
+    category: patching
+    priority: critical
+    why: >-
+      Each advisory fixes its CVEs in a later platform-hotfix; SNWLID-2026-0016's
+      releases are the latest named and are later than every earlier fix.
+    how: >-
+      SonicWall gives no command: "The latest platform-hotfix is available for
+      download on mysonicwall.com".
+    blunts: [CVE-2026-83548, CVE-2026-83549, CVE-2026-15409, CVE-2026-15410, CVE-2025-40602, CVE-2025-23006]
+    confidence: high
+    sources:
+      - title: SonicWall - SNWLID-2026-0016 (CVE-2026-83548, CVE-2026-83549)
+        url: https://psirt.global.sonicwall.com/vuln-detail/SNWLID-2026-0016
+        accessed: "2026-10-29"
+        quote: "12.4.3-03526 (platform-hotfix) and higher versions."
+      - title: SonicWall - SNWLID-2026-0008 (CVE-2026-15409, CVE-2026-15410)
+        url: https://psirt.global.sonicwall.com/vuln-detail/SNWLID-2026-0008
+        accessed: "2026-10-29"
+        quote: "12.4.3-03453 (platform-hotfix) and higher versions."
+      - title: SonicWall - SNWLID-2025-0019 (CVE-2025-40602)
+        url: https://psirt.global.sonicwall.com/vuln-detail/SNWLID-2025-0019
+        accessed: "2026-10-29"
+        quote: "12.4.3-03245 (platform-hotfix) and higher versions."
+      - title: SonicWall - SNWLID-2025-0002 (CVE-2025-23006)
+        url: https://psirt.global.sonicwall.com/vuln-detail/SNWLID-2025-0002
+        accessed: "2026-10-29"
+        quote: "Version 12.4.3-02854 (platform-hotfix) and higher versions."
+
+  - id: sma1000-consoles-trusted-only
+    control: Expose the AMC and CMC only to trusted management networks, never to the internet
+    category: exposure
+    priority: critical
+    why: >-
+      SonicWall's workaround for CVE-2025-23006 and for CVE-2025-40602, which it
+      says was chained with it to reach root.
+    how: >-
+      SonicWall: on a dual-homed appliance, management services "such as the AMC &
+      CMC are only exposed to trusted networks on the internal interface"; on a
+      single interface, use "a firewall capable of filtering access to the AMC &
+      CMC". No CLI syntax is given.
+    blunts: [CVE-2025-23006, CVE-2025-40602]
+    confidence: high
+    sources:
+      - title: SonicWall - SMA 1000, Best Practices - Securing the Network Configuration on SMA & CMS
+        url: https://www.sonicwall.com/support/knowledge-base/sma-1000-best-practices-securing-the-network-configuration-on-sma-cms/250121134535667
+        accessed: "2026-10-29"
+        quote: "Access to the administrative consoles over the public internet is highly discouraged"
+      - title: SonicWall - SNWLID-2025-0002 (CVE-2025-23006)
+        url: https://psirt.global.sonicwall.com/vuln-detail/SNWLID-2025-0002
+        accessed: "2026-10-29"
+        quote: "please ensure that you restrict access to trusted sources for the Appliance Management Console (AMC) and Central Management Console (CMC)"
+      - title: SonicWall - SNWLID-2025-0019 (CVE-2025-40602)
+        url: https://psirt.global.sonicwall.com/vuln-detail/SNWLID-2025-0019
+        accessed: "2026-10-29"
+        quote: "Disable SSL VPN management interface (AMC) and SSH access from the public internet."
+
+  - id: sma1000-ssh-trusted-hosts
+    control: Allow SSH only from trusted management workstations
+    category: access
+    priority: high
+    why: >-
+      With both interfaces enabled SSH listens on both, and an SSH session on the
+      appliance is root with the AMC admin password (SonicWall's SSH article).
+      SonicWall lists SSH in its CVE-2025-40602 workaround.
+    how: >-
+      In AMC, under Network Services, click Configure under SSH and add only the
+      trusted hosts' addresses (12.5 Administration Guide). The guide notes that
+      0.0.0.0 for both address and subnet allows SSH from any host; do not.
+    blunts: [CVE-2025-40602]
+    confidence: high
+    sources:
+      - title: SonicWall - SMA 1000 12.5 Administration Guide, Enable Strict IP Address Restrictions for the SSH Service
+        url: https://www.sonicwall.com/support/technical-documentation/docs/sma_1000-12-5-admin_guide/Content/Appendix/enable-strict-ip-address-restrictions-for-the-ssh-service.htm
+        accessed: "2026-10-29"
+        quote: "Be sure to restrict SSH service access to the IP addresses of trusted management workstations or, at a minimum, the address range of the internal network."
+      - title: SonicWall - SNWLID-2025-0019 (CVE-2025-40602)
+        url: https://psirt.global.sonicwall.com/vuln-detail/SNWLID-2025-0019
+        accessed: "2026-10-29"
+        quote: "SSH access only via VPN or specific admin IPs"
+
+  - id: sma1000-snmp-community
+    control: Change the default SNMP community string and restrict SNMP to management hosts
+    category: services
+    priority: medium
+    why: SonicWall's best-practice article; the default community string is public.
+    how: >-
+      Change the Community string in AMC's SNMP configuration; SonicWall gives no
+      further steps.
+    confidence: high
+    sources:
+      - title: SonicWall - SMA 1000, Best Practices - Securing the Network Configuration on SMA & CMS
+        url: https://www.sonicwall.com/support/knowledge-base/sma-1000-best-practices-securing-the-network-configuration-on-sma-cms/250121134535667
+        accessed: "2026-10-29"
+        quote: "Be sure to change this to a secure passphrase."
+
+  - id: sma1000-icmp-internal
+    control: Disable ICMP, or allow it only on the internal interface
+    category: exposure
+    priority: medium
+    why: SonicWall - ICMP on both interfaces "can expose the appliance to discovery from the Internet".
+    how: SonicWall gives no steps.
+    confidence: high
+    sources:
+      - title: SonicWall - SMA 1000, Best Practices - Securing the Network Configuration on SMA & CMS
+        url: https://www.sonicwall.com/support/knowledge-base/sma-1000-best-practices-securing-the-network-configuration-on-sma-cms/250121134535667
+        accessed: "2026-10-29"
+        quote: "The most secure approach is to disable ICMP entirely or restrict it to the internal interface."
+
+  - id: sma1000-ntp
+    control: Synchronise the appliance with an external NTP server
+    category: logging
+    priority: medium
+    why: SonicWall - for accurate log timestamps, and so that password and certificate expiry checks work.
+    how: SonicWall gives no steps.
+    confidence: high
+    sources:
+      - title: SonicWall - SMA 1000, Best Practices - Securing the Network Configuration on SMA & CMS
+        url: https://www.sonicwall.com/support/knowledge-base/sma-1000-best-practices-securing-the-network-configuration-on-sma-cms/250121134535667
+        accessed: "2026-10-29"
+        quote: "Synchronize with an external Network Time Protocol (NTP) server to ensure accurate timestamps in the system logs"
+
+  - id: sma1000-server-key
+    control: Keep the appliance's server certificate key encrypted with a strong password
+    category: integrity
+    priority: medium
+    why: SonicWall - with the certificate and key, attackers "could identify the associated host and potentially decrypt sensitive data".
+    how: SonicWall gives no steps.
+    confidence: high
+    sources:
+      - title: SonicWall - SMA 1000, Best Practices - Securing the Network Configuration on SMA & CMS
+        url: https://www.sonicwall.com/support/knowledge-base/sma-1000-best-practices-securing-the-network-configuration-on-sma-cms/250121134535667
+        accessed: "2026-10-29"
+        quote: "Always encrypt the associated private key with a strong password."
+
+notes: >-
+  SonicWall's 2026 advisories give the workaround as "None.", so the
+  hotfix is the only control for CVE-2026-15409, CVE-2026-15410, CVE-2026-83548
+  and CVE-2026-83549.

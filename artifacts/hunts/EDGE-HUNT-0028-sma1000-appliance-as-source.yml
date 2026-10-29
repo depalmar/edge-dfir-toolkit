@@ -1,0 +1,69 @@
+# Off-box hunt EDGE-HUNT-0028
+# Schema: ../schema/hunt.schema.json
+
+id: EDGE-HUNT-0028
+title: The SMA 1000 appliance itself connecting to, or signing in to, other systems
+platforms:
+- EDGE-0011
+actors:
+- EDGE-TA-0008
+seen_in:
+- UTA0533 (Volexity, 2026)
+cves:
+- CVE-2026-15409
+- CVE-2026-15410
+hypothesis: >-
+  An actor with root on the appliance is using it as a foothold: authenticating from it to internal
+  systems, or connecting out from it.
+data:
+- netflow
+- identity
+- edr
+data_detail: >-
+  Flows or the next firewall's sessions whose source is one of the appliance's own interface addresses;
+  domain controller and host authentication logs naming that address or a workstation name Volexity
+  lists; EDR on the hosts it reached.
+method:
+- >-
+  List every connection whose source is one of the appliance's own interface addresses, and every
+  authentication from those addresses.
+- >-
+  Set aside what the appliance is configured to reach - directory, DNS, time, logging and RADIUS servers,
+  and the back-end resources it proxies for users - and look at the rest, internal and external.
+- >-
+  Search authentication logs for the workstation names Volexity's post lists as leaked during lateral
+  movement.
+normal: The appliance reaching its configured directory, DNS, time, logging and back-end services.
+suspicious: >-
+  Authentication attempts from the appliance to hosts it has no configured reason to reach, external
+  connections it does not normally make, or a logon from one of Volexity's leaked workstation names.
+attack:
+- T1021
+- T1078
+inferred: >-
+  The split between configured destinations and everything else is the toolkit's. Volexity says to
+  monitor for lateral movement and external connections, and that it saw authentication attempts from
+  the appliance.
+confidence: low
+unverified: true
+sources:
+- title: Volexity - Proxying to compromise, SonicWall Secure Mobile Access 0-day exploitation (17 July 2026)
+  url: https://www.volexity.com/blog/2026/07/17/proxying-to-compromise-sonicwall-secure-mobile-access-0-day-exploitation/
+  accessed: '2026-10-29'
+  quote: >-
+    Look for unexpected connections from SonicWall SMA appliances. This would include monitoring for
+    both lateral movement and external connections.
+  read: direct
+- title: Volexity - Proxying to compromise, SonicWall Secure Mobile Access 0-day exploitation (17 July 2026)
+  url: https://www.volexity.com/blog/2026/07/17/proxying-to-compromise-sonicwall-secure-mobile-access-0-day-exploitation/
+  accessed: '2026-10-29'
+  quote: >-
+    This included authentication attempts from the SMA appliance to various systems on the network.
+  read: direct
+- title: Volexity - Proxying to compromise, SonicWall Secure Mobile Access 0-day exploitation (17 July 2026)
+  url: https://www.volexity.com/blog/2026/07/17/proxying-to-compromise-sonicwall-secure-mobile-access-0-day-exploitation/
+  accessed: '2026-10-29'
+  quote: >-
+    During the lateral movement phase of the attack, Volexity observed several hostnames belonging
+    to the threat actor that were unintentionally leaked
+  read: direct

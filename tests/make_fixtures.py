@@ -519,6 +519,62 @@ def ivanti_image(path: Path, compromised: bool) -> None:
             tf.addfile(info, io.BytesIO(raw))
 
 
+# ----------------------------------------------------------------- SonicWall SMA 1000
+def sma1000_files(path: Path, compromised: bool) -> None:
+    """Files copied off over SSH, as the guide's SMA 1000 note lists them. The compromised
+    log lines take the shape of Volexity's published samples with documentation
+    addresses; the configuration lines are SonicWall's and Volexity's published values.
+    Binaries and scripts are placeholders, so Volexity's YARA rules never match here."""
+    web = ['198.51.100.20 - - [28/Jun/2026:09:00:00 -0000] "GET /wsproxy?bmID=1207&serviceType=SSH'
+           '&host=198.51.100.30&port=22 HTTP/1.1" 101 - "-" -',
+           '198.51.100.20 - - [28/Jun/2026:09:00:05 -0000] "GET /workplace/access/home HTTP/1.1" 200 1024 "-" -']
+    srv = ["[28/Jun/2026:09:00:00.000001 -0000] sma-lab 000101 ew 10000001 Info Misc ::WEBSOCK::Socket connected "
+           "to backend success host = 198.51.100.30 and port =22 Sec-WebSocket-Key = fixture"]
+    ctl = ["2026-06-20 10:00:00,000 - INFO - running hotfix removal for:fixture-hotfix"]
+    conf = {"routes": [{"match": {"uri": "/workplace/*"}, "action": {"proxy": "http://127.0.0.1:8085"}}]}
+    init = "#!/bin/sh\n# fixture-only placeholder for the workplace service script\n"
+    members: dict[str, bytes] = {
+        "usr/bin/placeholder": b"fixture-only placeholder\n",
+        "usr/lib/python3.11/site-packages/placeholder.py": b"# fixture-only placeholder\n",
+        "tmp/placeholder.tmp": b"fixture-only\n",
+        "var/tmp/placeholder.tmp": b"fixture-only\n",
+    }
+    amc = ["Info: Source AMC - fixture-only placeholder message"]
+    if compromised:
+        web += ['203.0.113.45 - - [28/Jun/2026:23:19:17 -0000] "GET /wsproxy?bmID=-3389f61b21f4&serviceType=SSH'
+                '&host=0.0.0.0&port=1050 HTTP/1.1" 101 - "-" -',
+                '203.0.113.45 - - [28/Jun/2026:23:21:02 -0000] "GET /wsproxy?bmID=-3389aa01&serviceType=SSH'
+                '&host=127.0.0.1&port=8188 HTTP/1.1" 403 - "-" -',
+                '203.0.113.46 - - [29/Jun/2026:00:35:49 -0000] "POST /__api__/login HTTP/1.1" 200 - "-" -']
+        srv += ["[28/Jun/2026:23:50:30.858010 -0000] sma-lab 004841 ew 1000019d Info Misc ::WEBSOCK::Socket "
+                "connected to backend success host = 0.0.0.0 and port =1050 Sec-WebSocket-Key = fixture"]
+        ctl += ["2026-06-28 22:34:34,527 - INFO - running hotfix removal for:../../../../../tmp/1234.sh",
+                "2026-06-28 22:52:19,293 - ERROR - Command '['/usr/local/bin/remove_hotfix', "
+                "'../../../../../tmp/1234.sh']' exited with status '1'"]
+        conf["routes"] += [
+            {"match": {"uri": "/__api__/login"}, "action": {"rewrite": "/workplace/error.jsp", "proxy": "http://127.0.0.1:8085"}},
+            {"match": {"uri": "/__api__/logout"}, "action": {"rewrite": "/workplace/dialogs/errorDialog.jsp",
+                                                              "proxy": "http://127.0.0.1:8085"}}]
+        init += "python3 /usr/lib/python3.11/site-packages/deploy_new.py\n"
+        members["usr/bin/xzfind"] = b"fixture-only placeholder\n"
+        members["usr/lib/python3.11/site-packages/deploy_new.py"] = b"# fixture-only placeholder\n"
+        members["tmp/hypdate.b64"] = b"fixture-only\n"
+        members["var/tmp/lib.sh"] = b"# fixture-only placeholder\n"
+        amc += ["Warning: Source AMC - Caught exception while trying to deserialization: java.lang.RuntimeException: "
+                "InvocationTargetException: java.lang.reflect.InvocationTargetException"]
+    members["var/log/aventail/extraweb_access.log"] = ("\n".join(web) + "\n").encode()
+    members["var/log/aventail/access_servers.log"] = ("\n".join(srv) + "\n").encode()
+    members["var/log/aventail/ctrl-service.log"] = ("\n".join(ctl) + "\n").encode()
+    members["var/lib/unit/conf.json"] = json.dumps(conf, indent=2).encode()
+    members["etc/init.d/workplace"] = init.encode()
+    members["amc-management-messages.txt"] = ("\n".join(amc) + "\n").encode()
+    with tarfile.open(path, "w:gz") as tf:
+        for name, raw in members.items():
+            info = tarfile.TarInfo(name)
+            info.size = len(raw)
+            tf.addfile(info, io.BytesIO(raw))
+
+
 def main(out: Path) -> None:
     out.mkdir(parents=True, exist_ok=True)
     ivanti_image(out / "ivanti-image-spawn.tgz", True)
@@ -554,6 +610,8 @@ def main(out: Path) -> None:
     sma_image(out / "sma-image-no-preload.tgz", None, False)
     (out / "shell.php").write_bytes(SHELL_PHP)
     (out / "benign.php").write_bytes(BENIGN_PHP)
+    sma1000_files(out / "sma1000-files-uta0533.tgz", True)
+    sma1000_files(out / "sma1000-files-benign.tgz", False)
 
 
 if __name__ == "__main__":

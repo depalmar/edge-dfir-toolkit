@@ -1,0 +1,40 @@
+id: EDGE-IMP-0016
+name: ORANGETAIL
+aliases: []
+platforms: [EDGE-0011]
+actors: [EDGE-TA-0008]
+cves: [CVE-2026-15409, CVE-2026-15410]
+type: web-shell
+resides: memory
+survives_reboot: "no"
+survives_upgrade: unknown
+summary: >-
+  Volexity: "a custom Java webshell that operates similarly to the open-source
+  webshell Behinder", delivered as agent_wp9.jar, which overrides the
+  com/aventail/jsp/workplace/dialogs/errorDialog_jsp class in the workplace JVM.
+  It takes the actor's data in the find parameter of a POST, decrypts it with a
+  hardcoded AES-128-ECB key and loads it as a Java class for the session, and
+  answers in JSON. Reached at /workplace/dialogs/errorDialog.jsp and through the
+  /__api__/logout route KNUCKLEBALL adds. It lives only in the JVM: on the
+  appliance that had been rebooted it was no longer loaded. KNUCKLEBALL's line in
+  the workplace startup script is what puts it back.
+artifacts:
+  - agent_wp9.jar in /tmp while KNUCKLEBALL injects it
+  - The overridden errorDialog_jsp class in the workplace JVM
+  - POST requests to /__api__/logout or /workplace/dialogs/errorDialog.jsp carrying the actor's user agent
+anti_forensics:
+  - "Volexity: \"Page returns 404 if user agent does not validate\""
+  - "Volexity: \"All sensitive strings are built char-by-char via String.valueOf()\""
+detections: [sma1000-orangetail-yara, sma1000-uta0533-user-agent-yara, sma1000-api-route-access, sma1000-unit-api-routes, sma1000-unit-rewrite-to-hijacked-page]
+gap: >-
+  It lives in the workplace JVM, so without a memory image only its routes and
+  the requests to them are visible, and the routes' paths are the actor's
+  choice.
+confidence: medium
+references:
+  - title: Volexity - Proxying to compromise, SonicWall Secure Mobile Access 0-day exploitation (17 July 2026)
+    url: https://www.volexity.com/blog/2026/07/17/proxying-to-compromise-sonicwall-secure-mobile-access-0-day-exploitation/
+    accessed: "2026-10-29"
+  - title: Volexity threat-intel - YARA rules for UTA0533
+    url: https://github.com/volexity/threat-intel/tree/main/2026/2026-07-17%20SonicWall
+    accessed: "2026-10-29"

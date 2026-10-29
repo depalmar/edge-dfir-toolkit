@@ -33,7 +33,10 @@ Ordered by value. Effort figures are judgment, not measurement.
 ## Phase 2 - breadth
 
 - Profiles for SonicWall (TSR + image mode) and FortiManager. Check Point, F5,
-  Juniper and IOS XE landed in 0.3.0.
+  Juniper and IOS XE landed in 0.3.0. SMA 1000 (EDGE-0011, 0.18.0) gives root
+  over SSH, so a read-only profile for its logs, `conf.json`, the setuid
+  listing and `/tmp` is possible once a contributed capture or an 8200v
+  evaluation confirms the paths and prompts.
 - Packs still missing: Junos Evolved PTX (CVE-2026-21902, once primary
   indicators exist). J-Web and IOS XE SNMP landed in 0.6.0 at low confidence;
   raise them when a second source or Juniper's own advisory is read.
@@ -63,9 +66,10 @@ Ordered by value. Effort figures are judgment, not measurement.
   Volatility 3 runs with operator-supplied symbols, unscored. 0.17.1 added the
   publishers' own memory and core-dump rules for Cisco ASA (NCSC, CISA) and
   Ivanti (Volexity); 0.17.2 added PAN-OS (Volexity) and pointed NetScaler at
-  NCSC-NL's EUPL rules, so 20 pack rules run on memory. Next: a SonicWall SMA
-  1000 platform, for which Volexity's UTA0533 rules are ready, and parsers for
-  Volatility outputs once they are pinned against a real appliance image.
+  NCSC-NL's EUPL rules, so 20 pack rules run on memory. 0.18.0 added the
+  SonicWall SMA 1000 platform with Volexity's UTA0533 rules, so 25 do. Next:
+  parsers for Volatility outputs once they are pinned against a real appliance
+  image.
 - Mandiant's FRAMESTING rule (left out: its published string is ambiguous) once
   Mandiant's own copy of the rule can be read without the blog's line wrapping.
 - A real or replayed FortiOS `diagnose sys process dump` capture to pin the

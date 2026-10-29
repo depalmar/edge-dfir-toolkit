@@ -1,5 +1,59 @@
 # Changelog
 
+## 0.18.0 - 2026-10-29 - SonicWall SMA 1000
+
+A new platform, `EDGE-0011`, separate from the SMA 100 series (`EDGE-0006`):
+SonicWall says its SMA 1000 flaws "do not affect SSL-VPN running on SonicWall
+firewalls or the SMA 100 Series product line". Six KEV entries since January
+2025 are on it, and each is now covered or decided.
+
+- **Catalog.** Root over SSH with the AMC admin password (SonicWall's SSH
+  article), memory collected over SSH (Volexity), and nine artifacts with what
+  SonicWall and Volexity call suspicious: `extraweb_access.log`,
+  `access_servers.log`, `ctrl-service.log`, the NGINX Unit `conf.json`,
+  `/etc/init.d/workplace`, the setuid listing against Volexity's expected list,
+  `/tmp` and `/var/tmp`, the workplace JVM's memory, and the AMC Management
+  message log. No collection profile: nobody has run one against an appliance.
+- **EDGE-PACK-0036, CVE-2026-15409 and CVE-2026-15410 (UTA0533).**
+  - Sixteen detections: SonicWall's published IoCs and Volexity's sample shapes
+    for the `/wsproxy` tunnel to the appliance itself, the `/__api__/login` and
+    `/__api__/logout` routes, the hotfix-removal path traversal, the routes in
+    `conf.json` and the startup-script line.
+  - Volexity's file paths for ROOTRUN, KNUCKLEBALL and the `/tmp` staging files.
+  - Volexity's five YARA rules, copied byte for byte with its BSD 2-Clause
+    licence. All five read only their strings, so they also run on memory: 25
+    pack rules now do.
+  - Three Sigma rules for the log detections.
+- **EDGE-PACK-0037, CVE-2025-23006.** SonicWall's two specific "possible IoCs"
+  from the AMC Management message log. SonicWall names a console view, not a
+  file, so the check reads an export saved as `amc-management-messages*.txt`.
+- **Intel.**
+  - UTA0533 (EDGE-TA-0008): Volexity states no attribution, confidence or
+    motivation.
+  - KNUCKLEBALL, ORANGETAIL, ROOTRUN and UTA0533's Suo5 build
+    (EDGE-IMP-0015 to 0018).
+  - EDGE-IOC-0018: 34 values parsed from Volexity's post, the eight addresses
+    with role unknown, as Volexity found no commonality among them.
+- **EDGE-HUNT-0028.** Connections and sign-ins from the appliance itself, from
+  Volexity's detection advice.
+- **Response and hardening.**
+  - SonicWall's own recovery steps: capture memory, re-image or re-deploy,
+    change passwords, reset TOTP. Directory credentials are added because
+    Volexity saw cleartext LDAP captured on the appliance.
+  - Seven controls from SonicWall's advisories, its best-practice article and
+    the 12.5 administration guide.
+- **KEV.**
+  - The watch now maps `SMA ?1000`.
+  - CVE-2025-40602, CVE-2026-83548 and CVE-2026-83549 are `no-indicators`:
+    SonicWall reports exploitation and publishes no IoCs.
+  - All six have exploitation records. None has an `earliest`: no source dates
+    an exploit. Volexity's June 22, 2026 is the intrusion's earliest sign of
+    compromise.
+- **Tests.**
+  - The memory test's rule glob was `0*` and would have missed rule
+    directories from 10 up.
+  - Its string helper now finds a rule by its exact name.
+
 ## 0.17.2 - 2026-10-29 - Memory rules for the other platforms
 
 A survey of every other platform's publishers for rules written for memory or

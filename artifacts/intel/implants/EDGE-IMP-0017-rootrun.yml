@@ -1,0 +1,28 @@
+id: EDGE-IMP-0017
+name: ROOTRUN
+aliases: []
+platforms: [EDGE-0011]
+actors: [EDGE-TA-0008]
+cves: [CVE-2026-15409, CVE-2026-15410]
+type: backdoor
+resides: disk
+survives_reboot: "yes"
+survives_upgrade: unknown
+summary: >-
+  Volexity: a setuid binary written to /usr/bin/xzfind on June 22, 2026 that
+  "allowed an unprivileged user to execute arbitrary commands as root". It
+  "uses setuid() function to elevate itself to root, then executes a provided
+  command using the bash shell", and refers to itself as rootrun.
+artifacts:
+  - /usr/bin/xzfind, setuid
+  - An entry in the setuid listing outside the binaries Volexity lists as expected
+anti_forensics: []
+detections: [sma1000-rootrun-yara, sma1000-rootrun-path]
+confidence: medium
+references:
+  - title: Volexity - Proxying to compromise, SonicWall Secure Mobile Access 0-day exploitation (17 July 2026)
+    url: https://www.volexity.com/blog/2026/07/17/proxying-to-compromise-sonicwall-secure-mobile-access-0-day-exploitation/
+    accessed: "2026-10-29"
+  - title: Volexity threat-intel - YARA rules for UTA0533
+    url: https://github.com/volexity/threat-intel/tree/main/2026/2026-07-17%20SonicWall
+    accessed: "2026-10-29"

@@ -59,6 +59,7 @@ RULE_DIR_PLATFORM = {
     "05-cisco-asa-ftd": "EDGE-0005", "06-sonicwall-sma": "EDGE-0006",
     "07-checkpoint-quantum": "EDGE-0007", "08-cisco-ios-xe": "EDGE-0009",
     "09-juniper-junos": "EDGE-0008", "10-f5-bigip": "EDGE-0010",
+    "11-sonicwall-sma1000": "EDGE-0011",
 }
 # The facet keys each library understands. The JS defines the facets; it logs
 # an error if its keys differ from these, and --check validates every static
@@ -95,7 +96,7 @@ def short(name: str) -> str:
 PLATFORM_ABBR = {
     "EDGE-0001": "PAN-OS", "EDGE-0002": "FortiOS", "EDGE-0003": "Ivanti", "EDGE-0004": "NetScaler",
     "EDGE-0005": "ASA/FTD", "EDGE-0006": "SMA 100", "EDGE-0007": "Check Point", "EDGE-0008": "Junos",
-    "EDGE-0009": "IOS XE", "EDGE-0010": "BIG-IP",
+    "EDGE-0009": "IOS XE", "EDGE-0010": "BIG-IP", "EDGE-0011": "SMA 1000",
 }
 
 
@@ -601,7 +602,7 @@ NOTE_PLATFORM = {
     "PAN-OS / GlobalProtect": "EDGE-0001", "FortiOS": "EDGE-0002", "Ivanti Connect Secure": "EDGE-0003",
     "NetScaler": "EDGE-0004", "Cisco ASA / FTD": "EDGE-0005", "SonicWall SMA 100": "EDGE-0006",
     "Check Point Gaia": "EDGE-0007", "Juniper Junos": "EDGE-0008", "Cisco IOS XE": "EDGE-0009",
-    "F5 BIG-IP": "EDGE-0010",
+    "F5 BIG-IP": "EDGE-0010", "SonicWall SMA 1000": "EDGE-0011",
 }
 VERDICTS = ("NO-INDICATORS-FOUND", "LIKELY-COMPROMISED", "COMPROMISED", "SUSPICIOUS")
 

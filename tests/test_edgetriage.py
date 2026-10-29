@@ -959,6 +959,59 @@ def test_sma_38475_patterns_cover_the_rewrite_rule():
     assert not hits(gen, "GET /css/style.1.2.3.4abc-5.css HTTP/1.1")    # the rule's legitimate use has no %3f
 
 
+# ------------------------------------------------------------------ SonicWall SMA 1000 (UTA0533)
+SMA1000_FIRES = {   # detection -> hits in the compromised copy
+    "sma1000-wsproxy-loopback-tunnel": 1, "sma1000-wsproxy-loopback-attempt": 1,
+    "sma1000-websock-backend-loopback": 1, "sma1000-api-route-access": 1,
+    "sma1000-hotfix-removal-traversal": 2, "sma1000-unit-api-routes": 2,
+    "sma1000-unit-rewrite-to-hijacked-page": 2, "sma1000-workplace-init-knuckleball": 1,
+    "sma1000-rootrun-path": 1, "sma1000-knuckleball-path": 1, "sma1000-uta0533-tmp-files": 1,
+    "sma1000-var-tmp-capture-script": 1, "sma1000-amc-deserialization-exception": 1,
+}
+
+
+def _sma1000_case(fx: Path, tmp: Path, name: str) -> dict:
+    case = Case(tmp / name.replace(".tgz", ""))
+    m = Case.new_manifest(case.root.name, "tester", "EDGE-0011", None)
+    m["expected_evidence"] = []
+    m["ingested"].append(case.ingest(fx / name, "files"))
+    case.save(m)
+    return analyze(case.root)
+
+
+def test_sma1000_published_indicators_fire_and_ordinary_lines_do_not(fx, tmp_path):
+    """SonicWall's IoCs and Volexity's sample shapes fire on the compromised copy. A tunnel to
+    an internal host, an ordinary hotfix removal and a route table without the actor's routes
+    do not, and placeholders never match Volexity's YARA rules."""
+    bad = _sma1000_case(fx, tmp_path, "sma1000-files-uta0533.tgz")
+    for did, n in SMA1000_FIRES.items():
+        assert det(bad, did)["hit_count"] == n, did
+    for did in ("sma1000-orangetail-yara", "sma1000-knuckleball-yara", "sma1000-rootrun-yara"):
+        assert det(bad, did)["status"] == "no-hit", did
+    assert bad["verdict"]["level"] == "COMPROMISED"
+    good = _sma1000_case(fx, tmp_path, "sma1000-files-benign.tgz")
+    for did in SMA1000_FIRES:
+        assert det(good, did)["status"] == "no-hit", did
+    assert good["verdict"]["level"] == "NO-INDICATORS-FOUND"
+
+
+def test_sma1000_patterns_take_the_published_shapes():
+    """The Sigma rule's regex is the pack's; the tunnel pattern takes host first or last and
+    needs both the appliance itself and a 101."""
+    import re
+    import yaml
+    pack = yaml.safe_load((ROOT / "artifacts/packs/EDGE-PACK-0036-sonicwall-sma1000-2026-uta0533.yml").read_text())
+    d = {x["id"]: x for x in pack["detect"]}
+    sig = yaml.safe_load((ROOT / "11-sonicwall-sma1000/sma1000_cve_2026_15410_hotfix_traversal.yml").read_text())
+    assert sig["detection"]["selection"]["Message|re"] == d["sma1000-hotfix-removal-traversal"]["pattern"]
+    p = re.compile(d["sma1000-wsproxy-loopback-tunnel"]["pattern"], re.I)
+    assert p.search('"GET /wsproxy?host=0.0.0.0&port=1050 HTTP/1.1" 101 ')
+    assert p.search('"GET /wsproxy?bmID=-3389f61b21f4&serviceType=SSH&host=127.0.0.1&port=8188 HTTP/1.1" 101 ')
+    assert not p.search('"GET /wsproxy?bmID=1207&serviceType=SSH&host=198.51.100.30&port=22 HTTP/1.1" 101 ')
+    assert not p.search('"GET /wsproxy?bmID=-3389aa01&host=0.0.0.0&port=8188 HTTP/1.1" 403 ')
+    assert not p.search('"GET /wsproxy?xhost=0.0.0.0&port=1050 HTTP/1.1" 101 ')
+
+
 def test_netscaler_pitboss_pattern_takes_both_published_forms():
     """Unit 42 prints no space before NSPPE; Rapid7 prints one. Payloads here are inert."""
     import re

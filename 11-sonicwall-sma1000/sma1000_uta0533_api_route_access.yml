@@ -1,0 +1,34 @@
+title: SonicWall SMA 1000 Request to /__api__/login or /__api__/logout Answered 200 (UTA0533)
+id: c984a69d-488c-4f53-bd11-f64b722945b4
+status: experimental
+description: |
+  UTA0533 added two routes to the appliance's NGINX Unit configuration that
+  rewrote /__api__/login and /__api__/logout to the pages its injected Suo5 and
+  ORANGETAIL agents took over. SonicWall lists "requests to /__api__/login or
+  /__api__/logout with http 200 status" in extraweb_access.log as an indicator and
+  says these URIs "do not exist in legitimate configuration". Volexity: the paths
+  "are arbitrary and could be anything", so a quiet log is not a clean one.
+references:
+  - https://psirt.global.sonicwall.com/vuln-detail/SNWLID-2026-0008
+  - https://www.volexity.com/blog/2026/07/17/proxying-to-compromise-sonicwall-secure-mobile-access-0-day-exploitation/
+author: Raymond DePalma (edge-dfir-toolkit)
+date: 2026-10-29
+tags:
+  - attack.persistence
+  - attack.t1505.003
+  - attack.command_and_control
+  - attack.t1090
+  - cve.2026-15409
+  - cve.2026-15410
+logsource:
+  category: webserver
+detection:
+  selection:
+    cs-uri-stem:
+      - '/__api__/login'
+      - '/__api__/logout'
+    sc-status: 200
+  condition: selection
+falsepositives:
+  - None, by SonicWall's statement that the URIs do not exist in a legitimate configuration.
+level: critical

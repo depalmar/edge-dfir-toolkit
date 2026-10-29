@@ -27,6 +27,8 @@ CISA's, from Malware Analysis Report AR26-113A, published with the NCSC.
 The Ivanti rules ivanti_uta0576_rce_request_volexity.yar,
 ivanti_uta0576_eop_python_volexity.yar and ivanti_pysoxy_volexity.yar, and the
 PAN-OS rules panos_reverse_ssh_volexity.yar and panos_gost_arguments_volexity.yar,
+and the SonicWall SMA 1000 rules in 11-sonicwall-sma1000/ (sma1000_orangetail_,
+sma1000_knuckleball_, sma1000_rootrun_ and sma1000_uta0533_user_agent_volexity.yar),
 are Volexity's, from github.com/volexity/threat-intel, Copyright 2022 by
 Volexity, Inc., under the BSD 2-Clause licence, whose full text each file carries.
 

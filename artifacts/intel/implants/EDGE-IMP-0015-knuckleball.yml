@@ -1,0 +1,40 @@
+id: EDGE-IMP-0015
+name: KNUCKLEBALL
+aliases: []
+platforms: [EDGE-0011]
+actors: [EDGE-TA-0008]
+cves: [CVE-2026-15409, CVE-2026-15410]
+type: loader
+resides: disk
+survives_reboot: "yes"
+survives_upgrade: unknown
+summary: >-
+  Volexity: a Python script written to
+  /usr/lib/python3.11/site-packages/deploy_new.py that "contained two embedded
+  JAR archives that were injected into a legitimate SonicWall process". It finds
+  the workplace.startup.CommandStartup process through /proc, loads the two JARs
+  into its JVM as instrumentation agents through the Java Attach API, deletes
+  them, tests the classes they override, and adds two routes to the NGINX Unit
+  configuration through its local control socket. UTA0533 added a line to
+  /etc/init.d/workplace that runs it.
+artifacts:
+  - /usr/lib/python3.11/site-packages/deploy_new.py
+  - The line it was given in /etc/init.d/workplace
+  - /tmp/agent_wp8.jar and /tmp/agent_wp9.jar while it runs
+  - /tmp/.attach_pid<PID> and /tmp/.java_pid<PID>, the Java Attach API's files
+  - The /__api__/login and /__api__/logout routes in /var/lib/unit/conf.json
+anti_forensics:
+  - "Volexity: the agents' log files \"are cleared prior to injection\" and their paths \"are linked to /dev/null\""
+  - "Volexity: \"After injection, both JAR files are deleted\""
+detections: [sma1000-knuckleball-yara, sma1000-knuckleball-path, sma1000-workplace-init-knuckleball, sma1000-uta0533-user-agent-yara, sma1000-unit-api-routes]
+gap: >-
+  The path and startup-script checks look for the names Volexity found; the
+  YARA rule finds the script under another name.
+confidence: medium
+references:
+  - title: Volexity - Proxying to compromise, SonicWall Secure Mobile Access 0-day exploitation (17 July 2026)
+    url: https://www.volexity.com/blog/2026/07/17/proxying-to-compromise-sonicwall-secure-mobile-access-0-day-exploitation/
+    accessed: "2026-10-29"
+  - title: Volexity threat-intel - YARA rules for UTA0533
+    url: https://github.com/volexity/threat-intel/tree/main/2026/2026-07-17%20SonicWall
+    accessed: "2026-10-29"

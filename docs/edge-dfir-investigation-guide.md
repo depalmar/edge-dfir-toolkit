@@ -155,6 +155,16 @@ and logs through the management UI and `ingest` them. GTIG advises disk images
 because the rootkit hides from on-box tools; physical units may need
 SonicWall's help.
 
+**SonicWall SMA 1000.** No collection profile yet. SSH in as root with the AMC
+admin password; enabling SSH in AMC is a configuration change, so record it.
+Capture memory first: UTA0533's web shell and tunnel live only in the workplace
+JVM, and on a rebooted appliance Volexity found them gone. Then copy
+`/var/log/aventail/`, `/var/lib/unit/conf.json`, `/etc/init.d/workplace`,
+`/tmp`, `/var/tmp` and the output of Volexity's `find / -perm -4000` off with
+scp and `ingest` them. For the CVE-2025-23006 check, save the AMC Management
+message log as a text file named `amc-management-messages.txt`; SonicWall names
+the view, not a file.
+
 **Check Point Gaia.** Collect in Expert mode; entering Expert from Clish asks
 for a second password, so the collection account needs `/bin/bash` as its
 shell. Gateway and management roles keep different logs, so a role's log that
@@ -286,7 +296,11 @@ match across a seam is seen whole, and reports three checks beside the packs:
   publishers' own rules for memory and core dumps: NCSC's for LINE DANCER,
   RayInitiator and LINE VIPER, and CISA's for FIRESTARTER. For Ivanti they are
   Volexity's rules for the 2026 exploit request and privilege-escalation script,
-  and for PySoxy.
+  and for PySoxy. For PAN-OS they are Volexity's rules for the reverse-SSH tool
+  UTA0218 ran. For SonicWall SMA 1000 they are Volexity's UTA0533 rules for
+  ORANGETAIL, the Suo5 agent, KNUCKLEBALL, ROOTRUN and the actor's user agent;
+  the two agents are deleted from disk once injected, so memory is where they
+  are found.
 - `memory-yara-own`: rules written for memory that you pass with
   `--memory-yara`, scored possible.
 - `memory-indicators`: the platform's published network indicators found as

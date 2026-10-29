@@ -1,0 +1,173 @@
+# Indicators EDGE-IOC-0018 - parsed from Volexity's own publication, not retyped.
+# Values are live, not defanged: do not paste them into a browser. Roles and context are the publisher's.
+# Schema: ../../schema/ioc.schema.json
+
+id: EDGE-IOC-0018
+title: UTA0533 - SonicWall SMA 1000 CVE-2026-15409 and CVE-2026-15410
+publisher: Volexity
+published: '2026-07-17'
+page_url: >-
+  https://www.volexity.com/blog/2026/07/17/proxying-to-compromise-sonicwall-secure-mobile-access-0-day-exploitation/
+file_format: html-table
+license: publisher's terms
+accessed: '2026-10-29'
+actors:
+- EDGE-TA-0008
+implants:
+- EDGE-IMP-0015
+- EDGE-IMP-0016
+- EDGE-IMP-0017
+- EDGE-IMP-0018
+cves:
+- CVE-2026-15409
+- CVE-2026-15410
+platforms:
+- EDGE-0011
+staleness: >-
+  One intrusion, from the earliest sign of compromise Volexity dates (June 22, 2026) to its engagement in early
+  July 2026. Volexity saw exploitation and web shell access from over 200 addresses, several of them ExpressVPN
+  and MullvadVPN exits, and found no commonality among the rest, so the eight addresses are a sample it chose to
+  list, not the actor's infrastructure; rented addresses change hands. Hashes are of the samples Volexity
+  analysed; the YARA rules in 11-sonicwall-sma1000/ match rebuilt copies. The workstation names Volexity saw
+  leak during lateral movement have no indicator type here; EDGE-HUNT-0028 points to them.
+indicators:
+- type: sha256
+  value: 81a9af3846bad3a1107164ff7cf0a08e020b31a3b32fd17866e17d4c1565f7f2
+  role: actor-controlled
+  context: ROOTRUN (xzfind, ELF Executable, 13.1KB (13464 Bytes)); Volexity's file table
+- type: sha1
+  value: 04d4a9fbb32e967200eb98be014ca914a03bfa6b
+  role: actor-controlled
+  context: ROOTRUN (xzfind, ELF Executable, 13.1KB (13464 Bytes)); Volexity's file table
+- type: md5
+  value: 5cb00bbfe818ee3e85fb99ab1db1af7c
+  role: actor-controlled
+  context: ROOTRUN (xzfind, ELF Executable, 13.1KB (13464 Bytes)); Volexity's file table
+- type: sha256
+  value: 8c470301dcb7278f73e622f1950073567b34011c64b60cdfbb0f89803923a5a3
+  role: actor-controlled
+  context: KNUCKLEBALL (deploy_new.py, Python, 79.6KB (81476 Bytes)); Volexity's file table
+- type: sha1
+  value: b4ee1f50fbb49f0ff5fde3d026343bc23ee08d51
+  role: actor-controlled
+  context: KNUCKLEBALL (deploy_new.py, Python, 79.6KB (81476 Bytes)); Volexity's file table
+- type: md5
+  value: b6df166291f80ee89032d769c99714f3
+  role: actor-controlled
+  context: KNUCKLEBALL (deploy_new.py, Python, 79.6KB (81476 Bytes)); Volexity's file table
+- type: sha256
+  value: 1e1e68bbb899450a57274a8b12082ed4e2040a2aae77014f20431689d2b4edee
+  role: actor-controlled
+  context: suo5 (agent_wp8.jar, Java archive data (JAR), 33.7KB (34520 Bytes)); Volexity's file table
+- type: sha1
+  value: c2b0ae0a1f42a139abe4dd612676066ec1426394
+  role: actor-controlled
+  context: suo5 (agent_wp8.jar, Java archive data (JAR), 33.7KB (34520 Bytes)); Volexity's file table
+- type: md5
+  value: 54d21399b8b52b48a0fef68450593e45
+  role: actor-controlled
+  context: suo5 (agent_wp8.jar, Java archive data (JAR), 33.7KB (34520 Bytes)); Volexity's file table
+- type: sha256
+  value: ea9154e374e4f77bc2cf54282e23543573980342a85bc888cb23f20b8bbba081
+  role: actor-controlled
+  context: ORANGETAIL (agent_wp9.jar, Java archive data (JAR), 21.3KB (21800 Bytes)); Volexity's file table
+- type: sha1
+  value: 5e5b716f2385c818ec61198be1a2a07a4560eac5
+  role: actor-controlled
+  context: ORANGETAIL (agent_wp9.jar, Java archive data (JAR), 21.3KB (21800 Bytes)); Volexity's file table
+- type: md5
+  value: 5f3a55201c511c9ff9be4c16c41028a2
+  role: actor-controlled
+  context: ORANGETAIL (agent_wp9.jar, Java archive data (JAR), 21.3KB (21800 Bytes)); Volexity's file table
+- type: path
+  value: /usr/bin/xzfind
+  role: actor-controlled
+  context: ROOTRUN, a setuid binary written on June 22, 2026
+- type: path
+  value: /usr/lib/python3.11/site-packages/deploy_new.py
+  role: actor-controlled
+  context: KNUCKLEBALL
+- type: path
+  value: /tmp/agent_wp8.jar
+  role: actor-controlled
+  context: Suo5 JAR, written by KNUCKLEBALL during injection and deleted after it
+- type: path
+  value: /tmp/agent_wp9.jar
+  role: actor-controlled
+  context: ORANGETAIL JAR, written by KNUCKLEBALL during injection and deleted after it
+- type: path
+  value: /tmp/agent_wp8.log
+  role: actor-controlled
+  context: the Suo5 agent's log, linked to /dev/null before injection
+- type: path
+  value: /tmp/agent_wp9.log
+  role: actor-controlled
+  context: the ORANGETAIL agent's log, linked to /dev/null before injection
+- type: path
+  value: /tmp/hypdate.b64
+  role: actor-controlled
+  context: Base64-encoded privilege-escalation exploit later assigned CVE-2026-15410
+- type: path
+  value: /tmp/1234.sh
+  role: actor-controlled
+  context: script owned by couchdb, run as root through the hotfix-removal path traversal
+- type: path
+  value: /__api__/login
+  role: actor-controlled
+  context: inbound URI the actor added to /var/lib/unit/conf.json, rewritten to /workplace/error.jsp (Suo5)
+- type: path
+  value: /__api__/logout
+  role: actor-controlled
+  context: inbound URI the actor added to /var/lib/unit/conf.json, rewritten to /workplace/dialogs/errorDialog.jsp
+    (ORANGETAIL)
+- type: path
+  value: /etc/init.d/workplace
+  role: unknown
+  context: legitimate startup script; UTA0533 added a line starting KNUCKLEBALL (only that line is an indicator)
+- type: path
+  value: /var/lib/unit/conf.json
+  role: unknown
+  context: legitimate NGINX Unit configuration; UTA0533 added routes proxied to http://127.0.0.1:8085 (only those
+    routes are indicators)
+- type: user-agent
+  value: Mozilla/6.0 (Windows NT 11.0; Win64; x64) AppleWebKit/1537.136 (KHTML, like Gecko) Chrome/149.0.0.1 Safari/1537.136
+  role: actor-controlled
+  context: 'the user agent both injected payload classes require; Volexity: it uses version numbers inconsistent
+    with any real-world user agent'
+- type: user-agent
+  value: SMA Connect Agent
+  role: unknown
+  context: the user agent the /wsproxy bypass requires, with a bmID starting -3389; the post does not say whether
+    legitimate clients send it, so it is not by itself a sign of attack
+- type: ipv4
+  value: 108.205.8.173
+  role: unknown
+  context: one of the non-VPN addresses Volexity lists as used in UTA0533's exploitation and web shell access
+- type: ipv4
+  value: 147.45.51.19
+  role: unknown
+  context: one of the non-VPN addresses Volexity lists as used in UTA0533's exploitation and web shell access
+- type: ipv4
+  value: 150.241.210.53
+  role: unknown
+  context: one of the non-VPN addresses Volexity lists as used in UTA0533's exploitation and web shell access
+- type: ipv4
+  value: 202.8.105.201
+  role: unknown
+  context: one of the non-VPN addresses Volexity lists as used in UTA0533's exploitation and web shell access
+- type: ipv4
+  value: 217.77.15.99
+  role: unknown
+  context: one of the non-VPN addresses Volexity lists as used in UTA0533's exploitation and web shell access
+- type: ipv4
+  value: 42.200.172.14
+  role: unknown
+  context: one of the non-VPN addresses Volexity lists as used in UTA0533's exploitation and web shell access
+- type: ipv4
+  value: 81.19.140.217
+  role: unknown
+  context: one of the non-VPN addresses Volexity lists as used in UTA0533's exploitation and web shell access
+- type: ipv4
+  value: 89.117.20.1
+  role: unknown
+  context: one of the non-VPN addresses Volexity lists as used in UTA0533's exploitation and web shell access

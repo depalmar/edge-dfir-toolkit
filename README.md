@@ -75,6 +75,7 @@ edge-dfir-toolkit/
 ├── 08-cisco-ios-xe/
 ├── 09-juniper-junos/
 ├── 10-f5-bigip/
+├── 11-sonicwall-sma1000/
 ├── edgetriage/               # the engine: collect, ingest, analyze, timeline, brief
 ├── collectors/profiles/      # declarative per-vendor collection profiles
 ├── artifacts/
@@ -165,6 +166,7 @@ cases/IR-2026-031/
 | Juniper Junos | yes | `junos` | 0010 | CLI only, never the shell; JMRT quick-scan deletes evidence by default |
 | Cisco IOS XE | restricted | `cisco-iosxe` | 0011, 0012 | Do not reboot first; the 2023 implant was memory-only |
 | F5 BIG-IP | yes (bash) | `f5-bigip` | 0015, 0016, 0017 | Do not trust sys-icheck; never restore a post-compromise UCS |
+| SonicWall SMA 1000 | yes (root over SSH) | - | 0036, 0037 | Capture memory before any restart: UTA0533's implants live in the workplace JVM |
 
 ---
 

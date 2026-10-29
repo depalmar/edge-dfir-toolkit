@@ -802,6 +802,34 @@ Read on 29 October 2026, each from the publisher's own copy:
 | Mandiant, CVE-2022-42475 (BOLDMOVE) | The post's HTML | Nothing to add | No rule blocks on the page |
 | F5 K000160486 (c05d5254) | Rendered fetch | Nothing to add | Indicators and the System Scanner, no YARA |
 
+## 2026-10-29 - SonicWall SMA 1000 (0.18.0)
+
+The UTA0533 decision above ("Not added") is superseded: the SMA 1000 series is
+now its own platform, EDGE-0011. Read on 29 October 2026:
+
+| Source | Copy read | Used for | Notes |
+|---|---|---|---|
+| SonicWall SNWLID-2026-0008 (CVE-2026-15409, CVE-2026-15410) | Rendered fetch, and the same advisory as JSON from psirtapi.global.sonicwall.com | Fixed versions, the four IoCs, recommended actions, exploitation statement | Revision 1.1 the same day changed only the credits (adding Volexity) |
+| SonicWall SNWLID-2026-0016 (CVE-2026-83548, CVE-2026-83549) | Rendered fetch and JSON | Fixed versions, exploitation statement, recommended actions | No IoCs; customers are told to contact Technical Support. Ledger: `no-indicators` |
+| SonicWall SNWLID-2025-0002 (CVE-2025-23006) | Rendered fetch and JSON | Fixed version, workaround, the AMC message-log IoCs (revision 1.2) | Two of the four IoC lines are bare Java exception text and are not checked |
+| SonicWall SNWLID-2025-0019 (CVE-2025-40602) | Rendered fetch and JSON | Chained with CVE-2025-23006, workaround, fixed versions | No IoCs. Ledger: `no-indicators` |
+| Volexity, "Proxying to Compromise" (17 July 2026) | Saved HTML, sha256 05340f23...cd29 | Log samples, file paths, setuid list, the five families, IOC set EDGE-IOC-0018 (parsed from the page in code) | The post writes the actor once as "UTA0553" and the CVE once as "CVE-2026-154010" (typos); its log samples are anonymised. It dates the earliest sign of compromise (June 22, 2026) but no exploit, so no exploitation record has an `earliest` |
+| Volexity threat-intel, 2026-07-17 SonicWall | rules.yar at commit 68329642, sha256 810db4f2...9775 | All five rules, copied byte for byte into four files | Every rule's scan_context is "file,memory" and every condition reads only its strings |
+| SonicWall KB, Enabling and obtaining SSH access (updated December 20, 2019) | Rendered fetch | `customer_shell: yes` | Username root, password the AMC admin password |
+| SonicWall SMA 1000 12.5 Administration Guide (SSH pages) | Rendered fetch | SSH restriction control, shell-access toggle | "Enable shell access", when cleared, "prevents all shell access via the serial console and SSH" |
+| SonicWall KB, SMA 1000 Best Practices - Securing the Network Configuration (updated January 22, 2025) | Rendered fetch | Five hardening controls | The page repeats its NTP section |
+| News and vendor-blog coverage of all six CVEs | Search results only | Nothing | Leads, not sources; none from a party that observed the exploitation |
+
+Toolkit inferences, each labelled where it is used:
+- `127.0.0.0/8` and `localhost` beside Volexity's `host=0.0.0.0`.
+- The split of refused `/wsproxy` requests (possible) from upgraded ones.
+- The `conf.json` rewrite to the two pages the agents take over (possible).
+- The `amc-management-messages*` export name.
+
+All 24 new quotes were checked: 11 by `check_quotes.py` against the live pages,
+and the 13 on the PSIRT site, which renders in the browser, against both the
+rendered fetch and the advisory JSON.
+
 ## Device verification
 
 | Date | Platform / release | Step | Change | Basis |

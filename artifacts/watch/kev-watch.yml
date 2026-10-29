@@ -25,6 +25,7 @@ platforms:
   EDGE-0008: {vendor: '^Juniper$', product: 'Junos'}
   EDGE-0009: {vendor: '^Cisco$', product: 'IOS XE|IOS and IOS XE|IOS, (IOS )?XR, and (IOS )?XE|IOS Software and Cisco IOS XE'}
   EDGE-0010: {vendor: '^F5$', product: 'BIG-IP'}
+  EDGE-0011: {vendor: '^SonicWall$', product: 'SMA ?1000'}
 
 # sha256 of each publisher file as it was parsed (checked 2026-10-27 against the
 # copies the indicator sets were built from). A change means re-parse and re-validate.
@@ -111,3 +112,25 @@ triaged:
     date: '2026-10-27'
     basis: Same bulletin CTX584986; no indicators from Citrix or a researcher. NHS England relays a CrowdStrike claim
       of no authentication needed; CrowdStrike's own publication was not found.
+  - cve: CVE-2025-40602
+    platform: EDGE-0011
+    decision: no-indicators
+    date: '2026-10-29'
+    basis: 'SonicWall SNWLID-2025-0019: "reported to be leveraged in combination with CVE-2025-23006 (CVSS score 9.8)
+      to achieve unauthenticated remote code execution with root privileges", credited to Google Threat Intelligence
+      Group; no IoCs are published, and no GTIG publication on it was found. CVE-2025-23006''s message-log check is
+      EDGE-PACK-0037.'
+  - cve: CVE-2026-83548
+    platform: EDGE-0011
+    decision: no-indicators
+    date: '2026-10-29'
+    basis: 'SonicWall SNWLID-2026-0016: "SonicWall PSIRT has investigated a case indicating the active exploitation";
+      it publishes no IoCs and tells customers to "Contact SonicWall Technical Support for assistance reviewing the
+      system for indicators of compromise (IoCs)". A web search turned up news and vendor-blog coverage only, none
+      of it from a party that observed the exploitation.'
+  - cve: CVE-2026-83549
+    platform: EDGE-0011
+    decision: no-indicators
+    date: '2026-10-29'
+    basis: Same advisory SNWLID-2026-0016 (a post-authentication OS command injection in the AMC); no IoCs from SonicWall
+      or a researcher.

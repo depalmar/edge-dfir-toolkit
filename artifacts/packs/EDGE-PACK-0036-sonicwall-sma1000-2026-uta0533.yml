@@ -1,0 +1,290 @@
+# Detection pack EDGE-PACK-0036
+
+id: EDGE-PACK-0036
+name: SonicWall SMA 1000 zero-day chain, 2026 (CVE-2026-15409, CVE-2026-15410, UTA0533)
+platforms: [EDGE-0011]
+cves: [CVE-2026-15409, CVE-2026-15410]
+actors: [UTA0533]
+implants: [KNUCKLEBALL, ORANGETAIL, Suo5, ROOTRUN]
+summary: >-
+  An unauthenticated /wsproxy request opened a WebSocket tunnel to services that
+  listen only on the appliance (CVE-2026-15409). Through it the actor wrote a
+  script as the CouchDB user and ran it as root by naming it, with a path
+  traversal, as a hotfix to remove (CVE-2026-15410). SonicWall: "multiple cases
+  indicating the active exploitation", fixed in 12.4.3-03453 and 12.5.0-02835.
+  Volexity found that UTA0533 had written ROOTRUN, a setuid root helper, and
+  KNUCKLEBALL, which injects two JARs into the workplace JVM - a modified Suo5
+  and the ORANGETAIL web shell - reached through two routes added to the NGINX
+  Unit configuration. The log and configuration checks are SonicWall's published
+  IoCs and Volexity's samples; the file paths and YARA rules are Volexity's. The
+  implants live in the JVM and their JARs are deleted, so capture memory first:
+  on the appliance that had been rebooted, Volexity found them no longer loaded.
+confidence: medium
+references:
+  - title: SonicWall - SNWLID-2026-0008, SMA1000 multiple vulnerabilities (CVE-2026-15409, CVE-2026-15410), 14 July 2026
+    url: https://psirt.global.sonicwall.com/vuln-detail/SNWLID-2026-0008
+    accessed: "2026-10-29"
+  - title: Volexity - Proxying to compromise, SonicWall Secure Mobile Access 0-day exploitation (17 July 2026)
+    url: https://www.volexity.com/blog/2026/07/17/proxying-to-compromise-sonicwall-secure-mobile-access-0-day-exploitation/
+    accessed: "2026-10-29"
+  - title: Volexity threat-intel - YARA rules for UTA0533 (BSD 2-Clause)
+    url: https://github.com/volexity/threat-intel/tree/main/2026/2026-07-17%20SonicWall
+    accessed: "2026-10-29"
+
+detect:
+  - id: sma1000-wsproxy-loopback-tunnel
+    title: /wsproxy WebSocket tunnel opened to the appliance itself (CVE-2026-15409)
+    type: log_regex
+    tier: likely
+    evidence_class: web-logs
+    sigma: [11-sonicwall-sma1000/sma1000_cve_2026_15409_wsproxy_loopback.yml]
+    sources:
+      files: ["**/extraweb_access.log*"]
+    pattern: '"GET /wsproxy\?([^" ]*&)?host=(0\.0\.0\.0|127(\.[0-9]{1,3}){3}|localhost)(&[^" ]*)? HTTP/[0-9.]+" 101 '
+    flags: [ignorecase]
+    attack: [T1190, T1572]
+    notes: >-
+      SonicWall's IoC: "requests to /wsproxy with suspicious host parameters with
+      101 http status" in extraweb_access.log. Volexity's samples set host=0.0.0.0
+      with port 1050 (CouchDB) or 8188 (the control service), a bmID starting
+      -3389 and status 101, "a successful protocol upgrade". 127.0.0.0/8 and
+      localhost are this toolkit's reading of Volexity's "(or similar value aimed
+      at internal services)"; a tunnel to the appliance by one of its own
+      interface addresses is not matched. Volexity anonymised trivial details of
+      its samples.
+
+  - id: sma1000-wsproxy-loopback-attempt
+    title: /wsproxy request aimed at the appliance itself that was not upgraded
+    type: log_regex
+    tier: possible
+    evidence_class: web-logs
+    sources:
+      files: ["**/extraweb_access.log*"]
+    pattern: '"GET /wsproxy\?([^" ]*&)?host=(0\.0\.0\.0|127(\.[0-9]{1,3}){3}|localhost)(&[^" ]*)? HTTP/[0-9.]+" [0-9]{3} '
+    exclude: ['HTTP/[0-9.]+" 101 ']
+    flags: [ignorecase]
+    attack: [T1190]
+    notes: >-
+      The same request shape answered with anything but 101: the tunnel was not
+      opened, so this shows the appliance was probed, not that the bypass worked.
+      The split is the toolkit's; neither source shows a refused request.
+
+  - id: sma1000-websock-backend-loopback
+    title: WebSocket proxy connected to a backend on the appliance itself
+    type: log_regex
+    tier: likely
+    evidence_class: web-logs
+    sources:
+      files: ["**/access_servers.log*"]
+    pattern: '::WEBSOCK::Socket connected to backend success host = (0\.0\.0\.0|127(\.[0-9]{1,3}){3}|localhost)\b'
+    flags: [ignorecase]
+    attack: [T1190, T1572]
+    notes: >-
+      Volexity's access_servers.log sample shows the tunnel's backend as "host =
+      0.0.0.0 and port =1050". This is the same event as
+      sma1000-wsproxy-loopback-tunnel seen from the proxy's side, so it carries the
+      same evidence class and the two never corroborate each other. In the sample,
+      one Sec-WebSocket-Key ties a connection's lines together, and its
+      "Connection Request from Client IP" line names the source.
+
+  - id: sma1000-api-route-access
+    title: Request to /__api__/login or /__api__/logout answered 200
+    type: log_regex
+    tier: likely
+    evidence_class: web-logs
+    sigma: [11-sonicwall-sma1000/sma1000_uta0533_api_route_access.yml]
+    sources:
+      files: ["**/extraweb_access.log*"]
+    pattern: '"[A-Z]+ /__api__/log(in|out)([?/][^" ]*)? HTTP/[0-9.]+" 200 '
+    attack: [T1505.003, T1090]
+    notes: >-
+      SonicWall's IoC: "requests to /__api__/login or /__api__/logout with http 200
+      status", and these URIs "do not exist in legitimate configuration".
+      Volexity: UTA0533 routed them to Suo5 and ORANGETAIL, but "These paths are
+      arbitrary and could be anything", so a quiet log is not a clean one; the
+      configuration checks look for the routes themselves.
+
+  - id: sma1000-hotfix-removal-traversal
+    title: Hotfix removal given a path outside the rollback directory (CVE-2026-15410)
+    type: log_regex
+    tier: likely
+    evidence_class: system-logs
+    sigma: [11-sonicwall-sma1000/sma1000_cve_2026_15410_hotfix_traversal.yml]
+    sources:
+      files: ["**/ctrl-service.log*"]
+    pattern: '(running hotfix removal for: ?|/remove_hotfix\W+)[^ ]*\.\./'
+    attack: [T1068, T1059.004]
+    notes: >-
+      SonicWall's IoC: "hotfix rollbacks with path traversal names" in
+      ctrl-service.log. Volexity: sysCtrl.execRemoveHotfix calls
+      /usr/local/bin/remove_hotfix, which builds the rollback path from the
+      caller's input and runs it, so ../../../../../tmp/1234.sh ran /tmp/1234.sh
+      as root. Its samples show the INFO line and the ERROR line naming the
+      command; both match. A hit means a file the caller chose was run as root.
+
+  - id: sma1000-unit-api-routes
+    title: NGINX Unit configuration routes /__api__/login or /__api__/logout
+    type: log_regex
+    tier: likely
+    evidence_class: config
+    sources:
+      files: ["**/unit/conf.json"]
+    pattern: '"/__api__/log(in|out)"'
+    attack: [T1505.003, T1090]
+    notes: >-
+      SonicWall's IoC: "/var/lib/unit/conf.json contains routes for /__api__/login
+      or /__api__/logout (these URIs do not exist in legitimate configuration)".
+      Volexity found the routes, rewritten and proxied to http://127.0.0.1:8085, on
+      both compromised appliances; on the rebooted one they no longer returned
+      valid responses, so the configuration outlives the implants.
+
+  - id: sma1000-unit-rewrite-to-hijacked-page
+    title: NGINX Unit route rewritten to one of the two pages UTA0533's agents take over
+    type: log_regex
+    tier: possible
+    evidence_class: config
+    sources:
+      files: ["**/unit/conf.json"]
+    pattern: '"rewrite"\s*:\s*"/workplace/(error|dialogs/errorDialog)\.jsp"'
+    attack: [T1505.003]
+    notes: >-
+      The toolkit's inference from Volexity's analysis: the Suo5 agent overrides
+      com/aventail/jsp/workplace/error_jsp and ORANGETAIL overrides
+      com/aventail/jsp/workplace/dialogs/errorDialog_jsp, so a route rewritten to
+      /workplace/error.jsp or /workplace/dialogs/errorDialog.jsp reaches them
+      whatever inbound path the actor chose. Whether a clean configuration ever
+      rewrites to these pages is not published, so possible.
+
+  - id: sma1000-workplace-init-knuckleball
+    title: The workplace startup script starts KNUCKLEBALL
+    type: log_regex
+    tier: likely
+    evidence_class: persistence
+    sources:
+      files: ["**/etc/init.d/workplace"]
+    pattern: 'python3 /usr/lib/python3\.11/site-packages/deploy_new\.py'
+    attack: [T1037.004]
+    notes: >-
+      Volexity: persistence "through the addition of the following line to the
+      legitimate /etc/init.d/workplace startup script". A renamed script does not
+      match; compare the file with a clean appliance on the same build.
+
+  - id: sma1000-rootrun-path
+    title: ROOTRUN at the path Volexity found it
+    type: path_exists
+    tier: likely
+    evidence_class: filesystem
+    scope: ["**/usr/bin/**"]
+    paths: ["**/usr/bin/xzfind"]
+    attack: [T1548.001]
+    notes: >-
+      Volexity: on June 22, 2026 "a file was written to /usr/bin/xzfind", a
+      "setuid binary named rootrun". The name is the actor's choice;
+      sma1000-rootrun-yara reads the binary itself, and the setuid listing in the
+      catalog finds a renamed copy.
+
+  - id: sma1000-knuckleball-path
+    title: KNUCKLEBALL at the path Volexity found it
+    type: path_exists
+    tier: likely
+    evidence_class: persistence
+    scope: ["**/usr/lib/python3*/**"]
+    paths: ["**/usr/lib/python3.11/site-packages/deploy_new.py"]
+    attack: [T1055, T1037.004]
+    notes: >-
+      Volexity: written "a few minutes after xzfind", and started by the line it
+      added to /etc/init.d/workplace. sma1000-knuckleball-yara finds the script
+      under another name.
+
+  - id: sma1000-uta0533-tmp-files
+    title: UTA0533's staging files in /tmp
+    type: path_exists
+    tier: likely
+    evidence_class: filesystem
+    scope: ["**/tmp/**"]
+    paths: ["**/tmp/hypdate.b64", "**/tmp/1234.sh", "**/tmp/agent_wp8.jar", "**/tmp/agent_wp9.jar"]
+    attack: [T1068, T1105]
+    notes: >-
+      Volexity: /tmp/hypdate.b64 held the CVE-2026-15410 exploit, /tmp/1234.sh
+      (owned by couchdb) was run as root, and KNUCKLEBALL writes the two JARs here
+      and deletes them after injection, so a JAR left behind means an interrupted
+      run. The files in /tmp "were owned by the unprivileged account used by the
+      appliance's internal database service", a lead for renamed files that this
+      check cannot see. The agents' logs, /tmp/agent_wp8.log and agent_wp9.log,
+      are links to /dev/null; an archive's links are refused on extraction and
+      recorded in the case's refusals, not seen here. Absence means little.
+
+  - id: sma1000-var-tmp-capture-script
+    title: tcpdump launcher in /var/tmp
+    type: path_exists
+    tier: possible
+    evidence_class: filesystem
+    scope: ["**/var/tmp/**"]
+    paths: ["**/var/tmp/lib.sh"]
+    attack: [T1040]
+    notes: >-
+      Volexity: on the second appliance, files in /var/tmp were "associated with
+      using tcpdump to capture unencrypted LDAP traffic", and "one file called
+      lib.sh was a script to launch tcpdump and save captured traffic in the same
+      directory". The name is generic, so possible; the captures beside it, and
+      the directory credentials in them, are the finding.
+
+  - id: sma1000-orangetail-yara
+    title: ORANGETAIL, or the user-agent-gated Suo5 agent (Volexity)
+    type: yara
+    tier: confirmed
+    evidence_class: memory
+    rule: 11-sonicwall-sma1000/sma1000_orangetail_volexity.yar
+    sources:
+      files: ["**"]
+    attack: [T1505.003, T1090, T1055]
+    notes: >-
+      Volexity's two ORANGETAIL rules (scan_context "file,memory"): one for the
+      agent wrapper's strings, one for the user-agent gate, which also names the
+      Suo5 JAR as a sample. The JARs are deleted after injection, so the memory
+      checks are where these usually hit; a memory match is held at likely, as
+      every pack rule is there, a cap that is the toolkit's, not Volexity's. As a
+      file rule it matches a recovered JAR or class dump.
+
+  - id: sma1000-knuckleball-yara
+    title: KNUCKLEBALL (Volexity)
+    type: yara
+    tier: confirmed
+    evidence_class: persistence
+    rule: 11-sonicwall-sma1000/sma1000_knuckleball_volexity.yar
+    sources:
+      files: ["**"]
+    attack: [T1055, T1037.004]
+    notes: >-
+      Volexity's apt_malware_python_knuckleball: two of its path and process
+      strings, or three of its function names. It finds the injector under any
+      name, and in memory while it runs.
+
+  - id: sma1000-rootrun-yara
+    title: ROOTRUN (Volexity)
+    type: yara
+    tier: confirmed
+    evidence_class: filesystem
+    rule: 11-sonicwall-sma1000/sma1000_rootrun_volexity.yar
+    sources:
+      files: ["**"]
+    attack: [T1548.001]
+    notes: >-
+      Volexity's apt_malware_linux_rootrun needs all four of its strings,
+      including the usage line "Usage: rootrun rootrun <command>", so it finds a
+      renamed copy.
+
+  - id: sma1000-uta0533-user-agent-yara
+    title: The user agent UTA0533's implants gate on (Volexity)
+    type: yara
+    tier: likely
+    evidence_class: web-logs
+    rule: 11-sonicwall-sma1000/sma1000_uta0533_user_agent_volexity.yar
+    sources:
+      files: ["**"]
+    attack: [T1505.003]
+    notes: >-
+      Volexity's apt_malware_any_uta0533_ua matches "any blob" holding the string.
+      In an upstream proxy's log it is a request made with the actor's user agent,
+      which shows the request, not what it reached, so likely. Its sample is
+      KNUCKLEBALL, so on that script sma1000-knuckleball-yara fires too.

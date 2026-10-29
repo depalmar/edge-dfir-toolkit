@@ -2,8 +2,8 @@
 # site shows. Generated - do not edit by hand:
 #   python artifacts/scripts/advisory_watch.py --records > artifacts/watch/kev-records.yml
 # Schema: ../schema/kev-records.schema.json. The weekly watch reports drift.
-catalog: 2026.10.26
-released: '2026-10-26'
+catalog: 2026.10.28
+released: '2026-10-28'
 records:
 - cve: CVE-2014-2120
   platform: EDGE-0005
@@ -793,6 +793,21 @@ records:
   notes: 'CISA Mitigation Instructions: https://www.cisa.gov/cisa-mitigation-instructions-cve-2025-22457 ; Additional References:
     https://forums.ivanti.com/s/article/April-Security-Advisory-Ivanti-Connect-Secure-Policy-Secure-ZTA-Gateways-CVE-2025-22457
     ; https://nvd.nist.gov/vuln/detail/CVE-2025-22457'
+- cve: CVE-2025-23006
+  platform: EDGE-0011
+  vendor: SonicWall
+  product: SMA1000 Appliances
+  name: SonicWall SMA1000 Appliances Deserialization Vulnerability
+  added: '2025-01-24'
+  due: '2025-02-14'
+  ransomware: Known
+  forensic_triage: 'No'
+  cwes:
+  - CWE-502
+  action: Apply mitigations per vendor instructions or discontinue use of the product if mitigations are unavailable.
+  description: SonicWall SMA1000 Appliance Management Console (AMC) and Central Management Console (CMC) contain a deserialization
+    of untrusted data vulnerability, which can enable a remote, unauthenticated attacker to execute arbitrary OS commands.
+  notes: https://psirt.global.sonicwall.com/vuln-detail/SNWLID-2025-0002 ; https://nvd.nist.gov/vuln/detail/CVE-2025-23006
 - cve: CVE-2025-24472
   platform: EDGE-0002
   vendor: Fortinet
@@ -847,6 +862,24 @@ records:
   description: Fortinet FortiFone, FortiVoice, FortiNDR and FortiMail contain a stack-based overflow vulnerability that may
     allow a remote unauthenticated attacker to execute arbitrary code or commands via crafted HTTP requests.
   notes: https://fortiguard.fortinet.com/psirt/FG-IR-25-254 ; https://nvd.nist.gov/vuln/detail/CVE-2025-32756
+- cve: CVE-2025-40602
+  platform: EDGE-0011
+  vendor: SonicWall
+  product: SMA1000 appliance
+  name: SonicWall SMA1000 Missing Authorization Vulnerability
+  added: '2025-12-17'
+  due: '2025-12-24'
+  ransomware: Unknown
+  forensic_triage: 'No'
+  cwes:
+  - CWE-862
+  - CWE-250
+  action: Apply mitigations per vendor instructions, follow applicable BOD 22-01 guidance for cloud services, or discontinue
+    use of the product if mitigations are unavailable
+  description: SonicWall SMA1000 contains a missing authorization vulnerability that could allow for privilege escalation
+    appliance management console (AMC) of affected devices.
+  notes: 'Check for signs of potential compromise on all internet accessible SonicWall SMA1000 instances after applying mitigations.
+    For more information please see: https://psirt.global.sonicwall.com/vuln-detail/SNWLID-2025-0019 ; https://nvd.nist.gov/vuln/detail/CVE-2025-40602'
 - cve: CVE-2025-53521
   platform: EDGE-0010
   vendor: F5
@@ -1055,6 +1088,48 @@ records:
   description: Ivanti Connect Secure contains an authentication bypass by spoofing vulnerability that allows a remote unauthenticated
     attacker to execute arbitrary commands.
   notes: https:/forums.ivanti.com/s/article/Security-Advisory-Ivanti-Connect-Secure-CVE-2026-104935 ; https://nvd.nist.gov/vuln/detail/CVE-2026-104935
+- cve: CVE-2026-15409
+  platform: EDGE-0011
+  vendor: SonicWall
+  product: SMA1000 Appliances
+  name: SonicWall SMA1000 Appliances Server-Side Request Forgery Vulnerability
+  added: '2026-07-14'
+  due: '2026-07-17'
+  ransomware: Known
+  forensic_triage: 'Yes'
+  cwes:
+  - CWE-918
+  action: Apply mitigations in accordance with vendor instructions, ensuring compliance with CISA’s BOD 26-04 Prioritizing
+    Security Updates Based on Risk (see URL in Notes) guidance and CISA’s “Forensics Triage Requirements” (see URL in Notes).
+    Follow applicable BOD 26-04 guidance for cloud services or discontinue use of the product if mitigations are unavailable.
+    Stakeholders are responsible for evaluating each asset's internet exposure and ensuring adherence to BOD 26-04 patching
+    guidelines.
+  description: SonicWall SMA1000 Appliances contain a server-side request forgery vulnerability that could allow a remote
+    unauthenticated attacker to potentially cause the appliance to make requests to unintended location.
+  notes: 'https://psirt.global.sonicwall.com/vuln-detail/SNWLID-2026-0008 ; BOD 26-04: https://www.cisa.gov/news-events/directives/bod-26-04-prioritizing-security-updates-based-risk
+    ; Forensics Triage Requirements: https://www.cisa.gov/news-events/directives/bod-26-04-implementation-guidance-prioritizing-security-updates-based-risk
+    ; https://nvd.nist.gov/vuln/detail/CVE-2026-15409'
+- cve: CVE-2026-15410
+  platform: EDGE-0011
+  vendor: SonicWall
+  product: SMA1000 Appliances
+  name: SonicWall SMA1000 Appliances Code Injection Vulnerability
+  added: '2026-07-14'
+  due: '2026-07-17'
+  ransomware: Known
+  forensic_triage: 'Yes'
+  cwes:
+  - CWE-94
+  action: Apply mitigations in accordance with vendor instructions, ensuring compliance with CISA’s BOD 26-04 Prioritizing
+    Security Updates Based on Risk (see URL in Notes) guidance and CISA’s “Forensics Triage Requirements” (see URL in Notes).
+    Follow applicable BOD 26-04 guidance for cloud services or discontinue use of the product if mitigations are unavailable.
+    Stakeholders are responsible for evaluating each asset's internet exposure and ensuring adherence to BOD 26-04 patching
+    guidelines.
+  description: SonicWall SMA1000 Appliances contain a code injection vulnerability which in specific conditions could potentially
+    enable a remote authenticated attacker as administrator to execute arbitrary OS commands.
+  notes: 'https://psirt.global.sonicwall.com/vuln-detail/SNWLID-2026-0008 ; BOD 26-04: https://www.cisa.gov/news-events/directives/bod-26-04-prioritizing-security-updates-based-risk
+    ; Forensics Triage Requirements: https://www.cisa.gov/news-events/directives/bod-26-04-implementation-guidance-prioritizing-security-updates-based-risk
+    ; https://nvd.nist.gov/vuln/detail/CVE-2026-15410'
 - cve: CVE-2026-16232
   platform: null
   vendor: Check Point
@@ -1177,6 +1252,49 @@ records:
     a valid user password.
   notes: https://blog.checkpoint.com/security/check-point-releases-important-hotfix-for-vulnerabilities-in-deprecated-ikev1-vpn-protocol/
     ; https://support.checkpoint.com/results/sk/sk185033?_gl=1*1wqeqhc*_gcl_au*MTI1MzE5MjI2LjE3ODA5MzQ1NTM. ; https://nvd.nist.gov/vuln/detail/CVE-2026-50751
+- cve: CVE-2026-83548
+  platform: EDGE-0011
+  vendor: SonicWall
+  product: SMA1000 Appliances
+  name: SonicWall SMA1000 Appliances Server-Side Request Forgery Vulnerability
+  added: '2026-09-02'
+  due: '2026-09-05'
+  ransomware: Unknown
+  forensic_triage: 'Yes'
+  cwes:
+  - CWE-918
+  - CWE-441
+  action: Apply mitigations in accordance with vendor instructions, ensuring compliance with CISA’s BOD 26-04 Prioritizing
+    Security Updates Based on Risk (see URL in Notes) guidance and CISA’s “Forensics Triage Requirements” (see URL in Notes).
+    Follow applicable BOD 26-04 guidance for cloud services or discontinue use of the product if mitigations are unavailable.
+    Stakeholders are responsible for evaluating each asset's internet exposure and ensuring adherence to BOD 26-04 patching
+    guidelines.
+  description: SonicWall SMA1000 Appliances contains a server-side request forgery vulnerability that could allow a remote
+    unauthenticated attacker to gain unauthorized access to sensitive functionality and perform unauthorized operations.
+  notes: 'https://psirt.global.sonicwall.com/vuln-detail/SNWLID-2026-0016 ; BOD 26-04: https://www.cisa.gov/news-events/directives/bod-26-04-prioritizing-security-updates-based-risk
+    ; Forensics Triage Requirements: https://www.cisa.gov/news-events/directives/bod-26-04-implementation-guidance-prioritizing-security-updates-based-risk
+    ; https://nvd.nist.gov/vuln/detail/CVE-2026-83548'
+- cve: CVE-2026-83549
+  platform: EDGE-0011
+  vendor: SonicWall
+  product: SMA1000 Appliances
+  name: SonicWall SMA1000 Appliances OS Command Injection Vulnerability
+  added: '2026-09-02'
+  due: '2026-09-05'
+  ransomware: Unknown
+  forensic_triage: 'Yes'
+  cwes:
+  - CWE-78
+  action: Apply mitigations in accordance with vendor instructions, ensuring compliance with CISA’s BOD 26-04 Prioritizing
+    Security Updates Based on Risk (see URL in Notes) guidance and CISA’s “Forensics Triage Requirements” (see URL in Notes).
+    Follow applicable BOD 26-04 guidance for cloud services or discontinue use of the product if mitigations are unavailable.
+    Stakeholders are responsible for evaluating each asset's internet exposure and ensuring adherence to BOD 26-04 patching
+    guidelines.
+  description: SonicWall SMA1000 Appliances contains an OS command injection vulnerability that could enable a remote authenticated
+    attacker as administrator to execute arbitrary OS commands, resulting in remote code execution.
+  notes: 'https://psirt.global.sonicwall.com/vuln-detail/SNWLID-2026-0016 ; BOD 26-04: https://www.cisa.gov/news-events/directives/bod-26-04-prioritizing-security-updates-based-risk
+    ; Forensics Triage Requirements: https://www.cisa.gov/news-events/directives/bod-26-04-implementation-guidance-prioritizing-security-updates-based-risk
+    ; https://nvd.nist.gov/vuln/detail/CVE-2026-83549'
 - cve: CVE-2026-8452
   platform: EDGE-0004
   vendor: Citrix

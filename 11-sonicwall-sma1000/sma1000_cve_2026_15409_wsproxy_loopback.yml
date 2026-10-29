@@ -1,0 +1,36 @@
+title: SonicWall SMA 1000 /wsproxy Tunnel to the Appliance Itself (CVE-2026-15409)
+id: c1a2dc4e-8a91-412e-91e5-37244428475e
+status: experimental
+description: |
+  UTA0533 opened WebSocket tunnels through /wsproxy to services that listen only
+  on the appliance (CouchDB on 1050, the control service on 8188) by setting
+  host=0.0.0.0, and the appliance answered 101. SonicWall lists "requests to
+  /wsproxy with suspicious host parameters with 101 http status" in
+  extraweb_access.log as an indicator; Volexity published the request shape.
+  127.0.0.0/8 and localhost are this toolkit's reading of Volexity's "(or similar
+  value aimed at internal services)".
+references:
+  - https://psirt.global.sonicwall.com/vuln-detail/SNWLID-2026-0008
+  - https://www.volexity.com/blog/2026/07/17/proxying-to-compromise-sonicwall-secure-mobile-access-0-day-exploitation/
+author: Raymond DePalma (edge-dfir-toolkit)
+date: 2026-10-29
+tags:
+  - attack.initial_access
+  - attack.t1190
+  - attack.command_and_control
+  - attack.t1572
+  - cve.2026-15409
+logsource:
+  category: webserver
+detection:
+  selection:
+    cs-uri-stem: '/wsproxy'
+    cs-uri-query|contains:
+      - 'host=0.0.0.0'
+      - 'host=127.'
+      - 'host=localhost'
+    sc-status: 101
+  condition: selection
+falsepositives:
+  - Neither SonicWall nor Volexity describes a legitimate request with these host values.
+level: high

@@ -1,0 +1,48 @@
+# Threat actor profile - EDGE-TA-0008
+# Schema: ../../schema/actor.schema.json
+# Attribution is reported, never computed. link_confidence is ours (provenance of
+# the link); stated_confidence is the attributing party's own words.
+
+id: EDGE-TA-0008
+name: UTA0533
+aliases: []
+reported_by: [Volexity]
+link_confidence: medium
+stated_confidence: >-
+  None stated. Volexity names "a threat actor Volexity tracks as UTA0533" and
+  makes no attribution, confidence or motivation assessment in the post.
+motivation: unknown
+summary: >-
+  Chained zero-days in SonicWall SMA 1000 appliances in 2026: an unauthenticated
+  /wsproxy tunnel to services on the appliance itself (CVE-2026-15409), CouchDB
+  to write a script as its service user, and a path traversal in the control
+  service's hotfix removal to run it as root (CVE-2026-15410). It then wrote the
+  setuid helper ROOTRUN and the injector KNUCKLEBALL, which loads a modified
+  Suo5 and the ORANGETAIL web shell into the workplace JVM behind a user-agent
+  gate. Volexity: it captured cleartext LDAP traffic on the appliance to extract
+  credentials and tried to move laterally, though "available evidence suggests
+  the threat actor was less successful moving laterally or gaining access to
+  other systems". Its access came from over 200 addresses, several of them
+  commercial VPN exits.
+platforms: [EDGE-0011]
+packs: [EDGE-PACK-0036]
+implants: [EDGE-IMP-0015, EDGE-IMP-0016, EDGE-IMP-0017, EDGE-IMP-0018]
+tradecraft:
+  - Zero-day exploitation chained through services that listen only on the appliance
+  - Java agents injected into the vendor's own JVM, with their JARs deleted and their logs linked to /dev/null
+  - Implant pages gated on a bogus user agent, returning 404 to everyone else
+  - Web-front-end routes added so the implants answer on paths of the actor's choosing
+  - Capturing cleartext LDAP on the appliance with tcpdump to harvest credentials
+victimology: ["not stated; Volexity describes one customer's appliances"]
+first_seen: "2026-06-22"
+references:
+  - title: Volexity - Proxying to compromise, SonicWall Secure Mobile Access 0-day exploitation (17 July 2026)
+    url: https://www.volexity.com/blog/2026/07/17/proxying-to-compromise-sonicwall-secure-mobile-access-0-day-exploitation/
+    accessed: "2026-10-29"
+notes: >-
+  first_seen is Volexity's "earliest sign of compromise observed in the
+  investigation", June 22, 2026; it dates the actor in that one intrusion, not
+  the CVEs. Volexity writes the name once as UTA0553, a typo in the post.
+  SonicWall's advisory reports "multiple cases" of exploitation without naming
+  an actor, so those cases are not linked here. Volexity also lists workstation
+  names that leaked during lateral movement; EDGE-HUNT-0028 points to them.
