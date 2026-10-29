@@ -27,7 +27,7 @@ python -m pytest -q tests/                    # suite against synthetic fixtures
 python tests/make_fixtures.py /tmp/fx         # regenerate fixtures to poke at by hand
 python -m edgetriage plan --profile <name> [--allow-bundle] [--break-glass]
 python -m edgetriage collect --profile <name> --case-id X --replay /tmp/fx/<fixture>
-python -m edgetriage analyze cases/X [--baseline b.json] [--window-start ISO] [--forwarded siem.jsonl]
+python -m edgetriage analyze cases/X [--baseline b.json] [--window-start ISO] [--forwarded siem.jsonl] [--activity signins.jsonl]
 python artifacts/scripts/build_site.py --check   # site data contract, writes nothing
 python artifacts/scripts/build_site.py           # docs/site/index.html (CI does this; never commit it)
 python artifacts/scripts/mappings.py [--check]   # MAPPINGS.md is generated
@@ -141,7 +141,13 @@ the logs on the box (EDGE-HUNT-0027) and lists gaps in the forwarded stream
   evidence class (`offbox-logs`).
 - It says not-evaluated when the copies share fewer than `MIN_SHARED` lines
   or differ by level (`MIN_SHARE`).
-- Stream gaps are listed, never scored.
+- Stream gaps are listed, never scored on their own. Given `--activity` (what
+  the device did, from a source it does not control), a gap with `ACTIVE_MIN`
+  or more events inside it, `EDGE_MARGIN_S` in from each end, is `possible`
+  (`offbox-silent-while-active`, EDGE-HUNT-0009). A gap the export does not
+  span is not tested; a gap with no year cannot be placed. NetFlow is one
+  activity source, never a requirement - most owners have sign-in or
+  next-firewall logs instead.
 
 No vendor query dialect in hunts either.
 

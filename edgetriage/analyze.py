@@ -128,9 +128,15 @@ def verdict(results: list[dict[str, Any]]) -> dict[str, Any]:
         level = "SUSPICIOUS"
         ids = ", ".join(sorted({r["id"] for r in by_tier["possible"]}))
         if classes_possible == {"offbox-logs"}:
-            # Only the off-box comparison fired: say what was seen, not "an attempt".
-            why = ("possible indicator: the SIEM's copy of the device's syslog and the logs on the box disagree "
-                   "(lines deleted locally, or never forwarded; each finding lists the benign causes): " + ids)
+            # Only the off-box checks fired: say what was seen, not "an attempt".
+            fired = {r["id"] for r in by_tier["possible"]}
+            seen = []
+            if fired & {"offbox-gone-from-box", "offbox-never-forwarded"}:
+                seen.append("the SIEM's copy of the device's syslog and the logs on the box disagree "
+                            "(lines deleted locally, or never forwarded)")
+            if "offbox-silent-while-active" in fired:
+                seen.append("forwarding went quiet while another source shows the device active")
+            why = "possible indicator: " + "; ".join(seen) + " (each finding lists the benign causes): " + ids
         else:
             why = "possible indicator (often exploitation attempted, success not shown): " + ids
     else:
@@ -186,9 +192,11 @@ def evidence_gaps(view: EvidenceView, results: list[dict[str, Any]],
 def analyze(case_root: Path, *, platform_id: str | None = None, all_packs: bool = False,
             baseline: dict[str, str] | None = None, window_start: str | None = None,
             pack_dir: Path = PACK_DIR, forwarded: list[Path] | None = None,
-            forwarded_local: list[str] | None = None) -> dict[str, Any]:
-    """forwarded: the device's syslog as the SIEM received it. When given, the two
-    off-box comparisons run beside the packs (see offbox.py)."""
+            forwarded_local: list[str] | None = None, activity: list[Path] | None = None,
+            activity_match: list[str] | None = None, activity_field: str | None = None) -> dict[str, Any]:
+    """forwarded: the device's syslog as the SIEM received it. When given, the off-box
+    checks run beside the packs (see offbox.py). activity: another source's record of what
+    the device did, against which the forwarded stream's gaps are tested."""
     view = EvidenceView(case_root)
     platform_id = platform_id or view.manifest.get("platform_id")
     packs = packs_for(platform_id, load_packs(pack_dir), all_packs)
@@ -216,15 +224,18 @@ def analyze(case_root: Path, *, platform_id: str | None = None, all_packs: bool 
     off, off_rows = None, []
     if forwarded:
         from . import offbox
-        off = offbox.compare(view, [Path(p) for p in forwarded], forwarded_local, window_start)
+        off = offbox.compare(view, [Path(p) for p in forwarded], forwarded_local, window_start,
+                             activity=[Path(p) for p in activity] if activity else None,
+                             activity_match=activity_match, activity_field=activity_field)
         off_rows = offbox.results(off)
-        for key in ("gone_from_box", "never_forwarded"):   # the hits live in detections, once
+        for key in ("gone_from_box", "never_forwarded", "silent_while_active"):   # the hits live in detections, once
             off[key] = {k: v for k, v in off[key].items() if k != "hits"} | {"runs": len(off[key]["hits"])}
     gaps = evidence_gaps(view, results, window_start)
     at = next((i for i, g in enumerate(gaps) if g["kind"] == "standing"), len(gaps))
     for r in off_rows:
         if r["status"] == "not-evaluated":
-            gaps.insert(at, {"kind": "offbox-not-compared", "detail": f"{r['id']}: {r['reason']}"})
+            kind = "offbox-activity-missing" if r["id"] == "offbox-silent-while-active" else "offbox-not-compared"
+            gaps.insert(at, {"kind": kind, "detail": f"{r['id']}: {r['reason']}"})
             at += 1
     out = {
         "case_id": view.manifest["case_id"],
@@ -320,13 +331,36 @@ def offbox_rows(o: dict[str, Any]) -> list[tuple[str, str]]:
         p = o[key]
         val = f"{p['runs']} run(s) found" if p["status"] == "evaluated" else "not evaluated"
         rows.append((label, val + (f" - {p['reason']}" if p.get("reason") else "")))
+    acts = o.get("activity") or []
+    if acts:
+        match = f", matching {' or '.join(o['activity_match'])}" if o.get("activity_match") else ""
+        rows.append(("Activity sources", "; ".join(
+            f"{a['file']} ({a['format']}, {a['events']} timed event(s) of {a['records']} record(s){match}, "
+            f"{a['from'] or '-'} to {a['to'] or '-'}, sha256 {a['sha256'][:16]})" for a in acts)))
     if o.get("gaps"):
         rows.append(("Stream gaps", "; ".join(f"{_dur(g['seconds'])} after {g['from']}{' (in the window)' if g['in_window'] else ''}"
-                                              for g in o["gaps"])
-                     + f". Listed, not scored: compare with NetFlow for the same hours (EDGE-HUNT-0009)."))
+                                              f"{_gap_activity(g) if acts else ''}" for g in o["gaps"]) + "."
+                     + (" A gap with the device active elsewhere appears under Findings (EDGE-HUNT-0009)." if acts else
+                        " Listed, not scored: pass --activity a record of what the device did in those hours, from a "
+                        "source it does not control - sign-ins through it (IdP, RADIUS), sessions from it on the next "
+                        "firewall, flows to or from it - to test them (EDGE-HUNT-0009).")))
     elif o.get("gap_floor_seconds"):
         rows.append(("Stream gaps", f"none of {_dur(o['gap_floor_seconds'])} or more"))
     return rows
+
+
+def _gap_activity(g: dict[str, Any]) -> str:
+    """What the activity exports say about one gap."""
+    from .offbox import ACTIVE_MIN
+    if "activity" not in g:
+        return ": not placed (no year in the forwarded copy's times)"
+    busy = [x for x in g["activity"] if x["events"]]
+    if sum(x["events"] for x in busy) >= ACTIVE_MIN:
+        return ": active: " + ", ".join(f"{x['events']} event(s) in {x['file']}" for x in busy)
+    covering = [x["file"] for x in g["activity"] if x["covers"]]
+    if covering:
+        return f": quiet in {' and '.join(covering)} too"
+    return f": {' and '.join(x['file'] for x in g['activity'])} do not span it"
 
 
 def offbox_markdown(o: dict[str, Any]) -> list[str]:
@@ -355,10 +389,14 @@ GAP_CLOSE = {
     "volatile-lost": "Memory-only evidence is gone; rely on off-box telemetry for the window.",
     "upgraded": "Ask the vendor about pre-upgrade logs; use off-box copies.",
     "log-retention": "Pull the off-box syslog from the window start to the earliest on-box line.",
-    "standing": "Corroborate with NetFlow for the management interface and IdP logons for the same hours.",
+    "standing": "Corroborate with off-box sources for the same hours: IdP or RADIUS sign-ins, the next firewall's "
+                "sessions for the device's addresses, and flows where you have them.",
     "unvalidated-profile": "Read the step statuses in manifest.json before relying on any absence.",
     "offbox-not-compared": "Export the device's syslog from the SIEM for the same hours as raw lines, or as JSON or CSV with a "
                            "Message field, and pass it with --forwarded; point --forwarded-local at the local log it should match.",
+    "offbox-activity-missing": "Export what the device did across the gap hours from a source it does not control - IdP or "
+                               "RADIUS sign-ins through it, sessions from its inside address on the next firewall, flows to "
+                               "or from it - and pass it with --activity; --activity-match keeps only records naming the device.",
 }
 _LIGHT = ("--bg:#fbfbfa;--panel:#fff;--panel-2:#fbfbfa;--ink:#1c1b19;--ink-2:#3d3a35;--muted:#6b6862;--faint:#a09b90;"
           "--line:#e4e1db;--line-soft:#f0ede8;--accent:#5e3a24;--accent-soft:#f2e9e2;--on-accent:#fff;--crit:#a12b2b;"

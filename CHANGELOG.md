@@ -1,5 +1,43 @@
 # Changelog
 
+## 0.15.0 - 2026-10-29 - Testing a silence against what the device did
+
+- **`analyze --activity`.** A gap in the forwarded stream used to be listed
+  with "compare with NetFlow", but many owners have no NetFlow. The gap is now
+  tested against any record of what the device did, from a source it does not
+  control:
+  - sign-ins through it (identity provider or RADIUS);
+  - sessions from its inside address on the next firewall;
+  - connections from its VPN pool in EDR;
+  - flows, where they exist.
+- **What counts as an event.** One per record or line. JSON, JSON lines and
+  CSV are read by their time field: the SIEM names, Okta's `published`,
+  Entra's `createdDateTime`, Zeek's `ts` and others, or name it with
+  `--activity-field`. Plain files are read by the first ISO time on each line.
+  `--activity-match` keeps the records naming the device, as a whole token, so
+  `192.0.2.1` does not match `192.0.2.10`.
+- **New possible indicator: `offbox-silent-while-active`.** It fires when three
+  or more events fall inside a gap, not counting five minutes at each end.
+  - It sits in the `offbox-logs` class and links to EDGE-HUNT-0009.
+  - This is the case where an intruder stops local logging and forwarding
+    together. Both copies then still agree, and a gap with the device busy is
+    the only evidence left.
+  - A gap the export spans with no events is reported as quiet there too.
+  - A gap the export does not span is not counted as tested.
+  - A forwarded copy whose times have no year (raw syslog) cannot be placed.
+    It is reported as not evaluated, with how to export it instead.
+- **Without `--activity`, nothing changes.** Gaps are listed and not scored. An
+  `offbox-activity-missing` evidence gap now says which exports would test
+  them, instead of naming only NetFlow.
+- **Wording.** EDGE-HUNT-0009, the guide, the report, the standing gap's
+  advice and the site's verdict ladder now name these sources, with NetFlow
+  as one of them. When only off-box checks fire, the verdict says which: the
+  copies disagree, or forwarding went quiet while the device was active.
+- Internals: times now record whether the source stated a zone, and a gap
+  tested against an unzoned source says that times without a zone were read
+  as UTC. The record readers for the forwarded and activity exports share one
+  parser. Eight tests cover the new paths.
+
 ## 0.14.1 - 2026-10-28 - Repeated messages and the off-box verdict
 
 - **Fixed: a deletion that included a repeated message was missed.** The

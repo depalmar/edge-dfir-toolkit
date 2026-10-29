@@ -114,9 +114,10 @@ python -m edgetriage collect --profile panos --host 192.0.2.10 --user ir-readonl
 python -m edgetriage ingest cases/IR-2026-031 --label tsf --bundle ~/Downloads/techsupport.tgz
 
 # Analyze, then build a timeline and an LLM brief. --forwarded (optional) lines the
-# SIEM's copy of the device's syslog up with the logs on the box
+# SIEM's copy of the device's syslog up with the logs on the box; --activity (optional)
+# tests its gaps against what the device did, from sign-in, firewall or flow logs
 python -m edgetriage analyze  cases/IR-2026-031 --window-start 2026-09-01T00:00:00 \
-    --forwarded siem-export.jsonl
+    --forwarded siem-export.jsonl --activity idp-signins.jsonl --activity-match 192.0.2.1
 python -m edgetriage timeline cases/IR-2026-031
 python -m edgetriage brief    cases/IR-2026-031
 ```

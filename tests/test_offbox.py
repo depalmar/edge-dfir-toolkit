@@ -208,6 +208,142 @@ def test_stream_gaps_are_listed_not_scored(tmp_path):
     assert "Listed, not scored" in (root / "report.md").read_text()
 
 
+# --------------------------------------------------------------------------- --activity
+# A three-hour silence, 09:39 to 12:40, in both copies: forwarding and local logging stopped
+# together, so only another source can say whether the device was working meanwhile.
+GAP_FROM, GAP_TO = T0 + timedelta(minutes=39), T0 + timedelta(hours=3, minutes=40)
+
+
+def _gap_case(tmp_path: Path) -> tuple[Path, Path]:
+    times = [T0 + timedelta(minutes=i) for i in range(40)] + [T0 + timedelta(hours=3, minutes=40 + i) for i in range(40)]
+    root = _case(tmp_path, [_local(i, t) for i, t in enumerate(times)])
+    rows = [{"timestamp": t.isoformat() + "Z", "message": _forwarded(i, t)} for i, t in enumerate(times)]
+    (tmp_path / "siem.json").write_text(json.dumps(rows))
+    return root, tmp_path / "siem.json"
+
+
+def _every(start: datetime, end: datetime, minutes: int = 10) -> list[datetime]:
+    out, t = [], start
+    while t <= end:
+        out.append(t)
+        t += timedelta(minutes=minutes)
+    return out
+
+
+def _signins(tmp_path: Path, times: list[datetime], name: str = "idp.jsonl", nas: str = "192.0.2.1") -> Path:
+    """Identity-provider sign-ins that passed through the VPN gateway (Okta's System Log field)."""
+    p = tmp_path / name
+    with open(p, "a") as fh:
+        for t in times:
+            fh.write(json.dumps({"published": t.isoformat() + "Z", "eventType": "user.authentication.sso",
+                                 "debugContext": {"nas": nas}}) + "\n")
+    return p
+
+
+def test_a_gap_while_another_source_shows_the_device_working_is_a_possible_indicator(tmp_path):
+    root, siem = _gap_case(tmp_path)
+    act = _signins(tmp_path, _every(T0 - timedelta(hours=1), T0 + timedelta(hours=5)))
+    out = analyze(root, forwarded=[siem], activity=[act])
+    d = _det(out, "offbox-silent-while-active")
+    assert d["status"] == "hit" and d["hit_count"] == 1 and d["hits"][0]["tier"] == "possible"
+    assert d["hits"][0]["extra"]["events"] == 17 and d["evidence_class"] == "offbox-logs"
+    assert out["verdict"]["level"] == "SUSPICIOUS"
+    assert "quiet while another source shows the device" in out["verdict"]["rationale"]
+    gap = out["offbox"]["gaps"][0]
+    assert gap["activity"][0] == {"file": "idp.jsonl", "events": 17, "covers": True}
+    md = (root / "report.md").read_text()
+    assert "active: 17 event(s) in idp.jsonl" in md and "idp.jsonl (jsonl" in md
+
+
+def test_a_gap_that_is_quiet_in_the_other_source_too_is_not_scored(tmp_path):
+    """Sign-ins before and after the gap but none inside it: a quiet stretch, not a hit. The
+    five minutes at each end of the gap do not count, because two systems' clocks disagree."""
+    root, siem = _gap_case(tmp_path)
+    times = _every(T0 - timedelta(hours=1), GAP_FROM) + _every(GAP_TO, T0 + timedelta(hours=5))
+    times += [GAP_FROM + timedelta(minutes=2), GAP_TO - timedelta(minutes=2)] * 3
+    act = _signins(tmp_path, sorted(times))
+    out = analyze(root, forwarded=[siem], activity=[act])
+    assert _det(out, "offbox-silent-while-active")["status"] == "no-hit"
+    assert out["verdict"]["level"] == "NO-INDICATORS-FOUND"
+    assert "quiet in idp.jsonl too" in (root / "report.md").read_text()
+
+
+def test_an_activity_export_that_does_not_span_the_gap_is_not_evaluated(tmp_path):
+    """Sign-ins only from 13:00: silence in that file says nothing about 09:39 to 12:40."""
+    root, siem = _gap_case(tmp_path)
+    act = _signins(tmp_path, _every(T0 + timedelta(hours=4), T0 + timedelta(hours=5)))
+    out = analyze(root, forwarded=[siem], activity=[act])
+    d = _det(out, "offbox-silent-while-active")
+    assert d["status"] == "not-evaluated" and "do not span any listed gap" in d["reason"]
+    assert any(g["kind"] == "offbox-activity-missing" for g in out["evidence_gaps"])
+
+
+def test_without_an_activity_export_a_gap_stays_listed_and_says_what_would_test_it(tmp_path):
+    root, siem = _gap_case(tmp_path)
+    out = analyze(root, forwarded=[siem])
+    d = _det(out, "offbox-silent-while-active")
+    assert d["status"] == "not-evaluated" and "--activity" in d["reason"]
+    assert out["verdict"]["level"] == "NO-INDICATORS-FOUND"
+    assert any(g["kind"] == "offbox-activity-missing" for g in out["evidence_gaps"])
+    md = (root / "report.md").read_text()
+    section = md.split("## Off-box")[1].split("## Evidence gaps")[0]
+    assert "Listed, not scored" in section and "sign-ins" in section and "NetFlow" not in section
+
+
+def test_no_gap_means_nothing_to_corroborate(tmp_path):
+    root = _case(tmp_path, [_local(i, T0 + timedelta(minutes=i)) for i in range(60)])
+    rows = [{"timestamp": (T0 + timedelta(minutes=i)).isoformat() + "Z", "message": _forwarded(i, T0 + timedelta(minutes=i))}
+            for i in range(60)]
+    (tmp_path / "siem.json").write_text(json.dumps(rows))
+    out = analyze(root, forwarded=[tmp_path / "siem.json"])
+    assert _det(out, "offbox-silent-while-active")["status"] == "no-hit"
+    assert not any(g["kind"] == "offbox-activity-missing" for g in out["evidence_gaps"])
+
+
+def test_gaps_in_a_raw_export_without_a_year_cannot_be_placed_against_another_source(tmp_path):
+    times = [T0 + timedelta(minutes=i) for i in range(40)] + [T0 + timedelta(hours=3, minutes=40 + i) for i in range(40)]
+    root = _case(tmp_path, [_local(i, t) for i, t in enumerate(times)])
+    (tmp_path / "siem.log").write_text("\n".join(_forwarded(i, t) for i, t in enumerate(times)) + "\n")
+    act = _signins(tmp_path, _every(T0 - timedelta(hours=1), T0 + timedelta(hours=5)))
+    out = analyze(root, forwarded=[tmp_path / "siem.log"], activity=[act])
+    d = _det(out, "offbox-silent-while-active")
+    assert d["status"] == "not-evaluated" and "no year" in d["reason"]
+
+
+def test_activity_match_keeps_only_records_that_name_the_device(tmp_path):
+    """The export holds sign-ins for two gateways. Only 192.0.2.10 was busy during the gap;
+    192.0.2.1 must not borrow its events, and the match must not read .10 as .1."""
+    root, siem = _gap_case(tmp_path)
+    act = _signins(tmp_path, _every(T0 - timedelta(hours=1), GAP_FROM) + _every(GAP_TO, T0 + timedelta(hours=5)))
+    _signins(tmp_path, _every(T0 - timedelta(hours=1), T0 + timedelta(hours=5)), nas="192.0.2.10")
+    busy = analyze(root, forwarded=[siem], activity=[act])
+    assert _det(busy, "offbox-silent-while-active")["status"] == "hit"   # without the match, .10 counts
+    out = analyze(root, forwarded=[siem], activity=[act], activity_match=["192.0.2.1"])
+    assert _det(out, "offbox-silent-while-active")["status"] == "no-hit"
+    assert out["offbox"]["activity"][0]["kept"] < out["offbox"]["activity"][0]["records"]
+
+
+def test_activity_exports_in_other_shapes_are_read_by_their_time_field(tmp_path):
+    """Entra sign-ins as CSV (createdDateTime), Zeek conn.log as JSON lines (ts, epoch
+    seconds) and plain lines with ISO times all place the same events in the gap."""
+    root, siem = _gap_case(tmp_path)
+    times = _every(T0 - timedelta(hours=1), T0 + timedelta(hours=5))
+    with open(tmp_path / "entra.csv", "w", newline="") as fh:
+        w = csv.DictWriter(fh, fieldnames=["createdDateTime", "userPrincipalName", "ipAddress"])
+        w.writeheader()
+        w.writerows({"createdDateTime": t.isoformat() + "Z", "userPrincipalName": "user@example.com",
+                     "ipAddress": "192.0.2.1"} for t in times)
+    epoch = [(t - datetime(1970, 1, 1)).total_seconds() for t in times]
+    (tmp_path / "conn.log").write_text("".join(json.dumps({"ts": e, "id.orig_h": "192.0.2.1", "id.resp_h": "198.51.100.9"}) + "\n"
+                                               for e in epoch))
+    (tmp_path / "fw.log").write_text("".join(f"{t.isoformat()}Z fw-core-01 session start src=192.0.2.1\n" for t in times))
+    for name, fmt in (("entra.csv", "csv"), ("conn.log", "jsonl"), ("fw.log", "text")):
+        out = analyze(root, forwarded=[siem], activity=[tmp_path / name])
+        d = _det(out, "offbox-silent-while-active")
+        assert out["offbox"]["activity"][0]["format"] == fmt, name
+        assert d["status"] == "hit" and d["hits"][0]["extra"]["events"] == 17, name
+
+
 def test_a_raw_export_whose_lines_start_with_a_bracket_is_read_as_lines(tmp_path):
     from edgetriage.offbox import read_forwarded
     p = tmp_path / "raw.log"

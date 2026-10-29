@@ -1118,8 +1118,8 @@ LADDER = [
     ("LIKELY-COMPROMISED", "One <b>likely</b> hit, or <b>possible</b> hits in two evidence classes.",
      [[("likely", "web-logs")], [("likely", "web-logs"), ("likely", "web-logs")],
       [("possible", "web-logs"), ("possible", "auth-logs")]]),
-    ("SUSPICIOUS", "A <b>possible</b> hit in one class: often an attempt, success not shown, or the SIEM&#39;s copy "
-     "of the logs disagreeing with the box.",
+    ("SUSPICIOUS", "A <b>possible</b> hit in one class: often an attempt, success not shown, or off-box logs that "
+     "do not add up (the SIEM&#39;s copy disagreeing with the box, or going quiet while the device was busy).",
      [[("possible", "web-logs")], [("possible", "web-logs"), ("possible", "web-logs")], [("possible", "offbox-logs")]]),
     ("NO-INDICATORS-FOUND", "Nothing fired. Not a finding that the device is clean: read the evidence gaps.", [[]]),
 ]

@@ -25,8 +25,15 @@ A run of lines present on one side only, with shared lines on both sides of
 it, is a `possible` indicator: removed from the box after it was forwarded, or
 written locally while forwarding was blocked. Both have benign causes (lost UDP
 datagrams, a collector outage, a facility logged at one end only), and the
-report names them. Gaps in the forwarded stream are listed, never scored: a
-quiet night is not an indicator without NetFlow showing traffic.
+report names them.
+
+Gaps in the forwarded stream are listed, and are never scored on their own: a
+quiet night is not an indicator. A gap becomes a `possible` indicator only when
+another source the device does not control shows it working inside the gap
+(`--activity`). That source can be identity-provider or RADIUS sign-ins through
+it, sessions from it on the next firewall, flows to or from it, or anything else
+with a timestamp per event. NetFlow is one such source, not a requirement.
+Without one, the gaps stay listed and the report says what would test them.
 """
 from __future__ import annotations
 
@@ -36,7 +43,7 @@ import io
 import json
 import re
 import statistics
-from bisect import bisect_left
+from bisect import bisect_left, bisect_right
 from collections import Counter, defaultdict, deque
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta, timezone
@@ -58,6 +65,11 @@ GAP_FLOOR_S = 1800   # forwarded-stream gaps shorter than 30 minutes are not lis
 GAP_FACTOR = 20      # ... nor gaps shorter than 20 times the median interval
 MAX_GAPS = 10
 LIMIT_BYTES = 512 * 1024 * 1024
+# --activity: another source's record of what the device did, one event per record or line
+ACTIVITY_TIME_KEYS = TIME_KEYS + ("createdDateTime", "published", "eventTime", "TimeCreated", "ts", "start",
+                                  "StartTime", "datetime", "date")
+ACTIVE_MIN = 3        # events inside a gap before the device counts as working through it
+EDGE_MARGIN_S = 300   # ... not counting the five minutes at each end, where two systems' clocks disagree
 
 _PRI = re.compile(r"^\s*<\d{1,3}>\s*(?:1\s+)?")
 _LEAD = re.compile(r"^(?:[A-Z][a-z]{2}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2}|\d{4}[-/]\d{2}[-/]\d{2}[T ]\d{2}:\d{2}:\d{2}\S*)\s+")
@@ -74,6 +86,15 @@ UNSENT_NOTE = ("A run of lines on the box that the SIEM never received, with sha
                "\"uses iptables to block syslog forwarding\"). Others are lost UDP datagrams, a collector outage and "
                "a facility kept locally but not forwarded. Check the collector's own health for those hours. See "
                "EDGE-HUNT-0027 and EDGE-HUNT-0009.")
+SILENT_NOTE = ("A gap in the forwarded stream while another source shows the device at work inside it. Forwarding "
+               "blocked during hands-on activity is one explanation (Mandiant on CVE-2025-0282: the threat actor "
+               "\"uses iptables to block syslog forwarding\"; Talos on ArcaneDoor: \"if any gaps in logging or any "
+               "recent unexpected reboots are observed, this should be treated as suspicious\"). Others are a "
+               "collector or SIEM ingestion outage and a broken path between the device and the collector: check the "
+               "SIEM's ingestion health for the same minutes before calling it tampering. See EDGE-HUNT-0009.")
+NO_ACTIVITY = ("no --activity export: give it a record of what the device did in the gap hours, from a source the "
+               "device does not control - sign-ins through it (IdP, RADIUS), sessions from it on the next firewall, "
+               "flows to or from it")
 
 
 @dataclass
@@ -84,6 +105,7 @@ class Line:
     when: datetime | None  # for arithmetic only; naive, UTC when the source gave a zone
     shown: str | None      # the timestamp as written
     year_known: bool
+    zoned: bool = False    # the source stated a zone (or an epoch), so `when` is UTC
 
 
 # --------------------------------------------------------------------------- parsing
@@ -95,33 +117,36 @@ def message_key(raw: str) -> str:
     return " ".join(s.split())
 
 
-def _when_from_text(text: str) -> tuple[datetime | None, str | None, bool]:
-    ts, _tz = parse_ts(text)
+When = tuple[datetime | None, str | None, bool, bool]   # (naive datetime, as written, year known, zone known)
+
+
+def _when_from_text(text: str) -> When:
+    ts, zoned = parse_ts(text)
     if ts:
         try:
             dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
             if dt.tzinfo:
                 dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
-            return dt, ts, True
+            return dt, ts, True, zoned
         except ValueError:
             pass
     m = _BSD.search(text)
     if m and m.group(1) in _MON:   # syslog's own timestamp has no year
         try:
             dt = datetime(2000, _MON[m.group(1)], int(m.group(2)), int(m.group(3)), int(m.group(4)), int(m.group(5)))
-            return dt, m.group(0), False
+            return dt, m.group(0), False, False
         except ValueError:
             pass
-    return None, None, False
+    return None, None, False, False
 
 
-def _when_from_field(v: Any) -> tuple[datetime | None, str | None, bool]:
+def _when_from_field(v: Any) -> When:
     if isinstance(v, (int, float)) or (isinstance(v, str) and re.fullmatch(r"\d{9,13}(\.\d+)?", v.strip())):
         x = float(v)
         x = x / 1000 if x > 1e11 else x   # milliseconds
         dt = datetime.fromtimestamp(x, timezone.utc).replace(tzinfo=None)
-        return dt, dt.isoformat(timespec="seconds") + "Z", True
-    return _when_from_text(str(v)) if v not in (None, "") else (None, None, False)
+        return dt, dt.isoformat(timespec="seconds") + "Z", True, True
+    return _when_from_text(str(v)) if v not in (None, "") else (None, None, False, False)
 
 
 def _pick(rec: dict[str, Any], keys: tuple[str, ...]) -> Any:
@@ -134,54 +159,58 @@ def _pick(rec: dict[str, Any], keys: tuple[str, ...]) -> Any:
     return None
 
 
-def read_forwarded(path: Path, limit_bytes: int = LIMIT_BYTES) -> tuple[list[Line], str]:
-    """The SIEM's copy: raw syslog lines, JSON (array or lines) or CSV with a message field.
-    Exports often come newest first, so a stream that is almost fully timestamped, with
-    years, is put in time order."""
+def _load(path: Path, limit_bytes: int) -> str:
     with open(path, "rb") as fh:
         gz = fh.read(2) == b"\x1f\x8b"
     with (gzip.open(path, "rb") if gz else open(path, "rb")) as fh:
-        text = fh.read(limit_bytes).decode("utf-8", "replace")
+        return fh.read(limit_bytes).decode("utf-8", "replace")
+
+
+def _records(text: str, header_keys: tuple[str, ...]) -> tuple[str, list[Any]]:
+    """(format, items): dicts from a JSON array, JSON lines or CSV, else the text's lines.
+    A CSV is recognised by a header naming one of header_keys."""
     stripped = text.lstrip()
     first = next((ln for ln in text.splitlines() if ln.strip()), "")
-    recs: list[tuple[str, Any]] = []
-    doc: Any = None
     if stripped.startswith("["):   # a JSON array, or a raw log whose lines start with "["
         try:
             doc = json.loads(stripped)
         except ValueError:
             doc = None
-    if isinstance(doc, list):
-        fmt = "json"
-        recs = [(str(_pick(r, MESSAGE_KEYS)), _pick(r, TIME_KEYS)) for r in doc
-                if isinstance(r, dict) and _pick(r, MESSAGE_KEYS) is not None]
-    elif first.lstrip().startswith("{"):
-        fmt = "jsonl"
+        if isinstance(doc, list):
+            return "json", [r for r in doc if isinstance(r, dict)]
+    if first.lstrip().startswith("{"):
+        recs = []
         for ln in text.splitlines():
             if ln.strip():
                 try:
                     r = json.loads(ln)
                 except ValueError:
                     continue
-                if isinstance(r, dict) and _pick(r, MESSAGE_KEYS) is not None:
-                    recs.append((str(_pick(r, MESSAGE_KEYS)), _pick(r, TIME_KEYS)))
-    elif any(f.strip().strip('"').lower() in {k.lower() for k in MESSAGE_KEYS} for f in next(csv.reader([first]), [])):
-        fmt = "csv"
-        for r in csv.DictReader(io.StringIO(text)):
-            msg = _pick(r, MESSAGE_KEYS)
-            if msg is not None:
-                recs.append((str(msg), _pick(r, TIME_KEYS)))
+                if isinstance(r, dict):
+                    recs.append(r)
+        return "jsonl", recs
+    if any(f.strip().strip('"').lower() in {k.lower() for k in header_keys} for f in next(csv.reader([first]), [])):
+        return "csv", list(csv.DictReader(io.StringIO(text)))
+    return "text", [ln for ln in text.splitlines() if ln.strip()]
+
+
+def read_forwarded(path: Path, limit_bytes: int = LIMIT_BYTES) -> tuple[list[Line], str]:
+    """The SIEM's copy: raw syslog lines, JSON (array or lines) or CSV with a message field.
+    Exports often come newest first, so a stream that is almost fully timestamped, with
+    years, is put in time order."""
+    fmt, items = _records(_load(path, limit_bytes), MESSAGE_KEYS)
+    if fmt == "text":
+        recs: list[tuple[str, Any]] = [(ln, None) for ln in items]
     else:
-        fmt = "text"
-        recs = [(ln, None) for ln in text.splitlines() if ln.strip()]
-    if fmt != "text" and not recs:
-        raise ValueError(f"{path.name}: no record carries a message field ({', '.join(MESSAGE_KEYS)})")
+        recs = [(str(_pick(r, MESSAGE_KEYS)), _pick(r, TIME_KEYS)) for r in items if _pick(r, MESSAGE_KEYS) is not None]
+        if not recs:
+            raise ValueError(f"{path.name}: no record carries a message field ({', '.join(MESSAGE_KEYS)})")
     lines = []
     for n, (msg, tv) in enumerate(recs, 1):
-        dt, shown, yk = _when_from_field(tv) if tv is not None else _when_from_text(msg)
+        dt, shown, yk, z = _when_from_field(tv) if tv is not None else _when_from_text(msg)
         if dt is None and tv is not None:
-            dt, shown, yk = _when_from_text(msg)
-        lines.append(Line(n, msg.rstrip("\r\n"), message_key(msg), dt, shown, yk))
+            dt, shown, yk, z = _when_from_text(msg)
+        lines.append(Line(n, msg.rstrip("\r\n"), message_key(msg), dt, shown, yk, z))
     timed = [ln for ln in lines if ln.when is not None]
     if lines and len(timed) >= 0.9 * len(lines) and all(ln.year_known for ln in timed):
         lines.sort(key=lambda ln: (ln.when or datetime.min, ln.n))
@@ -194,9 +223,49 @@ def read_local(src: Source) -> list[Line]:
     out = []
     for n, raw in iter_lines(src):
         s = raw.decode("utf-8", "replace")
-        dt, shown, yk = _when_from_text(s)
-        out.append(Line(n, s, message_key(s), dt, shown, yk))
+        dt, shown, yk, z = _when_from_text(s)
+        out.append(Line(n, s, message_key(s), dt, shown, yk, z))
     return out
+
+
+def _matcher(match: list[str] | None):
+    """Whole-token search for any of the strings: 192.0.2.1 does not match 192.0.2.10."""
+    if not match:
+        return None
+    alts = "|".join(re.escape(m) for m in match)
+    return re.compile(rf"(?<![A-Za-z0-9.])(?:{alts})(?!\.?[A-Za-z0-9])").search
+
+
+def read_activity(path: Path, match: list[str] | None = None, field: str | None = None,
+                  limit_bytes: int = LIMIT_BYTES) -> dict[str, Any]:
+    """Another source's record of what the device did: one event per record or line, each
+    with a time that carries a year. JSON, JSON lines and CSV are read by their time field
+    (ACTIVITY_TIME_KEYS, or `field`); other files line by line by the first ISO time. With
+    `match`, only records naming one of the strings are kept."""
+    keys = (field,) if field else ACTIVITY_TIME_KEYS
+    fmt, items = _records(_load(path, limit_bytes), keys)
+    keep = _matcher(match)
+    times: list[datetime] = []
+    kept = untimed = unzoned = 0
+    for it in items:
+        if keep and not keep(it if isinstance(it, str) else json.dumps(it, default=str)):
+            continue
+        kept += 1
+        if isinstance(it, str):
+            dt, _s, yk, z = _when_from_text(it)
+        else:
+            v = _pick(it, keys)
+            dt, _s, yk, z = _when_from_field(v) if v is not None else (None, None, False, False)
+        if dt is None or not yk:
+            untimed += 1
+            continue
+        times.append(dt)
+        unzoned += 0 if z else 1
+    times.sort()
+    return {"path": str(path), "file": Path(path).name, "sha256": sha256_file(path), "format": fmt,
+            "records": len(items), "kept": kept, "events": len(times), "untimed": untimed, "unzoned": unzoned,
+            "from": times[0].isoformat(timespec="seconds") if times else None,
+            "to": times[-1].isoformat(timespec="seconds") if times else None, "_times": times}
 
 
 def local_sources(view: EvidenceView, patterns: list[str] | None) -> list[Source]:
@@ -347,13 +416,75 @@ def stream_gaps(lines: list[Line], window_start: str | None) -> tuple[list[dict[
         if d >= floor:
             in_win = bool(window_start and a.year_known and b.year_known and b.shown
                           and str(b.shown)[:19] >= window_start[:19])
-            gaps.append({"from": a.shown, "to": b.shown, "seconds": int(d), "after_line": a.n, "in_window": in_win})
+            g = {"from": a.shown, "to": b.shown, "seconds": int(d), "after_line": a.n, "in_window": in_win}
+            if a.year_known and b.year_known and a.when and b.when:   # placeable against another source
+                g |= {"start": a.when.isoformat(), "end": b.when.isoformat(), "zoned": a.zoned and b.zoned}
+            gaps.append(g)
     gaps.sort(key=lambda g: -g["seconds"])
     return gaps[:MAX_GAPS], floor
 
 
+def corroborate(gaps: list[dict[str, Any]], floor: float | None, fwd: list[Line],
+                acts: list[dict[str, Any]]) -> dict[str, Any]:
+    """Test each listed gap against the activity exports. A gap with ACTIVE_MIN or more events
+    inside it (EDGE_MARGIN_S in from each end) is a possible indicator. A quiet gap counts as
+    tested only when an export spans it; otherwise its silence says nothing."""
+    part: dict[str, Any] = {"status": "not-evaluated", "hits": []}
+    if floor is None:
+        part["reason"] = "the forwarded copy has too few timed lines to measure gaps in it"
+        return part
+    if not gaps:
+        part["status"] = "evaluated"   # no silence to explain
+        return part
+    if not acts:
+        part["reason"] = NO_ACTIVITY
+        return part
+    placed = [g for g in gaps if g.get("start")]
+    if not placed:
+        part["reason"] = ("the forwarded copy's timestamps have no year (raw syslog), so its gaps cannot be placed "
+                          "against another source; export it from the SIEM as JSON or CSV with the SIEM's time field")
+        return part
+    margin, tested = timedelta(seconds=EDGE_MARGIN_S), 0
+    for g in placed:
+        s, e = datetime.fromisoformat(g["start"]), datetime.fromisoformat(g["end"])
+        g["activity"] = []
+        for a in acts:
+            ev = a["_times"]
+            n = max(0, bisect_left(ev, e - margin) - bisect_right(ev, s + margin))
+            g["activity"].append({"file": a["file"], "events": n, "covers": bool(ev) and ev[0] <= s and ev[-1] >= e})
+        total = sum(x["events"] for x in g["activity"])
+        if total >= ACTIVE_MIN:
+            tested += 1
+            last = fwd[g["after_line"] - 1]
+            unzoned = not g["zoned"] or any(a["unzoned"] for a in acts)
+            seen = ", ".join(f"{x['events']} in {x['file']}" for x in g["activity"] if x["events"])
+            h = asdict(Hit("forwarded copy", f"{_dur_text(g['seconds'])} with no forwarded lines, {g['from']} to {g['to']}"
+                           f"{' (in the window)' if g['in_window'] else ''}, while another source shows the device "
+                           f"active: {seen}" + ("; times without a zone were read as UTC" if unzoned else ""),
+                           line=last.n, ts=g["from"], tz_known=g["zoned"], excerpt=excerpt(last.raw),
+                           extra={"events": total, "seconds": g["seconds"], "end": g["to"]}))
+            h["tier"] = "possible"
+            part["hits"].append(h)
+        elif any(x["covers"] for x in g["activity"]):
+            tested += 1
+    if not tested:
+        part["reason"] = ("the activity exports do not span any listed gap, so a quiet stretch in them says nothing; "
+                          "export the same hours from the other source")
+        return part
+    part["status"] = "evaluated"
+    return part
+
+
+def _dur_text(seconds: int) -> str:
+    h, rem = divmod(int(seconds), 3600)
+    if h:
+        return f"{h} h {rem // 60} min" if rem // 60 else f"{h} h"
+    return f"{rem // 60} min"
+
+
 def compare(view: EvidenceView, forwarded: list[Path], local_patterns: list[str] | None = None,
-            window_start: str | None = None) -> dict[str, Any]:
+            window_start: str | None = None, activity: list[Path] | None = None,
+            activity_match: list[str] | None = None, activity_field: str | None = None) -> dict[str, Any]:
     fwd: list[Line] = []
     files = []
     for p in forwarded:
@@ -377,8 +508,14 @@ def compare(view: EvidenceView, forwarded: list[Path], local_patterns: list[str]
         if entry["comparable"]:
             comparable.append((src, lines, ff, lf))
     gaps, floor = stream_gaps(fwd, window_start)
+    # the gaps are tested against other sources whether or not the local copy lines up
+    acts = [read_activity(Path(p), activity_match, activity_field) for p in activity or []]
+    silent = corroborate(gaps, floor, fwd, acts)
     out: dict[str, Any] = {"forwarded": files, "local": local, "gaps": gaps,
                            "gap_floor_seconds": int(floor) if floor else None,
+                           "activity": [{k: v for k, v in a.items() if k != "_times"} for a in acts],
+                           "activity_match": activity_match or [],
+                           "silent_while_active": silent,
                            "gone_from_box": {"status": "not-evaluated", "hits": []},
                            "never_forwarded": {"status": "not-evaluated", "hits": []}}
     if not fwd:
@@ -423,16 +560,27 @@ def compare(view: EvidenceView, forwarded: list[Path], local_patterns: list[str]
     return out
 
 
+PARTS = (  # key, detection id, title, notes, hunt, ATT&CK as the hunt record maps it
+    ("gone_from_box", "offbox-gone-from-box", "Forwarded lines no longer on the box", GONE_NOTE,
+     "EDGE-HUNT-0027", ["T1070"]),
+    ("never_forwarded", "offbox-never-forwarded", "Local lines the SIEM never received", UNSENT_NOTE,
+     "EDGE-HUNT-0027", ["T1070"]),
+    ("silent_while_active", "offbox-silent-while-active", "Forwarding went quiet while the device was active",
+     SILENT_NOTE, "EDGE-HUNT-0009", ["T1562.002", "T1070"]),
+)
+
+
 def results(off: dict[str, Any]) -> list[dict[str, Any]]:
-    """The two comparisons as detection results, so they sit in the verdict beside the packs."""
+    """The off-box checks as detection results, so they sit in the verdict beside the packs."""
     rows = []
-    for key, rid, title, note in (("gone_from_box", "offbox-gone-from-box", "Forwarded lines no longer on the box", GONE_NOTE),
-                                  ("never_forwarded", "offbox-never-forwarded", "Local lines the SIEM never received", UNSENT_NOTE)):
+    for key, rid, title, note, hunt, attack in PARTS:
         part = off[key]
         hits = list(part["hits"])
         status = "not-evaluated" if part["status"] == "not-evaluated" else ("hit" if hits else "no-hit")
+        # the comparison's own failure does not stop the gaps being tested against other sources
+        reason = part.get("reason") or (None if key == "silent_while_active" else off.get("reason"))
         rows.append({"pack": "OFFBOX", "pack_name": "Off-box comparison", "cves": [], "id": rid, "title": title,
-                     "type": "offbox", "tier": "possible", "evidence_class": "offbox-logs", "attack": ["T1070"],
+                     "type": "offbox", "tier": "possible", "evidence_class": "offbox-logs", "attack": attack,
                      "status": status, "hit_count": len(hits), "hits": hits, "notes": note,
-                     "hunt": "EDGE-HUNT-0027", "reason": part.get("reason") or off.get("reason")})
+                     "hunt": hunt, "reason": reason})
     return rows

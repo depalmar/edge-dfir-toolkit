@@ -18,17 +18,28 @@ seen_in:
 hypothesis: An implant or operator suppressed logging during hands-on activity.
 data:
 - syslog
+- identity
+- aaa-accounting
 - netflow
-data_detail: SIEM ingestion metrics per source; NetFlow for the device.
+data_detail: >-
+  SIEM ingestion metrics per source. For what the device did meanwhile, any source it does not
+  control: IdP or RADIUS sign-ins through it, sessions from its inside address on the next
+  firewall, connections from its VPN pool in EDR, or flows to and from it. NetFlow is one of
+  these, not a requirement. A poll that happens anyway (an SNMP sample, a ping) shows the device
+  was up, not that it was busy.
 method:
 - Compute each device's event rate and longest gap.
 - >-
-  Flag a drop or gap while NetFlow still shows the device passing traffic, or a device that
-  stops sending on 514 or 6514 but keeps sending other traffic.
+  Flag a drop or gap while another source still shows the device working (users signing in
+  through it, sessions or flows to and from it), or a device that stops sending on 514 or 6514
+  but keeps sending other traffic.
 - Correlate with unexpected reboots and with the end of administrator sessions.
 - >-
   edgetriage analyze <case> --forwarded <export> lists the longest silences in the forwarded
-  stream against its own cadence; it does not see NetFlow, so the gaps are listed, not scored.
+  stream against its own cadence. With --activity <export> it tests each gap against that
+  source: three or more events inside a gap, not counting five minutes at each end, make it a
+  possible indicator. A gap the export spans with no events stays listed, and one the export
+  does not span is not counted as tested. Without --activity, gaps are listed, not scored.
 normal: A steady rate, with gaps only in maintenance windows.
 suspicious: >-
   Silence while the device is up, or a gap that ends exactly when an administrator session

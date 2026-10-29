@@ -164,11 +164,36 @@ indicators:
 - runs of forwarded lines that are gone from the box;
 - runs of local lines the SIEM never received.
 
-It also lists the longest silences in the forwarded stream without scoring
-them. When the two copies share too few lines (the device forwards a different
-format than it keeps, or logs at a different level), it says the comparison
-was not evaluated. Use `--forwarded-local` to name the local file when it is
-not a `*.log`, `messages` or `syslog` file.
+It also lists the longest silences in the forwarded stream. When the two
+copies share too few lines (the device forwards a different format than it
+keeps, or logs at a different level), it says the comparison was not
+evaluated. Use `--forwarded-local` to name the local file when it is not a
+`*.log`, `messages` or `syslog` file.
+
+A silence on its own is not scored: a quiet night is not an indicator. An
+intruder who stops local logging and forwarding together leaves two copies
+that still agree, and then the only evidence is the device doing work while
+its logs say nothing. `--activity` takes that work from a source the device
+does not control, one event per record or line:
+- sign-ins through it (identity provider or RADIUS);
+- sessions from its inside address on the next firewall;
+- connections from its VPN pool in EDR;
+- flows to and from it, if you have NetFlow.
+
+```bash
+python -m edgetriage analyze cases/IR-YYYY-NNN --forwarded siem-export.jsonl \
+    --activity idp-signins.jsonl --activity-match 192.0.2.1
+```
+
+A gap with three or more of those events inside it, not counting five minutes
+at each end, is a possible indicator. A gap the export spans with no events
+is reported as quiet there too. A gap the export does not span is not counted
+as tested. The forwarded copy needs timestamps with a year (a JSON or CSV
+export with the SIEM's time field), or its gaps cannot be placed. A poll that
+happens anyway, such as an SNMP sample or a ping, shows the device was up,
+not that it was busy, so export only events the device caused.
+`--activity-match` keeps the records that name the device's address or host
+name as a whole token, so `192.0.2.1` does not match `192.0.2.10`.
 
 Read the report in this order:
 
@@ -180,7 +205,7 @@ Read the report in this order:
 
 | Tier | Typically means |
 |---|---|
-| `possible` | exploitation attempted, a lead that needs a second signal, or the SIEM's copy of the logs disagreeing with the box |
+| `possible` | exploitation attempted, a lead that needs a second signal, or off-box logs that do not add up (the SIEM's copy disagreeing with the box, or going quiet while the device was busy) |
 | `likely` | post-exploitation artefact with a plausible benign explanation |
 | `confirmed` | artefact with no legitimate reason to exist on the device |
 

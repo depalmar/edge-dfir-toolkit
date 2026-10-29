@@ -145,7 +145,9 @@ def cmd_analyze(a) -> int:
     out = analyze(Path(a.case), platform_id=a.platform, all_packs=a.all_packs,
                   baseline=baseline, window_start=a.window_start,
                   forwarded=[Path(p) for p in a.forwarded] if a.forwarded else None,
-                  forwarded_local=a.forwarded_local)
+                  forwarded_local=a.forwarded_local,
+                  activity=[Path(p) for p in a.activity] if a.activity else None,
+                  activity_match=a.activity_match, activity_field=a.activity_field)
     v = out["verdict"]
     print(f"VERDICT: {v['level']}\n  {v['rationale']}")
     for r in out["detections"]:
@@ -159,6 +161,9 @@ def cmd_analyze(a) -> int:
                  for k in ("gone_from_box", "never_forwarded")}
         print(f"  off-box: {o.get('shared', 0)} shared lines; gone from the box: {state['gone_from_box']}; "
               f"never forwarded: {state['never_forwarded']}; {len(o['gaps'])} stream gap(s) listed")
+        s = o["silent_while_active"]
+        print(f"  activity: {s['runs']} gap(s) with the device active elsewhere" if s["status"] == "evaluated"
+              else f"  activity: gaps not tested - {s.get('reason')}")
     print(f"  report: {Path(a.case) / 'report.md'}")
     return 0
 
@@ -237,6 +242,14 @@ def build_parser() -> argparse.ArgumentParser:
     z.add_argument("--forwarded-local", action="append", metavar="GLOB",
                    help="which case files are the local copy (default: every *.log, messages and syslog file, "
                         "and any step whose id names a log)")
+    z.add_argument("--activity", action="append", metavar="FILE",
+                   help="what the device did, from a source it does not control (IdP or RADIUS sign-ins through it, "
+                        "next-firewall sessions, flows): JSON, CSV or lines with a timestamp per event. A gap in "
+                        "--forwarded with activity inside it is a possible indicator. Repeat for several files")
+    z.add_argument("--activity-match", action="append", metavar="TEXT",
+                   help="keep only activity records naming this address or host (whole token; repeatable)")
+    z.add_argument("--activity-field", metavar="NAME",
+                   help="the activity files' time field, when it is not one of the common names")
     z.set_defaults(fn=cmd_analyze)
 
     t = sub.add_parser("timeline", help="write timeline.jsonl / timeline.csv from findings")

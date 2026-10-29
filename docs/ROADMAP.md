@@ -54,8 +54,10 @@ Ordered by value. Effort figures are judgment, not measurement.
   hunts in `artifacts/hunts/` describe these by hand. 0.14.0 added the first
   coded one: `analyze --forwarded` compares the SIEM's copy of the device's
   syslog with the logs on the box (EDGE-HUNT-0027) and lists stream gaps
-  (EDGE-HUNT-0009). Next: device-sourced transfers and the gap check
-  corroborated with NetFlow, against exported data.
+  (EDGE-HUNT-0009). 0.15.0 tests those gaps against `--activity`: what the
+  device did, from any source it does not control (sign-ins, the next
+  firewall's sessions, flows), so NetFlow is not required. Next:
+  device-sourced transfers, against exported data.
 - Mandiant's FRAMESTING rule (left out: its published string is ambiguous) once
   Mandiant's own copy of the rule can be read without the blog's line wrapping.
 - A real or replayed FortiOS `diagnose sys process dump` capture to pin the
