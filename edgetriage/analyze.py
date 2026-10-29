@@ -620,6 +620,11 @@ def _collected(m: dict[str, Any]) -> str:
     return f"from {_hms(start)} UTC, no end recorded" if start else "no live collection"
 
 
+def _codeify(h: str) -> str:
+    """Escaped text whose `backticked` literals become <code> (kept out of f-strings for Python 3.11)."""
+    return re.sub(r"`([^`]+)`", r"<code>\1</code>", h)
+
+
 def render_html(f: dict[str, Any], m: dict[str, Any]) -> str:
     """report.html: verdict first, then how it was reached, the evidence gaps,
     the findings with their escaped excerpts, the collection and what to do next."""
@@ -672,7 +677,7 @@ def render_html(f: dict[str, Any], m: dict[str, Any]) -> str:
 
     gap_html = "".join(
         f'<div class="gap"><span class="kind{" std" if g["kind"] in ("standing", "unvalidated-profile") else ""}">{esc(g["kind"])}</span>'
-        f'<p>{re.sub(r"`([^`]+)`", r"<code>\1</code>", esc(str(g["detail"])))}</p>'
+        f'<p>{_codeify(esc(str(g["detail"])))}</p>'
         + (f'<p><span class="close">Close it:</span> {esc(g.get("close") or GAP_CLOSE[g["kind"]])}</p>' if g.get("close") or g["kind"] in GAP_CLOSE else "")
         + "</div>" for g in gaps)
 
