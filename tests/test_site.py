@@ -645,3 +645,19 @@ def test_card_titles_get_the_full_card_width(browser, tmp_path):
     w_title = card.locator("h3").bounding_box()["width"]
     assert card.locator(".lc-top .badges").count() == 1 or card.locator(".lc-top").count() == 1
     assert w_title > 0.75 * w_card
+
+
+def test_guide_workflow_figure_is_drawn_and_named(browser, tmp_path):
+    """The guide's figure marker becomes an inline SVG with a text alternative, and it never
+    makes the page scroll sideways on a phone (the figure scrolls inside its own frame)."""
+    url = _build(tmp_path)
+    page = browser.new_page(viewport={"width": 1440, "height": 900})
+    page.goto(url + "#guide")
+    fig = page.locator("#tab-guide .wfig svg[role=img]")
+    fig.wait_for()
+    assert "break-glass" in fig.get_attribute("aria-label")
+    assert page.locator("#tab-guide .wfig figcaption").inner_text().startswith("The order a case moves in")
+    phone = browser.new_page(viewport={"width": 390, "height": 800})
+    phone.goto(url + "#guide")
+    phone.locator("#tab-guide .wfig").wait_for()
+    assert phone.evaluate("document.documentElement.scrollWidth") <= 390

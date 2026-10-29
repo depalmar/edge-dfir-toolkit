@@ -1,5 +1,36 @@
 # Changelog
 
+## 0.15.2 - 2026-10-29 - The guide, end to end
+
+- **A workflow figure** opens the guide. It shows the order a case moves in
+  (preserve, plan, collect or ingest, case folder, analyze, read the report,
+  decide, respond) and the two loops that matter: a gap you can close goes back
+  to collection with break-glass last, and `NO-INDICATORS-FOUND` closes the
+  gaps before the case.
+  - The generator draws it as inline SVG from the site's own tokens, so it
+    follows both themes. On a phone it scrolls inside its frame rather than
+    shrinking.
+  - A `<!-- figure:name -->` marker places it. `--check` fails on a marker with
+    no drawing, and a browser test pins the figure.
+- **New sections**, from a review of what a responder needs and the guide did
+  not say:
+  - **The case folder:** every path, what it holds, and the manifest's hash
+    chain.
+  - **When a step fails:** where the status is recorded, and how `--replay`
+    lays out recordings.
+  - **Memory first, by the safest route:** a hypervisor snapshot for virtual
+    appliances; the vendor's core dump, break-glass, for hardware.
+  - **Clocks:** each platform's clock step, and Ivanti's lack of one.
+  - **`--baseline`.**
+  - **Hunting off the box.**
+  - **Using the threat intelligence:** roles, shelf life, two confidences,
+    defanged versus refanged.
+  - **Exploited CVEs and BOD 26-04:** what the forensic triage flag's "No"
+    means.
+  - **After triage:** the response playbook's order, what to do with a
+    suspicious verdict, and wording a verdict for others.
+  - **A table of terms.**
+
 ## 0.15.1 - 2026-10-29 - Charts that say what they count
 
 - **Confidence charts.**

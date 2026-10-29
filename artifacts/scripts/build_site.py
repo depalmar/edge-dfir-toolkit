@@ -606,6 +606,62 @@ NOTE_PLATFORM = {
 VERDICTS = ("NO-INDICATORS-FOUND", "LIKELY-COMPROMISED", "COMPROMISED", "SUSPICIOUS")
 
 
+def _wf_box(x: int, y: int, w: int, title: str, lines: list[tuple[str, bool]], hot: bool = False) -> str:
+    """One workflow step: a title and up to two lines; a line flagged True is a literal command."""
+    t = (f'<rect class="bx{" hot" if hot else ""}" x="{x}" y="{y}" width="{w}" height="72" rx="9"/>'
+         f'<text class="t" x="{x + 12}" y="{y + 23}">{e(title)}</text>')
+    for k, (s, mono) in enumerate(lines):
+        t += f'<text class="s{" m" if mono else ""}" x="{x + 12}" y="{y + 43 + 17 * k}">{e(s)}</text>'
+    return t
+
+
+def workflow_svg() -> str:
+    """The guide's workflow figure, sized to the guide column at 1:1. Row one runs left to
+    right, row two snakes back under it, the loop climbs between two columns without crossing
+    another arrow, and Respond spans the foot."""
+    W, H, A, B, C = 162, 72, 12, 140, 262
+    xs = [12, 190, 368, 546]
+    cx = [x + W // 2 for x in xs]
+    boxes = [
+        _wf_box(xs[0], A, W, "1 Preserve", [("off-box copies first", False), ("no reboot or upgrade", False)]),
+        _wf_box(xs[1], A, W, "2 Plan", [("edgetriage plan", True), ("read it before running", False)]),
+        _wf_box(xs[2], A, W, "3 Collect or ingest", [("edgetriage collect", True), ("edgetriage ingest", True)]),
+        _wf_box(xs[3], A, W, "4 Case folder", [("every output hashed", False), ("manifest chained", False)]),
+        _wf_box(xs[3], B, W, "5 Analyze", [("edgetriage analyze", True), ("packs, off-box checks", False)]),
+        _wf_box(xs[2], B, W, "6 Read the report", [("gaps first, then", False), ("verdict, then findings", False)]),
+        _wf_box(xs[1], B, W, "7 Decide", [("a gap you can close?", False), ("break-glass needed?", False)]),
+        _wf_box(xs[0], C, xs[3] + W - xs[0], "8 Respond, in the platform playbook's order", [
+            ("preserve → contain → rotate → eradicate → recover → verify", False),
+            ("read its do-not list first; the toolkit never contains or remediates for you", False)], hot=True),
+    ]
+    ah = 'marker-end="url(#wf-ah)"'
+    arrows = "".join(f'<path class="ar" d="M{xs[i] + W} {A + H // 2}H{xs[i + 1] - 2}" {ah}/>' for i in range(3))
+    arrows += (f'<path class="ar" d="M{cx[3]} {A + H}V{B - 2}" {ah}/>'                                   # case -> analyze
+               f'<path class="ar" d="M{xs[3]} {B + H // 2}H{xs[2] + W + 2}" {ah}/>'                       # analyze -> report
+               f'<path class="ar" d="M{xs[2]} {B + H // 2}H{xs[1] + W + 2}" {ah}/>'                       # report -> decide
+               f'<path class="ar loop" d="M{cx[1] - 30} {B}V{A + H + 26}H{cx[2]}V{A + H + 2}" {ah}/>'     # decide -> collect
+               f'<path class="ar" d="M{cx[1]} {B + H}V{C - 2}" {ah}/>')                                  # decide -> respond
+    mid = (cx[1] - 30 + cx[2]) // 2
+    labels = (f'<text class="al" x="{mid}" y="{A + H + 20}" text-anchor="middle">close a gap; break-glass runs last</text>'
+              f'<text class="al" x="{cx[1] + 10}" y="{C - 12}">SUSPICIOUS or worse</text>'
+              f'<text class="al" x="{cx[0]}" y="{B + 30}" text-anchor="middle">NO-INDICATORS-FOUND:</text>'
+              f'<text class="al" x="{cx[0]}" y="{B + 47}" text-anchor="middle">close the gaps, then</text>'
+              f'<text class="al" x="{cx[0]}" y="{B + 64}" text-anchor="middle">close the case</text>'
+              f'<path class="ar" d="M{xs[1]} {B + H // 2}H{xs[0] + W + 2}" {ah}/>')
+    claim = ("Workflow: preserve off-box copies, plan, collect or ingest into a hashed case folder, analyze, read the "
+             "report gaps first, decide, respond in the playbook's order. A gap you can close loops back to collect or "
+             "ingest; break-glass steps run last; no indicators found means close the gaps before the case.")
+    return ('<figure class="wfig"><div class="wfwrap"><svg class="wf" viewBox="0 0 720 346" role="img" aria-label="' + e(claim) + '">'
+            '<defs><marker id="wf-ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">'
+            '<path d="M0 0L10 5L0 10z"/></marker></defs>' + arrows + "".join(boxes) + labels + '</svg></div>'
+            '<figcaption>The order a case moves in. Off-box copies come first because an intruder on the device could not '
+            'edit them; break-glass steps that can reload or image the device run last; and a verdict of no indicators '
+            'found sends you back to close the evidence gaps, not to close the case.</figcaption></figure>')
+
+
+FIGURES = {"workflow": workflow_svg}
+
+
 def md_inline(s: str) -> str:
     s = e(s, quote=False)
     s = re.sub(r"`([^`]+)`", r"<code>\1</code>", s)
@@ -651,6 +707,12 @@ def markdown(md: str, ctx: dict | None = None) -> str:
     out, lines, i = [], md.splitlines(), 0
     while i < len(lines):
         ln = lines[i]
+        fig = re.match(r"^<!--\s*figure:([\w-]+)\s*-->\s*$", ln)
+        if fig:   # a figure the generator draws; GitHub's renderer shows nothing for the comment
+            if ctx is not None and fig.group(1) in FIGURES:
+                out.append(FIGURES[fig.group(1)]())
+            i += 1
+            continue
         if ln.startswith("```"):
             buf = []
             i += 1
@@ -2118,6 +2180,17 @@ p code,li code,dd code,.desc code,td code{font-size:.9em;background:var(--code-b
 .ptile .n{color:var(--muted);font-size:var(--fs-xs)}
 .startcols{display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:8px 28px}
 .callout{background:var(--alert-bg);border:1px solid var(--line-soft);border-left:3px solid var(--crit);border-radius:10px;padding:12px 16px;color:var(--ink)}
+/* guide figures: drawn in the generator, themed by tokens; on a phone the figure scrolls
+   inside its frame rather than shrinking its text past reading */
+.wfig{margin:14px 0 18px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+.wfwrap{overflow-x:auto}.wf{display:block;width:100%;max-width:760px;min-width:620px;height:auto;margin:0 auto}
+.wf .bx{fill:var(--panel-2);stroke:var(--line);stroke-width:1}.wf .bx.hot{fill:var(--accent-soft);stroke:var(--accent-border)}
+.wf .t{fill:var(--ink);font-family:var(--sans);font-size:var(--fs-sm);font-weight:600}
+.wf .s{fill:var(--muted);font-family:var(--sans);font-size:var(--fs-xs)}.wf .s.m{font-family:var(--mono);fill:var(--ink-2)}
+.wf .al{fill:var(--ink-2);font-family:var(--sans);font-size:var(--fs-xs)}
+.wf .ar{stroke:var(--muted);stroke-width:1.5;fill:none}.wf .ar.loop{stroke:var(--accent)}
+.wf marker path{fill:var(--muted)}
+.wfig figcaption{font-size:var(--fs-sm);color:var(--muted);margin-top:6px;line-height:1.45}
 .warnbox{background:var(--alert-bg);border:1px solid var(--line-soft);border-left:3px solid var(--crit);border-radius:10px;padding:10px 14px;margin:12px 0;font-size:var(--fs-sm);line-height:1.55;color:var(--ink)}
 .callout ol{margin:0;padding-left:20px}.callout li{margin:6px 0;line-height:1.55}
 .flow{margin:0;padding-left:22px}.flow li{margin:0 0 12px;line-height:1.55}
@@ -4116,6 +4189,10 @@ def page(d: dict) -> tuple[str, dict]:
 # --------------------------------------------------------------------------- check
 def check(d: dict, doc: str, data: dict) -> list[str]:
     problems = []
+    guide_md = (ROOT / "docs" / "edge-dfir-investigation-guide.md").read_text()
+    unknown = sorted(set(re.findall(r"^<!--\s*figure:([\w-]+)\s*-->", guide_md, re.M)) - set(FIGURES))
+    if unknown:
+        problems.append(f"guide figures with no drawing in FIGURES: {unknown}")
     ids = re.findall(r'\sid="([^"]+)"', doc)
     dupes = sorted({i for i in ids if ids.count(i) > 1})
     if dupes:
