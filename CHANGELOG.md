@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- **Site: social preview card.** Shared links now show a 1200x630 card
+  (`docs/og-image.png`) through Open Graph and Twitter card tags. The
+  generator copies the image beside the built page, and `--check` fails if it
+  is missing.
+
 ## 0.18.1 - 2026-10-29 - SonicWall SMA 1000 collection profile
 
 `sonicwall-sma1000`: a read-only collection over the appliance's root SSH shell.

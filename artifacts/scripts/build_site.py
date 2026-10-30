@@ -24,6 +24,7 @@ import html
 import inspect
 import json
 import re
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -39,6 +40,9 @@ from edgetriage.profiles import TIER_CLASS, TIER_ORDER, available_profiles, load
 
 OUT = ROOT / "docs" / "site" / "index.html"
 REPO_URL = "https://github.com/depalmar/edge-dfir-toolkit"
+SITE_URL = "https://depalmar.github.io/edge-dfir-toolkit/"
+# Social preview card: committed here, copied beside the built page (docs/site is never committed).
+OG_IMAGE = ROOT / "docs" / "og-image.png"
 AUTHOR, AUTHOR_URL = "Raymond DePalma", "https://www.linkedin.com/in/raymond-depalma/"
 FIRM, FIRM_URL = "DePalma Research LLC", "https://www.linkedin.com/company/depalma-research"
 TIERS = ("possible", "likely", "confirmed")
@@ -4278,6 +4282,19 @@ def page(d: dict) -> tuple[str, dict]:
 <title>Edge DFIR Toolkit</title>
 <meta name="description" content="Forensic triage for compromised VPN concentrators, firewalls and gateways: artifact library, collection plans, detections, threat intel and response playbooks.">
 <meta name="color-scheme" content="light dark">
+<link rel="canonical" href="{SITE_URL}">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Edge DFIR Toolkit">
+<meta property="og:title" content="Edge DFIR Toolkit">
+<meta property="og:description" content="Forensic triage for compromised VPN concentrators, firewalls and gateways: artifact library, collection plans, detections, threat intel and response playbooks.">
+<meta property="og:url" content="{SITE_URL}">
+<meta property="og:image" content="{SITE_URL}og-image.png">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Edge DFIR Toolkit: open-source forensic triage for compromised VPN concentrators, firewalls and gateways">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="{SITE_URL}og-image.png">
 <link rel="icon" href="{icon}">
 <style>{CSS}</style></head>
 <body>
@@ -4442,6 +4459,8 @@ def main() -> int:
     d = load()
     doc, data = page(d)
     problems = check(d, doc, data)
+    if not OG_IMAGE.is_file():
+        problems.append(f"{OG_IMAGE.relative_to(ROOT)} is missing; the og:image tag points at it")
     if problems:
         for p in problems:
             print(f"FAIL  {p}")
@@ -4452,7 +4471,8 @@ def main() -> int:
         return 0
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text(doc, encoding="utf-8")
-    print(f"wrote {OUT.relative_to(ROOT)} ({len(doc) // 1024} KiB)")
+    shutil.copyfile(OG_IMAGE, OUT.parent / OG_IMAGE.name)
+    print(f"wrote {OUT.relative_to(ROOT)} ({len(doc) // 1024} KiB) and {OG_IMAGE.name}")
     return 0
 
 
