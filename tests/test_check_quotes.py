@@ -18,6 +18,10 @@ def test_norm_forgives_only_what_a_faithful_copy_can_differ_in():
     assert "hidden" not in page
     assert cq.norm("such as:  Evidence of clearing") == cq.norm("such as: Evidence of clearing")   # PDF bullet
     assert cq.norm("logs had been wiped") not in cq.norm("logs had been archived")
+    # CISA's ATT&CK links leave a space before the closing bracket: "CVE-2025-20362 [T1190 ]."
+    cisa = cq.norm(cq.text_of(b"<p>CVE-2025-20362 [<a href='https://attack.mitre.org/'>T1190</a> ]. CISA has</p>"))
+    assert cq.norm("CVE-2025-20362 [T1190]. CISA has") in cisa
+    assert cq.norm("CVE-2025-20362 [T1190(link is external)]. CISA has") not in cisa
 
 
 def test_inline_tags_join_and_blocks_separate():

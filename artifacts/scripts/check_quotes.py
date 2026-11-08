@@ -55,7 +55,7 @@ def norm(t: str) -> str:
     t = re.sub("[-]", " ", t)        # PDF bullet glyphs live in the private-use area
     t = re.sub(r"[*_`]+", "", t)                  # markdown emphasis a reader may have kept or dropped
     t = " ".join(t.split())
-    t = re.sub(r"\s+([),.;:!?])", r"\1", t)       # "FG-IR-23-097 )" from a link boundary
+    t = re.sub(r"\s+([)\],.;:!?])", r"\1", t)     # "FG-IR-23-097 )" or "[T1190 ]" from a link boundary
     t = re.sub(r"([(\[])\s+", r"\1", t)
     return t.lower()
 

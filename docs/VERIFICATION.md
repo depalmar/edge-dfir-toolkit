@@ -932,6 +932,22 @@ Correction:
   `activity: attempted` and `stated_on: null` are unchanged. The quote check
   now finds every exploitation-record quote it can fetch on its page.
 
+## 2026-11-08 - Every rendered-host quote, read live (0.19.3)
+
+`check_quotes.py` confirmed 230 of 338 quotes by plain fetch. The other 108,
+on 53 pages that render in the browser or refuse the shell, were read the same
+day: the 11 SonicWall PSIRT advisories as JSON from psirtapi.global.sonicwall.com,
+the rest through Firecrawl's rendered HTML, each checked with the checker's own
+`text_of` and `norm`. 102 matched as stored. The other six were fixed:
+
+| Record | What was wrong | Fix |
+|---|---|---|
+| CVE-2025-20333, CVE-2025-20362 (CISA AR26-113A) | The quote carried "(link is external)" inside "[T1190]", a screen-reader label a markdown copy picked up; the page text is "[T1190 ]" | Quote reads "[T1190]"; the note no longer calls the label the page's own text. `check_quotes.norm` now drops a space before "]" as it already did before ")" (a test pins both) |
+| iosxe-mgmt-plane (ASD's copy of AA25-239A) | The quote ended "at the control plane." where the sentence continues "(e.g., CoPP/CPPr) to allowlist (i.e., default-deny) and rate-limit management protocols." | The full sentence |
+| netscaler-nsip-not-internet, netscaler-mgmt-separated, netscaler-restrict-mgmt | NetScaler split its secure deployment guide into subpages ("We are giving the site a fresh new look!"); the old URL is now a table of contents | Each quote cited on the page that carries it. Three unquoted controls citing the old URL were re-pointed too, after confirming their syntax on the new pages: `localAuth` (System and user accounts), the Console fallback setting (Best practices for NetScaler Console security), `nslogparams`, NTP and `-snmp disabled` (Logging and monitoring), `AllowTcpForwarding`, `SECUREONLY` and `-restrictAccess` (Network security). The en-dash the guide prints before `serverip` is still there |
+
+No claim changed: in every case the source still says what the record says.
+
 ## Device verification
 
 | Date | Platform / release | Step | Change | Basis |

@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.19.3 - 2026-11-08 - Every rendered-host quote, read live
+
+- **108 quotes on pages that render in the browser were read live.** 102
+  matched as stored. Six were fixed, and none changed what its record claims:
+  - Two CISA AR26-113A quotes carried a screen-reader label inside "[T1190]".
+  - An AA25-239A quote stopped a sentence early.
+  - Three NetScaler hardening quotes pointed at a guide NetScaler has split into
+    subpages; those controls, and three more that cited the same page, now cite
+    the subpage that carries their text.
+- **`check_quotes.py` ignores a space before "]"**, as it already did before
+  ")", so a link at the end of a bracket no longer reads as a changed quote.
+
 ## 0.19.2 - 2026-11-08 - CVE-2026-19490's quote
 
 - **CVE-2026-19490's exploitation record quotes text that stays put.** The

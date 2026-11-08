@@ -19,9 +19,9 @@ controls:
     blunts: [CVE-2025-5349]
     confidence: high
     sources:
-      - title: NetScaler secure deployment guide
-        url: https://docs.netscaler.com/us/en/netscaler-adc-secure-deployment/netscaler-adc-secure-deployment.html
-        accessed: "2026-10-22"
+      - title: NetScaler secure deployment guide - Network security
+        url: https://docs.netscaler.com/us/en/netscaler-adc-secure-deployment/netscaler-adc-secure-deployment/configuration-guidelines/network-security.html
+        accessed: "2026-11-08"
         quote: "Do not expose the NSIP and Management Service IP address to the Internet:"
       - title: Cloud Software Group CTX693420 - NetScaler ADC and Gateway security bulletin
         url: https://support.citrix.com/external/article/CTX693420/netscaler-adc-and-netscaler-gateway-secu.html
@@ -35,9 +35,9 @@ controls:
     how: A dedicated management VLAN or network for NSIP and LOM; LOM access restricted to a known address range.
     confidence: high
     sources:
-      - title: NetScaler secure deployment guide
-        url: https://docs.netscaler.com/us/en/netscaler-adc-secure-deployment/netscaler-adc-secure-deployment.html
-        accessed: "2026-10-22"
+      - title: NetScaler secure deployment guide - Network security
+        url: https://docs.netscaler.com/us/en/netscaler-adc-secure-deployment/netscaler-adc-secure-deployment/configuration-guidelines/network-security.html
+        accessed: "2026-11-08"
         quote: "is separated, either physically or logically, from normal network traffic."
 
   - id: netscaler-restrict-mgmt
@@ -51,10 +51,13 @@ controls:
       -restrictAccess enabled`.
     confidence: high
     sources:
-      - title: NetScaler secure deployment guide
-        url: https://docs.netscaler.com/us/en/netscaler-adc-secure-deployment/netscaler-adc-secure-deployment.html
-        accessed: "2026-10-22"
+      - title: NetScaler secure deployment guide - System and user accounts
+        url: https://docs.netscaler.com/us/en/netscaler-adc-secure-deployment/netscaler-adc-secure-deployment/administration-and-management/system-and-user-accounts.html
+        accessed: "2026-11-08"
         quote: "By default, all protocols and ports, including GUI and SSH, are accessible"
+      - title: NetScaler secure deployment guide - Network security (-gui SECUREONLY, -restrictAccess)
+        url: https://docs.netscaler.com/us/en/netscaler-adc-secure-deployment/netscaler-adc-secure-deployment/configuration-guidelines/network-security.html
+        accessed: "2026-11-08"
 
   - id: netscaler-external-auth
     control: Authenticate administrators externally (RADIUS, TACACS+, LDAPS) and disable local authentication
@@ -66,9 +69,12 @@ controls:
       On NetScaler Console, clear "Enable fallback local authentication".
     confidence: high
     sources:
-      - title: NetScaler secure deployment guide
-        url: https://docs.netscaler.com/us/en/netscaler-adc-secure-deployment/netscaler-adc-secure-deployment.html
-        accessed: "2026-10-22"
+      - title: NetScaler secure deployment guide - System and user accounts (localAuth)
+        url: https://docs.netscaler.com/us/en/netscaler-adc-secure-deployment/netscaler-adc-secure-deployment/administration-and-management/system-and-user-accounts.html
+        accessed: "2026-11-08"
+      - title: Best practices for NetScaler Console security (fallback local authentication)
+        url: https://docs.netscaler.com/us/en/netscaler-adc-secure-deployment/best-practices-for-netscaler-console-security.html
+        accessed: "2026-11-08"
 
   - id: netscaler-remote-syslog
     control: Send audit logs off the appliance and use trusted NTP
@@ -84,9 +90,9 @@ controls:
       server <ip> 10`, then `enable ntp sync`.
     confidence: high
     sources:
-      - title: NetScaler secure deployment guide
-        url: https://docs.netscaler.com/us/en/netscaler-adc-secure-deployment/netscaler-adc-secure-deployment.html
-        accessed: "2026-10-22"
+      - title: NetScaler secure deployment guide - Logging and monitoring
+        url: https://docs.netscaler.com/us/en/netscaler-adc-secure-deployment/netscaler-adc-secure-deployment/administration-and-management/logging-and-monitoring.html
+        accessed: "2026-11-08"
 
   - id: netscaler-snmp-ssh-forwarding
     control: Disable SNMP if unused (SNMPv3 otherwise) and SSH port forwarding
@@ -96,9 +102,12 @@ controls:
     how: "`set ns ip <ip> -snmp disabled`; `AllowTcpForwarding no` in the sshd configuration."
     confidence: high
     sources:
-      - title: NetScaler secure deployment guide
-        url: https://docs.netscaler.com/us/en/netscaler-adc-secure-deployment/netscaler-adc-secure-deployment.html
-        accessed: "2026-10-22"
+      - title: NetScaler secure deployment guide - Logging and monitoring (-snmp disabled)
+        url: https://docs.netscaler.com/us/en/netscaler-adc-secure-deployment/netscaler-adc-secure-deployment/administration-and-management/logging-and-monitoring.html
+        accessed: "2026-11-08"
+      - title: NetScaler secure deployment guide - Network security (AllowTcpForwarding)
+        url: https://docs.netscaler.com/us/en/netscaler-adc-secure-deployment/netscaler-adc-secure-deployment/configuration-guidelines/network-security.html
+        accessed: "2026-11-08"
 
   - id: netscaler-kill-sessions
     control: After patching a session-leak flaw, kill all sessions (each cluster node, or the HA primary); do not reboot instead

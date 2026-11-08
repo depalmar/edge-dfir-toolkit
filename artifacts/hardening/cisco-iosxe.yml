@@ -97,8 +97,10 @@ controls:
     sources:
       - title: AA25-239A as co-sealed by the Australian Cyber Security Centre
         url: https://www.cyber.gov.au/about-us/view-all-content/alerts-and-advisories/countering-chinese-state-sponsored-actors-compromise-of-networks-worldwide-to-feed-global-espionage-system
-        accessed: "2026-10-22"
-        quote: "Apply explicit management-plane ACLs at the control plane."
+        accessed: "2026-11-08"
+        quote: >-
+          Apply explicit management-plane ACLs at the control plane (e.g., CoPP/CPPr) to allowlist (i.e.,
+          default-deny) and rate-limit management protocols.
       - title: Cisco IOS XE hardening guide (Portuguese edition)
         url: https://cisco.com/c/pt_br/support/docs/ios-nx-os-software/ios-xe-16/220270-use-cisco-ios-xe-hardening-guide.pdf
         accessed: "2026-10-22"
