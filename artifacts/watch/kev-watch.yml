@@ -144,10 +144,3 @@ triaged:
       valid credentials for an alternate method bypass SAML-enforced MFA. It publishes no IoCs or log message. A
       search found news coverage only (BleepingComputer, SecurityWeek), none from a party that observed the
       exploitation. Hardening sonicos-current-release cites the fix.'
-  - cve: CVE-2026-118527
-    platform: EDGE-0003
-    decision: deferred
-    date: '2026-11-08'
-    basis: 'Not yet triaged. Added to KEV 2026-10-30, chained with CVE-2026-104935 and CVE-2026-111357 (KEV notes).
-      Ivanti''s advisory on hub.ivanti.com was not reachable on 2026-11-08, and Volexity''s post does not name this
-      CVE, so which part of the chain it is has not been read from a primary source.'

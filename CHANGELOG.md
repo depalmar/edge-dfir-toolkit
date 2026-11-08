@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.19.1 - 2026-11-08 - Ivanti's 29 October update
+
+- **CVE-2026-118527 joins EDGE-PACK-0026.** Ivanti's advisory, updated 29
+  October, reports exploitation in the wild "when CVE-2026-104935,
+  CVE-2026-111357 and CVE-2026-118527 are chained", and fixes the two later
+  CVEs in 25.1.1.3 and 22.8R2.6. It leaves the ledger, where 0.19.0 had it
+  `deferred` because the advisory could not be read.
+- **Exploitation records.**
+  - Ivanti's statement is added to CVE-2026-111357 and CVE-2026-118527.
+  - The CVE-2026-104935 record now quotes Ivanti's current summary, since the
+    update replaced the October 13 text it quoted.
+  - Its note no longer says the wu.cgi file write is CVE-2026-104935; neither
+    source says which CVE covers it.
+- **Live re-checks.** The 0.19.0 quotes from SonicWall's PSIRT site, AA24-109A
+  and ASD's alert all match the live rendered pages.
+
 ## 0.19.0 - 2026-11-08 - SonicWall firewalls (SonicOS)
 
 A new platform, `EDGE-0012`: the TZ, NSa, NSsp and NSv firewalls, separate from

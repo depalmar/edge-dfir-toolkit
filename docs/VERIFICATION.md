@@ -888,6 +888,35 @@ rendered and saved copies taken the same day. The run also reported an
 existing record's page that no longer carries its quote (CVE-2026-19490,
 previdian.com); it is unchanged here and left for its own re-read.
 
+## 2026-11-08 - Ivanti's 29 October update, and live re-checks (0.19.1)
+
+The rendering service came back the same day.
+
+| Source | How read | Used for | Notes |
+|---|---|---|---|
+| Ivanti CVE-2026-104935 advisory, last modified Oct 29, 2026 | Rendered fetch | CVE-2026-118527 into EDGE-PACK-0026; Ivanti reports on CVE-2026-111357 and CVE-2026-118527; fixed versions 25.1.1.3 and 22.8R2.6 | "Update 29 Oct" added the two CVEs and rewrote the summary: exploitation "when CVE-2026-104935, CVE-2026-111357 and CVE-2026-118527 are chained". Its FAQ writes the second CVE once as "CVE-2026-11357" (typo) |
+
+Corrections:
+- **CVE-2026-118527 was `deferred` in 0.19.0**, because Ivanti's advisory could
+  not be read. Ivanti now names it as part of the exploited chain, so it joins
+  EDGE-PACK-0026 and leaves the ledger. No earliest date: Ivanti gives none,
+  and Volexity's October 3 date is for the chain its post lists, which does not
+  name this CVE.
+- **The CVE-2026-104935 record quoted Ivanti's October 13 summary**, which
+  the 29 October update replaced. The record now quotes the current sentence,
+  with `stated_on` 2026-10-29, and its note keeps the old wording.
+- **The same record's `searched` note said Ivanti tracks Volexity's wu.cgi file
+  write under CVE-2026-104935.** That was this toolkit's reading, not Ivanti's.
+  Ivanti now describes CVE-2026-104935 as an authentication bypass and
+  CVE-2026-118527 as predictable filenames allowing an upload to a known
+  location. Neither source says which CVE covers the wu.cgi write, so the note
+  now says that.
+
+Live re-checks: the three SonicWall PSIRT advisories (SNWLID-2024-0015,
+SNWLID-2025-0003, SNWLID-2026-0014), AA24-109A and ASD's alert were fetched
+again with a renderer. All 14 quotes 0.19.0 took from them are on the live
+pages; the PSIRT pages are unchanged from the morning's copies.
+
 ## Device verification
 
 | Date | Platform / release | Step | Change | Basis |
