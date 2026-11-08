@@ -917,6 +917,21 @@ SNWLID-2025-0003, SNWLID-2026-0014), AA24-109A and ASD's alert were fetched
 again with a renderer. All 14 quotes 0.19.0 took from them are on the live
 pages; the PSIRT pages are unchanged from the morning's copies.
 
+## 2026-11-08 - CVE-2026-19490's sensor page (0.19.2)
+
+| Source | How read | Used for | Notes |
+|---|---|---|---|
+| Previdian, CVE-2026-19490 page ("Updated 08 Nov 2026") | Rendered fetch, and the raw page as `check_quotes.py` reads it | The CVE-2026-19490 exploitation record | A live sensor dashboard. Its running totals were 68 attempts from 16 addresses on 2026-10-28 and 80 from 22 on 2026-11-08 |
+
+Correction:
+- **The record quoted the dashboard's running totals**, so the monthly quote
+  check could never match it once the counts moved. It now quotes the fixed
+  text of the page's sensor box ("First observed 03 Sep 2026 Previdian sensors
+  observed exploitation attempts targeting this vulnerability."), which carries
+  the same first-observed date and no counts. `earliest` (2026-09-03),
+  `activity: attempted` and `stated_on: null` are unchanged. The quote check
+  now finds every exploitation-record quote it can fetch on its page.
+
 ## Device verification
 
 | Date | Platform / release | Step | Change | Basis |

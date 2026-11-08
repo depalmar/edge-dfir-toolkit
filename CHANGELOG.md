@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.19.2 - 2026-11-08 - CVE-2026-19490's quote
+
+- **CVE-2026-19490's exploitation record quotes text that stays put.** The
+  record quoted Previdian's live dashboard totals, which change with every
+  update, so the monthly quote check flagged it. It now quotes the page's
+  sensor box, which carries the same first-observed date (3 September 2026)
+  and no counts. The date and the `attempted` activity are unchanged.
+
 ## 0.19.1 - 2026-11-08 - Ivanti's 29 October update
 
 - **CVE-2026-118527 joins EDGE-PACK-0026.** Ivanti's advisory, updated 29
