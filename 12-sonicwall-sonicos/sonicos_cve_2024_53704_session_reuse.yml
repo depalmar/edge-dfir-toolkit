@@ -1,0 +1,29 @@
+title: SonicWall SonicOS SSL VPN Session Reuse Message (CVE-2024-53704)
+id: 142a5f16-6d23-4a53-a8ff-ed8df356d167
+status: experimental
+description: |
+  SonicWall's indicator for CVE-2024-53704, the SSL VPN authentication bypass:
+  the SSL VPN Session event (1153) observed when the flaw is exploited with the
+  public proof of concept, "User [SSLVPN_User]: Reuse SSLVPN session for the no.
+  time(s)". The rule matches SonicWall's literal text up to the placeholder for
+  the count.
+references:
+  - https://psirt.global.sonicwall.com/vuln-detail/SNWLID-2025-0003
+author: Raymond DePalma (edge-dfir-toolkit)
+date: 2026-11-08
+tags:
+  - attack.initial_access
+  - attack.t1190
+  - attack.credential_access
+  - attack.t1550.004
+  - cve.2024-53704
+logsource:
+  product: sonicwall
+  service: sonicos
+detection:
+  selection:
+    Message|contains: 'Reuse SSLVPN session for the'
+  condition: selection
+falsepositives:
+  - Unknown. SonicWall does not say whether a legitimate client resuming its own session logs the same message.
+level: high

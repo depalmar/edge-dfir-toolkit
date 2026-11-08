@@ -1,0 +1,339 @@
+# Edge platform catalog entry
+# EDGE-0012 - SonicWall firewalls running SonicOS
+
+id: EDGE-0012
+name: SonicWall firewalls (SonicOS)
+vendor: SonicWall
+products: [TZ series, NSa series, NSsp series, NSv virtual firewalls, SOHO]
+os_base: SonicOS, SonicWall's own firewall OS (Gen 6 runs 6.5, Gen 7 runs 7.x, Gen 8 runs 8.x); the base is not published
+customer_shell: restricted
+memory_acquisition: not-available
+collection:
+  - method: Export the System Logs and the Auditing Logs from the web console
+    impact: none
+    description: >-
+      SonicWall: the event log "can be viewed by navigating to the MONITOR | Logs >
+      System Logs page and it can be exported to a CSV file, text file, or sent to
+      an email address". Its credential-reset guidance says the same of MONITOR |
+      Logs | Auditing Logs, the record of configuration changes. SonicWall publishes
+      no file layout for either export, so save them under names the toolkit reads:
+      sonicos-system-logs* and sonicos-auditing-logs*. The box keeps a limited
+      window; SonicWall's own advice is a syslog server "to increase logging window".
+    confidence: high
+  - method: The syslog server's copy
+    impact: none
+    description: >-
+      If the firewall forwards syslog, that copy outlives a cleared or rotated log
+      on the box. Each line carries the event id as m= and the message as msg= (the
+      Log Events reference's tag table and Arctic Wolf's published lines). Export it
+      as sonicos-syslog* and ingest it.
+    confidence: high
+  - method: Export the settings (.exp)
+    impact: none
+    description: >-
+      Device | Settings > Firmware and Settings, Import/Export Configuration, Export
+      Configuration. SonicWall: the .exp file "contains a full snapshot of the
+      device's configuration, including credentials and other secrets"; its content
+      is "encoded (not encrypted)", with credentials "individually encrypted with
+      AES-256 in Gen 7 and newer firewalls and 3DES for Gen 6". Handle it as you
+      would the credentials themselves.
+    confidence: high
+  - method: Download a Tech Support Report with its options left as they are
+    impact: none
+    description: >-
+      In the Tech Support Report section, Download Tech Support Report. Turning an option on and
+      clicking Accept "to save the changes" is a saved configuration change, so
+      record it if you do. Leave Sensitive Keys off: it "Saves shared secrets,
+      encryption, and authentication keys to the report". Do not click Send
+      Diagnostic Reports to Support unless SonicWall asks; that sends the report,
+      preferences and trace log to SonicWall Engineering.
+    confidence: high
+  - method: CLI configuration dump over SSH
+    impact: vendor-bundle
+    description: >-
+      SonicWall's own article raises the pager with "cli screen length session
+      1600" and then "you will need to write those changes by issuing the commit
+      command" before "show current-config", so as published it writes to the
+      device. The E-CLI reference also lists "no cli pager session" (Mode: All
+      Modes), which may avoid the commit; nobody has run that here. No collection
+      profile ships for SonicOS until it has been.
+    confidence: medium
+anti_forensics:
+  - technique: Firewall logs deleted after access
+    seen_in: Akira and Fog intrusions (Arctic Wolf, 2024)
+    detail: >-
+      Arctic Wolf: "Threat actors commonly sought to delete firewall logs upon
+      gaining access to compromised environments." SonicOS logs that as event 5,
+      Log Cleared.
+response: sonicwall-sonicos
+hardening: sonicwall-sonicos
+artifacts:
+  - locator: MONITOR | Logs > System Logs (export as sonicos-system-logs*), events 1080 and 238
+    class: auth-logs
+    volatility: rotating
+    forensic_value: high
+    evidence_type: [initial-access, timeline]
+    confidence: high
+    collected_by: manual
+    description: >-
+      SSL VPN logins. Event 1080 is "SSL VPN zone remote user login allowed" and 238
+      is "WAN zone remote user login allowed" (Log Events reference). Arctic Wolf:
+      "In intrusions where firewall logs were captured, message event ID 238 (WAN
+      zone remote user login allowed) or message event ID 1080 (SSL VPN zone remote
+      user login allowed) were observed", followed by event 1079 lines showing login
+      and IP assignment. SonicWall's advice is to log every SSL VPN login (event
+      1080) and logout (263).
+    seen_in: [Akira, Fog]
+    provides: >-
+      Who logged in to the SSL VPN, from which address and interface, and when; the
+      1079 and 1153 lines that follow give the client's assigned internal address.
+    normal: >-
+      Arctic Wolf: "legitimate logins typically originate from broadband, SD-WAN, or
+      SASE service providers".
+    suspicious: >-
+      Arctic Wolf: logins "from VPS infrastructure are far less likely to be benign";
+      in 2024, "connections to the VPNs originated from hosting-related ASNs" in
+      almost all intrusions. Also logins by an account never meant for the VPN, such
+      as the directory synchronisation account (EDGE-HUNT-0030), and many accounts
+      logging in from one address in quick succession.
+    basis: researcher
+  - locator: MONITOR | Logs > System Logs, event 1153 (SSL VPN Session)
+    class: auth-logs
+    volatility: rotating
+    forensic_value: high
+    evidence_type: [initial-access, credential-access]
+    confidence: high
+    collected_by: manual
+    description: >-
+      SSL VPN session detail, one free-text message per line ("%s" in the Log Events
+      reference): OTP challenges and logins, device-profile matches, address
+      assignment, and the message SonicWall published for CVE-2024-53704.
+    seen_in: [CVE-2024-53704, Akira]
+    provides: >-
+      The steps of each SSL VPN login, including the OTP exchange Arctic Wolf
+      quotes: "User : User needs one-time password", then "User <name>: otp login".
+    normal: >-
+      Arctic Wolf: "Typically, less than a minute after an OTP challenge, a
+      corresponding OTP login event is generated".
+    suspicious: >-
+      SonicWall's CVE-2024-53704 IoC, observed when the public PoC is used: "User
+      [SSLVPN_User]: Reuse SSLVPN session for the no. time(s)".
+    basis: vendor
+  - locator: MONITOR | Logs > System Logs, event 5 (Log Cleared)
+    class: system-logs
+    volatility: rotating
+    forensic_value: high
+    evidence_type: [defense-evasion, timeline]
+    confidence: high
+    collected_by: manual
+    description: >-
+      The log was cleared. The event is written after the clear, so it survives in
+      the export; what was cleared survives only in the syslog server's copy.
+    seen_in: [Akira, Fog]
+    provides: When the on-box log was emptied, which bounds what the export can show.
+    normal: >-
+      Not described by SonicWall or the researchers; an administrator clearing the
+      log is the only benign cause the toolkit knows of.
+    suspicious: >-
+      Arctic Wolf: "Threat actors commonly sought to delete firewall logs upon
+      gaining access". A clear near an SSL VPN login from a hosting provider, or
+      with no change ticket behind it.
+    basis: researcher
+  - locator: MONITOR | Logs > System Logs, events 29, 199, 235 and 236 (administrator logins)
+    class: auth-logs
+    volatility: rotating
+    forensic_value: high
+    evidence_type: [initial-access, credential-access]
+    confidence: high
+    collected_by: manual
+    description: >-
+      Administrator logins: 29 "Administrator login allowed", 199 "CLI administrator
+      login allowed", 235 "VPN zone administrator login allowed", 236 "WAN zone
+      administrator login allowed" (Log Events reference). SonicWall: if a local
+      administrator account is compromised, "attackers may exploit administrative
+      features such as packet capture, debugging, logging, configuration backup, or
+      MFA control to obtain additional credentials, monitor traffic, or weaken the
+      overall security posture".
+    seen_in: [CVE-2024-40766]
+    provides: Who administered the firewall, over which zone and interface.
+    normal: >-
+      SonicWall's workaround for CVE-2024-40766 is "restricting firewall management
+      to trusted sources or disabling firewall WAN management from Internet access",
+      so a hardened firewall logs no WAN-zone administrator logins.
+    suspicious: >-
+      A WAN-zone administrator login (236) from an address outside the
+      administrators' own, above all from a hosting provider.
+    basis: vendor
+  - locator: MONITOR | Logs > Auditing Logs (export as sonicos-auditing-logs*), and event 1382
+    class: config
+    volatility: rotating
+    forensic_value: high
+    evidence_type: [configuration, persistence, defense-evasion]
+    confidence: high
+    collected_by: manual
+    description: >-
+      Configuration changes. SonicWall's credential-reset guidance: "Review the log
+      for unusual or unexpected changes." Event 1382 is "Configuration succeeded:
+      %s" (Log Events reference); Arctic Wolf names it as where "unauthorized OTP
+      unbinding events or other malicious configuration changes" would appear.
+    seen_in: [Akira]
+    provides: What was changed, by whom and when.
+    normal: Changes the firewall's administrators made and can account for.
+    suspicious: >-
+      SonicWall: review "packet captures, logs, MFA settings, and recent
+      configuration changes for unusual activity". TOTP bindings removed, users or
+      groups given SSL VPN access, management or SSL VPN opened to new addresses,
+      packet capture or logging changed. Arctic Wolf saw none of these in the five
+      days before the 2025 intrusions, so an empty audit log is not a clean bill.
+    basis: vendor
+  - locator: Device | Users | Local Users & Groups
+    class: identity
+    volatility: stable
+    forensic_value: high
+    evidence_type: [credential-access, initial-access]
+    confidence: high
+    collected_by: manual
+    description: >-
+      Local accounts, their group memberships and TOTP bindings. SonicWall on the
+      2025 activity: "Many of the incidents relate to migrations from Gen 6 to Gen 7
+      firewalls, where local user passwords were carried over during the migration
+      and not reset." Arctic Wolf in 2024: "compromised SSL VPN accounts were local
+      to the SonicWall devices themselves".
+    seen_in: [Akira, Fog, CVE-2024-40766]
+    provides: Which local accounts can reach the SSL VPN or administer the firewall.
+    normal: >-
+      Accounts whose passwords were changed after the CVE-2024-40766 fix, as
+      SonicWall's advisory required ("User must change password").
+    suspicious: >-
+      Local accounts with SSL VPN access whose passwords predate the fix or a Gen 6
+      to Gen 7 migration, unused or inactive accounts (SonicWall: "Remove unused or
+      inactive user accounts"), and administrator accounts nobody claims.
+    basis: vendor
+  - locator: LDAP configuration, Default LDAP User Group setting
+    class: config
+    volatility: stable
+    forensic_value: medium
+    evidence_type: [configuration, initial-access]
+    confidence: high
+    collected_by: manual
+    description: >-
+      SonicWall: the group "every LDAP-authenticated user is placed into
+      automatically", so if it has VPN access, "any LDAP account with valid
+      credentials - no matter their real role in Active Directory - will inherit
+      those permissions".
+    seen_in: [Akira]
+    provides: Whether any directory account can log in to the SSL VPN.
+    normal: SonicWall's resolution is "Set the Default LDAP User Group to None".
+    suspicious: A default group with SSL VPN, administrative or broad network access.
+    basis: vendor
+  - locator: Settings export (.exp)
+    class: config
+    volatility: stable
+    forensic_value: high
+    evidence_type: [configuration]
+    confidence: high
+    collected_by: manual
+    description: >-
+      The whole configuration in one file. SonicWall: "general configuration details
+      are readable after a simple decode, while passwords/keys remain encrypted".
+      Its cloud backup incident exposed these files: "an unauthorized party accessed
+      firewall configuration backup files for all customers who have used
+      SonicWall's cloud backup service".
+    seen_in: [MySonicWall cloud backup incident (2025)]
+    provides: >-
+      Every service, account, authentication server and access rule, for comparison
+      with a known-good export of the same firewall.
+    normal: The configuration its administrators expect.
+    suspicious: Differences from an earlier export that nobody made.
+    basis: toolkit
+  - locator: MySonicWall, Product Management | Issue List
+    class: off-box
+    volatility: off-box
+    forensic_value: high
+    evidence_type: [credential-access]
+    confidence: high
+    collected_by: manual
+    description: >-
+      SonicWall's list of firewalls whose cloud backup files were accessed, with
+      "Friendly Name, Last Download Date and Known Impacted Services".
+    seen_in: [MySonicWall cloud backup incident (2025)]
+    provides: Whether this firewall's configuration, credentials included, left SonicWall's hands.
+    normal: SonicWall - if the backup fields are blank, "You are NOT at risk".
+    suspicious: >-
+      The serial number is listed. SonicWall: "the listed firewalls are at risk and
+      should follow the containment and remediation guidelines".
+    basis: vendor
+  - locator: Tech Support Report (SonicOS Diagnostics)
+    class: bundle
+    volatility: live
+    forensic_value: medium
+    evidence_type: [configuration, timeline]
+    confidence: high
+    collected_by: manual
+    description: >-
+      SonicWall: "a detailed report of the SonicWall security appliance
+      configuration and status". Its options include "List of current users" and
+      "Detail of users", which give the live sessions.
+    provides: Configuration and status at the moment it is downloaded, including logged-in users if those options were already on.
+    normal: Not described.
+    suspicious: Sessions for accounts or from addresses nobody can account for.
+    basis: toolkit
+confidence: medium
+references:
+  - title: SonicWall - SonicOS/X 7.0.1 Log Events Reference Guide
+    url: https://assets-cms.sonicwall.com/technical-documentation/pdf/SonicOS-X_7.0.1_LogEvents_ReferenceGuide/SonicOS-X_7.0.1_LogEvents_ReferenceGuide.pdf
+    accessed: "2026-11-08"
+  - title: SonicWall - SNWLID-2024-0015, SonicOS improper access control (CVE-2024-40766)
+    url: https://psirt.global.sonicwall.com/vuln-detail/SNWLID-2024-0015
+    accessed: "2026-11-08"
+  - title: SonicWall - SNWLID-2025-0003, SonicOS multiple vulnerabilities (CVE-2024-53704)
+    url: https://psirt.global.sonicwall.com/vuln-detail/SNWLID-2025-0003
+    accessed: "2026-11-08"
+  - title: SonicWall - SNWLID-2026-0014, SonicOS multiple vulnerabilities (CVE-2026-19868)
+    url: https://psirt.global.sonicwall.com/vuln-detail/SNWLID-2026-0014
+    accessed: "2026-11-08"
+  - title: SonicWall - Gen 7 and newer SonicWall Firewalls, SSLVPN Recent Threat Activity
+    url: https://www.sonicwall.com/support/notices/gen-7-and-newer-sonicwall-firewalls-sslvpn-recent-threat-activity/250804095336430
+    accessed: "2026-11-08"
+  - title: SonicWall - MySonicWall Cloud Backup File Incident
+    url: https://www.sonicwall.com/support/notices/mysonicwall-cloud-backup-file-incident/kA1VN0000000RoD0AU
+    accessed: "2026-11-08"
+  - title: SonicWall - Essential Credential Reset
+    url: https://www.sonicwall.com/support/knowledge-base/essential-credential-reset/250909151701590
+    accessed: "2026-11-08"
+  - title: SonicWall - LDAP configuration, SSLVPN Default User Groups Security Risk
+    url: https://www.sonicwall.com/support/knowledge-base/ldap-configuration-sslvpn-default-user-groups-security-risk/250813061722917
+    accessed: "2026-11-08"
+  - title: SonicWall - Monitoring SSLVPN User Logins
+    url: https://www.sonicwall.com/support/knowledge-base/monitoring-sslvpn-user-logins/230530070610297
+    accessed: "2026-11-08"
+  - title: SonicWall - SonicOS 7 Diagnostics, Tech Support Report
+    url: https://www.sonicwall.com/support/technical-documentation/docs/sonicos-7-0-0-0-diagnostics/Content/Core/tech-support-report.htm
+    accessed: "2026-11-08"
+  - title: SonicWall - SonicOS 7 Device Settings, Exporting Settings
+    url: https://www.sonicwall.com/support/technical-documentation/docs/sonicos-7-0-0-0-device_settings/Content/Topics/Firmware_Settings/exporting-settings.htm
+    accessed: "2026-11-08"
+  - title: SonicWall - How to copy a SonicOS CLI configuration from the command line?
+    url: https://www.sonicwall.com/support/knowledge-base/how-to-copy-a-sonicos-cli-configuration-from-the-command-line/kA1VN0000000LAx0AM
+    accessed: "2026-11-08"
+  - title: SonicWall - SonicOS and SonicOSX 7 Command Line Interface Reference Guide
+    url: https://assets-cms.sonicwall.com/technical-documentation/pdf/sonicosx-7-command-line-interface-reference-guide/sonicosx-7-command-line-interface-reference-guide.pdf
+    accessed: "2026-11-08"
+  - title: Arctic Wolf - Arctic Wolf Labs Observes Increased Fog and Akira Ransomware Activity Linked to SonicWall SSL VPN (24 October 2024)
+    url: https://arcticwolf.com/resources/blog/arctic-wolf-labs-observes-increased-fog-and-akira-ransomware-activity-linked-to-sonicwall-ssl-vpn/
+    accessed: "2026-11-08"
+  - title: Arctic Wolf - Smash and Grab, Aggressive Akira Campaign Targets SonicWall VPNs (26 September 2025)
+    url: https://arcticwolf.com/resources/blog/smash-and-grab-aggressive-akira-campaign-targets-sonicwall-vpns/
+    accessed: "2026-11-08"
+notes: >-
+  The firewall line, distinct from the SMA 100 (EDGE-0006) and SMA 1000 (EDGE-0011)
+  remote access appliances: SonicWall says CVE-2024-53704 does not affect "SonicWall
+  SSL VPN SMA100 and SMA1000 series products". No collection profile ships yet:
+  SonicOS has no general shell, SonicWall's published CLI dump commits a change,
+  and the read-only alternative is untested. Collect from the web console and the
+  syslog server, then ingest. Event ids and message text are from the SonicOS/X
+  7.0.1 Log Events reference; Arctic Wolf's 2025 lines show the same ids on later
+  releases. The detections match the message text, which the syslog line (msg=)
+  and the console's MESSAGE column both carry. Gen 6 has reached end of support
+  (SonicWall, November 2026).
+last_modified: "2026-11-08"

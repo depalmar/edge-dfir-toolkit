@@ -1,0 +1,258 @@
+# Prevention and hardening - EDGE-0012 SonicWall firewalls (SonicOS)
+# Schema: ../schema/hardening.schema.json
+#
+# Every control is SonicWall's own: its PSIRT advisories, product notices and
+# knowledge-base articles. SonicWall gives console steps, not CLI syntax.
+
+platform_id: EDGE-0012
+name: SonicWall firewalls (SonicOS)
+summary: >-
+  The SSL VPN intrusions of 2024 to 2026 used valid credentials, so most of
+  what matters here is about accounts: reset every local password carried over
+  from Gen 6, give the directory no default VPN group, and lock out guessing.
+  Then keep management and the SSL VPN off the open internet, stay on the
+  latest release, and forward the logs somewhere the firewall cannot clear.
+last_modified: "2026-11-08"
+
+controls:
+  - id: sonicos-current-release
+    control: Run 7.3.4-7013 or later on Gen 7 and 8.2.3-8015 or later on Gen 8
+    category: patching
+    priority: critical
+    why: >-
+      SNWLID-2026-0014's releases are the latest named and fix CVE-2026-19868,
+      which SonicWall says it investigated "a report indicating potential
+      exploitation" of; they are later than the fixes for CVE-2024-53704 and
+      CVE-2024-40766.
+    how: SonicWall gives no command; the firmware is on mysonicwall.com.
+    blunts: [CVE-2026-19868, CVE-2024-53704, CVE-2024-40766]
+    confidence: high
+    sources:
+      - title: SonicWall - SNWLID-2026-0014 (CVE-2026-19868)
+        url: https://psirt.global.sonicwall.com/vuln-detail/SNWLID-2026-0014
+        accessed: "2026-11-08"
+        quote: "7.3.4-7013 and higher versions"
+      - title: SonicWall - SNWLID-2025-0003 (CVE-2024-53704)
+        url: https://psirt.global.sonicwall.com/vuln-detail/SNWLID-2025-0003
+        accessed: "2026-11-08"
+        quote: "7.1.3-7015 and higher"
+      - title: SonicWall - SNWLID-2024-0015 (CVE-2024-40766)
+        url: https://psirt.global.sonicwall.com/vuln-detail/SNWLID-2024-0015
+        accessed: "2026-11-08"
+        quote: "This vulnerability is not reproducible in SonicOS firmware version higher than 7.0.1-5035."
+
+  - id: sonicos-replace-gen6
+    control: Replace Gen 6 and older firewalls
+    category: patching
+    priority: high
+    why: SonicWall no longer fixes them, and its 2025 incidents clustered in configurations migrated from Gen 6.
+    how: SonicWall gives no command; its upgrade path is a Gen 8 firewall.
+    confidence: high
+    sources:
+      - title: SonicWall - SonicOS 7.3.4 and 8.2.3 Security Advisory, Gen 7 and Gen 8 Firewalls
+        url: https://www.sonicwall.com/support/notices/sonicos-7-3-4-and-8-2-3-security-advisory-gen-7-and-gen-8-firewalls/kA1VN000002eBLN0A2
+        accessed: "2026-11-08"
+        quote: >-
+          Gen 6 and older firewalls have reached End-of-Support (EOS), after which SonicWall no longer
+          provides technical support or firmware updates.
+
+  - id: sonicos-reset-local-passwords
+    control: Reset every local account's password, above all those carried over from Gen 6
+    category: identity
+    priority: critical
+    why: >-
+      SonicWall: many 2025 incidents "relate to migrations from Gen 6 to Gen 7
+      firewalls, where local user passwords were carried over during the
+      migration and not reset".
+    how: >-
+      SonicWall - "Administrators must enable the "User must change password"
+      option for each local account", or use its bulk script on GitHub
+      (sonicwall/sonicos-automation).
+    blunts: [CVE-2024-40766]
+    confidence: high
+    sources:
+      - title: SonicWall - SNWLID-2024-0015 (CVE-2024-40766)
+        url: https://psirt.global.sonicwall.com/vuln-detail/SNWLID-2024-0015
+        accessed: "2026-11-08"
+        quote: Administrators must enable the "User must change password" option for each local account.
+      - title: SonicWall - Gen 7 and newer SonicWall Firewalls, SSLVPN Recent Threat Activity
+        url: https://www.sonicwall.com/support/notices/gen-7-and-newer-sonicwall-firewalls-sslvpn-recent-threat-activity/250804095336430
+        accessed: "2026-11-08"
+        quote: >-
+          Reset all local user account passwords for any accounts with SSLVPN access, especially if they
+          were carried over during migration from Gen 6 to Gen 7.
+
+  - id: sonicos-management-off-wan
+    control: Disable HTTP, HTTPS and SSH management on WAN interfaces, or limit it to known addresses
+    category: exposure
+    priority: critical
+    why: The workaround for CVE-2024-40766 and for the SSH flaw in SNWLID-2025-0003.
+    how: >-
+      SonicWall - "Navigate to NETWORK | System | Interfaces. Edit each WAN
+      interface. Disable the HTTPS/SSH Management options."
+    blunts: [CVE-2024-40766]
+    confidence: high
+    sources:
+      - title: SonicWall - SNWLID-2024-0015 (CVE-2024-40766)
+        url: https://psirt.global.sonicwall.com/vuln-detail/SNWLID-2024-0015
+        accessed: "2026-11-08"
+        quote: >-
+          To minimize potential impact, we recommend restricting firewall management to trusted sources or
+          disabling firewall WAN management from Internet access.
+      - title: SonicWall - Essential Credential Reset
+        url: https://www.sonicwall.com/support/knowledge-base/essential-credential-reset/250909151701590
+        accessed: "2026-11-08"
+        quote: Edit each WAN interface. Disable the HTTPS/SSH Management options.
+
+  - id: sonicos-sslvpn-trusted-sources
+    control: Limit the SSL VPN to trusted sources, or disable it on the WAN zone
+    category: exposure
+    priority: critical
+    why: SonicWall's workaround for both SSL VPN CVEs.
+    how: >-
+      SonicWall - "Navigate to NETWORK | SSL VPN | Server Settings. Under the SSL
+      VPN STATUS ON ZONES header, disable the service on the WAN Zone." To limit
+      rather than disable, SonicWall points to its article on disabling Virtual
+      Office portal access.
+    blunts: [CVE-2024-40766, CVE-2024-53704]
+    confidence: high
+    sources:
+      - title: SonicWall - SNWLID-2025-0003 (CVE-2024-53704)
+        url: https://psirt.global.sonicwall.com/vuln-detail/SNWLID-2025-0003
+        accessed: "2026-11-08"
+        quote: >-
+          To minimize the potential impact of SSLVPN vulnerabilities, please ensure that access is limited
+          to trusted sources, or disable SSLVPN access from the Internet.
+      - title: SonicWall - SNWLID-2024-0015 (CVE-2024-40766)
+        url: https://psirt.global.sonicwall.com/vuln-detail/SNWLID-2024-0015
+        accessed: "2026-11-08"
+        quote: Similarly, for SSLVPN, please ensure that access is limited to trusted sources,or disable SSLVPN access from the Internet.
+
+  - id: sonicos-default-ldap-group-none
+    control: Set the Default LDAP User Group to None
+    category: identity
+    priority: high
+    why: >-
+      Otherwise "any LDAP account with valid credentials - no matter their real
+      role in Active Directory - will inherit those permissions", VPN access
+      included. SonicWall wrote it in the context of Akira.
+    how: SonicWall gives the setting, not a path or command - "Set the Default LDAP User Group to None".
+    confidence: high
+    sources:
+      - title: SonicWall - LDAP configuration, SSLVPN Default User Groups Security Risk
+        url: https://www.sonicwall.com/support/knowledge-base/ldap-configuration-sslvpn-default-user-groups-security-risk/250813061722917
+        accessed: "2026-11-08"
+        quote: Set the Default LDAP User Group to None
+
+  - id: sonicos-mfa-sslvpn
+    control: Enforce MFA for every SSL VPN user
+    category: identity
+    priority: high
+    why: >-
+      SonicWall recommends it for CVE-2024-40766. It is not enough on its own:
+      Arctic Wolf saw logins succeed on accounts with OTP enabled, and
+      CVE-2026-19868 bypasses SAML-enforced MFA on unfixed releases.
+    how: SonicWall gives console steps in its TOTP article, no command.
+    confidence: high
+    sources:
+      - title: SonicWall - SNWLID-2024-0015 (CVE-2024-40766)
+        url: https://psirt.global.sonicwall.com/vuln-detail/SNWLID-2024-0015
+        accessed: "2026-11-08"
+        quote: >-
+          It is recommended to enable Multi-Factor Authentication (MFA), such as TOTP or Email-based OTP,
+          for all SSLVPN users.
+
+  - id: sonicos-login-lockout
+    control: Keep admin and user lockout on (the default from 7.3 and 8.0.3)
+    category: identity
+    priority: high
+    why: SonicWall - 7.3 "has additional protection against brute-force password and MFA attacks".
+    how: >-
+      SonicWall - "Lockout period and attempt threshold can be configured under
+      Device|Settings|Administration."
+    confidence: high
+    sources:
+      - title: SonicWall - Enhance security with login attempt lockout and enforce password complexity in SonicOS 7.3 and SonicOS 8.0.3
+        url: https://www.sonicwall.com/support/knowledge-base/enhance-security-with-login-attempt-lockout-and-enforce-password-complexity-in-sonicos-7-3/250605085003583
+        accessed: "2026-11-08"
+        quote: Admin/user lockout is enabled by default, which mitigates brute-force login attempts.
+
+  - id: sonicos-botnet-filter
+    control: Apply Botnet Filtering to the SSL VPN and management services
+    category: exposure
+    priority: high
+    why: >-
+      SonicWall adds the addresses it sees attacking to the list ("threat actor
+      IP addresses are automatically added to the list") and recommends it
+      against brute force.
+    how: >-
+      SonicWall - POLICY, Security Services | Botnet Filter, enable "Block
+      connections to/from Botnet Command and Control Servers", then apply it to
+      the system-created access rules for the SSL VPN and management.
+    blunts: [CVE-2024-40766]
+    confidence: high
+    sources:
+      - title: SonicWall - Protect SonicOS SSLVPN service and SSH/HTTPS management with botnet filtering
+        url: https://www.sonicwall.com/support/knowledge-base/protect-sonicos-sslvpn-service-and-ssh-https-management-with-botnet-filtering/250818175948713
+        accessed: "2026-11-08"
+        quote: Enable “Block connections to/from Botnet Command and Control Servers”.
+      - title: SonicWall - SNWLID-2024-0015 (CVE-2024-40766)
+        url: https://psirt.global.sonicwall.com/vuln-detail/SNWLID-2024-0015
+        accessed: "2026-11-08"
+        quote: PSIRT recommends if possible to enable Botnet filtering as threat actor IP addresses are automatically added to the list
+
+  - id: sonicos-remove-unused-accounts
+    control: Remove unused or inactive accounts
+    category: identity
+    priority: medium
+    why: Every account with SSL VPN access is a password someone can try.
+    how: SonicWall gives no command.
+    confidence: high
+    sources:
+      - title: SonicWall - Gen 7 and newer SonicWall Firewalls, SSLVPN Recent Threat Activity
+        url: https://www.sonicwall.com/support/notices/gen-7-and-newer-sonicwall-firewalls-sslvpn-recent-threat-activity/250804095336430
+        accessed: "2026-11-08"
+        quote: Remove unused or inactive user accounts.
+
+  - id: sonicos-log-sslvpn-logins-to-syslog
+    control: Log every SSL VPN login and logout, and forward the logs to a syslog server
+    category: logging
+    priority: high
+    why: >-
+      Every hunt for these campaigns starts from the login events, and the actors
+      cleared firewall logs; the syslog copy survives that.
+    how: >-
+      SonicWall - Device | Log | Settings, Users, Authentication Access, event
+      1080 ("Successful SSLVPN User Login") and event 263 (User Logout); and its
+      article on configuring a syslog server "to increase logging window".
+    confidence: high
+    sources:
+      - title: SonicWall - SNWLID-2024-0015 (CVE-2024-40766)
+        url: https://psirt.global.sonicwall.com/vuln-detail/SNWLID-2024-0015
+        accessed: "2026-11-08"
+        quote: SonicWall advises enabling event logging for all SSLVPN logins.
+      - title: SonicWall - Monitoring SSLVPN User Logins
+        url: https://www.sonicwall.com/support/knowledge-base/monitoring-sslvpn-user-logins/230530070610297
+        accessed: "2026-11-08"
+        quote: Look for the “Successful SSLVPN User Login” with the Event ID 1080.
+
+  - id: sonicos-encrypt-config-backups
+    control: Encrypt configuration backups with a password (8.2.3 and later)
+    category: recovery
+    priority: medium
+    why: >-
+      A settings export holds every credential on the firewall, and SonicWall's
+      cloud backup files were accessed for "all customers who have used
+      SonicWall's cloud backup service".
+    how: SonicWall's 8.2.3 release notes describe the option, not the steps.
+    confidence: high
+    sources:
+      - title: SonicWall - SonicOS 8.2.3-8015 release notes
+        url: https://www.sonicwall.com/support/technical-documentation/docs/sonicos8-release_notes/Content/SonicOS-8-2-3-8015.htm
+        accessed: "2026-11-08"
+        quote: Configuration backups can be encrypted with a password that meets the password policy.
+
+notes: >-
+  The SSL VPN controls cover what the 2024 to 2026 reports describe. SonicWall's
+  Essential Credential Reset is the fuller list of secrets to rotate once a
+  firewall's configuration may have left it.

@@ -2,8 +2,8 @@
 # site shows. Generated - do not edit by hand:
 #   python artifacts/scripts/advisory_watch.py --records > artifacts/watch/kev-records.yml
 # Schema: ../schema/kev-records.schema.json. The weekly watch reports drift.
-catalog: 2026.10.28
-released: '2026-10-28'
+catalog: 2026.11.06
+released: '2026-11-06'
 records:
 - cve: CVE-2014-2120
   platform: EDGE-0005
@@ -616,6 +616,37 @@ records:
   notes: 'This vulnerability affects a common open-source component, third-party library, or a protocol used by different
     products. Please check with specific vendors for information on patching status. For more information, please see: https://httpd.apache.org/security/vulnerabilities_24.html
     ; https://nvd.nist.gov/vuln/detail/CVE-2024-38475'
+- cve: CVE-2024-40766
+  platform: EDGE-0012
+  vendor: SonicWall
+  product: SonicOS
+  name: SonicWall SonicOS Improper Access Control Vulnerability
+  added: '2024-09-09'
+  due: '2024-09-30'
+  ransomware: Known
+  forensic_triage: 'No'
+  cwes:
+  - CWE-284
+  action: Apply mitigations per vendor instructions or discontinue use of the product if mitigations are unavailable.
+  description: SonicWall SonicOS contains an improper access control vulnerability that could lead to unauthorized resource
+    access and, under certain conditions, may cause the firewall to crash.
+  notes: https://psirt.global.sonicwall.com/vuln-detail/SNWLID-2024-0015; https://www.sonicwall.com/support/notices/gen-7-and-newer-sonicwall-firewalls-sslvpn-recent-threat-activity/kA1VN0000000RDG0A2
+    ; https://nvd.nist.gov/vuln/detail/CVE-2024-40766
+- cve: CVE-2024-53704
+  platform: EDGE-0012
+  vendor: SonicWall
+  product: SonicOS
+  name: SonicWall SonicOS SSLVPN Improper Authentication Vulnerability
+  added: '2025-02-18'
+  due: '2025-03-11'
+  ransomware: Known
+  forensic_triage: 'No'
+  cwes:
+  - CWE-287
+  action: Apply mitigations per vendor instructions or discontinue use of the product if mitigations are unavailable.
+  description: SonicWall SonicOS contains an improper authentication vulnerability in the SSLVPN authentication mechanism
+    that allows a remote attacker to bypass authentication.
+  notes: https://psirt.global.sonicwall.com/vuln-detail/SNWLID-2025-0003 ; https://nvd.nist.gov/vuln/detail/CVE-2024-53704
 - cve: CVE-2024-55591
   platform: EDGE-0002
   vendor: Fortinet
@@ -1088,6 +1119,54 @@ records:
   description: Ivanti Connect Secure contains an authentication bypass by spoofing vulnerability that allows a remote unauthenticated
     attacker to execute arbitrary commands.
   notes: https:/forums.ivanti.com/s/article/Security-Advisory-Ivanti-Connect-Secure-CVE-2026-104935 ; https://nvd.nist.gov/vuln/detail/CVE-2026-104935
+- cve: CVE-2026-111357
+  platform: EDGE-0003
+  vendor: Ivanti
+  product: Connect Secure
+  name: Ivanti Connect Secure Missing Authentication for Critical Function Vulnerability
+  added: '2026-10-30'
+  due: '2026-11-02'
+  ransomware: Unknown
+  forensic_triage: 'Yes'
+  cwes:
+  - CWE-306
+  - CWE-862
+  - CWE-345
+  action: Apply mitigations in accordance with vendor instructions, ensuring compliance with CISA’s BOD 26-04 Prioritizing
+    Security Updates Based on Risk (see URL in Notes) guidance and CISA’s “Forensics Triage Requirements” (see URL in Notes).
+    Follow applicable BOD 26-04 guidance for cloud services or discontinue use of the product if mitigations are unavailable.
+    Stakeholders are responsible for evaluating each asset's internet exposure and ensuring adherence to BOD 26-04 patching
+    guidelines.
+  description: Ivanti Connect Secure contains a missing authentication for critical function vulnerability that could allow
+    a local authenticated attacker to escalate their privileges. This vulnerability can be chained with CVE-2026-104935 and
+    CVE-2026-118527.
+  notes: 'https://hub.ivanti.com/s/article/Security-Advisory-Ivanti-Connect-Secure-CVE-2026-104935?language=en_US ; https://www.cisa.gov/news-events/alerts/2026/10/13/cisa-urges-patching-newly-exploited-vulnerability-ivanti-connect-secure
+    ; BOD 26-04: https://www.cisa.gov/news-events/directives/bod-26-04-prioritizing-security-updates-based-risk ; Forensics
+    Triage Requirements: https://www.cisa.gov/news-events/directives/bod-26-04-implementation-guidance-prioritizing-security-updates-based-risk
+    ; https://nvd.nist.gov/vuln/detail/CVE-2026-111357'
+- cve: CVE-2026-118527
+  platform: EDGE-0003
+  vendor: Ivanti
+  product: Connect Secure
+  name: Ivanti Connect Secure Generation of Predictable Numbers or Identifiers Vulnerability
+  added: '2026-10-30'
+  due: '2026-11-13'
+  ransomware: Unknown
+  forensic_triage: 'No'
+  cwes:
+  - CWE-340
+  action: Apply mitigations in accordance with vendor instructions, ensuring compliance with CISA’s BOD 26-04 Prioritizing
+    Security Updates Based on Risk (see URL in Notes) guidance and CISA’s “Forensics Triage Requirements” (see URL in Notes).
+    Follow applicable BOD 26-04 guidance for cloud services or discontinue use of the product if mitigations are unavailable.
+    Stakeholders are responsible for evaluating each asset's internet exposure and ensuring adherence to BOD 26-04 patching
+    guidelines.
+  description: Ivanti Connect Secure contains a generation of predictable numbers or identifiers vulnerability that allows
+    a remote authenticated attacker to upload files with attacker-controlled content to a known location on disk. This vulnerability
+    can be chained with CVE-2026-104935 and CVE-2026-111357.
+  notes: 'https://hub.ivanti.com/s/article/Security-Advisory-Ivanti-Connect-Secure-CVE-2026-104935?language=en_US ; ; BOD
+    26-04: https://www.cisa.gov/news-events/directives/bod-26-04-prioritizing-security-updates-based-risk ; Forensics Triage
+    Requirements: https://www.cisa.gov/news-events/directives/bod-26-04-implementation-guidance-prioritizing-security-updates-based-risk
+    ; https://nvd.nist.gov/vuln/detail/CVE-2026-118527'
 - cve: CVE-2026-15409
   platform: EDGE-0011
   vendor: SonicWall
@@ -1174,6 +1253,28 @@ records:
     https://www.cisa.gov/news-events/directives/bod-26-04-prioritizing-security-updates-based-risk ; Forensics Triage Requirements:
     https://www.cisa.gov/news-events/directives/bod-26-04-implementation-guidance-prioritizing-security-updates-based-risk
     ; https://nvd.nist.gov/vuln/detail/CVE-2026-19490'
+- cve: CVE-2026-19868
+  platform: EDGE-0012
+  vendor: SonicWall
+  product: SonicOS SSLVPN
+  name: SonicWall SonicOS SSLVPN Use of Single-factor Authentication Vulnerability
+  added: '2026-11-06'
+  due: '2026-11-20'
+  ransomware: Unknown
+  forensic_triage: 'No'
+  cwes:
+  - CWE-308
+  action: Apply mitigations in accordance with vendor instructions, ensuring compliance with CISA’s BOD 26-04 Prioritizing
+    Security Updates Based on Risk (see URL in Notes) guidance and CISA’s “Forensics Triage Requirements” (see URL in Notes).
+    Follow applicable BOD 26-04 guidance for cloud services or discontinue use of the product if mitigations are unavailable.
+    Stakeholders are responsible for evaluating each asset's internet exposure and ensuring adherence to BOD 26-04 patching
+    guidelines.
+  description: SonicWall SonicOS SSLVPN contains a use of single-factor authentication vulnerability that may allow a user
+    with valid credentials for an alternate authentication method to bypass SAML authentication controls. Successful exploitation
+    may also bypass SAML-enforced multi-factor authentication (MFA).
+  notes: 'https://psirt.global.sonicwall.com/vuln-detail/SNWLID-2026-0014 ; BOD 26-04: https://www.cisa.gov/news-events/directives/bod-26-04-prioritizing-security-updates-based-risk
+    ; Forensics Triage Requirements: https://www.cisa.gov/news-events/directives/bod-26-04-implementation-guidance-prioritizing-security-updates-based-risk
+    ; https://nvd.nist.gov/vuln/detail/CVE-2026-19868'
 - cve: CVE-2026-20349
   platform: EDGE-0005
   vendor: Cisco

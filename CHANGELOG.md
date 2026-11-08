@@ -1,11 +1,75 @@
 # Changelog
 
-## Unreleased
+## 0.19.0 - 2026-11-08 - SonicWall firewalls (SonicOS)
 
+A new platform, `EDGE-0012`: the TZ, NSa, NSsp and NSv firewalls, separate from
+the SMA 100 (`EDGE-0006`) and SMA 1000 (`EDGE-0011`) remote-access appliances.
+Added after a practitioner pointed out how often these firewalls turn up in
+incident response. Three KEV entries since 2024 are on SonicOS, and each is now
+covered or decided.
+
+- **Catalog.**
+  - Collection is from the web console and the syslog server: System Logs and
+    Auditing Logs exports, the settings export (`.exp`, which holds every
+    credential) and a Tech Support Report with Sensitive Keys left off.
+  - No collection profile. SonicWall's own CLI method for dumping the
+    configuration commits a pager change first; the read-only alternative in
+    its CLI reference has not been run.
+  - Ten artifacts, keyed to event ids from SonicWall's Log Events reference:
+    SSL VPN logins (1080, 238), SSL VPN session detail (1153), Log Cleared (5),
+    administrator logins (29, 199, 235, 236), the Auditing Logs (1382), local
+    users, the Default LDAP User Group, the settings export, MySonicWall's
+    Issue List and the TSR.
+- **EDGE-PACK-0038, SSL VPN account abuse by Akira and Fog (CVE-2024-40766).**
+  - The logins look like any other, so the pack checks only what a hardened
+    firewall should never log: the event log cleared (Arctic Wolf: the actors
+    "commonly sought to delete firewall logs") and an administrator login from
+    the WAN zone (SonicWall's workaround removes WAN management).
+  - The summary carries every hedge: SonicWall "potentially being exploited",
+    Arctic Wolf "no definitive evidence" in 2024, AA24-109A "likely".
+- **EDGE-PACK-0039, CVE-2024-53704.** SonicWall's one published indicator, the
+  "Reuse SSLVPN session" message logged when the public proof of concept is
+  used. Its tier stays possible: SonicWall does not say whether a legitimate
+  client resuming its own session logs the same message.
+- **Sigma.** Three rules in `12-sonicwall-sonicos/` over the raw syslog line.
+  The Log Clear rule needs both `m=5` and the message.
+- **Intel.**
+  - Akira (EDGE-TA-0009), each of four reporters in its own words (Arctic Wolf,
+    Huntress, AA24-109A, ASD's ACSC); Fog is not merged in.
+  - EDGE-IOC-0019 to 0023, 105 values parsed in code from the publishers' own
+    tables:
+    - SonicWall's seven possible-IoC addresses, without the two it withdrew;
+    - Arctic Wolf's 2024 and 2025 tables, leaving out three SHA-1 values that
+      are one character short as published;
+    - Huntress's August 2025 and July 2026 tables.
+  - File names, host names, ASNs, CIDRs, Windows paths and passwords are left
+    out, and each set says so.
+- **Hunts EDGE-HUNT-0029 to 0032**, over the syslog copy:
+  - SSL VPN logins from hosting providers;
+  - the firewall's own directory account on the VPN;
+  - internal scanning within minutes of a login;
+  - many accounts from one source.
+- **Response and hardening.**
+  - Containment before any password reset, as SonicWall's Essential Credential
+    Reset insists, then local passwords, TOTP, LDAP bind and IPsec secrets.
+  - The `do_not` list keeps SonicWall's credentials reset tool until after
+    preservation: it enables the API over SSH.
+  - Twelve controls, every one quoting SonicWall.
+- **KEV.**
+  - The watch now covers SonicOS.
+  - CVE-2026-19868 (added 6 November 2026) is decided `no-indicators`: SonicWall
+    reports "potential exploitation" and publishes no IoC.
+  - The records were regenerated from catalog 2026.11.06. That also brought in
+    two Ivanti entries added 30 October:
+    - CVE-2026-111357 joins EDGE-PACK-0026, because Volexity's update note names
+      it as the chain's privilege escalation;
+    - CVE-2026-118527 is `deferred`, because Ivanti's advisory could not be read
+      today.
+- **Exploitation records** for all five. No earliest date for any SonicOS CVE:
+  no source dates when exploitation began.
 - **Site: social preview card.** Shared links now show a 1200x630 card
-  (`docs/og-image.png`) through Open Graph and Twitter card tags. The
-  generator copies the image beside the built page, and `--check` fails if it
-  is missing.
+  (`docs/og-image.png`) through Open Graph and Twitter card tags. The generator
+  copies the image beside the built page, and `--check` fails if it is missing.
 
 ## 0.18.1 - 2026-10-29 - SonicWall SMA 1000 collection profile
 

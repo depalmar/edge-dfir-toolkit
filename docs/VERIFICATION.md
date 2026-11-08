@@ -844,6 +844,50 @@ What each step rests on:
 | File fetches | The engine's SFTP | SonicWall documents SCP, not SFTP |
 | `sma1000-deleted-jar-held-open` | The toolkit's inference from Volexity's "both JAR files are deleted" | Whether the JVM keeps them open |
 
+## 2026-11-08 - SonicWall firewalls, SonicOS (0.19.0)
+
+Every source below was read on 2026-11-08. Rendered fetches were taken that
+morning, before the rendering service's daily allowance ran out; the PSIRT
+advisories were also read as JSON from psirtapi.global.sonicwall.com.
+
+| Source | How read | Used for | Notes |
+|---|---|---|---|
+| SonicWall SNWLID-2024-0015 (CVE-2024-40766) | Rendered fetch and JSON | Affected and fixed versions, workaround, recommended actions, the IoC addresses (EDGE-IOC-0019), exploitation statement | Revision 1.15 removed two addresses added in 1.13 and 1.14; they are not in the set. The exploitation sentence came in revision 1.3 (06-Sep-2024) |
+| SonicWall SNWLID-2025-0003 (CVE-2024-53704) | Rendered fetch and JSON | Fixed versions, the "Reuse SSLVPN session" IoC (revision 1.2), SSL VPN workaround | The IoC is what SonicWall observed with the public PoC, not in the wild; its message has two placeholders ([SSLVPN_User], "no.") and the pattern stops before the second |
+| SonicWall SNWLID-2026-0014 (CVE-2026-19868) | Rendered fetch and JSON | Fixed versions, exploitation statement | No IoCs. Ledger: `no-indicators` |
+| SonicWall SonicOS/X 7.0.1 Log Events Reference Guide | PDF, converted | Event ids and message text for every artifact and detection, the syslog tag table (m=, msg=, sess=) | The 7.0.1 ids are assumed for later releases; Arctic Wolf's 2025 lines show 1080 and 1153 unchanged |
+| SonicWall SonicOS/X 7 E-CLI reference | PDF, converted | `no cli pager session` (Mode: All Modes) | Not run on a device, so no profile ships |
+| SonicWall KB, How to copy a SonicOS CLI configuration | Rendered fetch | Why no profile: the method commits `cli screen length session 1600` | - |
+| SonicWall SonicOS 7 docs: Tech Support Report, Exporting Settings | Rendered fetch | Collection methods; Sensitive Keys; "Click Accept to save the changes" | Both pages are marked superseded (7.0); the steps are the ones SonicWall still links |
+| SonicWall notices: Gen 7 SSLVPN threat activity (Aug 2025), MySonicWall cloud backup incident (Sep-Oct 2025), 7.3.4/8.2.3 advisory (Nov 2026), firmware update (Apr 2026), improper access control (Dec 2025) | Rendered fetch | Response, hardening, Gen 6 end of support | - |
+| SonicWall KBs: Essential Credential Reset, Remediation Playbook, Credentials Reset Tool, LDAP default user group, Botnet filtering, lockout in 7.3, Monitoring SSLVPN logins | Rendered fetch | Response steps and do-not list, hardening controls | The reset tool's "Auto-API enabling - Temporary SSH-based activation" is why it waits until after preservation |
+| SonicWall SonicOS 8.2.3-8015 release notes | Rendered fetch | Encrypted configuration backups | - |
+| Arctic Wolf, 24 October 2024 (Fog and Akira) | Saved HTML | Artifacts, Log Cleared, hunts, EDGE-IOC-0020 (parsed in code) | Three SHA-1 values in its table are 39 characters (WinRAR, OpenSSH, AV/EDR killer); left out, not corrected |
+| Arctic Wolf, 13 February 2025 (CVE-2024-53704) | Saved page | Exploitation record (`attempted`) | No date for the first attempt |
+| Arctic Wolf, 26 September 2025 (Smash and Grab) and its July and September updates | Saved HTML | Hunts, OTP log lines, EDGE-IOC-0021 | The update posts' tables add only one row with a broken bracket around an address already in the main table |
+| Huntress, August 2025 (updated to 13 August), October 2025, July 2026 | Saved HTML | Hunts, EDGE-IOC-0022 and 0023, actor wording | Its August post called the cause "A likely zero-day vulnerability"; SonicWall later wrote it had "high confidence" it was not, so EDGE-IOC-0022 lists no CVE |
+| AA24-109A as updated 13 November 2025 | Saved HTML | Actor (motivation, first seen), exploitation record | The CVE sentence sits in an "Update Nov. 13, 2025" section |
+| ASD's ACSC alert, 10 September 2025 | Saved HTML | Exploitation record | - |
+| Canadian Centre for Cyber Security AV26-1133 | Rendered fetch | Searched, not used | It lists Gen 8 as affected "prior to 8.2.2-8015"; SonicWall's advisory says 8.2.2-8015 and older are affected and 8.2.3-8015 fixes it. The toolkit uses SonicWall's |
+| Bishop Fox, February 2025 | Saved page | Pack 0039's "not straightforward" | The page carries proof-of-concept code; nothing from it is in the repository |
+| Volexity, 13 October 2026 (Ivanti), as updated after 29 October | Direct fetch | CVE-2026-111357 in EDGE-PACK-0026 and its exploitation record | The update note names the privilege escalation as CVE-2026-111357 and says the rest of the post was not updated. It does not name CVE-2026-118527 |
+| Ivanti's CVE-2026-104935 advisory | Not reachable | - | CVE-2026-118527 is `deferred` until it can be read |
+| BleepingComputer, SecurityWeek, Bitdefender, Truesec, Field Effect, GuidePoint, Rapid7, Darktrace | Saved, read as leads | Nothing quoted | None changes a claim; the researcher posts repeat Arctic Wolf's and Huntress's findings |
+
+Toolkit inferences, each labelled where it is used:
+- The export names `sonicos-system-logs*`, `sonicos-auditing-logs*` and
+  `sonicos-syslog*`: SonicWall publishes no export layout or file name.
+- The two pack 0038 detections as "what a hardened firewall should not log".
+- The hosting-ASN split, the directory-account lookup, the scan window and the
+  login-interval test in the four hunts.
+
+Quote check: 24 new quotes in the hunts, hardening and exploitation records
+matched their live pages with `check_quotes.py`. The 14 on the PSIRT site, at
+CISA (403 to the shell) and at cyber.gov.au (connection dropped) matched the
+rendered and saved copies taken the same day. The run also reported an
+existing record's page that no longer carries its quote (CVE-2026-19490,
+previdian.com); it is unchanged here and left for its own re-read.
+
 ## Device verification
 
 | Date | Platform / release | Step | Change | Basis |

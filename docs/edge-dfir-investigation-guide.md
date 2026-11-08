@@ -197,6 +197,21 @@ with it. Use F5 System Scanner from known-good media (break-glass), and take a
 `qkview` behind `--allow-bundle`. Never restore a UCS archive taken after the
 compromise; F5 warns it can carry the malware back.
 
+**SonicWall SonicOS.** The TZ, NSa, NSsp and NSv firewalls. No collection
+profile yet: SonicOS has no general shell, and SonicWall's own CLI method for
+dumping the configuration commits a pager change first. Collect from the web
+console instead. Export MONITOR | Logs > System Logs and Auditing Logs as CSV or
+text, saved as `sonicos-system-logs.csv` and `sonicos-auditing-logs.csv`, pull
+the syslog server's copy as `sonicos-syslog.log` (the packs read the system-log
+and syslog names), and export the settings (`.exp`, which holds every
+credential, encoded rather than encrypted apart from the secrets themselves). Ingest them with
+`--platform EDGE-0012`. Leave the Tech Support Report's Sensitive Keys option
+off, and do not run SonicWall's credentials reset tool until all of that is
+saved: it enables the API over SSH and resets passwords. The 2024 and 2025
+intrusions logged in with valid credentials, so a clean on-box result means
+little until the SSL VPN hunts (EDGE-HUNT-0029 to 0032) have been run over the
+syslog copy.
+
 ## Bringing in exports
 
 ```bash

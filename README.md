@@ -76,6 +76,7 @@ edge-dfir-toolkit/
 ├── 09-juniper-junos/
 ├── 10-f5-bigip/
 ├── 11-sonicwall-sma1000/
+├── 12-sonicwall-sonicos/
 ├── edgetriage/               # the engine: collect, ingest, analyze, timeline, brief
 ├── collectors/profiles/      # declarative per-vendor collection profiles
 ├── artifacts/
@@ -167,6 +168,7 @@ cases/IR-2026-031/
 | Cisco IOS XE | restricted | `cisco-iosxe` | 0011, 0012 | Do not reboot first; the 2023 implant was memory-only |
 | F5 BIG-IP | yes (bash) | `f5-bigip` | 0015, 0016, 0017 | Do not trust sys-icheck; never restore a post-compromise UCS |
 | SonicWall SMA 1000 | yes (root over SSH) | `sonicwall-sma1000` (unvalidated) | 0036, 0037 | Capture memory before any restart: UTA0533's implants live in the workplace JVM |
+| SonicWall firewalls (SonicOS) | restricted | - | 0038, 0039 | Export the logs and pull the syslog copy before any password reset; the SSL VPN intrusions used valid credentials, so run the hunts |
 
 ---
 

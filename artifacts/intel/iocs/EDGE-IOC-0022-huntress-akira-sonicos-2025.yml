@@ -1,0 +1,86 @@
+# Indicators EDGE-IOC-0022 - parsed from Huntress's own publication, not retyped.
+# Values are live, not defanged: do not paste them into a browser. Roles and context are the publisher's.
+# Schema: ../../schema/ioc.schema.json
+
+id: EDGE-IOC-0022
+title: Akira through SonicWall SSL VPN, July and August 2025
+publisher: Huntress
+published: '2025-08-13'
+page_url: https://www.huntress.com/blog/exploitation-of-sonicwall-vpn
+file_format: html-table
+license: publisher's terms
+accessed: '2026-11-08'
+actors:
+- EDGE-TA-0009
+implants: []
+cves: []
+platforms:
+- EDGE-0012
+staleness: >-
+  First published 4 August 2025 and updated to 13 August (update 4 added hashes); Huntress dates its first case
+  to 25 July. It then called the cause "A likely zero-day vulnerability in SonicWall VPNs"; SonicWall later wrote
+  it had "high confidence" the activity was "not connected to a zero-day vulnerability", so no CVE is listed. The
+  accounts and hashes are from Windows hosts behind the firewall, not from the firewall. Not here: the seven Windows
+  file paths Huntress lists (the path type holds device paths), the eight ASN/CIDR rows Huntress calls "hosting
+  adversary infrastructure" (EDGE-HUNT-0029 uses them) and three passwords it lists.
+indicators:
+- type: ipv4
+  value: 142.252.99.59
+  role: unknown
+  context: 'Huntress: Attacker IP'
+- type: ipv4
+  value: 45.86.208.240
+  role: unknown
+  context: 'Huntress: Attacker IP'
+- type: ipv4
+  value: 77.247.126.239
+  role: unknown
+  context: 'Huntress: Attacker IP'
+- type: ipv4
+  value: 104.238.205.105
+  role: unknown
+  context: 'Huntress: Attacker IP'
+- type: ipv4
+  value: 104.238.220.216
+  role: unknown
+  context: 'Huntress: Attacker IP'
+- type: ipv4
+  value: 181.215.182.64
+  role: unknown
+  context: 'Huntress: Attacker IP'
+- type: ipv4
+  value: 193.163.194.7
+  role: unknown
+  context: 'Huntress: Attacker IP'
+- type: ipv4
+  value: 193.239.236.149
+  role: unknown
+  context: 'Huntress: Attacker IP'
+- type: ipv4
+  value: 194.33.45.155
+  role: unknown
+  context: 'Huntress: Attacker IP'
+- type: sha256
+  value: d080f553c9b1276317441894ec6861573fa64fb1fae46165a55302e782b1614d
+  role: actor-controlled
+  context: 'Huntress: w.exe; Ransomware executable'
+- type: sha256
+  value: 1b153070934033deace7f04e77a72abe4e7e259271f885e25d81dc6337a9313d
+  role: actor-controlled
+  context: 'Huntress: win.exe; Ransomware executable'
+- type: account
+  value: backupSQL
+  role: actor-controlled
+  context: 'Huntress: User created by attacker'
+- type: account
+  value: lockadmin
+  role: actor-controlled
+  context: 'Huntress: User created by attacker'
+- type: sha256
+  value: 16f83f056177c4ec24c7e99d01ca9d9d6713bd0497eeedb777a3ffefa99c97f0
+  role: actor-controlled
+  context: 'Huntress: rwdrv.sys; Driver installed by attacker'
+- type: sha256
+  value: bd1f381e5a3db22e88776b7873d4d2835e9a1ec620571d2b1da0c58f81c84a56
+  role: actor-controlled
+  context: 'Huntress: hlpdrv.sys; Driver installed by attacker'

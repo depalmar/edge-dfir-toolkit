@@ -61,6 +61,11 @@ Ordered by value. Effort figures are judgment, not measurement.
   device did, from any source it does not control (sign-ins, the next
   firewall's sessions, flows), so NetFlow is not required. Next:
   device-sourced transfers, against exported data.
+- SonicWall SonicOS (0.19.0) has no collection profile. Next: run `no cli
+  pager session` and the read-only `show` commands on an NSv virtual firewall,
+  confirm the pager change is not saved, and write the profile from that. A
+  contributed, sanitized System Logs CSV export would also pin the file layout
+  the packs assume, and Ivanti's advisory decides CVE-2026-118527.
 - Memory images (0.17.0): the packs' string-only YARA rules, the operator's
   memory rules and the published network indicators run over every image, and
   Volatility 3 runs with operator-supplied symbols, unscored. 0.17.1 added the

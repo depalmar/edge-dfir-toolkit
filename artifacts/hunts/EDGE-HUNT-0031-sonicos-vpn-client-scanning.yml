@@ -1,0 +1,66 @@
+# Off-box hunt EDGE-HUNT-0031
+# Schema: ../schema/hunt.schema.json
+
+id: EDGE-HUNT-0031
+title: Internal scanning from an SSL VPN client address minutes after the login
+platforms:
+- EDGE-0012
+actors:
+- EDGE-TA-0009
+seen_in:
+- Akira (Arctic Wolf, 2025)
+- SSL VPN compromises (Huntress, October 2025)
+hypothesis: >-
+  An actor who has just logged in to the SSL VPN is mapping the internal network from the address the
+  firewall assigned it.
+data:
+- syslog
+- netflow
+- edr
+data_detail: >-
+  The firewall's syslog copy for the SSL VPN login and the 1079 or 1153 line that assigns the client an
+  internal address; flows, the firewall's own connection logs or EDR on the hosts it reached; Windows
+  authentication logs on servers and domain controllers.
+method:
+- >-
+  For each SSL VPN login (event 1080 or 238), take the internal address the firewall assigned it from
+  the line that follows ("Client ... is assigned IP" or "is assigned IP").
+- >-
+  In the first minutes after the login, count the distinct internal hosts and ports that address
+  connected to, and its network logons (Windows events 4624 and 4625, logon type 3) on servers.
+- >-
+  Look for the ports Arctic Wolf lists (135, 137, 445, 1433) and for SMB sessions from host names such
+  as kali or WIN, which it saw in the SMB events.
+normal: >-
+  A remote user reaching the few file shares, applications and desktops they use, over hours.
+suspicious: >-
+  One VPN client touching many hosts on 135, 137, 445 or 1433 within minutes of logging in, or failed
+  network logons across many accounts from it.
+attack:
+- T1046
+- T1021.002
+- T1110
+inferred: >-
+  The per-login window and the host and port count are the toolkit's; Arctic Wolf gives the five
+  minutes, the ports and the host names.
+confidence: medium
+sources:
+- title: Arctic Wolf - Smash and Grab, Aggressive Akira Campaign Targets SonicWall VPNs (26 September 2025)
+  url: https://arcticwolf.com/resources/blog/smash-and-grab-aggressive-akira-campaign-targets-sonicwall-vpns/
+  accessed: '2026-11-08'
+  quote: >-
+    Upon gaining SSL VPN access, threat actors wasted no time in attempting lateral movement through
+    compromised environments, typically initiating internal scanning within five minutes of logging in.
+  read: direct
+- title: Arctic Wolf - Smash and Grab, Aggressive Akira Campaign Targets SonicWall VPNs (26 September 2025)
+  url: https://arcticwolf.com/resources/blog/smash-and-grab-aggressive-akira-campaign-targets-sonicwall-vpns/
+  accessed: '2026-11-08'
+  quote: Scanned ports included 135 (RPC), 137 (Netbios), 445 (SMB), and 1433 (SQL).
+  read: direct
+- title: Huntress - SonicWall SSLVPN compromise (October 2025)
+  url: https://www.huntress.com/blog/sonicwall-sslvpn-compromise
+  accessed: '2026-11-08'
+  quote: >-
+    In other cases, there was evidence of post-exploitation activity, with the actors conducting network
+    scanning activity and attempting to access numerous local Windows accounts.
+  read: direct

@@ -1,0 +1,74 @@
+# Off-box hunt EDGE-HUNT-0030
+# Schema: ../schema/hunt.schema.json
+
+id: EDGE-HUNT-0030
+title: The firewall's own directory or service account logging in to the SSL VPN
+platforms:
+- EDGE-0012
+actors:
+- EDGE-TA-0009
+seen_in:
+- Akira (Arctic Wolf and Huntress, 2025)
+cves:
+- CVE-2024-40766
+hypothesis: >-
+  The actor holds the credentials the firewall uses to bind to the directory and is using that account,
+  never meant for remote access, to reach the network.
+data:
+- syslog
+- identity
+data_detail: >-
+  The firewall's syslog copy (events 1080 and 238, and the 1079 and 1153 lines that follow); the name of
+  the bind account in the firewall's LDAP configuration; the directory's own authentication logs for
+  that account.
+method:
+- >-
+  Find the account the firewall binds to the directory with (its LDAP configuration) and any other
+  service accounts the firewall or its integrations use.
+- >-
+  Search every SSL VPN login (events 1080 and 238) for those accounts, and the directory's logs for
+  interactive or network logons by them from addresses other than the firewall's.
+- >-
+  Check the LDAP configuration's Default LDAP User Group; if it grants SSL VPN access, any directory
+  account can do what this hunt looks for.
+normal: >-
+  The bind account authenticates only from the firewall to the directory, and never appears as an SSL
+  VPN user.
+suspicious: >-
+  The bind or synchronisation account, or an account named like Huntress's examples (sonicwall,
+  LDAPAdmin), as an SSL VPN user or logging on to hosts.
+attack:
+- T1078.002
+- T1133
+inferred: >-
+  Looking the account up in the firewall's LDAP configuration and in the directory's logs is the
+  toolkit's method; both researchers report the account on the VPN.
+confidence: medium
+sources:
+- title: Arctic Wolf - Smash and Grab, Aggressive Akira Campaign Targets SonicWall VPNs (26 September 2025)
+  url: https://arcticwolf.com/resources/blog/smash-and-grab-aggressive-akira-campaign-targets-sonicwall-vpns/
+  accessed: '2026-11-08'
+  quote: >-
+    Notably, in several intrusions the dedicated account used for Active Directory synchronization was
+    observed logging in via SSL VPN, despite not being intentionally configured for such access.
+  read: direct
+- title: Arctic Wolf - September 2025 Update, Ongoing Akira Ransomware Campaign
+  url: https://arcticwolf.com/resources/blog/september-2025-update-ongoing-akira-ransomware-campaign/
+  accessed: '2026-11-08'
+  quote: >-
+    Resetting LDAP synchronization accounts is especially critical, as we have observed logins against
+    these accounts despite them not being intended for VPN access.
+  read: direct
+- title: Huntress - Huntress Threat Advisory, Active Exploitation of SonicWall VPNs (August 2025)
+  url: https://www.huntress.com/blog/exploitation-of-sonicwall-vpn
+  accessed: '2026-11-08'
+  quote: >-
+    In many cases, the threat actors immediately gained administrative access by leveraging an
+    over-privileged LDAP or service account used by the SonicWall device itself (e.g., sonicwall,
+    LDAPAdmin).
+  read: direct
+- title: SonicWall - LDAP configuration, SSLVPN Default User Groups Security Risk
+  url: https://www.sonicwall.com/support/knowledge-base/ldap-configuration-sslvpn-default-user-groups-security-risk/250813061722917
+  accessed: '2026-11-08'
+  quote: Set the Default LDAP User Group to None
+  read: direct

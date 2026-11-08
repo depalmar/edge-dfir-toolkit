@@ -1,0 +1,191 @@
+# Containment and recovery - EDGE-0012 SonicWall firewalls (SonicOS)
+# Schema: ../schema/response.schema.json
+
+platform_id: EDGE-0012
+name: SonicWall firewalls (SonicOS)
+confidence: medium
+
+preserve_first:
+  - step: Export the System Logs and the Auditing Logs before changing anything
+    detail: >-
+      SonicWall's monitoring steps: MONITOR | Logs | System Logs, "Optionally,
+      export the log to CSV", then MONITOR | Logs | Auditing Logs. Save them as
+      sonicos-system-logs* and sonicos-auditing-logs* and ingest them. The box
+      keeps a limited window, and containment and password resets add to it.
+  - step: Pull the syslog server's copy for the whole suspected period
+    detail: >-
+      It is the only record of anything the actors cleared (event 5, Log
+      Cleared). Export it as sonicos-syslog*; given the box's export too, the
+      analyzer's --forwarded check can compare them.
+  - step: Export the settings and download a Tech Support Report with its options as they are
+    detail: >-
+      The .exp file "contains a full snapshot of the device's configuration,
+      including credentials and other secrets" (SonicWall), so store it like the
+      credentials themselves. Do not turn on the report's Sensitive Keys option.
+  - step: Check MySonicWall's Issue List for the firewall's serial number
+    detail: >-
+      SonicWall lists there the firewalls whose cloud backup files an
+      unauthorized party accessed; if the serial is listed, every credential in
+      the configuration has left SonicWall's hands.
+
+contain:
+  - step: Disable or restrict HTTP, HTTPS and SSH management over the WAN
+    detail: >-
+      SonicWall's Essential Credential Reset, containment first: "Disable or
+      restrict access to HTTP/HTTPS & SSH Management over the WAN." NETWORK |
+      System | Interfaces, edit each WAN interface and disable the HTTPS/SSH
+      Management options, or limit them to known addresses.
+    when: COMPROMISED, LIKELY-COMPROMISED, SUSPICIOUS
+  - step: Disable or restrict the SSL VPN, IPsec VPN and SNMP until credentials are reset
+    detail: >-
+      SonicWall: "Disabling or restricting access to the SSLVPN Service and
+      Web/SSH Management over the WAN to known addresses helps to ensure that an
+      attacker is unable to regain access to compromised user accounts after
+      forcing a password change and/or resetting TOTP bindings." NETWORK | SSL
+      VPN | Server Settings, disable the service on the WAN zone.
+    when: COMPROMISED, LIKELY-COMPROMISED, SUSPICIOUS
+  - step: Disable or restrict inbound WAN access to internal services
+    detail: >-
+      SonicWall: "Disabling or restricting inbound access from the WAN to
+      internal services can prevent any threat actor from regaining access to
+      any potentially compromised systems."
+    when: COMPROMISED, LIKELY-COMPROMISED
+  - step: Disconnect the SSL VPN sessions of accounts that logged in from the published or hosting sources
+    detail: >-
+      The toolkit's step from EDGE-HUNT-0029 and 0032: Arctic Wolf saw internal
+      scanning "within five minutes of logging in" and ransomware within hours,
+      so a live session is the most urgent thing on the box.
+    when: COMPROMISED, LIKELY-COMPROMISED
+
+credential_exposure:
+  - what: Every local user's password, administrators included
+    why: >-
+      SonicWall ties the 2025 activity to CVE-2024-40766 and to "local user
+      passwords" that "were carried over during the migration and not reset".
+    action: >-
+      SonicWall - "Reset and update passwords of all Local Users", with "User
+      must change password" set; SonicOS 6.5.5.1 and 7.3.0 can hold an account
+      until the password is changed.
+  - what: TOTP bindings
+    why: SonicWall's Essential Credential Reset marks this critical.
+    action: SonicWall - "Reset TOTP on all users"; users re-bind their authenticator app.
+  - what: The LDAP bind password and RADIUS and TACACS+ shared secrets
+    why: >-
+      Arctic Wolf and Huntress saw the directory or service account the
+      firewall uses log in to the SSL VPN (EDGE-HUNT-0030); SonicWall lists the
+      bind credential as one an attacker with administrator access may obtain.
+    action: >-
+      SonicWall - "Update the password used for binding LDAP and/or shared
+      secrets for RADIUS/TACACS+ Authentication", in the directory first.
+  - what: IPsec VPN pre-shared keys
+    why: SonicWall's Essential Credential Reset marks this critical.
+    action: SonicWall - "Update the shared secret in all IPSec site-to-site and GroupVPN policies", on the peers as well.
+  - what: Every other secret in the configuration, if the serial is on MySonicWall's Issue List
+    why: >-
+      SonicWall: "ALL SERVICES WITH CREDENTIALS THAT WERE ENABLED AT, OR
+      BEFORE, THE TIME OF BACKUP SHOULD BE REVIEWED FOR EACH SERIAL NUMBER
+      LISTED."
+    action: Work through SonicWall's Essential Credential Reset table and Remediation Playbook, service by service.
+  - what: Directory accounts that logged in through the SSL VPN during the suspected period
+    why: The SSL VPN accepted their passwords; whoever logged in has them.
+    action: Reset them in the directory and review what each did after the login.
+
+eradicate:
+  - step: Remove accounts and access nobody can account for
+    detail: >-
+      SonicWall: "Remove unused or inactive user accounts", and set the Default
+      LDAP User Group to None so a directory account gets no SSL VPN access it
+      was not given.
+    when: COMPROMISED, LIKELY-COMPROMISED, SUSPICIOUS
+  - step: Undo configuration changes nobody made
+    detail: >-
+      SonicWall: review "packet captures, logs, MFA settings, and recent
+      configuration changes for unusual activity". Compare the Auditing Logs and
+      the settings export with an earlier export.
+    when: COMPROMISED, LIKELY-COMPROMISED
+  - step: Replace Gen 6 hardware
+    detail: >-
+      SonicWall: "Gen 6 and older firewalls have reached End-of-Support (EOS),
+      after which SonicWall no longer provides technical support or firmware
+      updates."
+    when: COMPROMISED, LIKELY-COMPROMISED, SUSPICIOUS
+
+recover:
+  - step: Bring Gen 7 to 7.3.4-7013 or later and Gen 8 to 8.2.3-8015 or later
+    detail: >-
+      The fixed releases in SNWLID-2026-0014, which include CVE-2026-19868; 7.3
+      and later also enable admin and user lockout by default.
+  - step: Reintroduce services one at a time
+    detail: >-
+      Huntress: "After resets, reintroduce services one at a time and monitor
+      for reappearance of unauthorised access."
+
+verify:
+  - step: Run the SSL VPN hunts over the whole period the firewall's logs and syslog cover
+    detail: EDGE-HUNT-0029 (hosting sources), 0030 (directory account on the VPN), 0031 (scanning after login) and 0032 (many accounts from one source).
+  - step: Export the Auditing Logs again and confirm the only changes are your own
+
+do_not:
+  - action: Reset passwords or TOTP before containment is in place
+    because: >-
+      SonicWall: "It is very important that containment is done before moving
+      on to the remediation steps." An actor still on the VPN, or holding a
+      valid session, keeps it.
+  - action: Run SonicWall's Credentials Reset Tool before the logs and settings are exported
+    because: >-
+      It makes changes: "Auto-API enabling - Temporary SSH-based activation",
+      forced password resets and TOTP removal. Run it after preservation, if at
+      all.
+  - action: Import a preferences file SonicWall sent without checking it against the firewall
+    because: >-
+      SonicWall: "If the latest preferences file does not represent your
+      desired settings, please do not use the file."
+  - action: Read an empty Auditing Log as proof the configuration was not touched
+    because: >-
+      Arctic Wolf saw no "unauthorized OTP unbinding events or other malicious
+      configuration changes" before the 2025 intrusions, which used valid
+      credentials instead.
+  - action: Treat a firewall upgraded past CVE-2024-40766 as safe
+    because: >-
+      SonicWall: many 2025 incidents followed Gen 6 to Gen 7 migrations "where
+      local user passwords were carried over during the migration and not
+      reset".
+  - action: Turn on the Tech Support Report's Sensitive Keys option, or send the report to anyone but SonicWall support
+    because: It "Saves shared secrets, encryption, and authentication keys to the report".
+
+vendor_guidance:
+  - title: SonicWall - Essential Credential Reset
+    url: https://www.sonicwall.com/support/knowledge-base/essential-credential-reset/250909151701590
+    accessed: "2026-11-08"
+  - title: SonicWall - Remediation Playbook
+    url: https://www.sonicwall.com/support/knowledge-base/remediation-playbook/250916130050523
+    accessed: "2026-11-08"
+  - title: SonicWall - SNWLID-2024-0015, SonicOS improper access control (CVE-2024-40766)
+    url: https://psirt.global.sonicwall.com/vuln-detail/SNWLID-2024-0015
+    accessed: "2026-11-08"
+  - title: SonicWall - Gen 7 and newer SonicWall Firewalls, SSLVPN Recent Threat Activity
+    url: https://www.sonicwall.com/support/notices/gen-7-and-newer-sonicwall-firewalls-sslvpn-recent-threat-activity/250804095336430
+    accessed: "2026-11-08"
+  - title: SonicWall - MySonicWall Cloud Backup File Incident
+    url: https://www.sonicwall.com/support/notices/mysonicwall-cloud-backup-file-incident/kA1VN0000000RoD0AU
+    accessed: "2026-11-08"
+  - title: SonicWall - SonicWall Credentials Reset Tool (Python, for advanced users)
+    url: https://www.sonicwall.com/support/knowledge-base/kA1VN0000000YBN0A2
+    accessed: "2026-11-08"
+  - title: SonicWall - SNWLID-2026-0014, SonicOS multiple vulnerabilities (CVE-2026-19868)
+    url: https://psirt.global.sonicwall.com/vuln-detail/SNWLID-2026-0014
+    accessed: "2026-11-08"
+
+references:
+  - title: Arctic Wolf - Smash and Grab, Aggressive Akira Campaign Targets SonicWall VPNs (26 September 2025)
+    url: https://arcticwolf.com/resources/blog/smash-and-grab-aggressive-akira-campaign-targets-sonicwall-vpns/
+    accessed: "2026-11-08"
+  - title: Huntress - SonicWall SSLVPN compromise (October 2025)
+    url: https://www.huntress.com/blog/sonicwall-sslvpn-compromise
+    accessed: "2026-11-08"
+notes: >-
+  The containment and credential steps are SonicWall's Essential Credential
+  Reset, written for the MySonicWall backup incident and the SSL VPN activity;
+  its table lists many more services (SNMPv3, DDNS, wireless keys, SSO secrets,
+  DPI-SSL's re-signing CA) to rotate after the critical ones. SonicWall does not
+  publish a re-image procedure for a compromised firewall; the toolkit adds none.

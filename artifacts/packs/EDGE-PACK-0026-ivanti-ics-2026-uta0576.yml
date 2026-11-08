@@ -1,13 +1,15 @@
 # Detection pack EDGE-PACK-0026
 
 id: EDGE-PACK-0026
-name: Ivanti Connect Secure 2026 chained zero-days (CVE-2026-104935, UTA0576)
+name: Ivanti Connect Secure 2026 chained zero-days (CVE-2026-104935, CVE-2026-111357, UTA0576)
 platforms: [EDGE-0003]
-cves: [CVE-2026-104935]
+cves: [CVE-2026-104935, CVE-2026-111357]
 actors: [UTA0576]
 summary: >-
-  An authentication bypass chained with an unpatched privilege escalation.
-  Volexity: requests to the public welcome.cgi carried an X-DSCGI-PATH header
+  An authentication bypass chained with a privilege escalation that was
+  unpatched at disclosure; Volexity's update note: "On October 29, 2026, Ivanti
+  published a patch that addresses this vulnerability, which is tracked as
+  CVE-2026-111357". Volexity: requests to the public welcome.cgi carried an X-DSCGI-PATH header
   naming a non-public script, the library patch lived only in memory, and the
   Integrity Checker Tool "does not detect any modifications". The actor removed
   recent entries from debuglog and audit.log, captured traffic with a renamed

@@ -1,0 +1,157 @@
+# Indicators EDGE-IOC-0020 - parsed from Arctic Wolf's own publication, not retyped.
+# Values are live, not defanged: do not paste them into a browser. Roles and context are the publisher's.
+# Schema: ../../schema/ioc.schema.json
+
+id: EDGE-IOC-0020
+title: Fog and Akira intrusions through SonicWall SSL VPN, August to October 2024
+publisher: Arctic Wolf Labs
+published: '2024-10-24'
+page_url: https://arcticwolf.com/resources/blog/arctic-wolf-labs-observes-increased-fog-and-akira-ransomware-activity-linked-to-sonicwall-ssl-vpn/
+file_format: html-table
+license: publisher's terms
+accessed: '2026-11-08'
+actors:
+- EDGE-TA-0009
+implants: []
+cves:
+- CVE-2024-40766
+platforms:
+- EDGE-0012
+staleness: >-
+  From 30 intrusions between early August and mid-October 2024; Akira was deployed in about 75% and Fog in the rest,
+  and the table does not say which address belongs to which. Arctic Wolf: "we do not have definitive evidence of
+  this vulnerability being exploited in the intrusions we investigated", so the CVE is listed because the devices
+  ran affected firmware, not because the addresses exploited it. The addresses are VPN logins, remote-access and
+  exfiltration endpoints, most from hosting providers; the hashes are of legitimate tools the actors brought (scanners,
+  archivers, file transfer, remote access), so a match shows the tool, not the actor. Not here: file names, the
+  two host names, the nine ASNs Arctic Wolf lists "Used for SSL VPN login" (EDGE-HUNT-0029 uses them), and three
+  SHA-1 values one character short in the published table (WinRAR, OpenSSH, AV/EDR killer).
+indicators:
+- type: ipv4
+  value: 77.247.126.158
+  role: unknown
+  context: 'Arctic Wolf: TA connection to VPN'
+- type: ipv4
+  value: 208.115.232.194
+  role: unknown
+  context: 'Arctic Wolf: TA connection to VPN'
+- type: ipv4
+  value: 184.107.5.46
+  role: unknown
+  context: 'Arctic Wolf: TA connection to VPN'
+- type: ipv4
+  value: 66.181.33.32
+  role: unknown
+  context: 'Arctic Wolf: TA connection to VPN'
+- type: ipv4
+  value: 185.235.137.150
+  role: unknown
+  context: 'Arctic Wolf: TA connection to VPN'
+- type: ipv4
+  value: 45.11.59.16
+  role: unknown
+  context: 'Arctic Wolf: TA connection to VPN'
+- type: ipv4
+  value: 79.141.173.238
+  role: unknown
+  context: 'Arctic Wolf: AnyDesk connection IP'
+- type: ipv4
+  value: 57.128.101.78
+  role: unknown
+  context: 'Arctic Wolf: AnyDesk C2 IP'
+- type: ipv4
+  value: 194.33.45.167
+  role: unknown
+  context: 'Arctic Wolf: Exfiltration IP'
+- type: ipv4
+  value: 23.227.162.18
+  role: unknown
+  context: 'Arctic Wolf: Exfiltration IP'
+- type: ipv4
+  value: 45.86.208.146
+  role: unknown
+  context: 'Arctic Wolf: FileZilla Exfiltration IP'
+- type: sha1
+  value: 3477a173e2c1005a81d042802ab0f22cc12a4d55
+  role: unknown
+  context: 'Arctic Wolf: Advanced Port Scanner'
+- type: sha1
+  value: 86233a285363c2a6863bf642deab7e20f062b8eb
+  role: unknown
+  context: 'Arctic Wolf: Advanced IP Scanner'
+- type: sha1
+  value: ce4758849b53af582d2d8a1bc0db20683e139fcc
+  role: unknown
+  context: 'Arctic Wolf: Advanced IP Scanner'
+- type: sha1
+  value: 67396e1aacacb6efbca51f4c03d2017af78c9842
+  role: unknown
+  context: 'Arctic Wolf: Angry IP Scanner'
+- type: sha1
+  value: 806a232379ad0af437d4bc5b87fb42065dbf82d4
+  role: unknown
+  context: 'Arctic Wolf: SoftPerfect Network Scanner'
+- type: sha1
+  value: e6b34a589e61b155ab70f11f8f7393316c9a3189
+  role: unknown
+  context: 'Arctic Wolf: SoftPerfect Network Scanner'
+- type: sha1
+  value: 1d345799307c9436698245e7383914b3a187f1ec
+  role: unknown
+  context: 'Arctic Wolf: Rclone'
+- type: sha1
+  value: ce8de59e2277e9003f3a9c96260ce099ca7cda6c
+  role: unknown
+  context: 'Arctic Wolf: WinRAR'
+- type: sha1
+  value: 15035d9f218a4629a8449829eba85b40806f4f59
+  role: unknown
+  context: 'Arctic Wolf: WinRAR'
+- type: sha1
+  value: c26cfb9f9910fe585630940a777022702257548d
+  role: unknown
+  context: 'Arctic Wolf: WinRAR'
+- type: sha1
+  value: 8ea2bf726044e98479076d0e64327f7ae7a6e5f2
+  role: unknown
+  context: 'Arctic Wolf: FileZilla'
+- type: sha1
+  value: 99ed6135defff6e675d626f742389d6280abdb60
+  role: unknown
+  context: 'Arctic Wolf: FileZilla'
+- type: sha1
+  value: c1f271e5ced7a5badf62042ab882584e45aeab37
+  role: unknown
+  context: 'Arctic Wolf: WinSCP'
+- type: sha1
+  value: 8e81daa8c88a1e40c60332917c4ad5fa57acbb23
+  role: unknown
+  context: 'Arctic Wolf: PuTTY'
+- type: sha1
+  value: f5ca50ee8bc9d01760c7d0d4fc0c814cbbf26bc9
+  role: unknown
+  context: 'Arctic Wolf: MobaXterm – SSH tool'
+- type: sha1
+  value: 03f193a9385cf8fe2429e14aab4862b1627ff9d5
+  role: unknown
+  context: 'Arctic Wolf: MobaXterm – SSH tool'
+- type: sha1
+  value: 57aed4cf2972b51e0a7d37e9ca0c4b1b6985e1f1
+  role: unknown
+  context: 'Arctic Wolf: MobaXterm – SSH tool'
+- type: sha1
+  value: 2aab7f60262db7589d83fd7d13c968a6b93f75b9
+  role: unknown
+  context: 'Arctic Wolf: MobaXterm – SSH tool'
+- type: sha1
+  value: e7fb4bf69be5ac4583c0c02e26a17bd3cdef4c02
+  role: unknown
+  context: 'Arctic Wolf: AnyDesk'
+- type: sha1
+  value: 6ae600ccff0741ce420bbd372c931b951094121f
+  role: unknown
+  context: 'Arctic Wolf: AnyDesk'
+- type: sha1
+  value: c144446dc23c86c7c9b26ce87c3176866372f6d1
+  role: unknown
+  context: 'Arctic Wolf: AnyDesk'

@@ -630,6 +630,54 @@ def sma1000(root: Path, malicious: bool) -> None:
                        if k.startswith("var/log/aventail/") or "/" + k in present})
 
 
+# ----------------------------------------------------------------- SonicWall SonicOS
+def sonicos_exports(path: Path, compromised: bool) -> None:
+    """The console exports and the syslog copy the guide's SonicOS note names, ingested as one
+    archive. Syslog lines take the shape of Arctic Wolf's published lines (m= event id, msg=
+    message); the CSV takes the columns of the System Logs page in SonicWall's Log Events
+    reference, whose export layout is not published. Messages are the reference's own text;
+    addresses are documentation ranges and the account names placeholders."""
+    def sys_line(n: int, ts: str, m: int, msg: str, extra: str = "") -> str:
+        return (f'id=firewall sn=FIXTURE0001 time="{ts}" fw=192.0.2.1 pri=6 c=0 m={m} msg="{msg}"'
+                f'{" " + extra if extra else ""} n={n} fw_action="NA"')
+    syslog = [
+        sys_line(1, "2025-08-04 01:58:10", 1080, "SSL VPN zone remote user login allowed",
+                 'sess="sslvpnc" usr="fixture-user" src=198.51.100.23::X1 dst=192.0.2.1::X1'),
+        sys_line(2, "2025-08-04 01:58:11", 1153, "User fixture-user: otp login"),
+        sys_line(3, "2025-08-04 01:58:12", 1079, "Client fixture-user is assigned IP:192.0.2.50", 'sess="sslvpnc"'),
+        sys_line(4, "2025-08-04 02:00:00", 29, "Administrator login allowed", 'usr="admin" src=192.0.2.10::X0'),
+        sys_line(5, "2025-08-04 02:00:05", 235, "VPN zone administrator login allowed", 'usr="admin" src=192.0.2.50::X1'),
+        sys_line(6, "2025-08-04 02:01:00", 1382, "Configuration succeeded: Log > Settings"),
+    ]
+    rows = ['"#","TIME","ID","CATEGORY","PRIORITY","MESSAGE","SOURCE","DESTINATION","IP PROTOCOL","NOTES"',
+            '"1","08/04/2025 01:58:10","1080","Users","Inform","SSL VPN zone remote user login allowed",'
+            '"198.51.100.23, 51022, X1","192.0.2.1, 4433, X1","tcp",""',
+            '"2","08/04/2025 02:00:00","29","Users","Inform","Administrator login allowed","192.0.2.10, 50110, X0",'
+            '"192.0.2.1, 443, X0","tcp",""']
+    if compromised:
+        syslog += [
+            sys_line(7, "2025-08-04 02:13:35", 1080, "SSL VPN zone remote user login allowed",
+                     'sess="sslvpnc" usr="fixture-svc" src=203.0.113.7::X1 dst=192.0.2.1::X1'),
+            sys_line(8, "2025-08-04 02:14:02", 1153, "User fixture-svc: Reuse SSLVPN session for the 2 time(s)"),
+            sys_line(9, "2025-08-04 02:20:41", 236, "WAN zone administrator login allowed",
+                     'usr="admin" src=203.0.113.7::X1'),
+            sys_line(10, "2025-08-04 02:31:09", 5, "Log Cleared", 'usr="admin"'),
+        ]
+        rows += ['"3","08/04/2025 02:20:41","236","Users","Inform","WAN zone administrator login allowed",'
+                 '"203.0.113.7, 50555, X1","192.0.2.1, 443, X1","tcp",""',
+                 '"4","08/04/2025 02:31:09","5","Log","Inform","Log Cleared","","","",""']
+    members = {
+        "sonicos-syslog.log": ("\n".join(syslog) + "\n").encode(),
+        "sonicos-system-logs.csv": ("\n".join(rows) + "\n").encode(),
+        "sonicos-auditing-logs.csv": b'"#","TIME","USER","MESSAGE"\n"1","08/04/2025 02:01:00","admin","fixture-only"\n',
+    }
+    with tarfile.open(path, "w:gz") as tf:
+        for name, raw in members.items():
+            info = tarfile.TarInfo(name)
+            info.size = len(raw)
+            tf.addfile(info, io.BytesIO(raw))
+
+
 def main(out: Path) -> None:
     out.mkdir(parents=True, exist_ok=True)
     ivanti_image(out / "ivanti-image-spawn.tgz", True)
@@ -669,6 +717,8 @@ def main(out: Path) -> None:
     sma1000_files(out / "sma1000-files-benign.tgz", False)
     sma1000(out / "sma1000-compromised", True)
     sma1000(out / "sma1000-benign", False)
+    sonicos_exports(out / "sonicos-exports-akira.tgz", True)
+    sonicos_exports(out / "sonicos-exports-benign.tgz", False)
 
 
 if __name__ == "__main__":

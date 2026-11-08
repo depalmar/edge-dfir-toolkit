@@ -1,0 +1,27 @@
+title: SonicWall SonicOS Event Log Cleared (Event 5)
+id: 3a7a19aa-52af-491e-9b5d-00d7ca92f093
+status: experimental
+description: |
+  SonicOS writes event 5, "Log Cleared", after its event log is emptied. Arctic
+  Wolf on the 2024 Akira and Fog intrusions through SonicWall SSL VPN: "Threat
+  actors commonly sought to delete firewall logs upon gaining access to
+  compromised environments." The syslog server's copy is then the only record of
+  what the firewall logged before the clear.
+references:
+  - https://assets-cms.sonicwall.com/technical-documentation/pdf/SonicOS-X_7.0.1_LogEvents_ReferenceGuide/SonicOS-X_7.0.1_LogEvents_ReferenceGuide.pdf
+  - https://arcticwolf.com/resources/blog/arctic-wolf-labs-observes-increased-fog-and-akira-ransomware-activity-linked-to-sonicwall-ssl-vpn/
+author: Raymond DePalma (edge-dfir-toolkit)
+date: 2026-11-08
+tags:
+  - attack.defense_evasion
+  - attack.t1070
+logsource:
+  product: sonicwall
+  service: sonicos
+detection:
+  selection:
+    Message|re: '(\bm=5\b.*msg="Log Cleared"|msg="Log Cleared".*\bm=5\b)'
+  condition: selection
+falsepositives:
+  - An administrator clearing the log. Ask who did it and why; the event before it names the session.
+level: high

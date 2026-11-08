@@ -1,0 +1,64 @@
+# Off-box hunt EDGE-HUNT-0029
+# Schema: ../schema/hunt.schema.json
+
+id: EDGE-HUNT-0029
+title: SonicWall SSL VPN logins from hosting-provider and VPS address space
+platforms:
+- EDGE-0012
+actors:
+- EDGE-TA-0009
+seen_in:
+- Akira and Fog (Arctic Wolf, 2024)
+- Akira (Arctic Wolf and Huntress, 2025)
+cves:
+- CVE-2024-40766
+hypothesis: >-
+  An actor holding valid SSL VPN credentials is logging in from rented servers, which the firewall's
+  own users have no reason to do.
+data:
+- syslog
+data_detail: >-
+  The firewall's syslog copy (or System Logs export) for events 1080 and 238, which carry the user and
+  the source address; an IP-to-ASN lookup for each source.
+method:
+- >-
+  List every successful SSL VPN login (event 1080 "SSL VPN zone remote user login allowed" or 238 "WAN
+  zone remote user login allowed") with its user, source address and time.
+- >-
+  Resolve each source address to its ASN and owner, and mark the ones that belong to hosting, VPS or
+  data-centre providers rather than broadband, mobile or the organisation's own SD-WAN and SASE
+  providers.
+- >-
+  Compare the marked sources with the ASNs and addresses the publishers list: Arctic Wolf's 2024 ASNs
+  "Used for SSL VPN login" and 2025 table, Huntress's ASN/CIDR rows, and EDGE-IOC-0019 to 0023.
+normal: >-
+  Arctic Wolf: legitimate logins "typically originate from broadband, SD-WAN, or SASE service
+  providers".
+suspicious: >-
+  A login from a hosting or VPS provider, above all one the publishers list; several accounts logging in
+  from the same such address.
+attack:
+- T1133
+- T1078
+inferred: >-
+  Marking ASNs as hosting or broadband is the toolkit's step; Arctic Wolf names the contrast and its
+  2025 advice is to block VPN authentication from hosting-related ASNs.
+confidence: medium
+sources:
+- title: Arctic Wolf - Smash and Grab, Aggressive Akira Campaign Targets SonicWall VPNs (26 September 2025)
+  url: https://arcticwolf.com/resources/blog/smash-and-grab-aggressive-akira-campaign-targets-sonicwall-vpns/
+  accessed: '2026-11-08'
+  quote: >-
+    While legitimate logins typically originate from broadband, SD-WAN, or SASE service providers, logins
+    from VPS infrastructure are far less likely to be benign.
+  read: direct
+- title: Arctic Wolf - Arctic Wolf Labs Observes Increased Fog and Akira Ransomware Activity Linked to SonicWall SSL VPN (24 October 2024)
+  url: https://arcticwolf.com/resources/blog/arctic-wolf-labs-observes-increased-fog-and-akira-ransomware-activity-linked-to-sonicwall-ssl-vpn/
+  accessed: '2026-11-08'
+  quote: In almost all intrusions, connections to the VPNs originated from hosting-related ASNs.
+  read: direct
+- title: Huntress - Huntress Threat Advisory, Active Exploitation of SonicWall VPNs (August 2025)
+  url: https://www.huntress.com/blog/exploitation-of-sonicwall-vpn
+  accessed: '2026-11-08'
+  quote: ASN/CIDR hosting adversary infrastructure.
+  read: direct

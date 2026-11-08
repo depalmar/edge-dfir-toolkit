@@ -1,0 +1,69 @@
+# Indicators EDGE-IOC-0019 - parsed from SonicWall's own advisory (SNWLID-2024-0015, the PSIRT API's copy), not retyped.
+# Values are live, not defanged: do not paste them into a browser. Roles and context are the publisher's.
+# Schema: ../../schema/ioc.schema.json
+
+id: EDGE-IOC-0019
+title: SonicOS improper access control - CVE-2024-40766 (SonicWall's possible IoCs)
+publisher: SonicWall PSIRT
+published: '2024-11-04'
+page_url: https://psirt.global.sonicwall.com/vuln-detail/SNWLID-2024-0015
+file_format: html-text
+license: publisher's terms
+accessed: '2026-11-08'
+actors: []
+implants: []
+cves:
+- CVE-2024-40766
+platforms:
+- EDGE-0012
+staleness: >-
+  SonicWall added the list in revision 1.9 (4 November 2024), added addresses on 5 and 11 November, and in revision
+  1.15 (20 November 2024) removed two it had added on 11 and 14 November; those two are not here. It calls the list
+  "possible IoC" and names no actor, so the role is suspected. Parsed from the PSIRT API's copy of the advisory
+  (https://psirtapi.global.sonicwall.com/api/v1/vulndetail/?advisory_id=SNWLID-2024-0015), which returns different
+  bytes on each request, so there is no upstream hash to watch. Rented addresses change hands; check current ownership
+  before blocking. SonicWall's own advice is Botnet Filtering, because "threat actor IP addresses are automatically
+  added to the list".
+indicators:
+- type: ipv4
+  value: 88.119.175.104
+  role: suspected
+  context: >-
+    SonicWall SNWLID-2024-0015: "The following is possible IoC" (its revision history calls them "threat actor IP
+    addresses")
+- type: ipv4
+  value: 45.149.172.51
+  role: suspected
+  context: >-
+    SonicWall SNWLID-2024-0015: "The following is possible IoC" (its revision history calls them "threat actor IP
+    addresses")
+- type: ipv4
+  value: 172.86.116.8
+  role: suspected
+  context: >-
+    SonicWall SNWLID-2024-0015: "The following is possible IoC" (its revision history calls them "threat actor IP
+    addresses")
+- type: ipv4
+  value: 216.146.25.208
+  role: suspected
+  context: >-
+    SonicWall SNWLID-2024-0015: "The following is possible IoC" (its revision history calls them "threat actor IP
+    addresses")
+- type: ipv4
+  value: 194.48.154.67
+  role: suspected
+  context: >-
+    SonicWall SNWLID-2024-0015: "The following is possible IoC" (its revision history calls them "threat actor IP
+    addresses")
+- type: ipv4
+  value: 162.120.71.224
+  role: suspected
+  context: >-
+    SonicWall SNWLID-2024-0015: "The following is possible IoC" (its revision history calls them "threat actor IP
+    addresses")
+- type: ipv4
+  value: 45.61.157.15
+  role: suspected
+  context: >-
+    SonicWall SNWLID-2024-0015: "The following is possible IoC" (its revision history calls them "threat actor IP
+    addresses")

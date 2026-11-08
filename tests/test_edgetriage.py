@@ -1054,6 +1054,69 @@ def test_sma1000_patterns_take_the_published_shapes():
     assert not p.search('"GET /wsproxy?xhost=0.0.0.0&port=1050 HTTP/1.1" 101 ')
 
 
+SONICOS_FIRES = {   # detection -> hits in the compromised exports (syslog copy + System Logs CSV)
+    "sonicos-event-log-cleared": 2, "sonicos-wan-zone-admin-login": 2, "sonicos-53704-sslvpn-session-reuse": 1,
+}
+
+
+def _sonicos_case(tmp: Path, name: str, src: Path) -> dict:
+    case = Case(tmp / name)
+    m = Case.new_manifest(case.root.name, "tester", "EDGE-0012", None)
+    m["expected_evidence"] = []
+    m["ingested"].append(case.ingest(src, "exports"))
+    case.save(m)
+    return analyze(case.root)
+
+
+def test_sonicos_published_messages_fire_and_ordinary_lines_do_not(fx, tmp_path):
+    """Log Cleared, a WAN-zone administrator login and SonicWall's CVE-2024-53704 message fire in
+    the syslog copy and the console export alike. An OTP login, LAN- and VPN-zone administrator
+    logins and a log-settings change do not. Two possible hits in different evidence classes
+    (system-logs, auth-logs) are LIKELY-COMPROMISED, never COMPROMISED."""
+    bad = _sonicos_case(tmp_path, "IR-SONICOS-BAD", fx / "sonicos-exports-akira.tgz")
+    for did, n in SONICOS_FIRES.items():
+        assert det(bad, did)["hit_count"] == n, did
+    assert bad["verdict"]["level"] == "LIKELY-COMPROMISED"
+    good = _sonicos_case(tmp_path, "IR-SONICOS-GOOD", fx / "sonicos-exports-benign.tgz")
+    for did in SONICOS_FIRES:
+        assert det(good, did)["status"] == "no-hit", did
+    assert good["verdict"]["level"] == "NO-INDICATORS-FOUND"
+
+
+def test_sonicos_checks_say_not_evaluated_without_the_logs(tmp_path):
+    """An Auditing Logs export alone gives the log checks nothing to read: not evaluated, never a pass."""
+    src = tmp_path / "sonicos-auditing-logs.csv"
+    src.write_text('"#","TIME","USER","MESSAGE"\n"1","08/04/2025 02:01:00","admin","fixture-only"\n')
+    out = _sonicos_case(tmp_path, "IR-SONICOS-AUDIT", src)
+    for did in SONICOS_FIRES:
+        assert det(out, did)["status"] == "not-evaluated", did
+    assert out["verdict"]["level"] == "NO-INDICATORS-FOUND"
+
+
+def test_sonicos_sigma_rules_match_what_the_packs_match():
+    """Each SonicOS detection links its Sigma rule, and both match SonicWall's own message text in
+    the syslog shape Arctic Wolf published; the Log Clear rule also needs event id 5."""
+    import re
+    import yaml
+    line = 'id=firewall sn=X time="2025-08-04 02:31:09" fw=192.0.2.1 pri=6 c=0 m={m} msg="{msg}" n=10'
+    cases = [("EDGE-PACK-0038-sonicos-sslvpn-akira.yml", "sonicos-event-log-cleared", 5, "Log Cleared"),
+             ("EDGE-PACK-0038-sonicos-sslvpn-akira.yml", "sonicos-wan-zone-admin-login", 236,
+              "WAN zone administrator login allowed"),
+             ("EDGE-PACK-0039-sonicos-cve-2024-53704.yml", "sonicos-53704-sslvpn-session-reuse", 1153,
+              "User fixture-svc: Reuse SSLVPN session for the 2 time(s)")]
+    for pack_file, did, m, msg in cases:
+        d = {x["id"]: x for x in yaml.safe_load((ROOT / "artifacts/packs" / pack_file).read_text())["detect"]}[did]
+        sig = yaml.safe_load((ROOT / d["sigma"][0]).read_text())["detection"]["selection"]
+        text = line.format(m=m, msg=msg)
+        assert re.search(d["pattern"], text), did
+        if "Message|re" in sig:
+            assert re.search(sig["Message|re"], text), did
+            assert not re.search(sig["Message|re"], line.format(m=1382, msg="Log Cleared")), did
+        else:
+            assert sig["Message|contains"] in text, did
+    assert not re.search("WAN zone administrator login allowed", line.format(m=235, msg="VPN zone administrator login allowed"))
+
+
 def test_netscaler_pitboss_pattern_takes_both_published_forms():
     """Unit 42 prints no space before NSPPE; Rapid7 prints one. Payloads here are inert."""
     import re

@@ -1,0 +1,32 @@
+title: SonicWall SonicOS Administrator Login From the WAN Zone (Event 236)
+id: 4a51ea52-057a-43fe-8de9-1f9065a3cc0a
+status: experimental
+description: |
+  Event 236, "WAN zone administrator login allowed": someone logged in to manage
+  the firewall from the internet side. SonicWall's workaround for CVE-2024-40766
+  is "restricting firewall management to trusted sources or disabling firewall
+  WAN management from Internet access", and its 2025 notice warns that with a
+  compromised administrator account "attackers may exploit administrative
+  features such as packet capture, debugging, logging, configuration backup, or
+  MFA control".
+references:
+  - https://psirt.global.sonicwall.com/vuln-detail/SNWLID-2024-0015
+  - https://www.sonicwall.com/support/notices/gen-7-and-newer-sonicwall-firewalls-sslvpn-recent-threat-activity/250804095336430
+  - https://assets-cms.sonicwall.com/technical-documentation/pdf/SonicOS-X_7.0.1_LogEvents_ReferenceGuide/SonicOS-X_7.0.1_LogEvents_ReferenceGuide.pdf
+author: Raymond DePalma (edge-dfir-toolkit)
+date: 2026-11-08
+tags:
+  - attack.initial_access
+  - attack.t1133
+  - attack.t1078
+  - cve.2024-40766
+logsource:
+  product: sonicwall
+  service: sonicos
+detection:
+  selection:
+    Message|contains: 'WAN zone administrator login allowed'
+  condition: selection
+falsepositives:
+  - Administrators who manage the firewall over the internet from their own addresses. SonicWall's own guidance is to stop doing so.
+level: medium

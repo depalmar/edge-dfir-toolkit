@@ -1,0 +1,211 @@
+# Indicators EDGE-IOC-0021 - parsed from Arctic Wolf's own publication, not retyped.
+# Values are live, not defanged: do not paste them into a browser. Roles and context are the publisher's.
+# Schema: ../../schema/ioc.schema.json
+
+id: EDGE-IOC-0021
+title: Akira through SonicWall SSL VPN, July to September 2025 (Smash and Grab)
+publisher: Arctic Wolf Labs
+published: '2025-09-26'
+page_url: https://arcticwolf.com/resources/blog/smash-and-grab-aggressive-akira-campaign-targets-sonicwall-vpns/
+file_format: html-table
+license: publisher's terms
+accessed: '2026-11-08'
+actors:
+- EDGE-TA-0009
+implants: []
+cves:
+- CVE-2024-40766
+platforms:
+- EDGE-0012
+staleness: >-
+  From a campaign Arctic Wolf dates from 21 July 2025 and still active at publication. Forty addresses are VPN client
+  addresses, each with the ASN Arctic Wolf gives for it; one is command and control and two are exfiltration endpoints.
+  Arctic Wolf's advice is to block VPN authentication from hosting-related ASNs, so the ASN in each context matters
+  more than the address. The driver hashes are BYOVD drivers Arctic Wolf lists without saying who wrote them. Its
+  July and September 2025 update posts publish the same addresses; the only difference is one row with a broken
+  bracket. The nine actor workstation host names are not here (no indicator type).
+indicators:
+- type: ipv4
+  value: 155.117.117.34
+  role: unknown
+  context: 'Arctic Wolf: VPN Client IP; AS215703 – ALEXANDRU VLAD trading as FREAKHOSTING'
+- type: ipv4
+  value: 45.66.249.93
+  role: unknown
+  context: 'Arctic Wolf: VPN Client IP; AS62005 – Bluevps Ou'
+- type: ipv4
+  value: 193.239.236.149
+  role: unknown
+  context: 'Arctic Wolf: VPN Client IP; AS62240 – Clouvider Limited'
+- type: ipv4
+  value: 193.163.194.7
+  role: unknown
+  context: 'Arctic Wolf: VPN Client IP; AS62240 – Clouvider Limited'
+- type: ipv4
+  value: 194.33.45.194
+  role: unknown
+  context: 'Arctic Wolf: VPN Client IP; AS62240 – Clouvider Limited'
+- type: ipv4
+  value: 31.222.247.64
+  role: unknown
+  context: 'Arctic Wolf: VPN Client IP; AS62240 – Clouvider Limited'
+- type: ipv4
+  value: 62.76.147.106
+  role: unknown
+  context: 'Arctic Wolf: VPN Client IP; AS62240 – Clouvider Limited'
+- type: ipv4
+  value: 77.247.126.239
+  role: unknown
+  context: 'Arctic Wolf: VPN Client IP; AS62240 – Clouvider Limited'
+- type: ipv4
+  value: 83.229.17.123
+  role: unknown
+  context: 'Arctic Wolf: VPN Client IP; AS62240 – Clouvider Limited'
+- type: ipv4
+  value: 83.229.17.135
+  role: unknown
+  context: 'Arctic Wolf: VPN Client IP; AS62240 – Clouvider Limited'
+- type: ipv4
+  value: 83.229.17.148
+  role: unknown
+  context: 'Arctic Wolf: VPN Client IP; AS62240 – Clouvider Limited'
+- type: ipv4
+  value: 45.55.76.210
+  role: unknown
+  context: 'Arctic Wolf: VPN Client IP; AS14061 – Digitalocean Llc'
+- type: ipv4
+  value: 38.114.123.167
+  role: unknown
+  context: 'Arctic Wolf: VPN Client IP; AS63023 – Gthost'
+- type: ipv4
+  value: 38.114.123.229
+  role: unknown
+  context: 'Arctic Wolf: VPN Client IP; AS63023 – Gthost'
+- type: ipv4
+  value: 107.155.93.154
+  role: unknown
+  context: 'Arctic Wolf: VPN Client IP; AS29802 – Hivelocity Inc.'
+- type: ipv4
+  value: 144.168.41.74
+  role: unknown
+  context: 'Arctic Wolf: VPN Client IP; AS29802 – Hivelocity Inc.'
+- type: ipv4
+  value: 91.191.214.170
+  role: unknown
+  context: 'Arctic Wolf: VPN Client IP; AS29802 – Hivelocity Inc.'
+- type: ipv4
+  value: 193.29.63.226
+  role: unknown
+  context: 'Arctic Wolf: VPN Client IP; AS63473 – Hosthatch Llc'
+- type: ipv4
+  value: 23.94.54.125
+  role: unknown
+  context: 'Arctic Wolf: VPN Client IP; AS36352 – Hostpapa'
+- type: ipv4
+  value: 185.33.86.2
+  role: unknown
+  context: 'Arctic Wolf: VPN Client IP; AS202015 – Hz Hosting Ltd'
+- type: ipv4
+  value: 79.141.160.33
+  role: unknown
+  context: 'Arctic Wolf: VPN Client IP; AS202015 – Hz Hosting Ltd'
+- type: ipv4
+  value: 79.141.173.235
+  role: unknown
+  context: 'Arctic Wolf: VPN Client IP; AS202015 – Hz Hosting Ltd'
+- type: ipv4
+  value: 185.181.230.108
+  role: unknown
+  context: 'Arctic Wolf: VPN Client IP; AS60602 – Inovare-Prim Srl'
+- type: ipv4
+  value: 207.188.6.17
+  role: unknown
+  context: 'Arctic Wolf: VPN Client IP; AS396356 – Latitude.Sh'
+- type: ipv4
+  value: 107.175.102.58
+  role: unknown
+  context: 'Arctic Wolf: VPN Client IP; AS131199 – Nexeon Technologies Inc.'
+- type: ipv4
+  value: 185.174.100.199
+  role: unknown
+  context: 'Arctic Wolf: VPN Client IP; AS8100 – Quadranet Enterprises Llc'
+- type: ipv4
+  value: 45.56.163.58
+  role: unknown
+  context: 'Arctic Wolf: VPN Client IP; AS8100 – Quadranet Enterprises Llc'
+- type: ipv4
+  value: 104.194.11.34
+  role: unknown
+  context: 'Arctic Wolf: VPN Client IP; AS23470 – Reliablesite.Net Llc'
+- type: ipv4
+  value: 104.194.8.58
+  role: unknown
+  context: 'Arctic Wolf: VPN Client IP; AS23470 – Reliablesite.Net Llc'
+- type: ipv4
+  value: 104.238.205.105
+  role: unknown
+  context: 'Arctic Wolf: VPN Client IP; AS23470 – Reliablesite.Net Llc'
+- type: ipv4
+  value: 172.86.96.42
+  role: unknown
+  context: 'Arctic Wolf: VPN Client IP; AS14956 – Routerhosting Llc'
+- type: ipv4
+  value: 144.172.110.103
+  role: unknown
+  context: 'Arctic Wolf: VPN Client IP; AS14956 – RouterHosting LLC'
+- type: ipv4
+  value: 144.172.110.37
+  role: unknown
+  context: 'Arctic Wolf: VPN Client IP; AS14956 – RouterHosting LLC'
+- type: ipv4
+  value: 144.172.110.49
+  role: unknown
+  context: 'Arctic Wolf: VPN Client IP; AS14956 – RouterHosting LLC'
+- type: ipv4
+  value: 185.168.208.102
+  role: unknown
+  context: 'Arctic Wolf: VPN Client IP; AS21249 – GLOBAL CONNECTIVITY SOLUTIONS LLP'
+- type: ipv4
+  value: 172.96.10.212
+  role: unknown
+  context: 'Arctic Wolf: VPN Client IP; AS64236 – Unreal Servers Llc'
+- type: ipv4
+  value: 107.158.128.106
+  role: unknown
+  context: 'Arctic Wolf: VPN Client IP; AS62904 – Eonix Corporation'
+- type: ipv4
+  value: 131.226.2.47
+  role: unknown
+  context: 'Arctic Wolf: VPN Client IP; AS40676 – Psychz Networks'
+- type: ipv4
+  value: 193.242.184.58
+  role: unknown
+  context: 'Arctic Wolf: VPN Client IP; AS215381 – ROCKHOSTER PRIVATE LIMITED'
+- type: ipv4
+  value: 95.164.145.158
+  role: unknown
+  context: 'Arctic Wolf: VPN Client IP; AS394814 – ISP4Life INC'
+- type: ipv4
+  value: 170.130.165.42
+  role: unknown
+  context: 'Arctic Wolf: Command and Control; AS62904 – Eonix Corporation'
+- type: ipv4
+  value: 162.210.196.101
+  role: unknown
+  context: 'Arctic Wolf: Exfiltration; AS30633 – Leaseweb Usa Inc.'
+- type: ipv4
+  value: 206.168.190.143
+  role: unknown
+  context: 'Arctic Wolf: Exfiltration; AS14315 – 1gservers Llc'
+- type: sha256
+  value: 16f83f056177c4ec24c7e99d01ca9d9d6713bd0497eeedb777a3ffefa99c97f0
+  role: unknown
+  context: 'Arctic Wolf: BYOVD: · rwdrv.sys · churchill_driver.sys'
+- type: sha1
+  value: 385c235f9f52c68ec4adc7ee07de26b84b108116
+  role: unknown
+  context: 'Arctic Wolf: check_hvci_admin.bat'
+- type: sha256
+  value: bd1f381e5a3db22e88776b7873d4d2835e9a1ec620571d2b1da0c58f81c84a56
+  role: unknown
+  context: 'Arctic Wolf: hlpdrv.sys'

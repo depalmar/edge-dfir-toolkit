@@ -1,0 +1,82 @@
+# Detection pack EDGE-PACK-0038
+
+id: EDGE-PACK-0038
+name: SonicOS SSL VPN account abuse, Akira and Fog (CVE-2024-40766), 2024-2025
+platforms: [EDGE-0012]
+cves: [CVE-2024-40766]
+actors: [EDGE-TA-0009]
+summary: >-
+  From August 2024 and again from 21 July 2025, Akira and Fog intrusions began
+  with SSL VPN logins to SonicWall firewalls using valid credentials, mostly from
+  hosting-provider addresses. SonicWall marked CVE-2024-40766 "potentially being
+  exploited in the wild" and later wrote it had "high confidence" the 2025
+  activity was "not connected to a zero-day vulnerability" but correlated with
+  that CVE and with local passwords carried over from Gen 6 migrations and never
+  reset. Arctic Wolf found no definitive evidence of the CVE in the 2024
+  intrusions it investigated, and AA24-109A says Akira "likely" abused it. The
+  logins themselves look like any other, so whether one was malicious is a hunt
+  against where it came from (EDGE-HUNT-0029 to 0031). On the box, the toolkit
+  checks the two things that should not happen on a hardened firewall: the
+  event log cleared, and an administrator login from the WAN zone.
+confidence: medium
+references:
+  - title: SonicWall - SNWLID-2024-0015, SonicOS improper access control (CVE-2024-40766)
+    url: https://psirt.global.sonicwall.com/vuln-detail/SNWLID-2024-0015
+    accessed: "2026-11-08"
+  - title: SonicWall - Gen 7 and newer SonicWall Firewalls, SSLVPN Recent Threat Activity
+    url: https://www.sonicwall.com/support/notices/gen-7-and-newer-sonicwall-firewalls-sslvpn-recent-threat-activity/250804095336430
+    accessed: "2026-11-08"
+  - title: SonicWall - SonicOS/X 7.0.1 Log Events Reference Guide
+    url: https://assets-cms.sonicwall.com/technical-documentation/pdf/SonicOS-X_7.0.1_LogEvents_ReferenceGuide/SonicOS-X_7.0.1_LogEvents_ReferenceGuide.pdf
+    accessed: "2026-11-08"
+  - title: Arctic Wolf - Arctic Wolf Labs Observes Increased Fog and Akira Ransomware Activity Linked to SonicWall SSL VPN (24 October 2024)
+    url: https://arcticwolf.com/resources/blog/arctic-wolf-labs-observes-increased-fog-and-akira-ransomware-activity-linked-to-sonicwall-ssl-vpn/
+    accessed: "2026-11-08"
+  - title: Arctic Wolf - Smash and Grab, Aggressive Akira Campaign Targets SonicWall VPNs (26 September 2025)
+    url: https://arcticwolf.com/resources/blog/smash-and-grab-aggressive-akira-campaign-targets-sonicwall-vpns/
+    accessed: "2026-11-08"
+  - title: Huntress - Huntress Threat Advisory, Active Exploitation of SonicWall VPNs (August 2025)
+    url: https://www.huntress.com/blog/exploitation-of-sonicwall-vpn
+    accessed: "2026-11-08"
+  - title: "FBI, CISA and co-sealers - AA24-109A, #StopRansomware: Akira Ransomware (updated 13 November 2025)"
+    url: https://www.cisa.gov/news-events/cybersecurity-advisories/aa24-109a
+    accessed: "2026-11-08"
+
+detect:
+  - id: sonicos-event-log-cleared
+    title: SonicOS event log cleared (event 5, Log Cleared)
+    type: log_regex
+    tier: possible
+    evidence_class: system-logs
+    sigma: [12-sonicwall-sonicos/sonicos_log_cleared.yml]
+    sources:
+      files: ["**/sonicos-system-logs*", "**/sonicos-syslog*"]
+    pattern: '\bLog Cleared\b'
+    attack: [T1070]
+    notes: >-
+      Event 5's message is "Log Cleared" (Log Events reference), and the event is
+      written after the clear, so it is in the export that follows. Arctic Wolf:
+      "Threat actors commonly sought to delete firewall logs upon gaining access to
+      compromised environments." An administrator may clear the log for ordinary
+      reasons; the hit is a question for whoever holds the firewall's change
+      record. Whatever was cleared is only in the syslog server's copy.
+
+  - id: sonicos-wan-zone-admin-login
+    title: Administrator login from the WAN zone (event 236)
+    type: log_regex
+    tier: possible
+    evidence_class: auth-logs
+    sigma: [12-sonicwall-sonicos/sonicos_wan_admin_login.yml]
+    sources:
+      files: ["**/sonicos-system-logs*", "**/sonicos-syslog*"]
+    pattern: 'WAN zone administrator login allowed'
+    attack: [T1133, T1078]
+    notes: >-
+      Event 236 (Log Events reference). SonicWall's workaround for CVE-2024-40766
+      is "restricting firewall management to trusted sources or disabling firewall
+      WAN management from Internet access", so a hardened firewall logs none of
+      these. SonicWall's 2025 notice: with a compromised administrator account,
+      "attackers may exploit administrative features such as packet capture,
+      debugging, logging, configuration backup, or MFA control". Check the source
+      address on each hit against the administrators' own; the toolkit has no
+      published example of this event in an intrusion.

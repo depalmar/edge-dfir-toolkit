@@ -1,0 +1,63 @@
+# Off-box hunt EDGE-HUNT-0032
+# Schema: ../schema/hunt.schema.json
+
+id: EDGE-HUNT-0032
+title: Many SonicWall accounts logging in from one source in quick succession
+platforms:
+- EDGE-0012
+actors:
+- EDGE-TA-0009
+seen_in:
+- Akira (Arctic Wolf, 2025)
+- SSL VPN compromises (Huntress, October 2025)
+- Credential stuffing (Huntress, July 2026)
+hypothesis: >-
+  Someone holding a list of valid credentials is testing or using them in bulk, from one address or a
+  handful, against the SSL VPN or the management login.
+data:
+- syslog
+data_detail: >-
+  The firewall's syslog copy (or System Logs export) for successful SSL VPN logins (1080, 238) and
+  administrator logins (29, 236), with user, source and time.
+method:
+- >-
+  Group successful logins by source address and count the distinct accounts per address per hour and
+  per day.
+- >-
+  Within each source, look at the gaps between logins: evenly spaced logins across accounts are what
+  Arctic Wolf describes.
+- >-
+  Check the busiest sources against the publishers' addresses (EDGE-IOC-0019 to 0023) and their ASNs
+  (EDGE-HUNT-0029).
+normal: >-
+  Each user logging in from their own few addresses; a shared office or SASE egress showing many
+  accounts, at working hours and uneven intervals.
+suspicious: >-
+  One source logging in to many accounts in minutes, at regular intervals, or outside the
+  organisation's own egress addresses.
+attack:
+- T1078
+- T1110.004
+inferred: >-
+  The grouping and the interval test are the toolkit's; the pattern is the publishers'.
+confidence: medium
+sources:
+- title: Arctic Wolf - Smash and Grab, Aggressive Akira Campaign Targets SonicWall VPNs (26 September 2025)
+  url: https://arcticwolf.com/resources/blog/smash-and-grab-aggressive-akira-campaign-targets-sonicwall-vpns/
+  accessed: '2026-11-08'
+  quote: >-
+    In some instances, multiple login events were observed in quick succession across a variety of
+    accounts, with repeated successful logins tied to the same VPN client IP address.
+  read: direct
+- title: Huntress - SonicWall SSLVPN compromise (October 2025)
+  url: https://www.huntress.com/blog/sonicwall-sslvpn-compromise
+  accessed: '2026-11-08'
+  quote: Threat actors are authenticating into multiple accounts rapidly across compromised devices.
+  read: direct
+- title: Huntress - Huntress Threat Advisory, Widespread SonicWall Credential Stuffing Campaign (28 July 2026)
+  url: https://www.huntress.com/blog/sonicwall-credential-stuffing-campaign
+  accessed: '2026-11-08'
+  quote: >-
+    Starting on July 25, 2026, at approximately 18:02:21 UTC, the Huntress SOC detected an
+    out-of-the-ordinary spike in successful SonicWall VPN and firewall logins.
+  read: direct

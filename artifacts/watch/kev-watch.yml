@@ -26,6 +26,7 @@ platforms:
   EDGE-0009: {vendor: '^Cisco$', product: 'IOS XE|IOS and IOS XE|IOS, (IOS )?XR, and (IOS )?XE|IOS Software and Cisco IOS XE'}
   EDGE-0010: {vendor: '^F5$', product: 'BIG-IP'}
   EDGE-0011: {vendor: '^SonicWall$', product: 'SMA ?1000'}
+  EDGE-0012: {vendor: '^SonicWall$', product: '^SonicOS'}
 
 # sha256 of each publisher file as it was parsed (checked 2026-10-27 against the
 # copies the indicator sets were built from). A change means re-parse and re-validate.
@@ -134,3 +135,19 @@ triaged:
     date: '2026-10-29'
     basis: Same advisory SNWLID-2026-0016 (a post-authentication OS command injection in the AMC); no IoCs from SonicWall
       or a researcher.
+  - cve: CVE-2026-19868
+    platform: EDGE-0012
+    decision: no-indicators
+    date: '2026-11-08'
+    basis: 'SonicWall SNWLID-2026-0014 (6 November 2026): "SonicWall PSIRT has investigated a report indicating potential
+      exploitation of this vulnerability"; it affects the SSL VPN only "if SAML is enabled for SSLVPN logins" and lets
+      valid credentials for an alternate method bypass SAML-enforced MFA. It publishes no IoCs or log message. A
+      search found news coverage only (BleepingComputer, SecurityWeek), none from a party that observed the
+      exploitation. Hardening sonicos-current-release cites the fix.'
+  - cve: CVE-2026-118527
+    platform: EDGE-0003
+    decision: deferred
+    date: '2026-11-08'
+    basis: 'Not yet triaged. Added to KEV 2026-10-30, chained with CVE-2026-104935 and CVE-2026-111357 (KEV notes).
+      Ivanti''s advisory on hub.ivanti.com was not reachable on 2026-11-08, and Volexity''s post does not name this
+      CVE, so which part of the chain it is has not been read from a primary source.'
